@@ -135,45 +135,17 @@ function ErrorStackTrace({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-xs">
-      {/* Error message */}
-      <div className="font-medium text-destructive">
-        {message}
-        {startLineNumber ? (
-          <span className="ml-1 font-normal text-muted-foreground">
-            (Line {startLineNumber}:{startColumn})
-          </span>
-        ) : null}
-      </div>
-
-      {/* Stack trace with Fix button */}
-      {stackFrames && stackFrames.length > 0 ? (
-        <div className="space-y-1">
-          <div className="flex flex-row items-center justify-between">
-            <div className="font-medium text-muted-foreground">Stack trace:</div>
-            {onFixWithAi ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 shrink-0 gap-1.5 border-destructive/30 bg-background/80 text-[0.6875rem] hover:border-destructive/50 hover:bg-background"
-                onClick={onFixWithAi}
-              >
-                <Sparkles className="size-3" />
-                Fix with AI
-              </Button>
-            ) : null}
-          </div>
-          <div className="space-y-0.5 rounded border bg-background/50 p-2">
-            {stackFrames.map((frame, index) => (
-              <StackFrame
-                key={`${frame.functionName}-${frame.fileName}-${frame.lineNumber}-${frame.columnNumber}`}
-                frame={frame}
-                index={index}
-              />
-            ))}
-          </div>
+      {/* Error message with Fix button */}
+      <div className="flex flex-row items-start justify-between gap-2">
+        <div className="font-medium text-destructive">
+          {message}
+          {startLineNumber ? (
+            <span className="ml-1 font-normal text-muted-foreground">
+              (Line {startLineNumber}:{startColumn})
+            </span>
+          ) : null}
         </div>
-      ) : onFixWithAi ? (
-        <div className="flex justify-end">
+        {onFixWithAi ? (
           <Button
             size="sm"
             variant="outline"
@@ -183,6 +155,22 @@ function ErrorStackTrace({
             <Sparkles className="size-3" />
             Fix with AI
           </Button>
+        ) : null}
+      </div>
+
+      {/* Stack trace */}
+      {stackFrames && stackFrames.length > 0 ? (
+        <div className="space-y-1">
+          <div className="font-medium text-muted-foreground">Stack trace:</div>
+          <div className="space-y-0.5 rounded border bg-background/50 p-2">
+            {stackFrames.map((frame, index) => (
+              <StackFrame
+                key={`${frame.functionName}-${frame.fileName}-${frame.lineNumber}-${frame.columnNumber}`}
+                frame={frame}
+                index={index}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
