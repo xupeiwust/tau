@@ -264,6 +264,11 @@ export const cadMachine = setup({
     isKernelNotInitialized: ({ context }) => !context.isKernelInitialized,
     isKernelInitializing: ({ context }) => context.isKernelInitializing,
     hasModel: ({ context }) => context.file !== undefined,
+    // Detects file switches vs content changes - file switches should render immediately
+    isDifferentFile({ context, event }) {
+      assertEvent(event, 'setFile');
+      return context.file?.filename !== event.file.filename;
+    },
   },
   delays: {
     fileDebounce: 500,
@@ -378,10 +383,19 @@ export const cadMachine = setup({
           target: 'initializing',
           actions: 'initializeModel',
         },
-        setFile: {
-          target: 'bufferingFile',
-          actions: 'setFile',
-        },
+        setFile: [
+          {
+            // File switch - render immediately without debounce
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+          },
+          {
+            // Same file content change - debounce
+            target: 'bufferingFile',
+            actions: 'setFile',
+          },
+        ],
         setParameters: {
           target: 'bufferingParameters',
           actions: 'setParameters',
@@ -423,11 +437,20 @@ export const cadMachine = setup({
           target: 'initializing',
           actions: 'initializeModel',
         },
-        setFile: {
-          target: 'bufferingFile',
-          actions: 'setFile',
-          reenter: true, // Reset debounce timer when new file comes in
-        },
+        setFile: [
+          {
+            // File switch - render immediately without debounce
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+          },
+          {
+            // Same file content change - reset debounce timer
+            target: 'bufferingFile',
+            actions: 'setFile',
+            reenter: true,
+          },
+        ],
         setParameters: {
           target: 'bufferingParameters',
           actions: 'setParameters',
@@ -449,10 +472,19 @@ export const cadMachine = setup({
           target: 'initializing',
           actions: 'initializeModel',
         },
-        setFile: {
-          target: 'bufferingFile',
-          actions: 'setFile',
-        },
+        setFile: [
+          {
+            // File switch - render immediately without debounce
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+          },
+          {
+            // Same file content change - go to file buffering
+            target: 'bufferingFile',
+            actions: 'setFile',
+          },
+        ],
         setParameters: {
           target: 'bufferingParameters',
           actions: 'setParameters',
@@ -481,10 +513,20 @@ export const cadMachine = setup({
           target: 'error',
           actions: 'setKernelError',
         },
-        setFile: {
-          actions: 'setFile',
-          target: 'bufferingFile',
-        },
+        setFile: [
+          {
+            // File switch - reenter rendering immediately
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+            reenter: true,
+          },
+          {
+            // Same file content change - debounce
+            target: 'bufferingFile',
+            actions: 'setFile',
+          },
+        ],
         setParameters: {
           actions: 'setParameters',
           target: 'bufferingParameters',
@@ -509,10 +551,19 @@ export const cadMachine = setup({
           target: 'initializing',
           actions: 'initializeModel',
         },
-        setFile: {
-          target: 'bufferingFile',
-          actions: 'setFile',
-        },
+        setFile: [
+          {
+            // File switch - render immediately without debounce
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+          },
+          {
+            // Same file content change - debounce
+            target: 'bufferingFile',
+            actions: 'setFile',
+          },
+        ],
         setParameters: {
           target: 'bufferingParameters',
           actions: 'setParameters',

@@ -27,7 +27,7 @@ type FileExplorerContext = {
 type FileExplorerEvent =
   | { type: 'openFile'; path: string }
   | { type: 'closeFile'; path: string }
-  | { type: 'setActiveFile'; path: string | undefined }
+  | { type: 'setActiveFile'; path: string }
   | { type: 'closeAll' };
 
 type FileExplorerEmitted = { type: 'fileOpened'; path: string };
@@ -113,20 +113,23 @@ export const fileExplorerMachine = setup({
       });
     }),
 
-    setActiveFile: enqueueActions(({ enqueue, event }) => {
+    setActiveFile: enqueueActions(({ enqueue, event, context }) => {
       assertEvent(event, 'setActiveFile');
+
+      // Already active - nothing to do
+      if (context.activeFilePath === event.path) {
+        return;
+      }
 
       enqueue.assign({
         activeFilePath: event.path,
       });
 
       // Emit fileOpened for the new active file
-      if (event.path) {
-        enqueue.emit({
-          type: 'fileOpened' as const,
-          path: event.path,
-        });
-      }
+      enqueue.emit({
+        type: 'fileOpened' as const,
+        path: event.path,
+      });
     }),
 
     closeAll: enqueueActions(({ enqueue }) => {
