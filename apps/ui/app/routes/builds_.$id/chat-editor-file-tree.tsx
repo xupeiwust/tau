@@ -1302,14 +1302,6 @@ function PendingFileInput({
   const handleBlur = useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
       const relatedTarget = event.relatedTarget as HTMLElement | undefined;
-      console.log('[PendingFileInput] blur event:', {
-        relatedTarget,
-        relatedTargetTagName: relatedTarget?.tagName,
-        relatedTargetClassName: relatedTarget?.className,
-        relatedTargetId: relatedTarget?.id,
-        isBody: relatedTarget === document.body,
-        isNullish: !relatedTarget,
-      });
       // Cancel on blur (user clicked elsewhere)
       onCancel();
     },
