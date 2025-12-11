@@ -1,6 +1,4 @@
 import { Streamdown } from 'streamdown';
-import katexUrl from 'katex/dist/katex.min.css?url';
-import type { LinkDescriptor } from 'react-router';
 import type { ComponentProps } from 'react';
 import { memo, useMemo } from 'react';
 import { InlineCode } from '#components/code/code-block.js';
