@@ -4,7 +4,14 @@ import type { ClassValue } from 'clsx';
 import { Virtuoso } from 'react-virtuoso';
 import { useIsMobile } from '#hooks/use-mobile.js';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '#components/ui/command.js';
-import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from '#components/ui/drawer.js';
+import {
+  Drawer,
+  DrawerNestedRoot,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+  DrawerTrigger,
+} from '#components/ui/drawer.js';
 import { Popover, PopoverContent, PopoverTrigger } from '#components/ui/popover.js';
 import { cn } from '#utils/ui.utils.js';
 import { LoadingSpinner } from '#components/ui/loading-spinner.js';
@@ -41,6 +48,17 @@ type ComboBoxResponsiveProperties<T> = Omit<React.HTMLAttributes<HTMLDivElement>
   readonly virtualizationHeight?: number;
   readonly isLoadingMore?: boolean;
   readonly onLoadMore?: () => void;
+  /**
+   * Use DrawerNestedRoot instead of Drawer when inside another drawer.
+   * This enables proper nested drawer behavior with Vaul.
+   */
+  readonly isNested?: boolean;
+  /**
+   * Callback to determine if the combobox should close after selecting an item.
+   * Receives the selected item value. Return true to close, false to keep open.
+   * Defaults to always closing.
+   */
+  readonly shouldCloseOnSelect?: (value: string) => boolean;
 };
 
 export function ComboBoxResponsive<T>({
@@ -67,6 +85,8 @@ export function ComboBoxResponsive<T>({
   virtualizationHeight = 300,
   isLoadingMore = false,
   onLoadMore,
+  isNested = false,
+  shouldCloseOnSelect,
   ...properties
 }: ComboBoxResponsiveProperties<T>): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
@@ -75,10 +95,16 @@ export function ComboBoxResponsive<T>({
   const selectionMadeReference = React.useRef(false);
 
   const handleSelect = (item: T) => {
+    const value = getValue(item);
+    const shouldClose = shouldCloseOnSelect?.(value) ?? true;
+
     setSelectedItem(item);
-    selectionMadeReference.current = true;
-    setOpen(false);
-    onSelect?.(getValue(item));
+    if (shouldClose) {
+      selectionMadeReference.current = true;
+      setOpen(false);
+    }
+
+    onSelect?.(value);
   };
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -96,8 +122,10 @@ export function ComboBoxResponsive<T>({
   };
 
   if (isMobile) {
+    const DrawerRoot = isNested ? DrawerNestedRoot : Drawer;
+
     return (
-      <Drawer open={open} onOpenChange={handleOpenChange}>
+      <DrawerRoot open={open} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>{children}</DrawerTrigger>
         <DrawerContent
           aria-labelledby="drawer-title"
@@ -130,7 +158,7 @@ export function ComboBoxResponsive<T>({
             onLoadMore={onLoadMore}
           />
         </DrawerContent>
-      </Drawer>
+      </DrawerRoot>
     );
   }
 
