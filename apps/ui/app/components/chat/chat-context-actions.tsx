@@ -7,6 +7,7 @@ import { useBuild } from '#hooks/use-build.js';
 import { toast } from '#components/ui/sonner.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
 import { orthographicViews, screenshotRequestMachine } from '#machines/screenshot-request.machine.js';
+import { cn } from '#utils/ui.utils.js';
 
 type ChatContextActionsProperties = {
   readonly addImage: (image: string) => void;
@@ -17,6 +18,7 @@ type ChatContextActionsProperties = {
   readonly selectedIndex?: number;
   readonly onSelectedIndexChange?: (index: number) => void;
   readonly onSelectItem?: (text: string) => void;
+  readonly className?: string;
 };
 
 type ContextActionItem = {
@@ -37,6 +39,7 @@ export function ChatContextActions({
   selectedIndex,
   onSelectedIndexChange,
   onSelectItem,
+  className,
   ...properties
 }: ChatContextActionsProperties): React.JSX.Element {
   const { cadRef: cadActor, graphicsRef: graphicsActor, fileExplorerRef } = useBuild();
@@ -335,7 +338,7 @@ ${error.stack ? `\n\`\`\`\n${error.stack}\n\`\`\`` : ''}`;
     let currentFlatIndex = 0;
 
     return (
-      <div className="max-h-64 overflow-y-auto">
+      <div className={cn('max-h-64 overflow-y-auto', className)}>
         {filteredGroupedItems.map((group) => (
           <div key={group.name}>
             <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{group.name}</div>

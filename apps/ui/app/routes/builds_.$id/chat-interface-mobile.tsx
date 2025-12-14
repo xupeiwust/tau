@@ -96,22 +96,22 @@ export const ChatInterfaceMobile = memo(function (): React.JSX.Element {
           aria-describedby="drawer-description"
           className={cn(
             'flex-1 rounded-t-lg border-t bg-sidebar',
+            'z-40', // Position below the navigation tabs
             //
-            'data-[vaul-drawer-direction=bottom]:max-h-[94vh]!',
+            'data-[vaul-drawer-direction=bottom]:max-h-[100dvh]',
             'data-[vaul-drawer-direction=bottom]:mt-0',
             '[&_[data-slot=drawer-handle-indicator]]:bg-sidebar-primary/15',
           )}
           style={{
-            // Height: isModelTab ? '100dvh' : `calc(${Number(activeSnapPoint) - 0.06} * 100dvh)`,
             height: '100%',
           }}
         >
           {/* Tab contents */}
           <Tabs
             value={activeTab}
-            className="flex h-full flex-col pb-13"
+            className="flex h-full flex-col p-0"
             style={{
-              height: isModelTab ? '100dvh' : `calc(${Number(activeSnapPoint) - 0.05} * 100dvh)`,
+              height: isModelTab ? '100dvh' : `calc(${Number(activeSnapPoint)} * 100dvh - var(--spacing)*12)`,
             }}
             onValueChange={handleTabChange}
           >
@@ -139,7 +139,7 @@ export const ChatInterfaceMobile = memo(function (): React.JSX.Element {
       </Drawer>
 
       {/* Navigation tabs - Always visible and sticky to bottom */}
-      <div className={cn('pointer-events-auto fixed right-0 bottom-0 left-0 z-60')}>
+      <div className={cn('pointer-events-auto fixed right-0 bottom-0 left-0 z-50')}>
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <ChatInterfaceNav className="h-(--nav-height)" />
         </Tabs>
