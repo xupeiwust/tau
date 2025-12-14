@@ -18,7 +18,7 @@ export function KernelSelector({
   onClose,
 }: KernelSelectorProperties): React.JSX.Element {
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-3 max-md:-mx-4 max-md:snap-x max-md:snap-mandatory max-md:scroll-px-4 max-md:flex-nowrap max-md:overflow-x-auto max-md:pb-2 max-md:pl-4 max-md:[-webkit-overflow-scrolling:touch] max-md:[scrollbar-width:none] max-md:after:block max-md:after:w-1 max-md:after:shrink-0 max-md:after:content-[''] max-md:[&::-webkit-scrollbar]:hidden">
       {kernelConfigurations.map((option) => (
         <HoverCard key={option.id}>
           <HoverCardTrigger asChild>
@@ -27,6 +27,7 @@ export function KernelSelector({
               size="sm"
               className={cn(
                 'flex h-auto flex-col items-center justify-center gap-2 rounded-lg border-border p-2 transition-all hover:border-ring/50 hover:bg-primary/20',
+                'max-md:min-w-[calc((100%-1.5rem)/3.3)] max-md:shrink-0 max-md:snap-start',
                 selectedKernel === option.id &&
                   'border-ring bg-primary/5 text-primary hover:border-ring hover:bg-primary/10 dark:border-ring',
               )}
