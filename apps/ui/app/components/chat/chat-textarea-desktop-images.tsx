@@ -13,12 +13,12 @@ type ChatTextareaImagesProperties = {
  * Shared image preview overlay component for the chat textarea.
  * Displays uploaded images with hover preview and remove functionality.
  */
-export const ChatTextareaImages = memo(function ({
+export const ChatTextareaDesktopImages = memo(function ({
   images,
   onRemoveImage,
-}: ChatTextareaImagesProperties): React.JSX.Element | null {
+}: ChatTextareaImagesProperties): React.JSX.Element | undefined {
   if (images.length === 0) {
-    return null;
+    return undefined;
   }
 
   return (

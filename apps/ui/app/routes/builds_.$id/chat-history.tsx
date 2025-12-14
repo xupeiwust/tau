@@ -7,7 +7,7 @@ import { ChatMessage } from '#routes/builds_.$id/chat-message.js';
 import { ScrollDownButton } from '#routes/builds_.$id/scroll-down-button.js';
 import { ChatError } from '#routes/builds_.$id/chat-error.js';
 import { ChatStatus } from '#routes/builds_.$id/chat-status.js';
-import type { ChatTextareaProperties, ChatTextareaHandle } from '#components/chat/chat-textarea.js';
+import type { ChatTextareaProperties, ChatTextareaHandle } from '#components/chat/chat-textarea-types.js';
 import { ChatTextarea } from '#components/chat/chat-textarea.js';
 import { createMessage } from '#utils/chat.utils.js';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
@@ -183,7 +183,7 @@ export const ChatHistory = memo(function (props: {
               </div>
             ),
             Footer: () => (
-              <div className="px-4 pb-12">
+              <div className="px-4">
                 <ChatError isOpen={isErrorCollapsibleOpen} onOpenChange={setIsErrorCollapsibleOpen} />
               </div>
             ),
@@ -196,7 +196,6 @@ export const ChatHistory = memo(function (props: {
           <ChatStatus className="absolute inset-x-0 -top-7" />
           <ChatTextarea
             ref={chatTextareaRef}
-            enableMinimalMobileUI
             mode="main"
             className="rounded-sm"
             enableAutoFocus={false}

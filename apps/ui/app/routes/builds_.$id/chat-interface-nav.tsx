@@ -45,8 +45,8 @@ export function ChatInterfaceNav({ className }: { readonly className?: string })
     <TabsList
       enableAnimation={false}
       className={cn(
-        'w-full border bg-sidebar',
-        'gap-0.25 rounded-t-xl rounded-b-none border-b-0 p-0.5 text-muted-foreground! [&_svg]:size-4! [&_svg]:text-muted-foreground',
+        'w-full border-t bg-sidebar',
+        'gap-0.25 rounded-t-xl rounded-b-none p-0.5 text-muted-foreground! [&_svg]:size-4! [&_svg]:text-muted-foreground',
         className,
       )}
     >

@@ -173,6 +173,9 @@ function Sidebar({
             '--sidebar-width': sidebarWidthMobile,
           }}
           side={side}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+          }}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>

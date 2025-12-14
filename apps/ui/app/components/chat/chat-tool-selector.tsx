@@ -1,18 +1,14 @@
 import { memo, useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Globe, Code, Image, Eye } from 'lucide-react';
+import { Globe, Code, Image, Eye, Check } from 'lucide-react';
 import type { ToolSelection, ToolName } from '@taucad/chat';
 import { toolName, toolMode } from '@taucad/chat/constants';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSwitchItem,
-  DropdownMenuTrigger,
-} from '#components/ui/dropdown-menu.js';
+import { useIsMobile } from '#hooks/use-mobile.js';
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from '#components/ui/drawer.js';
+import { Popover, PopoverContent, PopoverTrigger } from '#components/ui/popover.js';
+import { Label } from '#components/ui/label.js';
+import { Switch } from '#components/ui/switch.js';
+import { cn } from '#utils/ui.utils.js';
 
 type ToolSelectorMode = 'auto' | 'none' | 'any' | 'custom';
 
@@ -116,6 +112,7 @@ export const ChatToolSelector = memo(function ({
   children,
 }: ChatToolSelectorProperties): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const isMobile = useIsMobile();
   const mode = getModeFromValue(value);
   const selectedTools = getToolsFromValue(value);
 
@@ -153,12 +150,12 @@ export const ChatToolSelector = memo(function ({
   );
 
   const handleToolToggle = useCallback(
-    (toolName: ToolName) => {
+    (tool: ToolName) => {
       const currentTools = Array.isArray(value) ? value : [];
-      const isCurrentlySelected = currentTools.includes(toolName);
+      const isCurrentlySelected = currentTools.includes(tool);
 
       if (isCurrentlySelected) {
-        const newTools = currentTools.filter((t) => t !== toolName);
+        const newTools = currentTools.filter((t) => t !== tool);
         // If no tools selected, switch back to auto
         if (newTools.length === 0) {
           onValueChange?.(toolMode.auto);
@@ -166,66 +163,93 @@ export const ChatToolSelector = memo(function ({
           onValueChange?.(newTools);
         }
       } else {
-        const newTools = [...currentTools, toolName];
+        const newTools = [...currentTools, tool];
         onValueChange?.(newTools);
       }
     },
     [value, onValueChange],
   );
 
-  const preventClose = useCallback((event: Event) => {
-    event.preventDefault();
-  }, []);
-
-  return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>{children({ selectedMode: mode, selectedTools, toolMetadata })}</DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>ToolName Selection</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup
-          value={mode}
-          onValueChange={(value) => {
-            handleModeChange(value as ToolSelectorMode);
-          }}
-        >
+  const content = (
+    <div className="flex flex-col gap-4 p-2">
+      {/* Mode Selection */}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-muted-foreground">Tool Mode</span>
+        <div className="flex flex-col gap-1">
           {modeOptions.map((option) => (
-            <DropdownMenuRadioItem key={option.value} className="h-10" value={option.value} onSelect={preventClose}>
+            <button
+              key={option.value}
+              type="button"
+              className={cn(
+                'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors',
+                'hover:bg-accent',
+                mode === option.value && 'bg-accent',
+              )}
+              onClick={() => {
+                handleModeChange(option.value);
+              }}
+            >
               <div className="flex flex-col items-start gap-0">
                 <span className="text-sm font-medium">{option.label}</span>
                 <span className="text-xs text-muted-foreground">{option.description}</span>
               </div>
-            </DropdownMenuRadioItem>
+              {mode === option.value ? <Check className="size-4 text-primary" /> : null}
+            </button>
           ))}
-        </DropdownMenuRadioGroup>
+        </div>
+      </div>
 
-        {mode === 'custom' ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Select tools to use</DropdownMenuLabel>
+      {/* Tool Toggles (only in custom mode) */}
+      {mode === 'custom' ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Select Tools</span>
+          <div className="flex flex-col gap-2">
             {Object.entries(toolMetadata).map(([key, metadata]) => {
               const toolKey = key as ToolName;
               const Icon = metadata.icon;
               const isSelected = selectedTools.includes(toolKey);
 
               return (
-                <DropdownMenuSwitchItem
-                  key={toolKey}
-                  isChecked={isSelected}
-                  onIsCheckedChange={() => {
-                    handleToolToggle(toolKey);
-                  }}
-                >
-                  <span className="flex items-center gap-2">
+                <div key={toolKey} className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-accent">
+                  <Label htmlFor={`tool-${toolKey}`} className="flex cursor-pointer items-center gap-2">
                     <Icon className="size-4" />
-                    {metadata.label}
-                  </span>
-                </DropdownMenuSwitchItem>
+                    <span>{metadata.label}</span>
+                  </Label>
+                  <Switch
+                    id={`tool-${toolKey}`}
+                    checked={isSelected}
+                    onCheckedChange={() => {
+                      handleToolToggle(toolKey);
+                    }}
+                  />
+                </div>
               );
             })}
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerTrigger asChild>{children({ selectedMode: mode, selectedTools, toolMetadata })}</DrawerTrigger>
+        <DrawerContent>
+          <DrawerTitle className="sr-only">Tool Selection</DrawerTitle>
+          <DrawerDescription className="sr-only">Select the tool mode and individual tools to use.</DrawerDescription>
+          {content}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>{children({ selectedMode: mode, selectedTools, toolMetadata })}</PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-0">
+        {content}
+      </PopoverContent>
+    </Popover>
   );
 });

@@ -40,7 +40,6 @@ export type ChatTextareaProperties = {
   readonly enableContextActions?: boolean;
   readonly enableKernelSelector?: boolean;
   readonly mode?: 'main' | 'edit';
-  readonly enableMinimalMobileUI?: boolean;
 };
 
 // Define the key combination for cancelling the stream
@@ -78,9 +77,12 @@ export function useChatTextareaLogic({
   formattedCancelKeyCombination: string;
 
   // Refs
-  textareaReference: React.RefObject<HTMLTextAreaElement | undefined>;
-  fileInputReference: React.RefObject<HTMLInputElement | undefined>;
-  containerReference: React.RefObject<HTMLDivElement | undefined>;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
+  textareaReference: React.RefObject<HTMLTextAreaElement | null>;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
+  fileInputReference: React.RefObject<HTMLInputElement | null>;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
+  containerReference: React.RefObject<HTMLDivElement | null>;
 
   // Handlers
   handleSubmit: () => Promise<void>;
@@ -520,7 +522,12 @@ export function useChatTextareaLogic({
   }, [showContextMenu]);
 
   const handlePointerDown = (event: React.MouseEvent<HTMLDivElement>): void => {
-    event.preventDefault();
+    // Only prevent default when clicking outside the textarea
+    // This allows cursor positioning within the textarea while preventing
+    // focus changes when clicking on the container padding/margins
+    if (event.target !== textareaReference.current) {
+      event.preventDefault();
+    }
   };
 
   const handleTextareaBlur = useCallback((): void => {

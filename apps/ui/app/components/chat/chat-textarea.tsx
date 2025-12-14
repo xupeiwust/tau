@@ -3,12 +3,11 @@ import type { ChatTextareaProperties } from '#components/chat/chat-textarea-type
 import { useChatTextareaLogic } from '#components/chat/chat-textarea-types.js';
 import { ChatTextareaDesktop } from '#components/chat/chat-textarea-desktop.js';
 import { ChatTextareaMobile } from '#components/chat/chat-textarea-mobile.js';
-
-// Re-export types for backwards compatibility
+import { useIsMobile } from '#hooks/use-mobile.js';
 
 /**
  * Main chat textarea component that conditionally renders either the
- * desktop or mobile version based on the `enableMinimalMobileUI` prop.
+ * desktop or mobile version based on the `useIsMobile()` hook.
  *
  * All logic is shared via the `useChatTextareaLogic` hook.
  */
@@ -21,9 +20,9 @@ export const ChatTextarea = memo(function ({
   className,
   enableContextActions = true,
   enableKernelSelector = true,
-  enableMinimalMobileUI = false,
   mode = 'main',
 }: ChatTextareaProperties): React.JSX.Element {
+  const isMobile = useIsMobile();
   const logic = useChatTextareaLogic({
     ref,
     onSubmit,
@@ -33,7 +32,7 @@ export const ChatTextarea = memo(function ({
     mode,
   });
 
-  if (enableMinimalMobileUI) {
+  if (isMobile) {
     return (
       <ChatTextareaMobile
         className={className}
@@ -78,6 +77,7 @@ export const ChatTextarea = memo(function ({
         setAtSymbolPosition={logic.setAtSymbolPosition}
         setContextSearchQuery={logic.setContextSearchQuery}
         setSelectedMenuIndex={logic.setSelectedMenuIndex}
+        setDraftToolChoice={logic.setDraftToolChoice}
       />
     );
   }
@@ -130,9 +130,3 @@ export const ChatTextarea = memo(function ({
     />
   );
 });
-
-export {
-  type ChatTextareaHandle,
-  cancelChatStreamKeyCombination,
-  type ChatTextareaProperties,
-} from '#components/chat/chat-textarea-types.js';

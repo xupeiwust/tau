@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.
 import { SvgIcon } from '#components/icons/svg-icon.js';
 import { cn } from '#utils/ui.utils.js';
 import { ChatContextActions } from '#components/chat/chat-context-actions.js';
-import { ChatTextareaImages } from '#components/chat/chat-textarea-images.js';
+import { ChatTextareaDesktopImages } from '#components/chat/chat-textarea-desktop-images.js';
 import { ChatTextareaSubmitButton } from '#components/chat/chat-textarea-submit-button.js';
 import { focusTrapAttribute } from '#components/chat/chat-textarea-types.js';
 import type { useModels } from '#hooks/use-models.js';
@@ -35,8 +35,11 @@ type ChatTextareaDesktopProperties = {
   readonly formattedCancelKeyCombination: string;
 
   // Refs
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
   readonly textareaReference: React.RefObject<HTMLTextAreaElement | null>;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
   readonly fileInputReference: React.RefObject<HTMLInputElement | null>;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
   readonly containerReference: React.RefObject<HTMLDivElement | null>;
 
   // Handlers
@@ -132,7 +135,12 @@ export const ChatTextareaDesktop = memo(function ({
       {/* Textarea */}
       <div
         className={cn('flex size-full flex-col overflow-auto')}
-        onClick={focusInput}
+        onClick={(event) => {
+          // Only focus if clicking outside the textarea (e.g., on padding)
+          if (event.target !== textareaReference.current) {
+            focusInput();
+          }
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -157,7 +165,7 @@ export const ChatTextareaDesktop = memo(function ({
       </div>
 
       {/* Images overlay */}
-      <ChatTextareaImages images={images} onRemoveImage={removeImage} />
+      <ChatTextareaDesktopImages images={images} onRemoveImage={removeImage} />
 
       {/* Context Menu */}
       {showContextMenu ? (
@@ -350,7 +358,7 @@ export const ChatTextareaDesktop = memo(function ({
           isSubmitting={isSubmitting}
           isDisabled={inputText.trim().length === 0}
           formattedCancelKeyCombination={formattedCancelKeyCombination}
-          onSubmit={() => void handleSubmit()}
+          onSubmit={handleSubmit}
           onCancel={handleCancelClick}
         />
       </div>
