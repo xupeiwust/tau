@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.
 import { SvgIcon } from '#components/icons/svg-icon.js';
 import { cn } from '#utils/ui.utils.js';
 import { ChatContextActions } from '#components/chat/chat-context-actions.js';
+import { ChatTextareaContextMenu } from '#components/chat/chat-textarea-context-menu.js';
 import { ChatTextareaDesktopImages } from '#components/chat/chat-textarea-desktop-images.js';
 import { ChatTextareaSubmitButton } from '#components/chat/chat-textarea-submit-button.js';
 import { focusTrapAttribute } from '#components/chat/chat-textarea-types.js';
@@ -169,25 +170,19 @@ export const ChatTextareaDesktop = memo(function ({
 
       {/* Context Menu */}
       {showContextMenu ? (
-        <div className="absolute bottom-full left-2 z-50 mb-2 w-60 rounded-md border bg-popover p-0 text-popover-foreground shadow-md">
-          <ChatContextActions
-            asPopoverMenu
-            addImage={handleContextImageAdd}
-            addText={handleContextMenuSelect}
-            searchQuery={contextSearchQuery}
-            selectedIndex={selectedMenuIndex}
-            onSelectedIndexChange={setSelectedMenuIndex}
-            onSelectItem={(text: string) => {
-              handleContextMenuSelect(text);
-            }}
-            onClose={() => {
-              setShowContextMenu(false);
-              setAtSymbolPosition(-1);
-              setContextSearchQuery('');
-              setSelectedMenuIndex(0);
-            }}
-          />
-        </div>
+        <ChatTextareaContextMenu
+          searchQuery={contextSearchQuery}
+          selectedIndex={selectedMenuIndex}
+          onSelectedIndexChange={setSelectedMenuIndex}
+          onAddImage={handleContextImageAdd}
+          onAddText={handleContextMenuSelect}
+          onClose={() => {
+            setShowContextMenu(false);
+            setAtSymbolPosition(-1);
+            setContextSearchQuery('');
+            setSelectedMenuIndex(0);
+          }}
+        />
       ) : null}
 
       {/* Drag and drop feedback */}
@@ -365,3 +360,5 @@ export const ChatTextareaDesktop = memo(function ({
     </div>
   );
 });
+
+ChatTextareaDesktop.displayName = 'ChatTextareaDesktop';

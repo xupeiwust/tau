@@ -16,6 +16,30 @@ import { useKeydown } from '#hooks/use-keydown.js';
  */
 export const focusTrapAttribute = 'data-chat-textarea-focustrap';
 
+/**
+ * Reads a file as a data URL using FileReader.
+ * Returns a Promise that resolves with the data URL string.
+ */
+const readFileAsDataUrl = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', (event) => {
+      const result = event.target?.result;
+      if (typeof result === 'string' && result !== '') {
+        resolve(result);
+      } else {
+        reject(new Error('Invalid file read result'));
+      }
+    });
+
+    reader.addEventListener('error', () => {
+      reject(new Error('Failed to read file'));
+    });
+
+    reader.readAsDataURL(file);
+  });
+};
+
 export type ChatTextareaHandle = {
   focus: () => void;
 };
@@ -248,27 +272,20 @@ export function useChatTextareaLogic({
   }, []);
 
   const handleDrop = useCallback(
-    (event: React.DragEvent): void => {
+    async (event: React.DragEvent): Promise<void> => {
       event.preventDefault();
       setIsDragging(false);
 
       if (event.dataTransfer.files.length > 0) {
         for (const file of event.dataTransfer.files) {
           if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            const handleLoad = (readerEvent: ProgressEvent<FileReader>): void => {
-              if (readerEvent.target?.result && typeof readerEvent.target.result === 'string') {
-                const { result } = readerEvent.target;
-                if (result !== '') {
-                  addImage(result);
-                }
-              }
-
-              reader.removeEventListener('load', handleLoad);
-            };
-
-            reader.addEventListener('load', handleLoad);
-            reader.readAsDataURL(file);
+            try {
+              // eslint-disable-next-line no-await-in-loop -- reading files sequentially
+              const dataUrl = await readFileAsDataUrl(file);
+              addImage(dataUrl);
+            } catch {
+              toast.error('Failed to read image');
+            }
           } else {
             toast.error('Only images are supported');
           }

@@ -28,7 +28,8 @@ export const ChatTextareaMobileImages = memo(function ({
     <>
       <div className="flex flex-wrap gap-1">
         {images.map((image, index) => (
-          <div key={image} className="relative">
+          // eslint-disable-next-line react/no-array-index-key -- unique key for each image
+          <div key={`image-${index}-${image}`} className="relative">
             {/* Thumbnail - tap to open dialog */}
             <button
               type="button"

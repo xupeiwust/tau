@@ -4,6 +4,7 @@ import { useChatTextareaLogic } from '#components/chat/chat-textarea-types.js';
 import { ChatTextareaDesktop } from '#components/chat/chat-textarea-desktop.js';
 import { ChatTextareaMobile } from '#components/chat/chat-textarea-mobile.js';
 import { useIsMobile } from '#hooks/use-mobile.js';
+import { ClientOnly } from '#components/ui/utils/client-only.js';
 
 /**
  * Main chat textarea component that conditionally renders either the
@@ -34,7 +35,59 @@ export const ChatTextarea = memo(function ({
 
   if (isMobile) {
     return (
-      <ChatTextareaMobile
+      <ClientOnly>
+        <ChatTextareaMobile
+          className={className}
+          enableAutoFocus={enableAutoFocus}
+          enableContextActions={enableContextActions}
+          enableKernelSelector={enableKernelSelector}
+          // State
+          isDragging={logic.isDragging}
+          showContextMenu={logic.showContextMenu}
+          contextSearchQuery={logic.contextSearchQuery}
+          selectedMenuIndex={logic.selectedMenuIndex}
+          isSubmitting={logic.isSubmitting}
+          inputText={logic.inputText}
+          images={logic.images}
+          selectedToolChoice={logic.selectedToolChoice}
+          status={logic.status}
+          selectedModel={logic.selectedModel}
+          formattedCancelKeyCombination={logic.formattedCancelKeyCombination}
+          // Refs
+          textareaReference={logic.textareaReference}
+          fileInputReference={logic.fileInputReference}
+          containerReference={logic.containerReference}
+          // Handlers
+          handleSubmit={logic.handleSubmit}
+          handleCancelClick={logic.handleCancelClick}
+          handleTextareaKeyDown={logic.handleTextareaKeyDown}
+          handleDragOver={logic.handleDragOver}
+          handleDragLeave={logic.handleDragLeave}
+          handleDrop={logic.handleDrop}
+          handleFileSelect={logic.handleFileSelect}
+          handleFileChange={logic.handleFileChange}
+          handleTextChange={logic.handleTextChange}
+          handleContextMenuSelect={logic.handleContextMenuSelect}
+          handleContextImageAdd={logic.handleContextImageAdd}
+          handleAddText={logic.handleAddText}
+          handleAddImage={logic.handleAddImage}
+          handleTextareaBlur={logic.handleTextareaBlur}
+          handlePointerDown={logic.handlePointerDown}
+          focusInput={logic.focusInput}
+          removeImage={logic.removeImage}
+          setShowContextMenu={logic.setShowContextMenu}
+          setAtSymbolPosition={logic.setAtSymbolPosition}
+          setContextSearchQuery={logic.setContextSearchQuery}
+          setSelectedMenuIndex={logic.setSelectedMenuIndex}
+          setDraftToolChoice={logic.setDraftToolChoice}
+        />
+      </ClientOnly>
+    );
+  }
+
+  return (
+    <ClientOnly>
+      <ChatTextareaDesktop
         className={className}
         enableAutoFocus={enableAutoFocus}
         enableContextActions={enableContextActions}
@@ -73,60 +126,12 @@ export const ChatTextarea = memo(function ({
         handlePointerDown={logic.handlePointerDown}
         focusInput={logic.focusInput}
         removeImage={logic.removeImage}
+        setDraftToolChoice={logic.setDraftToolChoice}
         setShowContextMenu={logic.setShowContextMenu}
         setAtSymbolPosition={logic.setAtSymbolPosition}
         setContextSearchQuery={logic.setContextSearchQuery}
         setSelectedMenuIndex={logic.setSelectedMenuIndex}
-        setDraftToolChoice={logic.setDraftToolChoice}
       />
-    );
-  }
-
-  return (
-    <ChatTextareaDesktop
-      className={className}
-      enableAutoFocus={enableAutoFocus}
-      enableContextActions={enableContextActions}
-      enableKernelSelector={enableKernelSelector}
-      // State
-      isDragging={logic.isDragging}
-      showContextMenu={logic.showContextMenu}
-      contextSearchQuery={logic.contextSearchQuery}
-      selectedMenuIndex={logic.selectedMenuIndex}
-      isSubmitting={logic.isSubmitting}
-      inputText={logic.inputText}
-      images={logic.images}
-      selectedToolChoice={logic.selectedToolChoice}
-      status={logic.status}
-      selectedModel={logic.selectedModel}
-      formattedCancelKeyCombination={logic.formattedCancelKeyCombination}
-      // Refs
-      textareaReference={logic.textareaReference}
-      fileInputReference={logic.fileInputReference}
-      containerReference={logic.containerReference}
-      // Handlers
-      handleSubmit={logic.handleSubmit}
-      handleCancelClick={logic.handleCancelClick}
-      handleTextareaKeyDown={logic.handleTextareaKeyDown}
-      handleDragOver={logic.handleDragOver}
-      handleDragLeave={logic.handleDragLeave}
-      handleDrop={logic.handleDrop}
-      handleFileSelect={logic.handleFileSelect}
-      handleFileChange={logic.handleFileChange}
-      handleTextChange={logic.handleTextChange}
-      handleContextMenuSelect={logic.handleContextMenuSelect}
-      handleContextImageAdd={logic.handleContextImageAdd}
-      handleAddText={logic.handleAddText}
-      handleAddImage={logic.handleAddImage}
-      handleTextareaBlur={logic.handleTextareaBlur}
-      handlePointerDown={logic.handlePointerDown}
-      focusInput={logic.focusInput}
-      removeImage={logic.removeImage}
-      setDraftToolChoice={logic.setDraftToolChoice}
-      setShowContextMenu={logic.setShowContextMenu}
-      setAtSymbolPosition={logic.setAtSymbolPosition}
-      setContextSearchQuery={logic.setContextSearchQuery}
-      setSelectedMenuIndex={logic.setSelectedMenuIndex}
-    />
+    </ClientOnly>
   );
 });

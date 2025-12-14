@@ -24,7 +24,11 @@ export const ChatTextareaDesktopImages = memo(function ({
   return (
     <div className="absolute top-3 right-3 left-3 flex flex-wrap gap-1">
       {images.map((image, index) => (
-        <div key={image} className="group/image-item relative text-muted-foreground hover:text-foreground">
+        <div
+          // eslint-disable-next-line react/no-array-index-key -- unique key for each image
+          key={`image-${index}-${image}`}
+          className="group/image-item relative text-muted-foreground hover:text-foreground"
+        >
           <HoverCard openDelay={100} closeDelay={100}>
             <HoverCardTrigger asChild>
               <div className="flex h-6 cursor-zoom-in items-center justify-center overflow-hidden rounded-xs border bg-background object-cover">
