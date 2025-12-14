@@ -6,6 +6,12 @@ function Drawer({ ...properties }: React.ComponentProps<typeof DrawerPrimitive.R
   return <DrawerPrimitive.Root data-slot="drawer" {...properties} />;
 }
 
+function DrawerNestedRoot({
+  ...properties
+}: React.ComponentProps<typeof DrawerPrimitive.NestedRoot>): React.JSX.Element {
+  return <DrawerPrimitive.NestedRoot data-slot="drawer-nested-root" {...properties} />;
+}
+
 function DrawerTrigger({ ...properties }: React.ComponentProps<typeof DrawerPrimitive.Trigger>): React.JSX.Element {
   return <DrawerPrimitive.Trigger data-slot="drawer-trigger" {...properties} />;
 }
@@ -118,6 +124,7 @@ function DrawerDescription({
 
 export {
   Drawer,
+  DrawerNestedRoot,
   DrawerPortal,
   DrawerOverlay,
   DrawerTrigger,
