@@ -2,7 +2,50 @@ import { Buffer } from 'node:buffer';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WebSocket } from 'ws';
+import type { Models } from '@kittycad/lib';
 import type { Environment } from '#config/environment.config.js';
+
+type WebSocketResponse = Models['WebSocketResponse_type'];
+type WebSocketRequest = Models['WebSocketRequest_type'];
+
+/**
+ * Type guard to check if the parsed message is a valid WebSocket response.
+ * Validates the discriminated union structure.
+ */
+function isWebSocketResponse(data: unknown): data is WebSocketResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const response = data as Record<string, unknown>;
+
+  // Check for success response
+  if (response['success'] === true) {
+    const { resp } = response;
+
+    return (
+      typeof resp === 'object' &&
+      resp !== null &&
+      'type' in resp &&
+      typeof (resp as Record<string, unknown>)['type'] === 'string'
+    );
+  }
+
+  // Check for failure response
+  if (response['success'] === false) {
+    return Array.isArray(response['errors']);
+  }
+
+  return false;
+}
+
+/**
+ * Type guard to check if the parsed message is a WebSocket request with headers type.
+ * Used to intercept client authentication attempts.
+ */
+function isHeadersRequest(data: unknown): data is Extract<WebSocketRequest, { type: 'headers' }> {
+  return typeof data === 'object' && data !== null && (data as Record<string, unknown>)['type'] === 'headers';
+}
 
 /**
  * RFC 6455 close codes that are reserved and must not be sent in a close frame.
@@ -63,9 +106,28 @@ export class KernelsService {
     const zooSocket = new WebSocket(zooUrl);
     zooSocket.binaryType = 'arraybuffer';
 
-    let isZooAuthenticated = false;
-    let clientClosed = false;
-    let zooClosed = false;
+    // Use a single state object to prevent race conditions when both sockets close simultaneously
+    const connectionState = {
+      isZooAuthenticated: false,
+      clientClosed: false,
+      zooClosed: false,
+      isCleaningUp: false,
+    };
+
+    /**
+     * Attempts to claim exclusive cleanup responsibility.
+     * Prevents double cleanup when both sockets close simultaneously.
+     * @returns true if this caller should perform cleanup, false if another caller already claimed it
+     */
+    const tryClaimCleanup = (): boolean => {
+      if (connectionState.isCleaningUp) {
+        return false;
+      }
+
+      connectionState.isCleaningUp = true;
+
+      return true;
+    };
 
     // Handle Zoo socket open - send authentication
     zooSocket.addEventListener('open', () => {
@@ -84,20 +146,21 @@ export class KernelsService {
 
     // Handle messages from Zoo -> forward to client
     zooSocket.addEventListener('message', (event) => {
-      if (clientClosed) {
+      if (connectionState.clientClosed) {
         return;
       }
 
       // Check if this is the authentication success response
-      if (!isZooAuthenticated && typeof event.data === 'string') {
+      if (!connectionState.isZooAuthenticated && typeof event.data === 'string') {
         try {
-          const message = JSON.parse(event.data) as { success?: boolean; resp?: { type?: string } };
-          if (message.success && message.resp?.type === 'modeling_session_data') {
-            isZooAuthenticated = true;
+          const parsed: unknown = JSON.parse(event.data);
+          if (isWebSocketResponse(parsed) && parsed.success && parsed.resp.type === 'modeling_session_data') {
+            connectionState.isZooAuthenticated = true;
             this.logger.debug('Zoo authentication successful');
           }
-        } catch {
-          // Not JSON, continue forwarding
+        } catch (error) {
+          // Not JSON, continue forwarding - this is expected for non-JSON messages
+          this.logger.verbose('Received non-JSON message from Zoo during auth check:', error);
         }
       }
 
@@ -117,20 +180,21 @@ export class KernelsService {
 
     // Handle messages from client -> forward to Zoo
     clientSocket.addEventListener('message', (event) => {
-      if (zooClosed) {
+      if (connectionState.zooClosed) {
         return;
       }
 
       // Intercept and drop 'headers' messages from client - proxy handles authentication
       if (typeof event.data === 'string') {
         try {
-          const message = JSON.parse(event.data) as { type?: string };
-          if (message.type === 'headers') {
+          const parsed: unknown = JSON.parse(event.data);
+          if (isHeadersRequest(parsed)) {
             this.logger.debug('Dropping client headers message - proxy handles authentication');
             return;
           }
-        } catch {
-          // Not JSON, continue forwarding
+        } catch (error) {
+          // Not JSON, continue forwarding - this is expected for non-JSON messages
+          this.logger.verbose('Received non-JSON message from client:', error);
         }
       }
 
@@ -146,10 +210,10 @@ export class KernelsService {
 
     // Handle Zoo socket close
     zooSocket.addEventListener('close', (event) => {
-      zooClosed = true;
+      connectionState.zooClosed = true;
       this.logger.debug(`Zoo WebSocket closed: code=${event.code}, reason=${event.reason}`);
 
-      if (!clientClosed && clientSocket.readyState === WebSocket.OPEN) {
+      if (tryClaimCleanup() && clientSocket.readyState === WebSocket.OPEN) {
         // Forward the close code if valid per RFC 6455, otherwise use 1011 (Internal Error)
         const closeCode = getSafeCloseCode(event.code);
         clientSocket.close(closeCode, event.reason || 'Upstream connection closed');
@@ -160,17 +224,17 @@ export class KernelsService {
     zooSocket.addEventListener('error', (event) => {
       this.logger.error('Zoo WebSocket error:', event);
 
-      if (!clientClosed && clientSocket.readyState === WebSocket.OPEN) {
+      if (tryClaimCleanup() && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.close(1011, 'Upstream connection error');
       }
     });
 
     // Handle client socket close
     clientSocket.addEventListener('close', () => {
-      clientClosed = true;
+      connectionState.clientClosed = true;
       this.logger.debug('Client WebSocket closed');
 
-      if (!zooClosed && zooSocket.readyState === WebSocket.OPEN) {
+      if (tryClaimCleanup() && zooSocket.readyState === WebSocket.OPEN) {
         zooSocket.close();
       }
     });
@@ -179,7 +243,7 @@ export class KernelsService {
     clientSocket.addEventListener('error', (event) => {
       this.logger.error('Client WebSocket error:', event);
 
-      if (!zooClosed && zooSocket.readyState === WebSocket.OPEN) {
+      if (tryClaimCleanup() && zooSocket.readyState === WebSocket.OPEN) {
         zooSocket.close();
       }
     });
