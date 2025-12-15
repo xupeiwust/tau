@@ -8,6 +8,12 @@ import type { Environment } from '#config/environment.config.js';
 type WebSocketResponse = Models['WebSocketResponse_type'];
 type WebSocketRequest = Models['WebSocketRequest_type'];
 
+/** Connection timeout in milliseconds - how long to wait for Zoo WebSocket to open */
+const zooConnectionTimeoutMs = 30_000;
+
+/** Maximum number of connection attempts before giving up */
+const zooMaxRetries = 3;
+
 /**
  * Type guard to check if the parsed message is a valid WebSocket response.
  * Validates the discriminated union structure.
@@ -90,21 +96,57 @@ export class KernelsService {
 
   /**
    * Create a WebSocket connection to the Zoo API and handle bidirectional proxying.
+   * Includes connection timeout and retry logic.
    * @param clientSocket - The client's WebSocket connection
    * @param queryParameters - Query parameters to forward to Zoo API
    */
   public createZooProxy(clientSocket: WebSocket, queryParameters: URLSearchParams): void {
     // Build the Zoo API WebSocket URL with query parameters
-    const zooUrl = new URL('/ws/modeling/commands', this.zooWebsocketUrl);
-    for (const [key, value] of queryParameters.entries()) {
-      zooUrl.searchParams.set(key, value);
+    let zooUrl: URL;
+    try {
+      zooUrl = new URL('/ws/modeling/commands', this.zooWebsocketUrl);
+      for (const [key, value] of queryParameters.entries()) {
+        zooUrl.searchParams.set(key, value);
+      }
+    } catch (error) {
+      this.logger.error('Failed to construct Zoo API URL:', error);
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.close(1011, 'Invalid upstream URL configuration');
+      }
+
+      return;
     }
 
-    this.logger.debug(`Connecting to Zoo API: ${zooUrl.toString()}`);
+    this.connectToZoo(clientSocket, zooUrl, 1);
+  }
+
+  /**
+   * Establish connection to Zoo API with retry logic.
+   * @param clientSocket - The client's WebSocket connection
+   * @param zooUrl - The Zoo API URL to connect to
+   * @param attempt - Current attempt number (1-based)
+   */
+  private connectToZoo(clientSocket: WebSocket, zooUrl: URL, attempt: number): void {
+    // Check if client is still connected before attempting
+    if (clientSocket.readyState !== WebSocket.OPEN) {
+      this.logger.debug('Client already disconnected, skipping Zoo connection attempt');
+      return;
+    }
+
+    this.logger.debug(`Connecting to Zoo API (attempt ${attempt}/${zooMaxRetries}): ${zooUrl.toString()}`);
 
     // Create connection to Zoo API
-    const zooSocket = new WebSocket(zooUrl);
-    zooSocket.binaryType = 'arraybuffer';
+    let zooSocket: WebSocket;
+    try {
+      zooSocket = new WebSocket(zooUrl);
+      zooSocket.binaryType = 'arraybuffer';
+    } catch (error) {
+      this.logger.error('Failed to create Zoo WebSocket:', error);
+      // Client is guaranteed to be OPEN here (checked at function start, synchronous code path)
+      clientSocket.close(1011, 'Failed to connect to upstream');
+
+      return;
+    }
 
     // Use a single state object to prevent race conditions when both sockets close simultaneously
     const connectionState = {
@@ -112,7 +154,25 @@ export class KernelsService {
       clientClosed: false,
       zooClosed: false,
       isCleaningUp: false,
+      connectionTimedOut: false,
     };
+
+    // Connection timeout - close if Zoo doesn't open within timeout period
+    const connectionTimeout = setTimeout(() => {
+      if (zooSocket.readyState === WebSocket.CONNECTING) {
+        connectionState.connectionTimedOut = true;
+        this.logger.warn(`Zoo connection timeout after ${zooConnectionTimeoutMs}ms (attempt ${attempt})`);
+        zooSocket.close();
+
+        // Retry if we haven't exceeded max attempts and client is still connected
+        if (attempt < zooMaxRetries && clientSocket.readyState === WebSocket.OPEN) {
+          this.logger.debug(`Retrying Zoo connection (attempt ${attempt + 1}/${zooMaxRetries})`);
+          this.connectToZoo(clientSocket, zooUrl, attempt + 1);
+        } else if (clientSocket.readyState === WebSocket.OPEN) {
+          clientSocket.close(1011, 'Upstream connection timeout');
+        }
+      }
+    }, zooConnectionTimeoutMs);
 
     /**
      * Attempts to claim exclusive cleanup responsibility.
@@ -129,8 +189,24 @@ export class KernelsService {
       return true;
     };
 
+    /**
+     * Clear the connection timeout. Called when connection succeeds or fails.
+     */
+    const clearConnectionTimeout = (): void => {
+      clearTimeout(connectionTimeout);
+    };
+
     // Handle Zoo socket open - send authentication
     zooSocket.addEventListener('open', () => {
+      clearConnectionTimeout();
+
+      // If client disconnected while Zoo was connecting, close immediately to prevent orphaned connection
+      if (connectionState.clientClosed) {
+        this.logger.debug('Zoo WebSocket connected but client already closed, terminating');
+        zooSocket.close(1000, 'Client disconnected');
+        return;
+      }
+
       this.logger.debug('Zoo WebSocket connected, sending authentication');
 
       // Send authentication headers as expected by Zoo API
@@ -210,8 +286,14 @@ export class KernelsService {
 
     // Handle Zoo socket close
     zooSocket.addEventListener('close', (event) => {
+      clearConnectionTimeout();
       connectionState.zooClosed = true;
       this.logger.debug(`Zoo WebSocket closed: code=${event.code}, reason=${event.reason}`);
+
+      // If this was a timeout-triggered close, retry logic is handled by the timeout callback
+      if (connectionState.connectionTimedOut) {
+        return;
+      }
 
       if (tryClaimCleanup() && clientSocket.readyState === WebSocket.OPEN) {
         // Forward the close code if valid per RFC 6455, otherwise use 1011 (Internal Error)
@@ -222,7 +304,13 @@ export class KernelsService {
 
     // Handle Zoo socket error
     zooSocket.addEventListener('error', (event) => {
+      clearConnectionTimeout();
       this.logger.error('Zoo WebSocket error:', event);
+
+      // If this was a timeout-triggered error, retry logic is handled by the timeout callback
+      if (connectionState.connectionTimedOut) {
+        return;
+      }
 
       if (tryClaimCleanup() && clientSocket.readyState === WebSocket.OPEN) {
         clientSocket.close(1011, 'Upstream connection error');
@@ -231,19 +319,29 @@ export class KernelsService {
 
     // Handle client socket close
     clientSocket.addEventListener('close', () => {
+      clearConnectionTimeout();
       connectionState.clientClosed = true;
       this.logger.debug('Client WebSocket closed');
 
-      if (tryClaimCleanup() && zooSocket.readyState === WebSocket.OPEN) {
+      // Close Zoo socket if it's open OR still connecting (prevents orphaned connections)
+      if (
+        tryClaimCleanup() &&
+        (zooSocket.readyState === WebSocket.OPEN || zooSocket.readyState === WebSocket.CONNECTING)
+      ) {
         zooSocket.close();
       }
     });
 
     // Handle client socket error
     clientSocket.addEventListener('error', (event) => {
+      clearConnectionTimeout();
       this.logger.error('Client WebSocket error:', event);
 
-      if (tryClaimCleanup() && zooSocket.readyState === WebSocket.OPEN) {
+      // Close Zoo socket if it's open OR still connecting (prevents orphaned connections)
+      if (
+        tryClaimCleanup() &&
+        (zooSocket.readyState === WebSocket.OPEN || zooSocket.readyState === WebSocket.CONNECTING)
+      ) {
         zooSocket.close();
       }
     });
