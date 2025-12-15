@@ -32,35 +32,36 @@ export const ChatError = memo(function ({
   }
 
   return (
-    <Collapsible
-      open={isOpen}
-      className={cn(
-        'group/collapsible flex flex-col justify-center rounded-md border border-destructive/20 bg-destructive/10 text-sm',
-        className,
-      )}
-      onOpenChange={onOpenChange}
-    >
-      <CollapsibleTrigger asChild>
-        <div className="flex w-full cursor-pointer items-center justify-between gap-1 p-2">
-          <ChevronRight className="size-4 transition-transform duration-300 ease-in-out group-data-[state=open]/collapsible:rotate-90" />
-          <div className="flex w-full items-center justify-between">
-            <p>Unable to send the message.</p>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={async () => {
-                regenerate();
-              }}
-            >
-              <RefreshCcw className="size-3" />
-              Retry
-            </Button>
+    <div className={cn('size-full', className)}>
+      <Collapsible
+        open={isOpen}
+        className={cn(
+          'group/collapsible flex flex-col justify-center rounded-md border border-destructive/20 bg-destructive/10 text-sm',
+        )}
+        onOpenChange={onOpenChange}
+      >
+        <CollapsibleTrigger asChild>
+          <div className="flex w-full cursor-pointer items-center justify-between gap-1 p-2">
+            <ChevronRight className="size-4 transition-transform duration-300 ease-in-out group-data-[state=open]/collapsible:rotate-90" />
+            <div className="flex w-full items-center justify-between">
+              <p>Unable to send the message.</p>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={async () => {
+                  regenerate();
+                }}
+              >
+                <RefreshCcw className="size-3" />
+                Retry
+              </Button>
+            </div>
           </div>
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="overflow-x-scroll px-2 pb-2">
-        <CodeViewer text={errorMessage} language="json" className="text-xs whitespace-pre-wrap" />
-      </CollapsibleContent>
-    </Collapsible>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="overflow-x-scroll px-2 pb-2">
+          <CodeViewer text={errorMessage} language="json" className="text-xs whitespace-pre-wrap" />
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 });
