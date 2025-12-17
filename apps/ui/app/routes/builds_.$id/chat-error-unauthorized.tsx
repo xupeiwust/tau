@@ -5,8 +5,11 @@ import { NavLink } from 'react-router';
 import { Button } from '#components/ui/button.js';
 import { cn } from '#utils/ui.utils.js';
 import { LoadingSpinner } from '#components/ui/loading-spinner.js';
+import { useAuthLinks } from '#hooks/use-auth-links.js';
 
 export const ChatErrorUnauthorized = memo(function ({ className }: { readonly className?: string }): React.JSX.Element {
+  const { signIn, signUp } = useAuthLinks();
+
   return (
     <div
       className={cn('flex flex-col gap-3 rounded-md border border-secondary bg-secondary/50 p-3 text-sm', className)}
@@ -17,7 +20,7 @@ export const ChatErrorUnauthorized = memo(function ({ className }: { readonly cl
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button asChild variant="default" size="sm" className="flex-1">
-          <NavLink to="/auth/sign-in" tabIndex={-1}>
+          <NavLink to={signIn} tabIndex={-1}>
             {({ isPending }) =>
               isPending ? (
                 <LoadingSpinner />
@@ -31,7 +34,7 @@ export const ChatErrorUnauthorized = memo(function ({ className }: { readonly cl
           </NavLink>
         </Button>
         <Button asChild variant="outline" size="sm" className="flex-1">
-          <NavLink to="/auth/sign-up" tabIndex={-1}>
+          <NavLink to={signUp} tabIndex={-1}>
             {({ isPending }) =>
               isPending ? (
                 <LoadingSpinner />
