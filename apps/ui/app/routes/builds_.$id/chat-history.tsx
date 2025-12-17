@@ -135,7 +135,7 @@ export const ChatHistory = memo(function (props: {
     if (virtuosoRef.current) {
       virtuosoRef.current.scrollToIndex({
         index: 'LAST',
-        align: 'start',
+        align: 'end',
         behavior: 'smooth',
       });
     }
@@ -184,7 +184,7 @@ export const ChatHistory = memo(function (props: {
             ),
             Footer: () => (
               <ChatError
-                className="mx-4 mb-2"
+                className="px-4 pb-4"
                 isOpen={isErrorCollapsibleOpen}
                 onOpenChange={setIsErrorCollapsibleOpen}
               />
