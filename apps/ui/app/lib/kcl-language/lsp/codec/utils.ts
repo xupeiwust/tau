@@ -24,13 +24,13 @@ export function decodeMessage<T>(data: Uint8Array): T {
   try {
     const delimited = decodeBytes(data);
     const messages = parseMessages(delimited);
-    
-    if (messages.length === 0) {
+    const firstMessage = messages[0];
+    if (!firstMessage) {
       throw new Error('No valid LSP message found in data');
     }
 
     // Return the first message (for backward compatibility with single-message decoding)
-    return JSON.parse(messages[0]) as T;
+    return JSON.parse(firstMessage) as T;
   } catch (error) {
     console.error('[Codec] Failed to decode message:', error);
     console.error('[Codec] Raw data length:', data.length);

@@ -13,42 +13,166 @@ import init, { LspServerConfig, lsp_run_kcl } from '@taucad/kcl-wasm-lib';
 import wasmPath from '@taucad/kcl-wasm-lib/kcl.wasm?url';
 import { Queue } from '#lib/kcl-language/lsp/codec/queue.js';
 import { StreamDemuxer } from '#lib/kcl-language/lsp/codec/stream-demuxer.js';
+import { createLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
+import { lspWorkerEventType, kclWorkerType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
+import type {
+  KclLspWorkerOptions,
+  LspWorkerEvent,
+  FileReadResponse,
+  FileExistsResponse,
+  FileListResponse,
+} from '#lib/kcl-language/lsp/kcl-lsp-types.js';
 import { encodeMessage, decodeMessage } from '#lib/kcl-language/lsp/codec/utils.js';
-import { LspWorkerEventType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
-import type { KclLspWorkerOptions, LspWorkerEvent } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
 
-const isDebugEnabled = true;
-function log(...arguments_: unknown[]): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- debug flag
-  if (isDebugEnabled) {
-    console.log('[KCL LSP Worker]', ...arguments_);
-  }
-}
+const log = createLogger('LSP Worker');
 
 /**
- * Mock FileSystemManager for the LSP.
- * The LSP receives document content via textDocument/didOpen and didChange,
- * so it doesn't need actual filesystem access for basic language features.
+ * FileSystemBridge provides filesystem access to the WASM LSP by
+ * forwarding requests to the main thread where the fileManager lives.
  */
-class MockFileSystemManager {
-  public async readFile(_path: string): Promise<Uint8Array> {
-    log('FileSystem.readFile called:', _path);
-    return new Uint8Array();
+type PendingReadRequest = { resolve: (data: Uint8Array) => void; reject: (error: Error) => void };
+type PendingExistsRequest = { resolve: (exists: boolean) => void; reject: (error: Error) => void };
+// The inner resolve is called with files[], but it's wrapped in getAllFiles to JSON.stringify
+type PendingListRequest = { resolve: (files: string[]) => void; reject: (error: Error) => void };
+
+class FileSystemBridge {
+  private nextRequestId = 1;
+  private readonly pendingReadRequests = new Map<number, PendingReadRequest>();
+  private readonly pendingExistsRequests = new Map<number, PendingExistsRequest>();
+  private readonly pendingListRequests = new Map<number, PendingListRequest>();
+
+  /**
+   * Called from WASM to read a file.
+   */
+  public async readFile(path: string): Promise<Uint8Array> {
+    log('FileSystem.readFile called:', path);
+    const requestId = this.nextRequestId++;
+
+    return new Promise((resolve, reject) => {
+      this.pendingReadRequests.set(requestId, { resolve, reject });
+
+      globalThis.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileReadRequest,
+        eventData: { requestId, path },
+      });
+    });
   }
 
-  public async exists(_path: string): Promise<boolean> {
-    log('FileSystem.exists called:', _path);
-    return false;
+  /**
+   * Called from WASM to check if a file exists.
+   */
+  public async exists(path: string): Promise<boolean> {
+    log('FileSystem.exists called:', path);
+    const requestId = this.nextRequestId++;
+
+    return new Promise((resolve, reject) => {
+      this.pendingExistsRequests.set(requestId, { resolve, reject });
+
+      globalThis.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileExistsRequest,
+        eventData: { requestId, path },
+      });
+    });
   }
 
-  public async getAllFiles(_path: string): Promise<string[]> {
-    log('FileSystem.getAllFiles called:', _path);
-    return [];
+  /**
+   * Called from WASM to list files in a directory.
+   * WASM expects this to return a Promise<string> (JSON stringified array).
+   */
+  public async getAllFiles(path: string): Promise<string> {
+    log('FileSystem.getAllFiles called:', path);
+    const requestId = this.nextRequestId++;
+
+    return new Promise((resolve, reject) => {
+      this.pendingListRequests.set(requestId, {
+        resolve(files: string[]) {
+          // WASM expects JSON stringified array
+          resolve(JSON.stringify(files));
+        },
+        reject,
+      });
+
+      globalThis.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileListRequest,
+        eventData: { requestId, path },
+      });
+    });
+  }
+
+  /**
+   * Handle file read response from main thread.
+   */
+  public handleFileReadResponse(response: FileReadResponse): void {
+    const pending = this.pendingReadRequests.get(response.requestId);
+    if (!pending) {
+      log('No pending read request for id:', response.requestId);
+      return;
+    }
+
+    this.pendingReadRequests.delete(response.requestId);
+
+    if (response.error) {
+      log('File read error:', response.error);
+      pending.reject(new Error(response.error));
+    } else if (response.data) {
+      log('File read success, bytes:', response.data.length);
+      pending.resolve(response.data);
+    } else {
+      log('File not found');
+      // Return empty array for files that don't exist (WASM expects this)
+      pending.resolve(new Uint8Array());
+    }
+  }
+
+  /**
+   * Handle file exists response from main thread.
+   */
+  public handleFileExistsResponse(response: FileExistsResponse): void {
+    const pending = this.pendingExistsRequests.get(response.requestId);
+    if (!pending) {
+      log('No pending exists request for id:', response.requestId);
+      return;
+    }
+
+    this.pendingExistsRequests.delete(response.requestId);
+
+    if (response.error) {
+      log('File exists error:', response.error);
+      pending.reject(new Error(response.error));
+    } else {
+      log('File exists result:', response.exists);
+      pending.resolve(response.exists);
+    }
+  }
+
+  /**
+   * Handle file list response from main thread.
+   */
+  public handleFileListResponse(response: FileListResponse): void {
+    const pending = this.pendingListRequests.get(response.requestId);
+    if (!pending) {
+      log('No pending list request for id:', response.requestId);
+      return;
+    }
+
+    this.pendingListRequests.delete(response.requestId);
+
+    if (response.error) {
+      log('File list error:', response.error);
+      pending.reject(new Error(response.error));
+    } else {
+      log('File list result:', response.files.length, 'files');
+      pending.resolve(response.files);
+    }
   }
 }
 
 const intoServer = new Queue<Uint8Array>();
 const fromServer = new StreamDemuxer();
+const fileSystemBridge = new FileSystemBridge();
 let isWasmReady = false;
 let wasmReadyPromise: Promise<void> | undefined;
 let resolveWasmReady: () => void;
@@ -66,8 +190,13 @@ async function initializeWasm(wasmUrl: string): Promise<void> {
 async function runKclLsp(token: string, apiBaseUrl: string): Promise<void> {
   try {
     log('Creating LSP server configuration...');
-    const fileSystemManager = new MockFileSystemManager();
-    const config = new LspServerConfig(intoServer, fromServer, fileSystemManager);
+    log('FileSystemBridge methods:', {
+      readFile: typeof fileSystemBridge.readFile,
+      exists: typeof fileSystemBridge.exists,
+      getAllFiles: typeof fileSystemBridge.getAllFiles,
+    });
+    const config = new LspServerConfig(intoServer, fromServer, fileSystemBridge);
+    log('LspServerConfig created successfully');
     log('Starting KCL LSP server (token:', token ? 'provided' : 'empty', ', baseUrl:', apiBaseUrl || 'empty', ')');
 
     // Signal that WASM is ready before starting the server
@@ -131,7 +260,6 @@ async function handleCallEvent(data: Uint8Array): Promise<void> {
     const responsePromise = fromServer.responses.get(json.id);
     if (responsePromise) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vscode-jsonrpc types
         const response = await responsePromise;
         log('Got response for id:', json.id, response);
         const encoded = encodeMessage(response as JSONRPCResponse);
@@ -151,13 +279,28 @@ function handleMessage(event: MessageEvent): void {
   log('Message received, type:', eventType);
 
   switch (eventType) {
-    case LspWorkerEventType.Init: {
+    case lspWorkerEventType.init: {
       void handleInitEvent(eventData as KclLspWorkerOptions);
       break;
     }
 
-    case LspWorkerEventType.Call: {
+    case lspWorkerEventType.call: {
       void handleCallEvent(eventData as Uint8Array);
+      break;
+    }
+
+    case lspWorkerEventType.fileReadResponse: {
+      fileSystemBridge.handleFileReadResponse(eventData as FileReadResponse);
+      break;
+    }
+
+    case lspWorkerEventType.fileExistsResponse: {
+      fileSystemBridge.handleFileExistsResponse(eventData as FileExistsResponse);
+      break;
+    }
+
+    case lspWorkerEventType.fileListResponse: {
+      fileSystemBridge.handleFileListResponse(eventData as FileListResponse);
       break;
     }
 

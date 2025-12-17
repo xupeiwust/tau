@@ -9,14 +9,9 @@ import { Queue } from '#lib/kcl-language/lsp/codec/queue.js';
 import { PromiseMap } from '#lib/kcl-language/lsp/codec/promise-map.js';
 import { decodeBytes } from '#lib/kcl-language/lsp/codec/bytes.js';
 import { parseMessages } from '#lib/kcl-language/lsp/codec/headers.js';
+import { createLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
 
-const isDebugEnabled = true;
-function log(...arguments_: unknown[]): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- debug flag
-  if (isDebugEnabled) {
-    console.log('[StreamDemuxer]', ...arguments_);
-  }
-}
+const log = createLogger('StreamDemuxer');
 
 /**
  * Type guard functions for JSON-RPC message types.

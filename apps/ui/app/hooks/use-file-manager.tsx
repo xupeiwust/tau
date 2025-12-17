@@ -5,6 +5,7 @@ import { waitFor } from 'xstate';
 import type { ActorRefFrom } from 'xstate';
 import { fileManagerMachine } from '#machines/file-manager.machine.js';
 import type { FileWriteSource } from '#machines/file-manager.machine.js';
+import { joinPath } from '#utils/path.utils.js';
 
 export type FileEntry = {
   path: string;
@@ -24,6 +25,8 @@ type FileManagerContextType = {
   writeFile: (path: string, data: Uint8Array, options: WriteFileOptions) => Promise<void>;
   writeFiles: (files: Record<string, { content: Uint8Array }>) => Promise<void>;
   readFile: (path: string) => Promise<Uint8Array>;
+  exists: (path: string) => Promise<boolean>;
+  readdir: (path: string) => Promise<string[]>;
   getZippedDirectory: (path: string) => Promise<Blob>;
   copyDirectory: (sourcePath: string, destinationPath: string) => Promise<void>;
 };
@@ -129,6 +132,38 @@ export function FileManagerProvider({
     [actorRef],
   );
 
+  const exists = useCallback(
+    async (path: string): Promise<boolean> => {
+      const snapshot = await waitFor(actorRef, (state) => state.matches('ready'));
+      const worker = snapshot.context.wrappedWorker;
+      if (!worker) {
+        throw new Error('File manager worker not initialized');
+      }
+
+      // Join path with rootDirectory to match machine behavior
+      const absolutePath = joinPath(snapshot.context.rootDirectory, path);
+
+      return worker.exists(absolutePath);
+    },
+    [actorRef],
+  );
+
+  const readdir = useCallback(
+    async (path: string): Promise<string[]> => {
+      const snapshot = await waitFor(actorRef, (state) => state.matches('ready'));
+      const worker = snapshot.context.wrappedWorker;
+      if (!worker) {
+        throw new Error('File manager worker not initialized');
+      }
+
+      // Join path with rootDirectory to match machine behavior
+      const absolutePath = joinPath(snapshot.context.rootDirectory, path);
+
+      return worker.readdir(absolutePath);
+    },
+    [actorRef],
+  );
+
   const value = useMemo<FileManagerContextType>(() => {
     return {
       fileManagerRef: actorRef,
@@ -136,10 +171,12 @@ export function FileManagerProvider({
       writeFile,
       writeFiles,
       readFile,
+      exists,
+      readdir,
       getZippedDirectory,
       copyDirectory,
     };
-  }, [actorRef, loadDirectory, writeFile, writeFiles, readFile, getZippedDirectory, copyDirectory]);
+  }, [actorRef, loadDirectory, writeFile, writeFiles, readFile, exists, readdir, getZippedDirectory, copyDirectory]);
 
   return <FileManagerContext.Provider value={value}>{children}</FileManagerContext.Provider>;
 }

@@ -1,7 +1,12 @@
 import { codeLanguages } from '@taucad/types/constants';
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type * as LSP from 'vscode-languageserver-protocol';
+import type { Node } from '@taucad/kcl-wasm-lib/bindings/Node';
+import type { Program } from '@taucad/kcl-wasm-lib/bindings/Program';
+import type { KclValue } from '@taucad/kcl-wasm-lib/bindings/KclValue';
 import { KclLspClient } from '#lib/kcl-language/lsp/kcl-lsp-client.js';
+import type { LspFileManager } from '#lib/kcl-language/lsp/kcl-lsp-client.js';
+import { createLogger, createWarningLogger, createErrorLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
 import { createDiagnosticsHandler } from '#lib/kcl-language/lsp/providers/diagnostics-handler.js';
 import { createCompletionProvider } from '#lib/kcl-language/lsp/providers/completion-provider.js';
 import { createHoverProvider } from '#lib/kcl-language/lsp/providers/hover-provider.js';
@@ -12,15 +17,31 @@ import { createFoldingRangeProvider } from '#lib/kcl-language/lsp/providers/fold
 import { createRenameProvider } from '#lib/kcl-language/lsp/providers/rename-provider.js';
 import { createDefinitionProvider } from '#lib/kcl-language/lsp/providers/definition-provider.js';
 import { createCodeActionProvider } from '#lib/kcl-language/lsp/providers/code-action-provider.js';
+import { getKclSymbolService } from '#lib/kcl-language/lsp/kcl-symbol-service.js';
+import type { KclSymbolService } from '#lib/kcl-language/lsp/kcl-symbol-service.js';
+
+const log = createLogger('Register');
+const logWarn = createWarningLogger('Register');
+const logError = createErrorLogger('Register');
 
 /** Global LSP client instance */
 let lspClient: KclLspClient | undefined;
+
+/** Symbol service instance for WASM-based symbol extraction */
+let symbolService: KclSymbolService | undefined;
 
 /** Track if already registered to prevent duplicate registration */
 let isRegistered = false;
 
 /** Map of document URIs to their version numbers */
 const documentVersions = new Map<string, number>();
+
+/**
+ * Get the symbol service instance.
+ */
+export function getSymbolService(): KclSymbolService | undefined {
+  return symbolService;
+}
 
 /**
  * Get the LSP client instance.
@@ -30,13 +51,102 @@ export function getKclLspClient(): KclLspClient | undefined {
 }
 
 /**
- * Notify the LSP server of a document open event.
+ * Set the file manager for the LSP client.
+ * This enables the LSP to read imported files and provide go-to-definition.
+ * Also triggers re-processing of already opened documents to resolve their imports.
  */
-export function notifyDocumentOpen(uri: string, text: string): void {
+export function setKclLspFileManager(fileManager: LspFileManager): void {
+  log(' setKclLspFileManager called');
+  log(' - lspClient exists:', Boolean(lspClient));
+  log(' - lspClient ready:', lspClient?.ready);
+  log(' - fileManager.exists:', Boolean(fileManager.exists));
+  log(' - fileManager.readFile:', Boolean(fileManager.readFile));
+  log(' - openedDocuments count:', openedDocuments.size);
+  log(' - openedDocuments:', [...openedDocuments]);
+
+  if (lspClient) {
+    lspClient.setFileManager(fileManager);
+    log(' File manager set on client, triggering import re-processing');
+
+    // Re-process all opened documents to parse and open their imports
+    // This handles the case where documents were opened before the file manager was set
+    void reprocessOpenedDocumentsForImports();
+  } else {
+    logWarn('Cannot set file manager - client not initialized');
+  }
+}
+
+/**
+ * Re-process all opened documents to parse and open their imports.
+ * This is called when the file manager becomes available after documents are already open.
+ */
+async function reprocessOpenedDocumentsForImports(): Promise<void> {
   if (!lspClient?.ready) {
+    log(' Client not ready, skipping import re-processing');
     return;
   }
 
+  const fileManager = lspClient.getFileManager();
+  if (!fileManager) {
+    log(' No file manager, skipping import re-processing');
+    return;
+  }
+
+  const monaco = monacoInstance;
+  if (!monaco) {
+    log(' No Monaco instance, skipping import re-processing');
+    return;
+  }
+
+  console.log(`[KCL LSP] Re-processing ${openedDocuments.size} opened documents for imports`);
+
+  // Collect all documents to process
+  const documentsToProcess: Array<{ uri: string; text: string }> = [];
+  for (const uri of openedDocuments) {
+    const model = monaco.editor.getModel(monaco.Uri.parse(uri));
+    if (model) {
+      documentsToProcess.push({ uri, text: model.getValue() });
+    }
+  }
+
+  // Process all documents in parallel to avoid await-in-loop
+  await Promise.all(
+    documentsToProcess.map(async ({ uri, text }) => {
+      console.log(`[KCL LSP] Re-processing imports for: ${uri}`);
+      await openImportedFiles(uri, text);
+    }),
+  );
+}
+
+/** Store Monaco instance for re-processing */
+let monacoInstance: typeof Monaco | undefined;
+
+/** Set of document URIs that have been opened (to prevent duplicates) */
+const openedDocuments = new Set<string>();
+
+/**
+ * Notify the LSP server of a document open event.
+ * Also scans for imports and opens those files recursively.
+ */
+export function notifyDocumentOpen(uri: string, text: string): void {
+  console.log(`[KCL LSP] notifyDocumentOpen called for: ${uri}`);
+  console.log(`[KCL LSP] - lspClient?.ready: ${lspClient?.ready}`);
+
+  if (!lspClient?.ready) {
+    console.log(`[KCL LSP] LSP client not ready, skipping notifyDocumentOpen`);
+    return;
+  }
+
+  // Skip if already opened
+  if (openedDocuments.has(uri)) {
+    console.log(`[KCL LSP] Document already opened, sending didChange instead: ${uri}`);
+    // Just send a change notification instead
+    notifyDocumentChange(uri, text);
+    return;
+  }
+
+  console.log(`[KCL LSP] Sending textDocument/didOpen for: ${uri} (${text.length} chars)`);
+  openedDocuments.add(uri);
   documentVersions.set(uri, 1);
   lspClient.textDocumentDidOpen({
     textDocument: {
@@ -46,6 +156,152 @@ export function notifyDocumentOpen(uri: string, text: string): void {
       text,
     },
   });
+  console.log(`[KCL LSP] textDocument/didOpen sent for: ${uri}`);
+
+  // Parse imports and open those files
+  console.log(`[KCL LSP] Now calling openImportedFiles for: ${uri}`);
+  void openImportedFiles(uri, text);
+}
+
+/**
+ * Parse import statements and open the imported files.
+ * This enables hover/completion for symbols from imported files.
+ *
+ * Uses the symbol service (WASM AST) to extract imports - no regex parsing.
+ *
+ * IMPORTANT: After all imports are opened, we send a didChange notification
+ * for the parent file to trigger the LSP to re-process it with the imported
+ * files now available in its code_map.
+ */
+async function openImportedFiles(currentUri: string, text: string): Promise<void> {
+  log(' openImportedFiles called for:', currentUri);
+
+  const fileManager = lspClient?.getFileManager();
+
+  const existsFunction = fileManager?.exists;
+  if (!existsFunction) {
+    log(' No file manager.exists available, skipping import resolution');
+    return;
+  }
+
+  // Use symbol service to get imports (from WASM AST)
+  if (!symbolService?.isInitialized) {
+    log(' Symbol service not initialized, skipping import resolution');
+    return;
+  }
+
+  // Ensure the document is parsed in the symbol service
+  const version = documentVersions.get(currentUri) ?? 1;
+  await symbolService.updateDocument(currentUri, text, version);
+
+  const imports = symbolService.getImports(currentUri);
+  log(' Found', imports.length, 'imports in', currentUri);
+
+  if (imports.length === 0) {
+    return;
+  }
+
+  // Track if any imports were successfully opened
+  let importsOpened = 0;
+
+  // Process imports in parallel
+  await Promise.all(
+    imports.map(async (importSymbol) => {
+      const { importPath } = importSymbol;
+      if (!importPath) {
+        return;
+      }
+
+      const importUri = resolveImportPath(currentUri, importPath);
+
+      // Skip if already opened
+      if (openedDocuments.has(importUri)) {
+        log(' Import already opened:', importUri);
+        return;
+      }
+
+      try {
+        // Convert URI to path for file manager
+        const filePath = uriToPath(importUri);
+        log(' Reading import:', filePath);
+
+        // Check if file exists
+        try {
+          const fileExists = await existsFunction(filePath);
+          if (!fileExists) {
+            log(' Import file not found:', filePath);
+            return;
+          }
+        } catch (existsError) {
+          logError(`Error checking file exists for ${filePath}:`, existsError);
+          // Try to read anyway in case exists failed but read works
+        }
+
+        // Read the file
+        const data = await fileManager.readFile(filePath);
+        const importText = new TextDecoder().decode(data);
+
+        log(' Successfully read import file:', filePath, '(', importText.length, 'chars)');
+
+        // Open the file (this will recursively open its imports too)
+        notifyDocumentOpen(importUri, importText);
+        importsOpened++;
+      } catch (error) {
+        logError(`Failed to open import ${importPath}:`, error);
+      }
+    }),
+  );
+
+  // If any imports were opened, trigger a re-parse of the parent file
+  // by sending a didChange notification. This is necessary because the LSP
+  // may have already parsed the parent file before the imported files were
+  // added to its code_map, causing import resolution to fail.
+  if (importsOpened > 0) {
+    log(' ', importsOpened, 'imports opened, triggering re-parse of parent file:', currentUri);
+    notifyDocumentChange(currentUri, text);
+  }
+}
+
+// ============================================================================
+// Path Utility Functions
+// ============================================================================
+
+/**
+ * Convert URI to file path.
+ * The file manager expects paths without leading slashes (e.g., "public/...")
+ * but Monaco URIs use "file:///public/..." format.
+ */
+function uriToPath(uri: string): string {
+  let path = uri;
+
+  // Remove "file://" scheme
+  if (path.startsWith('file://')) {
+    path = path.slice(7);
+  }
+
+  // Remove leading slash - file manager expects "public/..." not "/public/..."
+  if (path.startsWith('/')) {
+    path = path.slice(1);
+  }
+
+  return path;
+}
+
+/**
+ * Resolve an import path relative to the current file's directory.
+ *
+ * @param currentFileUri The URI of the current file (e.g., "file:///public/kcl-samples/bench/main.kcl")
+ * @param importPath The relative import path (e.g., "bench-parts.kcl")
+ * @returns The absolute URI of the imported file
+ */
+function resolveImportPath(currentFileUri: string, importPath: string): string {
+  // Parse the current file URI to get the directory
+  // Example: "file:///public/kcl-samples/bench/main.kcl" -> "file:///public/kcl-samples/bench/"
+  const lastSlashIndex = currentFileUri.lastIndexOf('/');
+  const directory = currentFileUri.slice(0, lastSlashIndex + 1);
+
+  // Join with the import path
+  return `${directory}${importPath}`;
 }
 
 /**
@@ -73,6 +329,7 @@ export function notifyDocumentClose(uri: string): void {
     return;
   }
 
+  openedDocuments.delete(uri);
   documentVersions.delete(uri);
   lspClient.textDocumentDidClose({
     textDocument: { uri },
@@ -91,12 +348,13 @@ export function notifyDocumentClose(uri: string): void {
 export function registerKclLanguage(monaco: typeof Monaco): void {
   // Prevent duplicate registration
   if (isRegistered) {
-    console.log('[KCL LSP] Language already registered, skipping');
+    log(' Language already registered, skipping');
 
     return;
   }
 
   isRegistered = true;
+  monacoInstance = monaco; // Store for later use in import re-processing
 
   // Register language metadata
   monaco.languages.register({
@@ -131,6 +389,9 @@ export function registerKclLanguage(monaco: typeof Monaco): void {
       { open: '"', close: '"' },
       { open: "'", close: "'" },
     ],
+    // Word pattern: matches identifiers and quoted strings (for import paths)
+    // This enables Cmd+Click on both symbols and import path strings
+    wordPattern: /("[^"]*\.kcl"|'[^']*\.kcl'|[a-zA-Z_]\w*)/,
   });
 
   // Initialize LSP client and register providers
@@ -144,10 +405,16 @@ async function initializeLsp(monaco: typeof Monaco): Promise<void> {
   // Create diagnostics handler
   const diagnosticsHandler = createDiagnosticsHandler(monaco);
 
+  // Initialize symbol service
+  symbolService = getKclSymbolService();
+
+  // Initialize WASM for symbol service (async, non-blocking)
+  void initializeSymbolServiceWasm();
+
   // Create and initialize LSP client
   lspClient = new KclLspClient({
     onInitialized() {
-      console.log('[KCL LSP] Client initialized successfully');
+      log(' Client initialized successfully');
     },
     onNotification(notification: LSP.NotificationMessage) {
       diagnosticsHandler(notification);
@@ -157,7 +424,7 @@ async function initializeLsp(monaco: typeof Monaco): Promise<void> {
   try {
     await lspClient.initialize();
   } catch (error) {
-    console.error('[KCL LSP] Failed to initialize client:', error);
+    logError('Failed to initialize client:', error);
     lspClient = undefined;
 
     return;
@@ -172,8 +439,8 @@ async function initializeLsp(monaco: typeof Monaco): Promise<void> {
   // Completion provider
   monaco.languages.registerCompletionItemProvider(languageId, createCompletionProvider(monaco, lspClient));
 
-  // Hover provider
-  monaco.languages.registerHoverProvider(languageId, createHoverProvider(monaco, lspClient));
+  // Hover provider (with symbol service for enhanced hover)
+  monaco.languages.registerHoverProvider(languageId, createHoverProvider(monaco, lspClient, symbolService));
 
   // Signature help provider
   monaco.languages.registerSignatureHelpProvider(languageId, createSignatureHelpProvider(monaco, lspClient));
@@ -190,8 +457,8 @@ async function initializeLsp(monaco: typeof Monaco): Promise<void> {
   // Rename provider
   monaco.languages.registerRenameProvider(languageId, createRenameProvider(monaco, lspClient));
 
-  // Definition provider
-  monaco.languages.registerDefinitionProvider(languageId, createDefinitionProvider(monaco, lspClient));
+  // Definition provider (with symbol service for go-to-definition)
+  monaco.languages.registerDefinitionProvider(languageId, createDefinitionProvider(monaco, lspClient, symbolService));
 
   // Code action provider
   monaco.languages.registerCodeActionProvider(languageId, createCodeActionProvider(monaco, lspClient));
@@ -199,7 +466,75 @@ async function initializeLsp(monaco: typeof Monaco): Promise<void> {
   // Set up document synchronization
   setupDocumentSync(monaco, lspClient);
 
-  console.log('[KCL LSP] All Monaco providers registered');
+  log(' All Monaco providers registered');
+}
+
+/**
+ * Initialize WASM for the symbol service.
+ * This loads the KCL WASM module and hooks it up to the symbol service.
+ */
+async function initializeSymbolServiceWasm(): Promise<void> {
+  if (!symbolService) {
+    return;
+  }
+
+  try {
+    // Dynamically import the WASM module, path, and mock connections
+    const [wasmModule, wasmPathModule, engineModule] = await Promise.all([
+      import('@taucad/kcl-wasm-lib'),
+      import('@taucad/kcl-wasm-lib/kcl.wasm?url'),
+      import('#components/geometry/kernel/zoo/engine-connection.js'),
+    ]);
+
+    // Initialize WASM
+    await wasmModule.default(wasmPathModule.default);
+
+    // Set up parse function
+    type ParseResultError = { severity: string };
+    type ParseResult = [Node<Program>, ParseResultError[]];
+
+    symbolService.setParseFunction(async (code: string) => {
+      const result = wasmModule.parse_wasm(code) as ParseResult;
+      const allErrors = result[1];
+      const errors = allErrors.filter((error) => error.severity !== 'Warning');
+      const warnings = allErrors.filter((warning) => warning.severity === 'Warning');
+      return { program: result[0], errors, warnings };
+    });
+
+    // Set up mock execution function for variable values
+    // Create a minimal mock file system that throws on file operations
+    // (mock execution for single-file hover/intellisense doesn't need real file access)
+    const mockEngine = new engineModule.MockEngineConnection();
+    const mockFileSystem = {
+      async readFile(): Promise<Uint8Array> {
+        throw new Error('Mock file system does not support file reads');
+      },
+      exists: async (): Promise<boolean> => false,
+      getAllFiles: async (): Promise<string[]> => [],
+    };
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- WASM Context constructor may return thenable
+    const mockContext = (await new wasmModule.Context(mockEngine, mockFileSystem)) as {
+      executeMock: (program: string, path: string, settings: string, capture: boolean) => Promise<unknown>;
+    };
+
+    type MockExecutionResult = {
+      variables: Partial<Record<string, KclValue>>;
+      errors: unknown[];
+    };
+
+    symbolService.setMockExecuteFunction(async (program, path) => {
+      const result = (await mockContext.executeMock(JSON.stringify(program), path, '{}', false)) as MockExecutionResult;
+      return { variables: result.variables, errors: result.errors };
+    });
+
+    log(' Symbol service WASM initialized with mock execution');
+
+    // Re-parse any documents that were opened before WASM was ready
+    await symbolService.reparseAllDocuments();
+  } catch (error) {
+    logWarn('Failed to initialize symbol service WASM:', error);
+  }
 }
 
 /**
@@ -248,6 +583,15 @@ function syncDocumentOpen(client: KclLspClient, model: Monaco.editor.ITextModel)
   const uri = model.uri.toString();
   const text = model.getValue();
 
+  log(' syncDocumentOpen called for:', uri);
+
+  // Skip if already opened (prevents duplicates)
+  if (openedDocuments.has(uri)) {
+    log(' Document already opened, skipping:', uri);
+    return;
+  }
+
+  openedDocuments.add(uri);
   documentVersions.set(uri, 1);
   client.textDocumentDidOpen({
     textDocument: {
@@ -258,15 +602,34 @@ function syncDocumentOpen(client: KclLspClient, model: Monaco.editor.ITextModel)
     },
   });
 
+  log(' Opened document:', uri, '(text length:', text.length, ')');
+
+  // Update symbol service with document content
+  if (symbolService) {
+    void symbolService.updateDocument(uri, text, 1);
+  }
+
+  // Parse imports and open those files to enable hover/intellisense
+  void openImportedFiles(uri, text);
+
   // Listen for content changes on this model
   model.onDidChangeContent(() => {
     const version = (documentVersions.get(uri) ?? 0) + 1;
     documentVersions.set(uri, version);
+    const newText = model.getValue();
 
     client.textDocumentDidChange({
       textDocument: { uri, version },
-      contentChanges: [{ text: model.getValue() }],
+      contentChanges: [{ text: newText }],
     });
+
+    // Update symbol service with new content
+    if (symbolService) {
+      void symbolService.updateDocument(uri, newText, version);
+    }
+
+    // Re-scan for imports on content change (new imports might be added)
+    void openImportedFiles(uri, newText);
   });
 }
 
@@ -274,10 +637,18 @@ function syncDocumentOpen(client: KclLspClient, model: Monaco.editor.ITextModel)
  * Sync a model close event to the LSP server.
  */
 function syncDocumentClose(client: KclLspClient, uri: string): void {
+  openedDocuments.delete(uri);
   documentVersions.delete(uri);
   client.textDocumentDidClose({
     textDocument: { uri },
   });
+
+  // Clean up symbol service
+  if (symbolService) {
+    symbolService.removeDocument(uri);
+  }
+
+  log(' Closed document:', uri);
 }
 
 /**
@@ -286,5 +657,8 @@ function syncDocumentClose(client: KclLspClient, uri: string): void {
 export function disposeKclLsp(): void {
   lspClient?.dispose();
   lspClient = undefined;
+  symbolService?.clear();
+  symbolService = undefined;
   documentVersions.clear();
+  openedDocuments.clear();
 }

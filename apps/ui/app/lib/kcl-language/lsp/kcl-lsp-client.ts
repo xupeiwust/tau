@@ -10,20 +10,24 @@
 
 import type * as LSP from 'vscode-languageserver-protocol';
 import { JSONRPCClient, JSONRPCServer, JSONRPCServerAndClient } from 'json-rpc-2.0';
-import type { JSONRPCRequest, JSONRPCResponse } from 'json-rpc-2.0';
+import type { JSONRPCRequest } from 'json-rpc-2.0';
 import { IntoServer } from '#lib/kcl-language/lsp/codec/into-server.js';
 import { createFromServer } from '#lib/kcl-language/lsp/codec/from-server.js';
+import { createLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
+import { lspWorkerEventType, kclWorkerType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
+import type { KclLspWorkerOptions, LspWorkerEvent, FileSystemRequest } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
 import { encodeMessage } from '#lib/kcl-language/lsp/codec/utils.js';
-import { LspWorkerEventType, kclWorkerType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
-import type { KclLspWorkerOptions } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
 
-const isDebugEnabled = true;
-function log(...arguments_: unknown[]): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- debug flag
-  if (isDebugEnabled) {
-    console.log('[KCL LSP Client]', ...arguments_);
-  }
-}
+/**
+ * Interface for file manager used to read files.
+ */
+export type LspFileManager = {
+  readFile: (path: string) => Promise<Uint8Array>;
+  exists?: (path: string) => Promise<boolean>;
+  readdir?: (path: string) => Promise<string[]>;
+};
+
+const log = createLogger('LSP Client');
 
 /**
  * Client capabilities sent during initialization.
@@ -81,6 +85,8 @@ const clientCapabilities: LSP.ClientCapabilities = {
 export type NotificationHandler = (notification: LSP.NotificationMessage) => void;
 
 export type KclLspClientOptions = {
+  /** File manager for reading files - required for import resolution */
+  fileManager?: LspFileManager;
   /** Callback when the client is initialized */
   onInitialized?: () => void;
   /** Callback for handling notifications (e.g., diagnostics) */
@@ -122,6 +128,22 @@ export class KclLspClient {
 
   public getServerCapabilities(): LSP.ServerCapabilities {
     return this.serverCapabilities;
+  }
+
+  /**
+   * Set the file manager for file system access.
+   * This can be called after initialization to enable import resolution.
+   */
+  public setFileManager(fileManager: LspFileManager): void {
+    log('Setting file manager');
+    this.options.fileManager = fileManager;
+  }
+
+  /**
+   * Get the current file manager, if set.
+   */
+  public getFileManager(): LspFileManager | undefined {
+    return this.options.fileManager;
   }
 
   public textDocumentDidOpen(parameters: LSP.DidOpenTextDocumentParams): void {
@@ -239,7 +261,16 @@ export class KclLspClient {
     this.intoServer = new IntoServer(kclWorkerType, this.worker);
 
     const handleWorkerMessage = (event: MessageEvent): void => {
-      log('Received message from worker:', event.data);
+      // Check if this is a file system request
+
+      if (event.data?.eventType !== undefined) {
+        const workerEvent = event.data as LspWorkerEvent;
+        log('Received file system request from worker:', workerEvent.eventType);
+        void this.handleFileSystemRequest(workerEvent);
+        return;
+      }
+
+      log('Received LSP message from worker:', event.data);
       this.fromServer?.add(event.data as Uint8Array);
     };
 
@@ -255,12 +286,12 @@ export class KclLspClient {
 
       if (request.id !== null && request.id !== undefined) {
         log('Waiting for response to id:', request.id);
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vscode-jsonrpc types
+
         const response = await this.fromServer?.responses.get(request.id);
         log('Got response for id:', request.id, response);
         if (response) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- response is valid
-          this.jsonRpcClient?.client.receive(response);
+          // Cast to match json-rpc-2.0 expected type
+          this.jsonRpcClient?.client.receive(response as Parameters<typeof this.jsonRpcClient.client.receive>[0]);
         }
       }
     };
@@ -291,7 +322,7 @@ export class KclLspClient {
 
     const initOptions: KclLspWorkerOptions = { wasmUrl: '', token: '', apiBaseUrl: '' };
     log('Posting Init event to worker');
-    this.worker.postMessage({ worker: kclWorkerType, eventType: LspWorkerEventType.Init, eventData: initOptions });
+    this.worker.postMessage({ worker: kclWorkerType, eventType: lspWorkerEventType.init, eventData: initOptions });
 
     void this.processNotifications();
     void this.processRequests();
@@ -351,7 +382,7 @@ export class KclLspClient {
     }
 
     for await (const notification of this.fromServer.notifications) {
-      this.notificationHandler?.(notification as LSP.NotificationMessage);
+      this.notificationHandler?.(notification);
     }
   }
 
@@ -371,5 +402,151 @@ export class KclLspClient {
 
   private unregisterServerCapability(unregistration: LSP.Unregistration): void {
     console.log('[KCL LSP Client] Unregistered capability:', unregistration.method);
+  }
+
+  private async handleFileSystemRequest(event: LspWorkerEvent): Promise<void> {
+    const { eventType, eventData } = event;
+
+    switch (eventType) {
+      case lspWorkerEventType.fileReadRequest: {
+        const request = eventData as FileSystemRequest;
+        await this.handleFileReadRequest(request);
+        break;
+      }
+
+      case lspWorkerEventType.fileExistsRequest: {
+        const request = eventData as FileSystemRequest;
+        await this.handleFileExistsRequest(request);
+        break;
+      }
+
+      case lspWorkerEventType.fileListRequest: {
+        const request = eventData as FileSystemRequest;
+        await this.handleFileListRequest(request);
+        break;
+      }
+
+      default: {
+        // Not a file system request - ignore
+        break;
+      }
+    }
+  }
+
+  private async handleFileReadRequest(request: FileSystemRequest): Promise<void> {
+    log('Handling file read request:', request.path);
+    const { fileManager } = this.options;
+
+    if (!fileManager) {
+      log('No file manager available, returning empty');
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileReadResponse,
+        eventData: { requestId: request.requestId, data: undefined, error: 'No file manager available' },
+      });
+      return;
+    }
+
+    try {
+      const data = await fileManager.readFile(request.path);
+      log('File read success:', request.path, 'bytes:', data.length);
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileReadResponse,
+        eventData: { requestId: request.requestId, data },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('File read error:', request.path, errorMessage);
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileReadResponse,
+        eventData: { requestId: request.requestId, data: undefined, error: errorMessage },
+      });
+    }
+  }
+
+  private async handleFileExistsRequest(request: FileSystemRequest): Promise<void> {
+    log('Handling file exists request:', request.path);
+    const { fileManager } = this.options;
+
+    if (!fileManager?.exists) {
+      // Fallback: try to read the file to check if it exists
+      try {
+        if (fileManager) {
+          await fileManager.readFile(request.path);
+          this.worker?.postMessage({
+            worker: kclWorkerType,
+            eventType: lspWorkerEventType.fileExistsResponse,
+            eventData: { requestId: request.requestId, exists: true },
+          });
+        } else {
+          this.worker?.postMessage({
+            worker: kclWorkerType,
+            eventType: lspWorkerEventType.fileExistsResponse,
+            eventData: { requestId: request.requestId, exists: false },
+          });
+        }
+      } catch {
+        this.worker?.postMessage({
+          worker: kclWorkerType,
+          eventType: lspWorkerEventType.fileExistsResponse,
+          eventData: { requestId: request.requestId, exists: false },
+        });
+      }
+
+      return;
+    }
+
+    try {
+      const exists = await fileManager.exists(request.path);
+      log('File exists result:', request.path, exists);
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileExistsResponse,
+        eventData: { requestId: request.requestId, exists },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('File exists error:', request.path, errorMessage);
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileExistsResponse,
+        eventData: { requestId: request.requestId, exists: false, error: errorMessage },
+      });
+    }
+  }
+
+  private async handleFileListRequest(request: FileSystemRequest): Promise<void> {
+    log('Handling file list request:', request.path);
+    const { fileManager } = this.options;
+
+    if (!fileManager?.readdir) {
+      log('No readdir available, returning empty array');
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileListResponse,
+        eventData: { requestId: request.requestId, files: [] },
+      });
+      return;
+    }
+
+    try {
+      const files = await fileManager.readdir(request.path);
+      log('File list success:', request.path, files.length, 'files');
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileListResponse,
+        eventData: { requestId: request.requestId, files },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('File list error:', request.path, errorMessage);
+      this.worker?.postMessage({
+        worker: kclWorkerType,
+        eventType: lspWorkerEventType.fileListResponse,
+        eventData: { requestId: request.requestId, files: [], error: errorMessage },
+      });
+    }
   }
 }

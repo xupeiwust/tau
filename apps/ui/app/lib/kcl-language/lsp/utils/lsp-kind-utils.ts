@@ -127,7 +127,7 @@ export function lspToMonacoCompletionKind(
 /**
  * Convert LSP SymbolKind to Monaco SymbolKind.
  */
-export function lspToMonacoSymbolKind(monaco: typeof Monaco, kind: LSP.SymbolKind): Monaco.languages.SymbolKind {
+export function lspToMonacoSymbolKind(_monaco: typeof Monaco, kind: LSP.SymbolKind): Monaco.languages.SymbolKind {
   // LSP and Monaco symbol kinds are aligned
   return kind as Monaco.languages.SymbolKind;
 }

@@ -2,13 +2,9 @@
  * Async queue implementation for LSP message handling.
  */
 
-const isDebugEnabled = true;
-function log(...arguments_: unknown[]): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- debug flag
-  if (isDebugEnabled) {
-    console.log('[Queue]', ...arguments_);
-  }
-}
+import { createLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
+
+const log = createLogger('Queue');
 
 export class Queue<T> {
   private readonly promises: Array<Promise<T>> = [];
@@ -78,10 +74,16 @@ export class Queue<T> {
     throw error;
   }
 
-  public [Symbol.asyncIterator](): AsyncIterator<T, never, void> {
+  public [Symbol.asyncIterator](): AsyncGenerator<T, never, void> {
     log('[Symbol.asyncIterator] called');
     return {
       next: async () => this.next(),
+      return: async () => ({ done: true as const, value: undefined as never }),
+      throw: async () => ({ done: true as const, value: undefined as never }),
+      [Symbol.asyncIterator]: () => this[Symbol.asyncIterator](),
+      [Symbol.asyncDispose]: async () => {
+        this.close();
+      },
     };
   }
 

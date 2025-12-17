@@ -4,7 +4,7 @@
  */
 
 import { Queue } from '#lib/kcl-language/lsp/codec/queue.js';
-import { LspWorkerEventType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
+import { lspWorkerEventType } from '#lib/kcl-language/lsp/kcl-lsp-types.js';
 
 export class IntoServer extends Queue<Uint8Array> implements AsyncGenerator<Uint8Array, never, void> {
   private readonly worker: Worker | undefined;
@@ -23,11 +23,26 @@ export class IntoServer extends Queue<Uint8Array> implements AsyncGenerator<Uint
     if (this.worker && this.workerType) {
       this.worker.postMessage({
         worker: this.workerType,
-        eventType: LspWorkerEventType.Call,
+        eventType: lspWorkerEventType.call,
         eventData: item,
       });
     } else {
       super.enqueue(item);
     }
+  }
+
+  public async return(): Promise<IteratorResult<Uint8Array, never>> {
+    this.close();
+    // Return a "done" result - the never type means this won't actually be called in practice
+    return { done: true, value: undefined as never };
+  }
+
+  public async throw(): Promise<IteratorResult<Uint8Array, never>> {
+    this.close();
+    return { done: true, value: undefined as never };
+  }
+
+  public async [Symbol.asyncDispose](): Promise<void> {
+    this.close();
   }
 }

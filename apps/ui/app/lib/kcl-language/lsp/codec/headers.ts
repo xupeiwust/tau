@@ -16,11 +16,13 @@ export function parseMessages(data: string): string[] {
   const messages: string[] = [];
   let remaining = data;
 
+  const contentLengthRegex = /^Content-Length:\s*(\d+)\s*\r?\n\r?\n/;
+
   while (remaining.length > 0) {
     // Find the Content-Length header
-    const contentLengthMatch = remaining.match(/^Content-Length:\s*(\d+)\s*\r?\n\r?\n/);
+    const contentLengthMatch = contentLengthRegex.exec(remaining);
 
-    if (contentLengthMatch) {
+    if (contentLengthMatch?.[1]) {
       const contentLength = Number.parseInt(contentLengthMatch[1], 10);
       const headerLength = contentLengthMatch[0].length;
       const messageEnd = headerLength + contentLength;
@@ -41,6 +43,7 @@ export function parseMessages(data: string): string[] {
       if (trimmed.startsWith('{')) {
         messages.push(trimmed);
       }
+
       break;
     }
   }

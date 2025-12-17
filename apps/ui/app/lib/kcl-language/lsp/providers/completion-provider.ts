@@ -103,8 +103,5 @@ function convertCompletionItem(
     sortText: item.sortText,
     filterText: item.filterText,
     preselect: item.preselect,
-    // Store original item for resolution
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any -- needed to store LSP item for resolution
-    data: item as any,
   };
 }
