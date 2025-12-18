@@ -21,7 +21,7 @@ type WriteFileOptions = {
 
 type FileManagerContextType = {
   fileManagerRef: ActorRefFrom<typeof fileManagerMachine>;
-  loadDirectory: (path: string) => void;
+  loadDirectory: (path: string) => Promise<void>;
   writeFile: (path: string, data: Uint8Array, options: WriteFileOptions) => Promise<void>;
   writeFiles: (files: Record<string, { content: Uint8Array }>) => Promise<void>;
   readFile: (path: string) => Promise<Uint8Array>;
