@@ -36,6 +36,12 @@ let isRegistered = false;
 /** Map of document URIs to their version numbers */
 const documentVersions = new Map<string, number>();
 
+/** Disposables for Monaco event subscriptions */
+const monacoDisposables: Monaco.IDisposable[] = [];
+
+/** Map of document URIs to their content change disposables */
+const contentChangeDisposables = new Map<string, Monaco.IDisposable>();
+
 /**
  * Get the symbol service instance.
  */
@@ -613,14 +619,15 @@ function setupDocumentSync(monaco: typeof Monaco, client: KclLspClient): void {
   }
 
   // Handle new models
-  monaco.editor.onDidCreateModel((model) => {
+  const createModelDisposable = monaco.editor.onDidCreateModel((model) => {
     if (model.getLanguageId() === languageId) {
       syncDocumentOpen(client, model);
     }
   });
+  monacoDisposables.push(createModelDisposable);
 
   // Handle model language changes (e.g., file renamed to .kcl)
-  monaco.editor.onDidChangeModelLanguage((event) => {
+  const languageChangeDisposable = monaco.editor.onDidChangeModelLanguage((event) => {
     const newLanguage = event.model.getLanguageId();
     if (newLanguage === languageId) {
       syncDocumentOpen(client, event.model);
@@ -628,13 +635,15 @@ function setupDocumentSync(monaco: typeof Monaco, client: KclLspClient): void {
       syncDocumentClose(client, event.model.uri.toString());
     }
   });
+  monacoDisposables.push(languageChangeDisposable);
 
   // Handle model disposal
-  monaco.editor.onWillDisposeModel((model) => {
+  const disposeModelDisposable = monaco.editor.onWillDisposeModel((model) => {
     if (model.getLanguageId() === languageId) {
       syncDocumentClose(client, model.uri.toString());
     }
   });
+  monacoDisposables.push(disposeModelDisposable);
 }
 
 /**
@@ -676,7 +685,7 @@ function syncDocumentOpen(client: KclLspClient, model: Monaco.editor.ITextModel)
   void openImportedFiles(uri, text);
 
   // Listen for content changes on this model
-  model.onDidChangeContent(() => {
+  const contentChangeDisposable = model.onDidChangeContent(() => {
     const version = (documentVersions.get(uri) ?? 0) + 1;
     documentVersions.set(uri, version);
     const newText = model.getValue();
@@ -694,6 +703,7 @@ function syncDocumentOpen(client: KclLspClient, model: Monaco.editor.ITextModel)
     // Re-scan for imports on content change (new imports might be added)
     void openImportedFiles(uri, newText);
   });
+  contentChangeDisposables.set(uri, contentChangeDisposable);
 }
 
 /**
@@ -705,6 +715,13 @@ function syncDocumentClose(client: KclLspClient, uri: string): void {
   client.textDocumentDidClose({
     textDocument: { uri },
   });
+
+  // Clean up content change listener for this document
+  const contentDisposable = contentChangeDisposables.get(uri);
+  if (contentDisposable) {
+    contentDisposable.dispose();
+    contentChangeDisposables.delete(uri);
+  }
 
   // Clean up symbol service
   if (symbolService) {
@@ -718,10 +735,33 @@ function syncDocumentClose(client: KclLspClient, uri: string): void {
  * Dispose of the LSP client and clean up resources.
  */
 export function disposeKclLsp(): void {
+  // Dispose Monaco event subscriptions
+  for (const disposable of monacoDisposables) {
+    disposable.dispose();
+  }
+  monacoDisposables.length = 0;
+
+  // Dispose content change subscriptions
+  for (const disposable of contentChangeDisposables.values()) {
+    disposable.dispose();
+  }
+  contentChangeDisposables.clear();
+
+  // Clean up LSP client
   lspClient?.dispose();
   lspClient = undefined;
+
+  // Clean up symbol service
   symbolService?.clear();
   symbolService = undefined;
+
+  // Clear document tracking
   documentVersions.clear();
   openedDocuments.clear();
+
+  // Reset Monaco instance reference
+  monacoInstance = undefined;
+
+  // Reset registration flag to allow re-registration
+  isRegistered = false;
 }
