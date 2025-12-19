@@ -201,7 +201,7 @@ const getRepoMetadataActor = fromPromise<RepoMetadataResult, { owner: string; re
 const getBranchesActor = fromPromise<BranchesResult, { owner: string; repo: string; cursor?: string }>(
   async ({ input }): Promise<BranchesResult> => {
     const client = getGitHubClient();
-    const result = await client.listBranches(input.owner, input.repo, 1, input.cursor);
+    const result = await client.listBranches(input.owner, input.repo, 100, input.cursor);
 
     return {
       type: 'branchesRetrieved' as const,
