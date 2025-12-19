@@ -3,6 +3,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import { useIsMobile } from '#hooks/use-mobile.js';
+import { useHorizontalScroll } from '#hooks/use-horizontal-scroll.js';
 import { Command, CommandInput, CommandItem, CommandList } from '#components/ui/command.js';
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from '#components/ui/drawer.js';
 import { Popover, PopoverContent, PopoverTrigger } from '#components/ui/popover.js';
@@ -31,6 +32,8 @@ type FileSelectorProps = {
   readonly searchPlaceholder?: string;
   readonly emptyMessage?: string;
   readonly virtualizationThreshold?: number;
+  /** Directory path to show when opened. If not provided, navigates to parent of selectedFile. */
+  readonly initialPath?: string;
 };
 
 type TreeNode = {
@@ -184,26 +187,7 @@ function BreadcrumbNav({
   }, [currentPath]);
 
   // Enable horizontal scrolling with mouse wheel
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) {
-      return;
-    }
-
-    const handleWheel = (event: WheelEvent): void => {
-      // Only handle vertical scroll when there's horizontal overflow
-      if (event.deltaY !== 0 && scrollContainer.scrollWidth > scrollContainer.clientWidth) {
-        event.preventDefault();
-        scrollContainer.scrollLeft += event.deltaY;
-      }
-    };
-
-    scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      scrollContainer.removeEventListener('wheel', handleWheel);
-    };
-  }, []);
+  useHorizontalScroll(scrollContainerRef);
 
   return (
     <div className="flex items-center border-b text-sm">
@@ -408,6 +392,7 @@ export function FileSelector({
   emptyMessage = 'No files found.',
   virtualizationThreshold = 50,
   popoverProperties,
+  initialPath,
 }: FileSelectorProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('');
@@ -420,13 +405,15 @@ export function FileSelector({
   // Get items at current path
   const currentItems = useMemo(() => getItemsAtPath(tree, currentPath), [tree, currentPath]);
 
-  // Open at the same level as the selected file
+  // Open at the same level as the selected file (or initialPath if provided)
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       setOpen(isOpen);
       if (isOpen) {
-        // Navigate to the parent directory of the selected file
-        if (selectedFile) {
+        // Use initialPath if provided, otherwise navigate to parent of selectedFile
+        if (initialPath !== undefined) {
+          setCurrentPath(initialPath);
+        } else if (selectedFile) {
           const parts = selectedFile.split('/');
           // Remove the filename to get the directory path
           parts.pop();
@@ -438,7 +425,7 @@ export function FileSelector({
         setSearchQuery('');
       }
     },
-    [selectedFile],
+    [initialPath, selectedFile],
   );
 
   // Handle file selection
