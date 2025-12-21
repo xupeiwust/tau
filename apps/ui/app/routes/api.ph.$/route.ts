@@ -2,12 +2,12 @@ import type { Route } from './+types/route.js';
 import { getEnvironment } from '#environment.config.js';
 
 /**
- * Proxy route for GitHub avatar images.
- * Fetches avatars from GitHub with proper authentication and caching.
+ * Proxy route for PostHog analytics.
+ * Forwards requests to PostHog API and asset servers while preserving client anonymity.
  *
- * Usage: /api/github-avatar?user=username
- *    or: /api/github-avatar?org=orgname
- *    or: /api/github-avatar?id=12345 (user ID)
+ * Routes:
+ *   - /api/ph/* → PostHog API (us.i.posthog.com)
+ *   - /api/ph/static/* → PostHog assets (us-assets.i.posthog.com)
  */
 
 export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
