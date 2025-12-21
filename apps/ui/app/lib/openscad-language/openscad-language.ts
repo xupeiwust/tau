@@ -1,4 +1,4 @@
-import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
+import type * as Monaco from 'monaco-editor';
 
 const languageKeywords = [
   'module',

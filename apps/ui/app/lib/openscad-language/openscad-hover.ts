@@ -21,7 +21,7 @@
  * - Find a way to describe types for user-defined module parameters & return types
  */
 
-import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
+import type * as Monaco from 'monaco-editor';
 import type { IMarkdownString } from 'monaco-editor/esm/vs/editor/editor.api.js';
 import {
   documentationDescriptor,
