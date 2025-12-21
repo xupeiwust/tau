@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import type { Model } from '@taucad/chat';
-import { getEnvironment } from '#config.js';
+import { getEnvironment } from '#environment.config.js';
 import { metaConfig } from '#constants/meta.constants.js';
 import { Page } from '#components/layout/page.js';
 import { themeSessionResolver } from '#sessions.server.js';

@@ -6,7 +6,7 @@ import { registerCompletion } from 'monacopilot';
 import type { CompletionRegistration, Monaco, StandaloneCodeEditor, CompletionCopilot } from 'monacopilot';
 import type { Monaco as MonacoEditor } from '@monaco-editor/react';
 import { replicadTypesOriginal } from '@taucad/api-extractor';
-import { ENV } from '#config.js';
+import { ENV } from '#environment.config.js';
 import { registerOpenScadLanguage } from '#lib/openscad-language/openscad-register-language.js';
 import { registerKclLanguage } from '#lib/kcl-language/kcl-register-language.js';
 
