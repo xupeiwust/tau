@@ -9,6 +9,7 @@ export const posthogConfig: { options: Partial<PostHogConfig>; apiKey: string } 
     ui_host: ENV.POSTHOG_UI_HOST,
     defaults: '2025-11-30',
   },
-  // When no API key is set, use an empty string. PostHog will detect an invalid key and not send any data.
+  // When no API key is set, set an empty string. `use-analytics.tsx` will detect this and not use the analytics provider.
+  // This is useful for development and self-hosted configurations.
   apiKey: ENV.POSTHOG_CLIENT_KEY ?? '',
 };
