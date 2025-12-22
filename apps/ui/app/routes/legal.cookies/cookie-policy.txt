@@ -2,6 +2,10 @@
 
 *Last updated: December 22, 2025*
 
+This Cookie Policy explains how TauCAD Limited ("we," "us," or "our") uses cookies and similar technologies when you use our Service. This policy should be read together with our [Privacy Policy](/legal/privacy), which provides more information about how we collect and process your personal data.
+
+This Cookie Policy complies with the EU ePrivacy Directive (2002/58/EC as amended by 2009/136/EC), the UK Privacy and Electronic Communications Regulations (PECR), and other applicable cookie laws.
+
 ## What is a Cookie
 
 Cookies are small text files which may include an anonymous unique identifier. They are sent to your browser from a website and stored on your device. Similar technologies like local storage are also used to store information locally in your browser.
@@ -21,22 +25,24 @@ We distinguish between two different types of cookies:
 
 We use essential cookies to remember your preferences and settings. These include:
 
-| Category | Purpose |
-|----------|---------|
-| **Theme** | Remember your preferred color theme and accent color. |
-| **Layout** | Store panel sizes, sidebar states, and UI preferences so your workspace looks the same each time you visit. |
-| **CAD Settings** | Remember your preferred CAD kernel, measurement units, and file preview settings. |
-| **Chat Preferences** | Store your selected AI model, web search preferences, and interface settings. |
-| **View Settings** | Remember your camera field of view, view configuration, and section view settings. |
-| **Console Settings** | Store your preferred log level and display configuration. |
-| **Converter Settings** | Remember your preferred output formats and download preferences. |
-| **Cookie Consent** | Remember your cookie consent choice so we don't ask you again. |
+| Category | Purpose | Retention |
+|----------|---------|-----------|
+| **Theme** | Remember your preferred color theme and accent color. | Persistent (until cleared) |
+| **Layout** | Store panel sizes, sidebar states, and UI preferences so your workspace looks the same each time you visit. | Persistent (until cleared) |
+| **CAD Settings** | Remember your preferred CAD kernel, measurement units, and file preview settings. | Persistent (until cleared) |
+| **Chat Preferences** | Store your selected AI model, web search preferences, and interface settings. | Persistent (until cleared) |
+| **View Settings** | Remember your camera field of view, view configuration, and section view settings. | Persistent (until cleared) |
+| **Console Settings** | Store your preferred log level and display configuration. | Persistent (until cleared) |
+| **Converter Settings** | Remember your preferred output formats and download preferences. | Persistent (until cleared) |
+| **Cookie Consent** | Remember your cookie consent choice so we don't ask you again. | 1 year |
 
-These cookies are stored locally in your browser and are not transmitted to any external services.
+These cookies are stored locally in your browser using localStorage and are not transmitted to any external services. "Persistent" cookies remain until you clear your browser data or reset your preferences within the application.
 
 ### Analytics Cookies (Optional)
 
 With your consent, we use PostHog to understand how users interact with our service. PostHog is an open-source product analytics platform that helps us improve Tau.
+
+**Retention:** Analytics data is retained for up to 12 months from the date of collection.
 
 **What PostHog collects:**
 
@@ -64,7 +70,16 @@ When you first visit Tau, you will see a cookie consent banner where you can:
 - **Decline**: Enable only essential cookies (analytics will be disabled)
 - **Manage**: Open detailed preferences to customize your choices
 
-You can change your cookie preferences at any time by clicking the cookie icon in the footer or through your browser settings.
+### Changing Your Preferences
+
+You can withdraw or modify your cookie consent at any time using any of these methods:
+
+1. **Cookie Settings Button**: Click the Cookies button in the footer of the homepage to reopen the cookie preferences dialog
+2. **Direct Link**: Visit [Cookie Settings](/legal/cookies#preferences) to manage your preferences
+3. **Browser Settings**: Use your browser's built-in cookie controls to view, delete, or block cookies
+4. **Clear Site Data**: In your browser's settings, you can clear all data for tau.new to reset all preferences
+
+When you withdraw consent for analytics cookies, we will stop collecting new analytics data immediately. Previously collected data will be retained according to our retention policy but will not be supplemented with new data.
 
 ## How to Control Cookies in Your Browser
 
