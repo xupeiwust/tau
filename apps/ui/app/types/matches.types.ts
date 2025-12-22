@@ -25,9 +25,10 @@ export type Handle = {
    */
   providers?: (match: UIMatch) => React.JSXElementConstructor<React.PropsWithChildren>;
   /**
-   * Use this when you want to render the page content directly without a sidebar and header.
+   * Enable the page wrapper (sidebar and header). Defaults to true.
+   * Set to false when you want to render the page content directly without a sidebar and header.
    */
-  noPageWrapper?: boolean;
+  enablePageWrapper?: boolean;
   /**
    * Enable floating sidebar. You will become responsible for setting content boundaries using:
    * - var(--sidebar-width) (for the sidebar width)
