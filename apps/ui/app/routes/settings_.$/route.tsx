@@ -84,7 +84,7 @@ export default function SettingsPage(): React.JSX.Element {
   const activeTab = getActiveTab();
 
   return (
-    <div className="mx-auto size-full max-w-4xl flex-1 max-md:px-2">
+    <div className="mx-auto size-full max-w-4xl flex-1 px-2 md:px-4">
       <ResponsiveTabs tabs={allTabs} activeTab={activeTab}>
         {authTabs.map((tab) => (
           <TabsContent key={tab.label} value={tab.label} className="[&>*]:md:gap-0">
