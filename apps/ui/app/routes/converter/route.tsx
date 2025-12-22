@@ -273,14 +273,14 @@ function ConverterContent(): React.JSX.Element {
         </>
       ) : (
         // Landing state - no model loaded
-        <div className="container mx-auto mt-(--header-height) grid h-full items-start gap-8 px-4 transition-[padding-left] duration-200 ease-linear md:pt-8 md:pl-[calc(var(--sidebar-width-current)-var(--spacing)*2)] lg:grid-cols-[300px_1fr_300px]">
+        <div className="container mx-auto mt-(--header-height) grid h-full items-start gap-8 px-4 transition-[padding-left] duration-200 ease-linear md:pt-8 md:pl-[calc(var(--sidebar-width-current)-var(--spacing)*2)] xl:grid-cols-[250px_1fr_250px]">
           {/* Import Formats - Left */}
           <FormatsList
             icon={Upload}
             title="Import Formats"
             description="Formats you can upload"
             formats={supportedImportFormats}
-            className="mt-30 max-lg:hidden"
+            className="mt-30 max-xl:hidden"
           />
 
           {/* Center - Hero & Upload */}
@@ -318,7 +318,7 @@ function ConverterContent(): React.JSX.Element {
             </Dropzone>
 
             {/* Mobile Format Lists */}
-            <div className="w-full max-w-2xl space-y-6 lg:hidden">
+            <div className="w-full max-w-2xl space-y-6 xl:hidden">
               <FormatsListMobile title="Import Formats" formats={supportedImportFormats} />
               <FormatsListMobile title="Export Formats" formats={supportedExportFormats} />
             </div>
@@ -401,7 +401,7 @@ function ConverterContent(): React.JSX.Element {
             title="Export Formats"
             description="Formats you can convert to"
             formats={supportedExportFormats}
-            className="mt-30 max-lg:hidden"
+            className="mt-30 max-xl:hidden"
           />
         </div>
       )}
