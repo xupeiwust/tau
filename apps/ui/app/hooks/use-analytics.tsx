@@ -59,15 +59,16 @@ function AnalyticsIdentifier({ children }: { readonly children: React.ReactNode 
         // PostHog uses 'avatar' for person profile images
         avatar: user.image,
       });
+      // Only update ref after successful identification to handle deferred consent
+      previousUserIdRef.current = currentUserId;
     }
 
     // User logged out - reset to unlink future events from this user
     // This is important for shared devices to avoid merging different users
     if (!currentUserId && previousUserId) {
       analytics.reset();
+      previousUserIdRef.current = undefined;
     }
-
-    previousUserIdRef.current = currentUserId;
   }, [analytics, consentStatus, user?.id, user?.email, user?.name, user?.image]);
 
   return children;
