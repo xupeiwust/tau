@@ -36,7 +36,7 @@ export const OptionalAuth = (): ReturnType<typeof SetMetadata> => SetMetadata(is
  *
  * @example
  * ```typescript
- * @Get('me')
+ * \@Get('me')
  * getProfile(@User() user: AuthUser) {
  *   return user;
  * }
@@ -44,7 +44,7 @@ export const OptionalAuth = (): ReturnType<typeof SetMetadata> => SetMetadata(is
  *
  * @example With property extraction
  * ```typescript
- * @Get('me/id')
+ * \@Get('me/id')
  * getUserId(@User('id') userId: string) {
  *   return userId;
  * }
