@@ -1,8 +1,9 @@
 import { Link } from 'react-router';
 import termsOfService from '#routes/legal.terms/terms-of-service.txt?raw';
 import { Button } from '#components/ui/button.js';
-import type { Handle } from '#types/matches.types.js';
+import { markdownHeaderAnchorLinkComponents } from '#components/markdown/header-anchor-link.js';
 import { MarkdownViewer } from '#components/markdown/markdown-viewer.js';
+import type { Handle } from '#types/matches.types.js';
 
 export const handle: Handle = {
   breadcrumb() {
@@ -15,5 +16,9 @@ export const handle: Handle = {
 };
 
 export default function Terms(): React.JSX.Element {
-  return <MarkdownViewer isStreaming={false}>{termsOfService}</MarkdownViewer>;
+  return (
+    <MarkdownViewer isStreaming={false} components={markdownHeaderAnchorLinkComponents}>
+      {termsOfService}
+    </MarkdownViewer>
+  );
 }

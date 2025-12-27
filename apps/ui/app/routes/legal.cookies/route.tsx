@@ -1,9 +1,10 @@
 import { Link, useLocation, useNavigate } from 'react-router';
 import cookiePolicy from '#routes/legal.cookies/cookie-policy.txt?raw';
 import { Button } from '#components/ui/button.js';
-import type { Handle } from '#types/matches.types.js';
+import { markdownHeaderAnchorLinkComponents } from '#components/markdown/header-anchor-link.js';
 import { MarkdownViewer } from '#components/markdown/markdown-viewer.js';
 import { CookiePreferencesDialog } from '#components/cookie-consent.js';
+import type { Handle } from '#types/matches.types.js';
 
 export const handle: Handle = {
   breadcrumb() {
@@ -30,7 +31,9 @@ export default function Cookies(): React.JSX.Element {
 
   return (
     <>
-      <MarkdownViewer isStreaming={false}>{cookiePolicy}</MarkdownViewer>
+      <MarkdownViewer isStreaming={false} components={markdownHeaderAnchorLinkComponents}>
+        {cookiePolicy}
+      </MarkdownViewer>
       <CookiePreferencesDialog isOpen={isPreferencesOpen} onOpenChange={handleOpenChange} />
     </>
   );
