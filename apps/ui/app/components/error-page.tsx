@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { isRouteErrorResponse, useNavigate, useRouteError } from 'react-router';
 import { Button } from '#components/ui/button.js';
 import { useAnalytics } from '#hooks/use-analytics.js';
-import { CollapsibleCodeBlock } from '#components/markdown/collapsible-code-block.js';
+import { CollapsibleCodeBlock } from '#components/ui/collapsible-code-block.js';
 import { PageNotFound } from '#components/page-not-found.js';
 
 export function ErrorPage(): React.JSX.Element {

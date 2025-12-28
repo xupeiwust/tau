@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { createLinkedHeader, slugify } from '#components/markdown/header-anchor-link.js';
+import { createHeaderAnchor, slugify } from '#components/markdown/markdown-header-anchor.js';
 
 describe('slugify', () => {
   it('converts text to lowercase', () => {
@@ -58,9 +58,9 @@ describe('slugify', () => {
   });
 });
 
-describe('createLinkedHeader', () => {
+describe('createHeaderAnchor', () => {
   it('creates an h1 component', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl font-bold');
+    const H1 = createHeaderAnchor('h1', 'text-3xl font-bold');
     render(<H1>Test Heading</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -69,7 +69,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('creates an h2 component', () => {
-    const H2 = createLinkedHeader('h2', 'text-2xl font-semibold');
+    const H2 = createHeaderAnchor('h2', 'text-2xl font-semibold');
     render(<H2>Test Heading</H2>);
 
     const heading = screen.getByRole('heading', { level: 2 });
@@ -77,7 +77,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('creates an h3 component', () => {
-    const H3 = createLinkedHeader('h3', 'text-xl font-semibold');
+    const H3 = createHeaderAnchor('h3', 'text-xl font-semibold');
     render(<H3>Test Heading</H3>);
 
     const heading = screen.getByRole('heading', { level: 3 });
@@ -85,7 +85,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('sets the id attribute from slugified text', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>3.1 Personal Data</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -93,7 +93,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('includes anchor link with correct href', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>Test Heading</H1>);
 
     const link = screen.getByRole('link', { name: 'Link to this section' });
@@ -101,7 +101,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('applies heading className', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl font-bold');
+    const H1 = createHeaderAnchor('h1', 'text-3xl font-bold');
     render(<H1>Test Heading</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -109,7 +109,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('applies additional className from props', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1 className="custom-class">Test Heading</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -117,7 +117,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('includes group class for hover behavior', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>Test Heading</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -125,7 +125,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('includes scroll margin class', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>Test Heading</H1>);
 
     const heading = screen.getByRole('heading', { level: 1 });
@@ -133,7 +133,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('renders link icon inside anchor', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>Test Heading</H1>);
 
     const link = screen.getByRole('link', { name: 'Link to this section' });
@@ -143,7 +143,7 @@ describe('createLinkedHeader', () => {
   });
 
   it('sets tabIndex to -1 on anchor link', () => {
-    const H1 = createLinkedHeader('h1', 'text-3xl');
+    const H1 = createHeaderAnchor('h1', 'text-3xl');
     render(<H1>Test Heading</H1>);
 
     const link = screen.getByRole('link', { name: 'Link to this section' });

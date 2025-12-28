@@ -26,7 +26,7 @@ export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
  * Factory function to create a linked header component.
  * The component renders a heading with an anchor link that appears on hover.
  */
-export function createLinkedHeader(
+export function createHeaderAnchor(
   Tag: HeadingTag,
   headingClassName: string,
 ): (props: ComponentProps<HeadingTag>) => React.JSX.Element {
@@ -57,11 +57,11 @@ export function createLinkedHeader(
  * Each header gets an auto-generated ID based on its text content,
  * and displays a link icon on hover for easy sharing.
  */
-export const markdownHeaderAnchorLinkComponents = {
-  h1: createLinkedHeader('h1', 'text-3xl font-bold'),
-  h2: createLinkedHeader('h2', 'text-2xl font-semibold'),
-  h3: createLinkedHeader('h3', 'text-xl font-semibold'),
-  h4: createLinkedHeader('h4', 'text-lg font-semibold'),
-  h5: createLinkedHeader('h5', 'text-base font-semibold'),
-  h6: createLinkedHeader('h6', 'text-sm font-medium'),
+export const markdownHeaderAnchorComponents = {
+  h1: createHeaderAnchor('h1', 'text-3xl font-bold'),
+  h2: createHeaderAnchor('h2', 'text-2xl font-semibold'),
+  h3: createHeaderAnchor('h3', 'text-xl font-semibold'),
+  h4: createHeaderAnchor('h4', 'text-lg font-semibold'),
+  h5: createHeaderAnchor('h5', 'text-base font-semibold'),
+  h6: createHeaderAnchor('h6', 'text-sm font-medium'),
 } as const satisfies StreamdownProps['components'];
