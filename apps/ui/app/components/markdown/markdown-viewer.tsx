@@ -27,7 +27,7 @@ export const defaultMarkdownControls = {
 
 export const MarkdownViewer = memo(function ({
   children,
-  isStreaming = true,
+  isStreaming = false,
   controls = defaultMarkdownControls,
   components,
 }: MarkdownViewerProps): React.JSX.Element {
