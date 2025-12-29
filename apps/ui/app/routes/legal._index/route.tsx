@@ -19,6 +19,11 @@ const legalPages = [
     href: '/legal/cookies',
   },
   {
+    title: 'Acceptable Use Policy',
+    description: 'Guidelines for appropriate use of our service and content standards.',
+    href: '/legal/acceptable-use',
+  },
+  {
     title: 'Sub-processors',
     description: 'View our list of third-party service providers that process your data.',
     href: '/legal/subprocessors',

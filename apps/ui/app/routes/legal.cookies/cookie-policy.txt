@@ -1,104 +1,85 @@
 # Cookie Policy
 
-*Effective date: December 23, 2025*
+*Effective date: December 29, 2025*
 
-This Cookie Policy explains how TauCAD Limited ("we," "us," or "our") uses cookies and similar technologies when you use our Service. This policy should be read together with our [Privacy Policy](/legal/privacy), which provides more information about how we collect and process your personal data.
+This Cookie Policy explains how TauCAD Limited ("we," "us," or "our") uses cookies and similar technologies when you use our Service. This policy should be read together with our [Privacy Policy](/legal/privacy).
 
 This Cookie Policy complies with the EU ePrivacy Directive (2002/58/EC as amended by 2009/136/EC), the UK Privacy and Electronic Communications Regulations (PECR), and other applicable cookie laws.
 
-## What is a Cookie
+## What Are Cookies
 
-Cookies are small text files which may include an anonymous unique identifier. They are sent to your browser from a website and stored on your device. Similar technologies like local storage are also used to store information locally in your browser.
+Cookies are small text files stored on your device. Similar technologies like localStorage are also used to store information locally in your browser.
 
-## How Tau Uses Cookies
+## Cookies We Use
 
-Tau uses cookies and similar technologies like local storage to maintain your preferences and hold certain information to improve your experience.
+We distinguish between two types of cookies:
 
-We distinguish between two different types of cookies:
-
-- **Essential**: Cookies that are strictly necessary for basic website or app functionality. These cannot be disabled as the service would not function properly without them.
-- **Analytics**: Cookies used to collect information about how you use the website. This data helps us improve the site and your experience. These are optional and require your consent.
-
-## The Cookies We Set
+- **Essential**: Strictly necessary for basic functionality. Cannot be disabled.
+- **Analytics** (Optional): With your consent, used to understand how you use the Service.
 
 ### Essential Cookies
 
-We use essential cookies to remember your preferences and settings. These include:
-
 | Category | Purpose | Retention |
 |----------|---------|-----------|
-| **Theme** | Remember your preferred color theme and accent color. | Persistent (until cleared) |
-| **Layout** | Store panel sizes, sidebar states, and UI preferences so your workspace looks the same each time you visit. | Persistent (until cleared) |
-| **CAD Settings** | Remember your preferred CAD kernel, measurement units, and file preview settings. | Persistent (until cleared) |
-| **Chat Preferences** | Store your selected AI model, web search preferences, and interface settings. | Persistent (until cleared) |
-| **View Settings** | Remember your camera field of view, view configuration, and section view settings. | Persistent (until cleared) |
-| **Console Settings** | Store your preferred log level and display configuration. | Persistent (until cleared) |
-| **Converter Settings** | Remember your preferred output formats and download preferences. | Persistent (until cleared) |
-| **Cookie Consent** | Remember your cookie consent choice so we don't ask you again. | 1 year |
+| **Theme** | Remember your preferred color theme and accent color | Persistent |
+| **Layout** | Store panel sizes, sidebar states, and UI preferences | Persistent |
+| **CAD Settings** | Remember CAD kernel, measurement units, and file preview settings | Persistent |
+| **Chat Preferences** | Store AI model selection, web search preferences, and interface settings | Persistent |
+| **View Settings** | Remember camera field of view, view configuration, and section view settings | Persistent |
+| **Console Settings** | Store log level and display configuration | Persistent |
+| **Converter Settings** | Remember output formats and download preferences | Persistent |
+| **Cookie Consent** | Remember your cookie consent choice | 1 year |
 
-These cookies are stored locally in your browser using localStorage and are not transmitted to any external services. "Persistent" cookies remain until you clear your browser data or reset your preferences within the application.
+These cookies are stored locally in your browser and are not transmitted to external services. "Persistent" cookies remain until you clear your browser data or reset preferences.
 
 ### Analytics Cookies (Optional)
 
-With your consent, we use PostHog to understand how users interact with our service. PostHog is an open-source product analytics platform that helps us improve Tau.
+With your consent, we use PostHog to understand how users interact with our service.
 
-**Retention:** Analytics data is retained for up to 12 months from the date of collection.
+**Retention:** 12 months from collection.
+**Data Location:** United States.
 
-**Data Location:** PostHog processes analytics data in the United States.
+**What PostHog collects:** Page views, navigation patterns, device and browser information, interaction patterns, feature usage statistics.
 
-**What PostHog collects:**
-
-- Page views and navigation patterns
-- Device and browser information
-- Interaction patterns (clicks, scrolls)
-- Feature usage statistics
-
-**What PostHog does NOT do:**
-
-- Does not use third-party cookies
-- Does not track you across different websites
-- Does not share data with advertising networks
-- Does not sell your data to third parties
-
-You can opt out of analytics cookies at any time through our cookie preferences banner or by visiting your browser settings.
+**What PostHog does NOT do:** Use third-party cookies, track you across websites, share data with advertising networks, sell your data.
 
 For more information, see the [PostHog Privacy Policy](https://posthog.com/privacy).
+
+## Global Privacy Control (GPC)
+
+We honor the Global Privacy Control (GPC) signal. If your browser sends a GPC signal:
+
+- Analytics cookies (PostHog) will not be loaded
+- Your preference is respected immediately without displaying a consent prompt for analytics
+- Essential cookies will still function as necessary for the Service
+
+For more information about GPC, visit [globalprivacycontrol.org](https://globalprivacycontrol.org).
 
 ## Managing Your Cookie Preferences
 
 When you first visit Tau, you will see a cookie consent banner where you can:
 
 - **Accept**: Enable both essential and analytics cookies
-- **Decline**: Enable only essential cookies (analytics will be disabled)
-- **Manage**: Open detailed preferences to customize your choices
+- **Decline**: Enable only essential cookies (analytics disabled)
+- **Manage**: Customize your choices
 
-### Changing Your Preferences
+You can change your preferences at any time:
 
-You can withdraw or modify your cookie consent at any time using any of these methods:
+1. Click the Cookies button in the footer to reopen preferences
+2. Visit [Cookie Settings](/legal/cookies#preferences)
+3. Use your browser's cookie controls
+4. Clear site data for tau.new to reset all preferences
 
-1. **Cookie Settings Button**: Click the Cookies button in the footer of the homepage to reopen the cookie preferences dialog
-2. **Direct Link**: Visit [Cookie Settings](/legal/cookies#preferences) to manage your preferences
-3. **Browser Settings**: Use your browser's built-in cookie controls to view, delete, or block cookies
-4. **Clear Site Data**: In your browser's settings, you can clear all data for tau.new to reset all preferences
+When you withdraw consent for analytics, we stop collecting new data immediately.
 
-When you withdraw consent for analytics cookies, we will stop collecting new analytics data immediately. Previously collected data will be retained according to our retention policy but will not be supplemented with new data.
+## Browser Cookie Controls
 
-## How to Control Cookies in Your Browser
+Most web browsers allow you to view, delete, or block cookies through their settings. Refer to your browser's help documentation for instructions.
 
-Most web browsers allow you to control cookies through their settings. You can:
+## Changes to This Policy
 
-- View what cookies are stored
-- Delete cookies individually or all at once
-- Block cookies from specific sites
-- Block all cookies (note: this may affect site functionality)
-
-Please refer to your browser's help documentation for instructions on managing cookies.
-
-## Changes to This Cookie Policy
-
-We may update our Cookie Policy from time to time. We will notify you of any changes by posting the new Cookie Policy on this page and updating the "Last updated" date.
+We may update this Cookie Policy from time to time. We will notify you of changes by posting the new policy on this page.
 
 ## Contact Us
 
-If you have any questions about this Cookie Policy, please contact us at [privacy@tau.new](mailto:privacy@tau.new).
-
+If you have questions about this Cookie Policy, contact us at [privacy@tau.new](mailto:privacy@tau.new).
