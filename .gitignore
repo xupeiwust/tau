@@ -37,5 +37,5 @@ apps/ui/.source/**/*
 # Local Netlify folder
 .netlify
 
-jscadui
-zoo-modeling-app
+# Repos - for integration context
+repos/**/*

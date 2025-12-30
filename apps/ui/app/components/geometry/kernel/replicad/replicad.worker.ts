@@ -27,6 +27,8 @@ import { jsonSchemaFromJson } from '#utils/schema.utils.js';
 import type { InputShape, MainResultShapes } from '#components/geometry/kernel/replicad/utils/render-output.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import type { GeometryReplicad } from '#components/geometry/kernel/replicad/replicad.types.js';
+// Font file for Replicad textBlueprints() rendering (Vite ?url import)
+import geistRegularUrl from '#components/geometry/kernel/replicad/fonts/Geist-Regular.ttf?url';
 
 type ReplicadOptions = {
   /**
@@ -116,6 +118,19 @@ try {
       replicad.setOC(oc);
       this.replicadHasOc = true;
     }
+
+    // Load default font for textBlueprints() and sketchText()
+    // Font loading is non-critical - text functions will warn if font is unavailable
+    // replicad.loadFont() is idempotent and skips if font already loaded
+    try {
+      this.debug('Loading default font for text rendering');
+      await replicad.loadFont(geistRegularUrl, 'default');
+    } catch (error) {
+      this.warn('Failed to load default font for text rendering - text functions may not work', {
+        data: error,
+        operation: 'initialize',
+      });
+    }
   }
 
   protected override async canHandle(filename: string, extension: string): Promise<boolean> {
@@ -196,12 +211,6 @@ try {
     try {
       // Read code from file
       const code = await this.readFile(filename, 'utf8');
-
-      // Ensure font is loaded
-      // TODO: Review font loading
-      // if (!replicad.getFont()) {
-      //   await replicad.loadFont('/fonts/HKGrotesk-Regular.ttf');
-      // }
 
       let shapes: MainResultShapes;
       let defaultName: string | undefined;

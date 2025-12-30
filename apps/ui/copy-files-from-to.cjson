@@ -1,14 +1,30 @@
 {
   "copyFiles": [
-    // Geist Sans - Variable Font
+    // Geist Sans - Variable Font (WOFF2 for web CSS)
     {
       "from": "../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2",
       "to": "public/fonts/Geist-Variable.woff2"
     },
-    // Geist Mono - Variable Font
+    // Geist Mono - Variable Font (WOFF2 for web CSS)
     {
       "from": "../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2",
       "to": "public/fonts/GeistMono-Variable.woff2"
+    },
+    // Geist Sans - TTF fonts for OpenSCAD text() rendering
+    // Colocated with the OpenSCAD kernel and imported via Vite's ?url
+    {
+      "from": "../../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf",
+      "to": "app/components/geometry/kernel/openscad/fonts/Geist-Regular.ttf"
+    },
+    {
+      "from": "../../node_modules/geist/dist/fonts/geist-sans/Geist-Bold.ttf",
+      "to": "app/components/geometry/kernel/openscad/fonts/Geist-Bold.ttf"
+    },
+    // Geist Sans - TTF font for Replicad textBlueprints() rendering
+    // Colocated with the Replicad kernel and imported via Vite's ?url
+    {
+      "from": "../../node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf",
+      "to": "app/components/geometry/kernel/replicad/fonts/Geist-Regular.ttf"
     }
   ],
   // Always overwrite files
