@@ -22,6 +22,29 @@ import { logLevels } from '#types/console.types.js';
 import type { LogLevel } from '#types/console.types.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
+// Font files for OpenSCAD text() rendering (Vite ?url imports)
+import geistRegularUrl from '#components/geometry/kernel/openscad/fonts/Geist-Regular.ttf?url';
+import geistBoldUrl from '#components/geometry/kernel/openscad/fonts/Geist-Bold.ttf?url';
+
+/**
+ * Font configuration for fontconfig.
+ * Empty config - OpenSCAD WASM has default behavior that looks for fonts
+ * in ./fonts relative to cwd (set via chdir('/')).
+ */
+const fontsConf = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+</fontconfig>
+`;
+
+/**
+ * Font files to load for OpenSCAD text() rendering.
+ * These use Vite's ?url imports for colocated font assets.
+ */
+const fontFiles = [
+  { url: geistRegularUrl, filename: 'Geist-Regular.ttf' },
+  { url: geistBoldUrl, filename: 'Geist-Bold.ttf' },
+] as const;
 
 class OpenScadWorker extends KernelWorker {
   protected static override readonly supportedExportFormats: ExportFormat[] = [
@@ -36,6 +59,12 @@ class OpenScadWorker extends KernelWorker {
 
   private offDataMemory: Record<string, string> = {};
 
+  /**
+   * Cached font data to avoid re-fetching on every OpenSCAD instance.
+   * Maps filename to Uint8Array of font data.
+   */
+  private fontCache: Map<string, Uint8Array> | undefined;
+
   protected override async canHandle(_filename: string, extension: string): Promise<boolean> {
     return extension === 'scad';
   }
@@ -45,6 +74,7 @@ class OpenScadWorker extends KernelWorker {
     try {
       const instance = await this.createInstance();
       await this.mountFilesystem(instance, this.basePath);
+      await this.mountFonts(instance);
 
       const inputFile = filename;
       const parameterFile = `${filename}.params.json`;
@@ -107,6 +137,7 @@ class OpenScadWorker extends KernelWorker {
 
       const instance = await this.createInstance();
       await this.mountFilesystem(instance, this.basePath);
+      await this.mountFonts(instance);
 
       const inputFile = filename;
       const outputFile = `${filename}.off`;
@@ -269,6 +300,12 @@ class OpenScadWorker extends KernelWorker {
     try {
       this.debug('Mounting filesystem from basePath', { operation: 'mountFilesystem', data: { basePath } });
 
+      // Change to root directory FIRST - all file operations should be relative to /
+      // This is critical for font resolution (fonts are at /fonts relative to cwd)
+      // @ts-expect-error - chdir exists on Emscripten FS but is not typed in openscad-wasm-prebuilt
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- chdir is untyped but exists on Emscripten FS
+      instance.FS.chdir('/');
+
       // Get all files from the current directory
       const files = await this.fileManager.getDirectoryContents(basePath);
       const fileCount = Object.keys(files).length;
@@ -307,6 +344,69 @@ class OpenScadWorker extends KernelWorker {
     } catch (error) {
       this.error('Failed to mount filesystem', { operation: 'mountFilesystem', data: error });
       throw error;
+    }
+  }
+
+  /**
+   * Mount fonts into Emscripten's FS for OpenSCAD text() rendering.
+   * Fetches TTF fonts from the public folder and writes them to /fonts/ in the virtual FS.
+   * Font data is cached to avoid re-fetching on subsequent OpenSCAD instances.
+   *
+   * @param instance - The OpenSCAD instance with FS API.
+   */
+  private async mountFonts(instance: OpenSCAD): Promise<void> {
+    try {
+      this.debug('Mounting fonts for text rendering', { operation: 'mountFonts' });
+
+      // Fetch and cache fonts if not already cached
+      if (!this.fontCache) {
+        this.debug('Fetching fonts (first time)', { operation: 'mountFonts' });
+        this.fontCache = new Map();
+
+        const fontPromises = fontFiles.map(async ({ url, filename }) => {
+          const response = await fetch(url, { cache: 'force-cache' });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch font ${filename}: ${response.statusText}`);
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          return { filename, data: new Uint8Array(arrayBuffer) };
+        });
+
+        const fonts = await Promise.all(fontPromises);
+        for (const { filename, data } of fonts) {
+          this.fontCache.set(filename, data);
+          this.trace(`Cached font: ${filename} (${data.byteLength} bytes)`, { operation: 'mountFonts' });
+        }
+      }
+
+      // Create /fonts directory in Emscripten FS
+      try {
+        instance.FS.mkdir('/fonts');
+      } catch {
+        // Directory may already exist, ignore error
+      }
+
+      // Write fonts to Emscripten FS
+      for (const [filename, data] of this.fontCache) {
+        instance.FS.writeFile(`/fonts/${filename}`, data);
+        this.trace(`Mounted font: /fonts/${filename}`, { operation: 'mountFonts' });
+      }
+
+      // Write fonts.conf for fontconfig
+      instance.FS.writeFile('/fonts/fonts.conf', fontsConf);
+      this.trace('Mounted fonts.conf', { operation: 'mountFonts' });
+
+      // Note: chdir('/') is called in mountFilesystem before this method
+      // so fontconfig will resolve fonts from ./fonts (i.e., /fonts)
+
+      this.debug(`Successfully mounted ${this.fontCache.size} fonts`, { operation: 'mountFonts' });
+    } catch (error) {
+      // Log warning but don't fail - text rendering just won't work
+      this.warn('Failed to mount fonts - text() may not render correctly', {
+        operation: 'mountFonts',
+        data: error,
+      });
     }
   }
 }
