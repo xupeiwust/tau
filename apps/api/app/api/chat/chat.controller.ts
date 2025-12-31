@@ -124,19 +124,30 @@ export class ChatController {
 
     // Check if we're resuming from an interrupt
     if (currentState?.next && currentState.next.length > 0) {
-      // Thread is interrupted, resume with the provided input
-      this.logger.debug(`Resuming interrupted thread: ${body.id}`);
-
-      // Extract the result from the last tool call to use as resume value
+      // Thread appears interrupted - try to extract tool result for resume
       const toolResult = tryExtractLastToolResult(langchainMessages);
 
-      this.logger.debug(`Resuming with tool result: ${JSON.stringify(toolResult, null, 2)}`);
+      if (toolResult === undefined) {
+        // No valid tool result - likely a retry after successful processing
+        // Fall back to normal execution - LangGraph handles message deduplication
+        this.logger.debug(
+          `Thread ${body.id} appears interrupted but no tool result found. ` +
+            `Falling back to normal execution (likely a retry after successful processing).`,
+        );
+        eventStream = graph.streamEvents(
+          { messages: langchainMessages },
+          { ...config, signal: abortController.signal },
+        );
+      } else {
+        // Valid tool result found - resume the graph
+        this.logger.debug(`Resuming interrupted thread: ${body.id}`);
+        this.logger.debug(`Resuming with tool result: ${JSON.stringify(toolResult, null, 2)}`);
 
-      // Resume the graph execution with the tool result
-      eventStream = graph.streamEvents(new Command({ resume: toolResult }), {
-        ...config,
-        signal: abortController.signal,
-      });
+        eventStream = graph.streamEvents(new Command({ resume: toolResult }), {
+          ...config,
+          signal: abortController.signal,
+        });
+      }
     } else {
       // Normal execution - start new conversation or continue existing one
       this.logger.debug(`Starting normal execution for thread: ${body.id}`);
