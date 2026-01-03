@@ -65,6 +65,16 @@ export class OpenScadWorker extends KernelWorker {
    */
   private fontCache: Map<string, Uint8Array> | undefined;
 
+  /**
+   * Get the raw OFF data for a geometry (for testing/debugging purposes).
+   *
+   * @param geometryId - The geometry ID to get OFF data for.
+   * @returns The raw OFF data string or undefined if not found.
+   */
+  public getOffData(geometryId = 'defaultGeometry'): string | undefined {
+    return this.offDataMemory[geometryId];
+  }
+
   protected override async canHandle(_filename: string, extension: string): Promise<boolean> {
     return extension === 'scad';
   }

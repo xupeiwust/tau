@@ -3,6 +3,12 @@ import { describe, it, expect, vi } from 'vitest';
 import type { FileManager } from '#machines/file-manager.js';
 import { OpenScadWorker } from '#components/geometry/kernel/openscad/openscad.worker.js';
 
+/* eslint-disable @typescript-eslint/naming-convention -- OpenSCAD uses snake_case for parameter names */
+
+// =============================================================================
+// Test Utilities
+// =============================================================================
+
 /**
  * Helper to encode text as Uint8Array for the mock file manager.
  */
@@ -49,6 +55,54 @@ function createMockFileManager(files: Record<string, string>): FileManager {
 }
 
 /**
+ * Create a mock FileManager for geometry computation that handles path normalization.
+ */
+function createGeometryMockFileManager(files: Record<string, string>): FileManager {
+  const encodedFiles: Record<string, Uint8Array> = {};
+
+  for (const [path, content] of Object.entries(files)) {
+    encodedFiles[path] = encodeText(content);
+  }
+
+  // Normalize path by removing leading slashes and basePath prefixes
+  const normalizePath = (filepath: string): string => {
+    return filepath.replace(/^\/+/, '').replace(/^builds\/test\//, '');
+  };
+
+  return {
+    readFile: vi.fn(async (filepath: string, encoding?: string) => {
+      const normalizedPath = normalizePath(filepath);
+      const content = encodedFiles[normalizedPath];
+
+      if (!content) {
+        throw new Error(`File not found: ${filepath}`);
+      }
+
+      if (encoding === 'utf8') {
+        return new TextDecoder().decode(content);
+      }
+
+      return content;
+    }),
+    exists: vi.fn(async (filepath: string) => normalizePath(filepath) in encodedFiles),
+    readdir: vi.fn(async () => Object.keys(encodedFiles)),
+    getDirectoryContents: vi.fn(async () => encodedFiles),
+    copyDirectory: vi.fn(),
+    getZippedDirectory: vi.fn(),
+    writeFile: vi.fn(),
+    writeFiles: vi.fn(),
+    mkdir: vi.fn(),
+    stat: vi.fn(),
+    rename: vi.fn(),
+    unlink: vi.fn(),
+    rmdir: vi.fn(),
+    batchExists: vi.fn(),
+    ensureDirectoryExists: vi.fn(),
+    getDirectoryStat: vi.fn(),
+  } as unknown as FileManager;
+}
+
+/**
  * Create a GeometryFile for testing.
  */
 function createGeometryFile(filename: string, basePath = '/builds/test'): GeometryFile {
@@ -59,9 +113,9 @@ function createGeometryFile(filename: string, basePath = '/builds/test'): Geomet
 }
 
 /**
- * Initialize an OpenScadWorker with a mock file manager.
+ * Initialize an OpenScadWorker with a mock file manager for parameter extraction.
  */
-async function createInitializedWorker(files: Record<string, string>): Promise<OpenScadWorker> {
+async function createParameterWorker(files: Record<string, string>): Promise<OpenScadWorker> {
   const worker = new OpenScadWorker();
   const mockFileManager = createMockFileManager(files);
 
@@ -89,13 +143,32 @@ async function createInitializedWorker(files: Record<string, string>): Promise<O
 }
 
 /**
+ * Initialize an OpenScadWorker for geometry computation.
+ */
+function createGeometryWorker(files: Record<string, string>): OpenScadWorker {
+  const worker = new OpenScadWorker();
+  const mockFileManager = createGeometryMockFileManager(files);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing protected property for testing
+  (worker as any).fileManager = mockFileManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing protected property for testing
+  (worker as any).basePath = '';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing protected property for testing
+  (worker as any).onLog = () => {
+    // Suppress logs
+  };
+
+  return worker;
+}
+
+/**
  * Helper to extract parameters and assert success.
  */
 async function extractParameters(
   files: Record<string, string>,
   mainFile: string,
 ): Promise<{ jsonSchema: unknown; defaultParameters: Record<string, unknown> }> {
-  const worker = await createInitializedWorker(files);
+  const worker = await createParameterWorker(files);
   const result = await worker.extractParametersEntry(createGeometryFile(mainFile));
 
   expect(result.success).toBe(true);
@@ -107,7 +180,55 @@ async function extractParameters(
   return result.data;
 }
 
-/* eslint-disable @typescript-eslint/naming-convention -- OpenSCAD uses snake_case for parameter names */
+/**
+ * Helper to compute geometry and get OFF data for analysis.
+ */
+async function computeGeometryAndGetOffData(
+  files: Record<string, string>,
+  mainFile: string,
+): Promise<{ offData: string | undefined; success: boolean }> {
+  const worker = createGeometryWorker(files);
+  const geometryFile = { filename: mainFile, path: '' };
+  const result = await worker.computeGeometryEntry(geometryFile, {});
+
+  return {
+    offData: worker.getOffData(),
+    success: result.success,
+  };
+}
+
+/**
+ * Parse OFF face lines and count color components.
+ */
+function analyzeOffColorComponents(offData: string): { rgbFaceCount: number; rgbaFaceCount: number } {
+  const lines = offData.split('\n');
+  let rgbFaceCount = 0;
+  let rgbaFaceCount = 0;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    // Face lines start with vertex count followed by indices
+    if (!/^\d+\s+\d+/.test(trimmedLine)) {
+      continue;
+    }
+
+    const parts = trimmedLine.split(/\s+/);
+    const numberVerts = Number.parseInt(parts[0] ?? '0', 10);
+    const colorComponents = parts.slice(numberVerts + 1);
+
+    if (colorComponents.length === 3) {
+      rgbFaceCount++;
+    } else if (colorComponents.length === 4) {
+      rgbaFaceCount++;
+    }
+  }
+
+  return { rgbFaceCount, rgbaFaceCount };
+}
+
+// =============================================================================
+// Tests: Parameter Extraction
+// =============================================================================
 
 describe('OpenScadWorker', () => {
   describe('extractParametersEntry', () => {
@@ -610,6 +731,82 @@ describe('OpenScadWorker', () => {
 
         // Known issue: json-schema-default library returns {} for oneOf properties with falsy defaults
         expect(defaultParameters).toEqual({ resolution: 32, shape_type: {} });
+      });
+    });
+  });
+
+  // ===========================================================================
+  // Tests: Geometry Computation
+  // ===========================================================================
+
+  describe('computeGeometryEntry', () => {
+    describe('Basic geometry', () => {
+      it('should compute geometry for a simple cube', async () => {
+        const { success, offData } = await computeGeometryAndGetOffData(
+          { 'cube.scad': 'cube([10, 10, 10]);' },
+          'cube.scad',
+        );
+
+        expect(success).toBe(true);
+        expect(offData).toBeDefined();
+        expect(offData).toContain('OFF'); // OFF file header
+      });
+
+      it('should compute geometry with multiple primitives', async () => {
+        const scadCode = `
+          cube([10, 10, 10]);
+          translate([20, 0, 0]) sphere(r=5);
+        `;
+        const { success, offData } = await computeGeometryAndGetOffData({ 'multi.scad': scadCode }, 'multi.scad');
+
+        expect(success).toBe(true);
+        expect(offData).toBeDefined();
+      });
+    });
+
+    describe('Color handling', () => {
+      it('should output OFF data with RGB colors for opaque geometry', async () => {
+        const scadCode = `color([1, 0, 0]) cube([10, 10, 10]);`;
+        const { success, offData } = await computeGeometryAndGetOffData({ 'red_cube.scad': scadCode }, 'red_cube.scad');
+
+        expect(success).toBe(true);
+        expect(offData).toBeDefined();
+
+        if (offData) {
+          const { rgbFaceCount } = analyzeOffColorComponents(offData);
+          expect(rgbFaceCount).toBeGreaterThan(0);
+        }
+      });
+
+      it('should output OFF data with RGBA colors for transparent geometry', async () => {
+        const scadCode = `color([0, 0, 1, 0.5]) cube([10, 10, 10]);`;
+        const files = { 'transparent_cube.scad': scadCode };
+        const { success, offData } = await computeGeometryAndGetOffData(files, 'transparent_cube.scad');
+
+        expect(success).toBe(true);
+        expect(offData).toBeDefined();
+
+        if (offData) {
+          const { rgbaFaceCount } = analyzeOffColorComponents(offData);
+          expect(rgbaFaceCount).toBeGreaterThan(0);
+        }
+      });
+
+      it('should output mixed RGB and RGBA for mixed opaque/transparent geometry', async () => {
+        const scadCode = `
+          color([1, 0, 0]) cube([10, 10, 10]);
+          translate([15, 0, 0]) color([0, 0, 1, 0.5]) cube([10, 10, 10]);
+        `;
+        const { success, offData } = await computeGeometryAndGetOffData({ 'mixed.scad': scadCode }, 'mixed.scad');
+
+        expect(success).toBe(true);
+        expect(offData).toBeDefined();
+
+        if (offData) {
+          const { rgbFaceCount, rgbaFaceCount } = analyzeOffColorComponents(offData);
+          expect(rgbFaceCount).toBeGreaterThan(0);
+          expect(rgbaFaceCount).toBeGreaterThan(0);
+        }
       });
     });
   });

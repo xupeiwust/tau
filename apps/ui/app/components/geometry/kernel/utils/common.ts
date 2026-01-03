@@ -17,12 +17,16 @@ export type Vertex = [number, number, number];
 export type Face = number[];
 
 /**
- * RGB color components in normalized range [0.0, 1.0].
+ * RGBA color components in normalized range [0.0, 1.0].
  *
- * @example [1.0, 0.0, 0.0] represents pure red
- * @example [0.5, 0.5, 0.5] represents 50% gray
+ * The alpha component is optional for backwards compatibility, but new code
+ * should always include it. When alpha is omitted, it defaults to 1.0 (fully opaque).
+ *
+ * @example [1.0, 0.0, 0.0, 1.0] represents opaque red
+ * @example [0.0, 0.0, 1.0, 0.5] represents semi-transparent blue
+ * @example [0.5, 0.5, 0.5, 1.0] represents opaque 50% gray
  */
-export type Color = [number, number, number]; // RGB values 0-1
+export type Color = [number, number, number, number]; // RGBA values 0-1
 
 /**
  * A complete 3D mesh representation using indexed geometry.
