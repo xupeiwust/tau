@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#components
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { cn } from '#utils/ui.utils.js';
 import { ChatErrorUnauthorized } from '#routes/builds_.$id/chat-error-unauthorized.js';
+import { ChatErrorServiceUnavailable } from '#routes/builds_.$id/chat-error-service-unavailable.js';
 
 type ParsedError = {
   code?: string;
@@ -15,6 +16,28 @@ type ParsedError = {
   path?: string;
   requestId?: string;
 };
+
+/**
+ * Checks if the error indicates a network/connectivity issue.
+ * This includes browser fetch failures and connection refused errors.
+ */
+function isNetworkError(message: string): boolean {
+  const networkErrorPatterns = [
+    'Failed to fetch', // Browser fetch API network error
+    'NetworkError', // Generic network error
+    'net::ERR_CONNECTION_REFUSED', // Chrome connection refused
+    'net::ERR_NETWORK_CHANGED', // Chrome network changed
+    'net::ERR_INTERNET_DISCONNECTED', // Chrome no internet
+    'net::ERR_NAME_NOT_RESOLVED', // Chrome DNS failure
+    'Load failed', // Safari network error
+    'Network request failed', // React Native / some polyfills
+    'ECONNREFUSED', // Node.js connection refused
+    'ETIMEDOUT', // Connection timeout
+    'ENOTFOUND', // DNS lookup failed
+  ];
+
+  return networkErrorPatterns.some((pattern) => message.includes(pattern));
+}
 
 function parseErrorMessage(message: string): { parsed: ParsedError | undefined; formatted: string } {
   try {
@@ -54,6 +77,15 @@ export const ChatError = memo(function ({
     return (
       <div className={cn('size-full', className)}>
         <ChatErrorUnauthorized />
+      </div>
+    );
+  }
+
+  // Handle network/connectivity errors with dedicated component
+  if (isNetworkError(error.message)) {
+    return (
+      <div className={cn('size-full', className)}>
+        <ChatErrorServiceUnavailable />
       </div>
     );
   }
