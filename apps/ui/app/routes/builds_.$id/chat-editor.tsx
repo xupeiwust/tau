@@ -223,6 +223,42 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
     };
   }, [monaco, fileManagerRef, buildId]);
 
+  // Subscribe to fileOpened events to jump to specific line numbers
+  useEffect(() => {
+    if (!monaco) {
+      return;
+    }
+
+    const subscription = fileExplorerActor.on(
+      'fileOpened',
+      (event: { path: string; lineNumber?: number; column?: number }) => {
+        // Only jump if a line number is specified
+        if (!event.lineNumber) {
+          return;
+        }
+
+        const uri = createBuildNamespacedUri(monaco, buildId, event.path);
+        const model = monaco.editor.getModel(uri);
+
+        if (model) {
+          const editors = monaco.editor.getEditors();
+          const targetEditor = editors.find((editorInstance) => editorInstance.getModel() === model);
+
+          if (targetEditor) {
+            const position = new monaco.Position(event.lineNumber, event.column ?? 1);
+            targetEditor.setPosition(position);
+            targetEditor.revealPositionInCenter(position);
+            targetEditor.focus();
+          }
+        }
+      },
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [monaco, fileExplorerActor, buildId]);
+
   return (
     <div className={cn('flex h-full flex-col bg-background', className)}>
       <ChatEditorTabs />
