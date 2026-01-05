@@ -492,73 +492,8 @@ describe('Parameters - Reset Button Visibility', () => {
     mockOnParametersChange = vi.fn();
   });
 
-  describe('Top-level reset button', () => {
-    it('should not show reset button when no parameters have been edited', () => {
-      const defaultParameters = {
-        name: 'test',
-        count: 5,
-      };
-
-      const schema: RJSFSchema = {
-        type: 'object',
-        properties: {
-          name: { type: 'string', default: 'test' },
-          count: { type: 'number', default: 5 },
-        },
-      };
-
-      render(
-        <TestWrapper>
-          <Parameters
-            parameters={{}}
-            defaultParameters={defaultParameters}
-            jsonSchema={schema}
-            units={defaultUnits}
-            onParametersChange={mockOnParametersChange}
-          />
-        </TestWrapper>,
-      );
-
-      // Should not show reset all button
-      expect(screen.queryByLabelText('Reset all parameters')).toBeNull();
-    });
-
-    it('should show reset button when parameters have been edited', () => {
-      const defaultParameters = {
-        name: 'test',
-        count: 5,
-      };
-
-      const schema: RJSFSchema = {
-        type: 'object',
-        properties: {
-          name: { type: 'string', default: 'test' },
-          count: { type: 'number', default: 5 },
-        },
-      };
-
-      // Parameters have been edited
-      const editedParameters = {
-        name: 'changed',
-      };
-
-      render(
-        <TestWrapper>
-          <Parameters
-            parameters={editedParameters}
-            defaultParameters={defaultParameters}
-            jsonSchema={schema}
-            units={defaultUnits}
-            onParametersChange={mockOnParametersChange}
-          />
-        </TestWrapper>,
-      );
-
-      // Should show reset all button
-      const resetButton = screen.getByLabelText('Reset all parameters');
-      expect(resetButton).toBeTruthy();
-    });
-  });
+  // Note: Top-level "Reset all parameters" button is now rendered in ChatParameters header,
+  // not within the Parameters component. Tests for that button should be in chat-parameters.test.tsx.
 
   describe('Individual field reset button', () => {
     it('should not show reset button for primitive field when value matches default', () => {
@@ -837,11 +772,11 @@ describe('Parameters - Expand/Collapse State via isAllExpanded prop', () => {
     render(
       <TestWrapper>
         <Parameters
+          isAllExpanded
           parameters={{}}
           defaultParameters={defaultParameters}
           jsonSchema={schema}
           units={defaultUnits}
-          isAllExpanded={true}
           onParametersChange={mockOnParametersChange}
         />
       </TestWrapper>,
@@ -1791,47 +1726,8 @@ describe('Parameters - Reset Functionality', () => {
     expect(mockOnParametersChange).toHaveBeenCalledWith({});
   });
 
-  it('should reset all parameters when reset all button is clicked', async () => {
-    const defaultParameters = {
-      name: 'test',
-      count: 5,
-    };
-
-    const editedParameters = {
-      name: 'changed',
-      count: 10,
-    };
-
-    const schema: RJSFSchema = {
-      type: 'object',
-      properties: {
-        name: { type: 'string', default: 'test' },
-        count: { type: 'number', default: 5 },
-      },
-    };
-
-    render(
-      <TestWrapper>
-        <Parameters
-          parameters={editedParameters}
-          defaultParameters={defaultParameters}
-          jsonSchema={schema}
-          units={defaultUnits}
-          onParametersChange={mockOnParametersChange}
-        />
-      </TestWrapper>,
-    );
-
-    // Should show reset all button
-    const resetAllButton = screen.getByLabelText('Reset all parameters');
-    expect(resetAllButton).toBeTruthy();
-
-    // Click the reset all button
-    await user.click(resetAllButton);
-
-    // Should call onParametersChange with empty object
-    expect(mockOnParametersChange).toHaveBeenCalledWith({});
-  });
+  // Note: "Reset all parameters" button is now rendered in ChatParameters header,
+  // not within the Parameters component. Tests for that button should be in chat-parameters.test.tsx.
 });
 
 describe('Parameters - Reactive Configuration Changes', () => {
@@ -2718,11 +2614,11 @@ describe('Parameters - Feature Flags', () => {
     render(
       <TestWrapper>
         <Parameters
+          enableSearch
           units={defaultUnits}
           parameters={{}}
           defaultParameters={defaultParameters}
           jsonSchema={schema}
-          enableSearch={true}
           onParametersChange={mockOnParametersChange}
         />
       </TestWrapper>,
@@ -2766,11 +2662,11 @@ describe('Parameters - Feature Flags', () => {
     rerender(
       <TestWrapper>
         <Parameters
+          enableSearch
           units={defaultUnits}
           parameters={{}}
           defaultParameters={defaultParameters}
           jsonSchema={schema}
-          enableSearch={true}
           onParametersChange={mockOnParametersChange}
         />
       </TestWrapper>,
@@ -2843,11 +2739,11 @@ describe('Parameters - Collapse/Expand Functionality via isAllExpanded prop', ()
     rerender(
       <TestWrapper>
         <Parameters
+          isAllExpanded
           parameters={{}}
           defaultParameters={defaultParameters}
           jsonSchema={schema}
           units={defaultUnits}
-          isAllExpanded={true}
           onParametersChange={mockOnParametersChange}
         />
       </TestWrapper>,
@@ -2891,11 +2787,11 @@ describe('Parameters - Collapse/Expand Functionality via isAllExpanded prop', ()
     const { rerender } = render(
       <TestWrapper>
         <Parameters
+          isAllExpanded
           parameters={{}}
           defaultParameters={defaultParameters}
           jsonSchema={schema}
           units={defaultUnits}
-          isAllExpanded={true}
           onParametersChange={mockOnParametersChange}
         />
       </TestWrapper>,
@@ -3571,98 +3467,6 @@ describe('Parameters - onChange Only Modified Values', () => {
     });
   });
 
-  it('should hide reset all button when parameter is changed back to default', async () => {
-    const defaultParameters = {
-      name: 'default',
-      count: 5,
-    };
-
-    const schema: RJSFSchema = {
-      type: 'object',
-      properties: {
-        name: { type: 'string', default: 'default' },
-        count: { type: 'number', default: 5 },
-      },
-    };
-
-    let currentParameters: Record<string, unknown> = {};
-    const mockOnParametersChange = vi.fn((newParameters: Record<string, unknown>) => {
-      currentParameters = newParameters;
-    });
-
-    const { rerender } = render(
-      <TestWrapper>
-        <Parameters
-          parameters={currentParameters}
-          defaultParameters={defaultParameters}
-          jsonSchema={schema}
-          units={defaultUnits}
-          onParametersChange={mockOnParametersChange}
-        />
-      </TestWrapper>,
-    );
-
-    // Initially, no reset button should be present
-    expect(screen.queryByLabelText('Reset all parameters')).toBeNull();
-
-    // Step 1: Change name from default to modified
-    const nameInput = screen.getByLabelText('Input for Name');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'modified');
-
-    // Wait for onChange to fire
-    await new Promise((resolve) => {
-      setTimeout(resolve, 100);
-    });
-
-    // Verify parameter was updated
-    expect(currentParameters).toHaveProperty('name');
-    expect(currentParameters['name']).toBe('modified');
-
-    // Re-render with updated parameters
-    rerender(
-      <TestWrapper>
-        <Parameters
-          parameters={currentParameters}
-          defaultParameters={defaultParameters}
-          jsonSchema={schema}
-          units={defaultUnits}
-          onParametersChange={mockOnParametersChange}
-        />
-      </TestWrapper>,
-    );
-
-    // Reset all button should now be present
-    expect(screen.getByLabelText('Reset all parameters')).toBeTruthy();
-
-    // Step 2: Change name back to default
-    mockOnParametersChange.mockClear();
-    const nameInputAfter = screen.getByLabelText('Input for Name');
-    await user.clear(nameInputAfter);
-    await user.type(nameInputAfter, 'default');
-
-    // Wait for onChange to fire
-    await new Promise((resolve) => {
-      setTimeout(resolve, 100);
-    });
-
-    // Verify parameter was removed (back to default)
-    expect(currentParameters).not.toHaveProperty('name');
-
-    // Re-render with updated parameters
-    rerender(
-      <TestWrapper>
-        <Parameters
-          parameters={currentParameters}
-          defaultParameters={defaultParameters}
-          jsonSchema={schema}
-          units={defaultUnits}
-          onParametersChange={mockOnParametersChange}
-        />
-      </TestWrapper>,
-    );
-
-    // Reset all button should no longer be present since no parameters are modified
-    expect(screen.queryByLabelText('Reset all parameters')).toBeNull();
-  });
+  // Note: "Reset all parameters" button visibility test is now in ChatParameters header,
+  // not within the Parameters component.
 });

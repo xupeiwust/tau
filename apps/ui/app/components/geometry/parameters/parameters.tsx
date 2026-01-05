@@ -1,12 +1,10 @@
 import type { IChangeEvent } from '@rjsf/core';
 import validator from '@rjsf/validator-ajv8';
-import { RefreshCcw, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import Form from '@rjsf/core';
 import type { RJSFSchema } from '@rjsf/utils';
 import { SearchInput } from '#components/search-input.js';
-import { Button } from '#components/ui/button.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 import { cn } from '#utils/ui.utils.js';
 import { templates, uiSchema, widgets } from '#components/geometry/parameters/rjsf-theme.js';
 import type { RJSFContext, Units } from '#components/geometry/parameters/rjsf-context.js';
@@ -107,10 +105,6 @@ export function Parameters({
     [setParameters, defaultParameters],
   );
 
-  const resetAllParameters = useCallback(() => {
-    setParameters({});
-  }, [setParameters]);
-
   const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   }, []);
@@ -154,36 +148,17 @@ export function Parameters({
     <div data-slot="parameters" className={cn('group flex h-full w-full flex-col', className)}>
       {hasParameters ? (
         <>
-          {/* Search and Controls Bar */}
-          {enableSearch || Object.keys(parameters).length > 0 ? (
+          {/* Search Bar */}
+          {enableSearch ? (
             <div className="flex w-full flex-row gap-2 border-b bg-sidebar p-2">
-              {enableSearch ? (
-                <SearchInput
-                  ref={searchInputReference}
-                  placeholder={searchPlaceholder}
-                  value={searchTerm}
-                  className="h-7 w-full bg-background"
-                  onChange={handleSearchChange}
-                  onClear={clearSearch}
-                />
-              ) : null}
-
-              {Object.keys(parameters).length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="overlay"
-                      size="icon"
-                      className="size-7 text-muted-foreground transition-colors hover:text-foreground"
-                      aria-label="Reset all parameters"
-                      onClick={resetAllParameters}
-                    >
-                      <RefreshCcw />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Reset all parameters</TooltipContent>
-                </Tooltip>
-              )}
+              <SearchInput
+                ref={searchInputReference}
+                placeholder={searchPlaceholder}
+                value={searchTerm}
+                className="h-7 w-full bg-background"
+                onChange={handleSearchChange}
+                onClear={clearSearch}
+              />
             </div>
           ) : null}
           <Form<Record<string, unknown>, RJSFSchema, RJSFContext>

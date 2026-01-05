@@ -1,4 +1,4 @@
-import { XIcon, SlidersHorizontal, Search, ChevronRight } from 'lucide-react';
+import { XIcon, SlidersHorizontal, Search, ChevronRight, RefreshCcw } from 'lucide-react';
 import { useCallback, memo, useState } from 'react';
 import { useSelector } from '@xstate/react';
 import { KeyShortcut } from '#components/ui/key-shortcut.js';
@@ -78,6 +78,12 @@ export const ChatParameters = memo(function (props: {
     setIsAllExpanded((current) => !current);
   }, []);
 
+  const resetAllParameters = useCallback(() => {
+    setParameters({});
+  }, [setParameters]);
+
+  const hasModifiedParameters = Object.keys(parameters).length > 0;
+
   const toggleParametersOpen = useCallback(() => {
     setIsExpanded?.((current) => !current);
   }, [setIsExpanded]);
@@ -116,6 +122,22 @@ export const ChatParameters = memo(function (props: {
               </TooltipTrigger>
               <TooltipContent side="top">{isSearchVisible ? 'Hide search' : 'Search parameters'}</TooltipContent>
             </Tooltip>
+            {hasModifiedParameters ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 rounded-sm"
+                    aria-label="Reset all parameters"
+                    onClick={resetAllParameters}
+                  >
+                    <RefreshCcw className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Reset all parameters</TooltipContent>
+              </Tooltip>
+            ) : null}
             {jsonSchema && hasJsonSchemaObjectProperties(jsonSchema) ? (
               <Tooltip>
                 <TooltipTrigger asChild>
