@@ -30,7 +30,10 @@ export function ChatMessageMetadataUsage({
   return (
     <HoverCard openDelay={100} closeDelay={100}>
       <HoverCardTrigger asChild className="flex flex-row items-center" tabIndex={0}>
-        <Badge variant="outline" className="h-7 cursor-help font-medium text-inherit outline-none hover:bg-neutral/20">
+        <Badge
+          variant="outline"
+          className="h-7 cursor-help border-none font-medium text-inherit outline-none hover:bg-neutral/20"
+        >
           {formatCurrency(totalCost, { significantFigures: 2 })}
         </Badge>
       </HoverCardTrigger>

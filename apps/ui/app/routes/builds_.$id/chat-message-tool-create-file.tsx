@@ -1,0 +1,45 @@
+import type { UIToolInvocation } from 'ai';
+import { X } from 'lucide-react';
+import type { MyTools } from '@taucad/chat';
+import type { toolName } from '@taucad/chat/constants';
+import { CollapsibleFileOperation, CodePreview } from '#components/chat/chat-tool-file-operation.js';
+
+export function ChatMessageToolCreateFile({
+  part,
+}: {
+  readonly part: UIToolInvocation<MyTools[typeof toolName.createFile]>;
+}): React.JSX.Element {
+  switch (part.state) {
+    case 'input-streaming':
+    case 'input-available': {
+      const { input } = part;
+      const targetFile = input?.targetFile ?? 'file';
+      const content = input?.content ?? '';
+
+      return (
+        <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} mode="create" content={content} />
+      );
+    }
+
+    case 'output-available': {
+      const { input, output } = part;
+      const { targetFile, content } = input;
+      const { success } = output;
+
+      return (
+        <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} mode="create" isSuccess={success}>
+          {success && content ? <CodePreview content={content} /> : null}
+        </CollapsibleFileOperation>
+      );
+    }
+
+    case 'output-error': {
+      return (
+        <div className="flex items-center gap-2 rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <X className="size-4" />
+          <span>Failed to create file</span>
+        </div>
+      );
+    }
+  }
+}

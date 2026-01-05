@@ -1,0 +1,28 @@
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod';
+import { interrupt } from '@langchain/langgraph';
+import { getKernelResultInputSchema } from '@taucad/chat';
+import type { GetKernelResultOutput } from '@taucad/chat';
+import { toolName } from '@taucad/chat/constants';
+
+const getKernelResultJsonSchema = z.toJSONSchema(getKernelResultInputSchema);
+
+export const getKernelResultToolDefinition = {
+  name: toolName.getKernelResult,
+  description: `Check the status of the CAD kernel and retrieve any compilation errors.
+
+Use this tool AFTER using \`edit_file\` or \`create_file\` to verify that your code changes compiled successfully.
+
+Returns:
+- status: 'ready' if compilation succeeded, 'error' if there were errors, 'pending' if still processing
+- kernelErrors: Array of compilation/runtime errors if any occurred
+- message: Human-readable status message
+
+Best Practice: Always call this tool after making file changes to ensure the model renders correctly before proceeding.`,
+  schema: getKernelResultJsonSchema,
+} as const;
+
+export const getKernelResultTool = tool((args) => {
+  const result = interrupt<unknown, GetKernelResultOutput>(args);
+  return result;
+}, getKernelResultToolDefinition);

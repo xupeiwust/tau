@@ -26,4 +26,16 @@ export const messageMetadataSchema = z.object({
   createdAt: z.number().optional(),
   status: z.enum(messageStatuses).optional(),
   model: z.string().optional(),
+  /**
+   * A token-efficient tree representation of the project filesystem.
+   * Format: hierarchical text structure with file names and optional metadata.
+   * Example:
+   * ```
+   * /project/
+   *   - main.scad (245 lines)
+   *   - lib/
+   *     - utils.scad (89 lines)
+   * ```
+   */
+  filesystemSnapshot: z.string().optional(),
 });

@@ -172,8 +172,12 @@ export class LangGraphAdapter {
           isReasoning: false,
         };
 
+        // Track multiple tool calls by their index (for parallel tool calls)
+        // The queue is used for on_tool_start/on_tool_end which don't have index info
         const toolCallState = {
-          currentToolCallId: '',
+          toolCallsById: new Map<string, { toolCallId: string; toolName: string }>(),
+          toolCallQueue: [] as Array<{ toolCallId: string; toolName: string }>,
+          currentToolCallId: '', // For backwards compatibility with single tool calls
           currentToolName: '',
           toolInputStartSent: false,
           pendingFinishStep: false, // Tracks if finish-step was deferred due to pending tool call
@@ -333,6 +337,8 @@ export class LangGraphAdapter {
     callbacks: LangGraphAdapterCallbacks;
     reasoningState: { thinkingBuffer: string; isReasoning: boolean };
     toolCallState: {
+      toolCallsById: Map<string, { toolCallId: string; toolName: string }>;
+      toolCallQueue: Array<{ toolCallId: string; toolName: string }>;
       currentToolCallId: string;
       currentToolName: string;
       toolInputStartSent: boolean;
@@ -354,35 +360,59 @@ export class LangGraphAdapter {
     } = parameters;
 
     if (streamEvent.data.chunk.tool_calls.length > 0) {
-      const toolCall = streamEvent.data.chunk.tool_calls[0]!;
-      const originalToolCallId = toolCall.id;
-      if (originalToolCallId) {
-        const toolCallId = generatePrefixedId(idPrefix.toolCall);
-        toolCallState.currentToolCallId = toolCallId;
-        const toolName = toolTypeMap[toolCall.name] ?? toolCall.name;
-        if (!toolName) {
-          throw new Error('Tool name not found in event: ' + JSON.stringify(streamEvent));
-        }
+      // Process ALL tool calls in the chunk, not just the first one
+      // This handles parallel tool calls from the LLM
+      for (const toolCall of streamEvent.data.chunk.tool_calls) {
+        const originalToolCallId = toolCall.id;
+        if (originalToolCallId) {
+          // Use LangChain's original tool call ID to maintain consistency
+          // between client tool results and LangGraph's checkpointed state.
+          // Previously we generated our own IDs which broke the connection.
+          const toolCallId = originalToolCallId;
+          const toolName = toolTypeMap[toolCall.name] ?? toolCall.name;
+          if (!toolName) {
+            throw new Error('Tool name not found in event: ' + JSON.stringify(streamEvent));
+          }
 
-        toolCallState.currentToolName = toolName;
-        toolCallState.toolInputStartSent = true;
-        dataStream.write({
-          type: 'tool-input-start',
-          toolCallId,
-          toolName,
-        });
+          // Store in map by original ID for tool_call_chunks lookup
+          toolCallState.toolCallsById.set(originalToolCallId, { toolCallId, toolName });
+          // Also add to queue for on_tool_start/on_tool_end to pop from (in order)
+          toolCallState.toolCallQueue.push({ toolCallId, toolName });
+
+          // Keep current for backwards compatibility with single tool call case
+          toolCallState.currentToolCallId = toolCallId;
+          toolCallState.currentToolName = toolName;
+          toolCallState.toolInputStartSent = true;
+
+          dataStream.write({
+            type: 'tool-input-start',
+            toolCallId,
+            toolName,
+          });
+        }
       }
     } else if (streamEvent.data.chunk.tool_call_chunks.length > 0) {
-      // If tool call chunks are present, we need to handle them separately.
-      const toolCallChunk = streamEvent.data.chunk.tool_call_chunks[0]!;
-      if (toolCallState.currentToolCallId) {
-        dataStream.write({
-          type: 'tool-input-delta',
-          toolCallId: toolCallState.currentToolCallId,
-          inputTextDelta: toolCallChunk.args,
-        });
-      } else {
-        throw new Error('Attempted to write tool call delta without a current tool call ID');
+      // Handle tool call argument chunks - use index to find the right tool call
+      for (const toolCallChunk of streamEvent.data.chunk.tool_call_chunks) {
+        // The index field tells us which tool call this chunk belongs to
+        // Use the index to look up the correct tool call ID from the queue
+        // Falls back to currentToolCallId for backwards compatibility with single tool calls
+        const chunkIndex = toolCallChunk.index;
+
+        // Find the tool call by its position in the queue
+        // The index corresponds to the order in which tool calls were streamed
+        const queueEntry = toolCallState.toolCallQueue[Number(chunkIndex)];
+        const toolCallId = queueEntry?.toolCallId ?? toolCallState.currentToolCallId;
+
+        if (toolCallId) {
+          dataStream.write({
+            type: 'tool-input-delta',
+            toolCallId,
+            inputTextDelta: toolCallChunk.args,
+          });
+        } else {
+          throw new Error('Attempted to write tool call delta without a current tool call ID');
+        }
       }
     } else if (streamEvent.data.chunk.content) {
       const streamedContent = streamEvent.data.chunk.content;
@@ -585,6 +615,8 @@ export class LangGraphAdapter {
     totalUsageTokens: ChatUsageTokens;
     streamStartState: { textStartSent: boolean; reasoningStartSent: boolean };
     toolCallState: {
+      toolCallsById: Map<string, { toolCallId: string; toolName: string }>;
+      toolCallQueue: Array<{ toolCallId: string; toolName: string }>;
       currentToolCallId: string;
       currentToolName: string;
       toolInputStartSent: boolean;
@@ -660,6 +692,8 @@ export class LangGraphAdapter {
     dataStream: TypedUiMessageStreamWriter;
     callbacks: LangGraphAdapterCallbacks;
     toolCallState: {
+      toolCallsById: Map<string, { toolCallId: string; toolName: string }>;
+      toolCallQueue: Array<{ toolCallId: string; toolName: string }>;
       currentToolCallId: string;
       currentToolName: string;
       toolInputStartSent: boolean;
@@ -670,11 +704,20 @@ export class LangGraphAdapter {
   }): void {
     const { streamEvent, dataStream, callbacks, toolCallState, streamStartState, messageId } = parameters;
 
-    const toolCallId = toolCallState.currentToolCallId;
-    const toolName = toolCallState.currentToolName;
-
     // Check if this is a resume operation (replaying tool execution from checkpoint)
     const isResuming = streamEvent.metadata['__pregel_resuming'] === true;
+
+    // Pop from the queue to get the correct tool call for this on_tool_start event
+    // Tool start events arrive in the same order as tool calls were streamed
+    const queueEntry = toolCallState.toolCallQueue.shift();
+    const toolCallId = queueEntry?.toolCallId ?? toolCallState.currentToolCallId;
+    const toolName = queueEntry?.toolName ?? toolCallState.currentToolName;
+
+    // Update current for backwards compatibility and for handleToolEnd to use
+    if (queueEntry) {
+      toolCallState.currentToolCallId = queueEntry.toolCallId;
+      toolCallState.currentToolName = queueEntry.toolName;
+    }
 
     // When resuming, tool events are replayed but chat model stream events are not,
     // so toolCallState will be empty. Skip writing the tool call since it was already
@@ -766,6 +809,8 @@ export class LangGraphAdapter {
     callbacks: LangGraphAdapterCallbacks;
     parseToolResults?: Partial<Record<string, (content: string) => unknown[]>>;
     toolCallState: {
+      toolCallsById: Map<string, { toolCallId: string; toolName: string }>;
+      toolCallQueue: Array<{ toolCallId: string; toolName: string }>;
       currentToolCallId: string;
       currentToolName: string;
       toolInputStartSent: boolean;

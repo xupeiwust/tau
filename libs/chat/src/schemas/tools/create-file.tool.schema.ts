@@ -1,0 +1,14 @@
+import { z } from 'zod';
+
+export const createFileInputSchema = z.object({
+  targetFile: z.string().describe('The path of the file to create, relative to the project root.'),
+  content: z.string().describe('The content to write to the new file.'),
+});
+
+export const createFileOutputSchema = z.object({
+  success: z.boolean().describe('Whether the file was created successfully.'),
+  message: z.string().optional().describe('Additional information about the operation.'),
+});
+
+export type CreateFileInput = z.infer<typeof createFileInputSchema>;
+export type CreateFileOutput = z.infer<typeof createFileOutputSchema>;

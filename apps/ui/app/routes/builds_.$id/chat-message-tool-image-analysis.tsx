@@ -44,6 +44,7 @@ export function ChatMessageToolImageAnalysis({
 }: {
   readonly part: UIToolInvocation<MyTools[typeof toolName.imageAnalysis]>;
 }): React.JSX.Element {
+  const [isExpanded, setIsExpanded] = useState(true);
   const [isRequirementsExpanded, setIsRequirementsExpanded] = useState(false);
   const status = useChatSelector((state) => state.status);
 
@@ -77,83 +78,105 @@ export function ChatMessageToolImageAnalysis({
       const result = part.output;
 
       return (
-        <div className="@container/analysis overflow-hidden rounded-md border bg-neutral/10">
-          <div className="sticky top-0 flex flex-row items-center justify-between py-1 pr-1 pl-2 text-foreground/50">
-            <div className="flex flex-row items-center gap-1 text-xs text-muted-foreground">
-              <StatusIcon chatStatus={status} toolStatus={part.state} />
-              <ToolTitle chatStatus={status} toolStatus={part.state} />
-            </div>
-            <div className="flex flex-row gap-1">
-              <CopyButton
-                size="xs"
-                className="[&_[data-slot=label]]:hidden @xs/analysis:[&_[data-slot=label]]:flex"
-                getText={() => result.analysis}
-              />
-            </div>
-          </div>
-          {/* Screenshot Section */}
-          {result.screenshot ? (
-            <div className="border-t p-2 pt-1">
-              <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <Camera className="size-3" />
-                <span>Model Screenshot</span>
-              </div>
-              <HoverCard>
-                <HoverCardTrigger asChild>
-                  <div className="cursor-pointer rounded-md border bg-neutral/5 hover:bg-neutral/10">
-                    <img
-                      src={result.screenshot}
-                      alt="Model screenshot"
-                      className="size-full rounded-sm object-cover object-top"
-                    />
-                  </div>
-                </HoverCardTrigger>
-                <HoverCardContent asChild side="top" align="start" className="w-96">
-                  <img src={result.screenshot} alt="Model screenshot (full size)" className="max-w-full" />
-                </HoverCardContent>
-              </HoverCard>
-            </div>
-          ) : null}
-          {/* Requirements Section */}
-          {requirements.length > 0 && (
-            <Collapsible open={isRequirementsExpanded} className="border-t" onOpenChange={setIsRequirementsExpanded}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="group flex h-auto w-full justify-start gap-2 rounded-none p-2 hover:bg-transparent"
-                >
-                  <span className="relative flex items-center">
+        <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+          <div className="@container/analysis overflow-hidden rounded-md border bg-neutral/10">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="group/trigger sticky top-0 flex h-7 w-full flex-row items-center justify-between pr-1 pl-2 text-foreground/50 hover:bg-neutral/10"
+              >
+                <div className="flex flex-row items-center gap-1 text-xs text-muted-foreground">
+                  <span className="relative flex size-3 items-center justify-center">
                     <ChevronDown
                       className={cn(
-                        'size-3 shrink-0 transition-transform duration-200',
-                        isRequirementsExpanded ? 'rotate-180' : '',
+                        'absolute size-3 shrink-0 opacity-0 transition-all duration-200 group-hover/trigger:opacity-100',
+                        isExpanded ? '' : '-rotate-90',
                       )}
                     />
+                    <Eye className="absolute size-3 shrink-0 opacity-100 transition-opacity duration-200 group-hover/trigger:opacity-0" />
                   </span>
-                  <span className="text-left text-xs font-normal">
-                    {requirements.length} Requirement{requirements.length > 1 ? 's' : ''}
-                  </span>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="border-t">
-                <div className="space-y-1 px-2 py-2 text-xs">
-                  {requirements.map((requirement, index) => {
-                    const key = `${index}-${requirement}`;
-
-                    return (
-                      <div key={key} className="flex items-start text-xs">
-                        <div className="mr-2 shrink-0 font-mono text-muted-foreground">{index + 1}.</div>
-                        <div className="flex-1">{requirement}</div>
-                      </div>
-                    );
-                  })}
+                  <ToolTitle chatStatus={status} toolStatus={part.state} />
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-          {/* Analysis Section */}
-          {/* <div className="border-t">
+                <div className="flex flex-row gap-1">
+                  <CopyButton
+                    size="xs"
+                    className="[&_[data-slot=label]]:hidden @xs/analysis:[&_[data-slot=label]]:flex"
+                    getText={() => result.analysis}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                  />
+                </div>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {/* Screenshot Section */}
+              {result.screenshot ? (
+                <div className="border-t p-2 pt-1">
+                  <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Camera className="size-3" />
+                    <span>Model Screenshot</span>
+                  </div>
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <div className="cursor-pointer rounded-md border bg-neutral/5 hover:bg-neutral/10">
+                        <img
+                          src={result.screenshot}
+                          alt="Model screenshot"
+                          className="size-full rounded-sm object-cover object-top"
+                        />
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent asChild side="top" align="start" className="w-96">
+                      <img src={result.screenshot} alt="Model screenshot (full size)" className="max-w-full" />
+                    </HoverCardContent>
+                  </HoverCard>
+                </div>
+              ) : null}
+              {/* Requirements Section */}
+              {requirements.length > 0 && (
+                <Collapsible
+                  open={isRequirementsExpanded}
+                  className="border-t"
+                  onOpenChange={setIsRequirementsExpanded}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="group flex h-auto w-full justify-start gap-2 rounded-none p-2 hover:bg-transparent"
+                    >
+                      <span className="relative flex items-center">
+                        <ChevronDown
+                          className={cn(
+                            'size-3 shrink-0 transition-transform duration-200',
+                            isRequirementsExpanded ? 'rotate-180' : '',
+                          )}
+                        />
+                      </span>
+                      <span className="text-left text-xs font-normal">
+                        {requirements.length} Requirement{requirements.length > 1 ? 's' : ''}
+                      </span>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t">
+                    <div className="space-y-1 px-2 py-2 text-xs">
+                      {requirements.map((requirement, index) => {
+                        const key = `${index}-${requirement}`;
+
+                        return (
+                          <div key={key} className="flex items-start text-xs">
+                            <div className="mr-2 shrink-0 font-mono text-muted-foreground">{index + 1}.</div>
+                            <div className="flex-1">{requirement}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              {/* Analysis Section */}
+              {/* <div className="border-t">
           <div className="mb-1 flex items-center gap-1 px-2 py-1 pt-2 text-xs text-muted-foreground">
             <Eye className="size-3" />
             <span>Analysis</span>
@@ -179,7 +202,9 @@ export function ChatMessageToolImageAnalysis({
             </Tooltip>
           </div>
         </div> */}
-        </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
       );
     }
 

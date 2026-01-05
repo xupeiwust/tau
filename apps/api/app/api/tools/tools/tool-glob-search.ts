@@ -1,0 +1,29 @@
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod';
+import { interrupt } from '@langchain/langgraph';
+import { globSearchInputSchema } from '@taucad/chat';
+import type { GlobSearchOutput } from '@taucad/chat';
+import { toolName } from '@taucad/chat/constants';
+
+const globSearchJsonSchema = z.toJSONSchema(globSearchInputSchema);
+
+export const globSearchToolDefinition = {
+  name: toolName.globSearch,
+  description: `Find files matching a glob pattern in the project.
+
+Use this tool to:
+- Find all files of a certain type (e.g., "**/*.scad", "**/*.ts")
+- Locate files in specific directories (e.g., "lib/**/*.scad")
+- Discover files by name pattern (e.g., "**/test_*.scad")
+
+Common glob patterns:
+- "**/*.ext" - All files with extension in any directory
+- "dir/**/*" - All files under a specific directory
+- "**/prefix_*" - Files starting with a prefix in any directory`,
+  schema: globSearchJsonSchema,
+} as const;
+
+export const globSearchTool = tool((args) => {
+  const result = interrupt<unknown, GlobSearchOutput>(args);
+  return result;
+}, globSearchToolDefinition);

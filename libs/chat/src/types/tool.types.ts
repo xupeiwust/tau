@@ -4,6 +4,14 @@ import type { FileEditInput, FileEditOutput } from '#schemas/tools/file-edit.too
 import type { ImageAnalysisInput, ImageAnalysisOutput } from '#schemas/tools/image-analysis.tool.schema.js';
 import type { WebBrowserInput, WebBrowserOutput } from '#schemas/tools/web-browser.tool.schema.js';
 import type { WebSearchInput, WebSearchOutput } from '#schemas/tools/web-search.tool.schema.js';
+import type { ReadFileInput, ReadFileOutput } from '#schemas/tools/read-file.tool.schema.js';
+import type { ListDirectoryInput, ListDirectoryOutput } from '#schemas/tools/list-directory.tool.schema.js';
+import type { CreateFileInput, CreateFileOutput } from '#schemas/tools/create-file.tool.schema.js';
+import type { DeleteFileInput, DeleteFileOutput } from '#schemas/tools/delete-file.tool.schema.js';
+import type { GrepInput, GrepOutput } from '#schemas/tools/grep.tool.schema.js';
+import type { GlobSearchInput, GlobSearchOutput } from '#schemas/tools/glob-search.tool.schema.js';
+import type { GetKernelResultInput, GetKernelResultOutput } from '#schemas/tools/get-kernel-result.tool.schema.js';
+import type { ReasoningInput, ReasoningOutput } from '#schemas/tools/reasoning.tool.schema.js';
 import type {
   TransferToCadExpertInput,
   TransferToCadExpertOutput,
@@ -38,6 +46,14 @@ export type MyTools = InferUITools<{
   [toolName.imageAnalysis]: AiTool<ImageAnalysisInput, ImageAnalysisOutput>;
   [toolName.webBrowser]: AiTool<WebBrowserInput, WebBrowserOutput>;
   [toolName.webSearch]: AiTool<WebSearchInput, WebSearchOutput>;
+  [toolName.readFile]: AiTool<ReadFileInput, ReadFileOutput>;
+  [toolName.listDirectory]: AiTool<ListDirectoryInput, ListDirectoryOutput>;
+  [toolName.createFile]: AiTool<CreateFileInput, CreateFileOutput>;
+  [toolName.deleteFile]: AiTool<DeleteFileInput, DeleteFileOutput>;
+  [toolName.grep]: AiTool<GrepInput, GrepOutput>;
+  [toolName.globSearch]: AiTool<GlobSearchInput, GlobSearchOutput>;
+  [toolName.getKernelResult]: AiTool<GetKernelResultInput, GetKernelResultOutput>;
+  [toolName.reasoning]: AiTool<ReasoningInput, ReasoningOutput>;
   [toolName.transferToCadExpert]: AiTool<TransferToCadExpertInput, TransferToCadExpertOutput>;
   [toolName.transferToResearchExpert]: AiTool<TransferToResearchExpertInput, TransferToResearchExpertOutput>;
   [toolName.transferBackToSupervisor]: AiTool<TransferBackToSupervisorInput, TransferBackToSupervisorOutput>;

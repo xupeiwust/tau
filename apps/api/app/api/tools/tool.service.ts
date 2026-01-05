@@ -10,6 +10,14 @@ import { createWebBrowserTool } from '#api/tools/tools/tool-web-browser.js';
 import { fileEditTool } from '#api/tools/tools/tool-file-edit.js';
 import { imageAnalysisTool } from '#api/tools/tools/tool-image-analysis.js';
 import { createWebSearchTool, parseWebSearchResults } from '#api/tools/tools/tool-web-search.js';
+import { readFileTool } from '#api/tools/tools/tool-read-file.js';
+import { listDirectoryTool } from '#api/tools/tools/tool-list-directory.js';
+import { createFileTool } from '#api/tools/tools/tool-create-file.js';
+import { deleteFileTool } from '#api/tools/tools/tool-delete-file.js';
+import { grepTool } from '#api/tools/tools/tool-grep.js';
+import { globSearchTool } from '#api/tools/tools/tool-glob-search.js';
+import { getKernelResultTool } from '#api/tools/tools/tool-get-kernel-result.js';
+import { reasoningTool } from '#api/tools/tools/tool-reasoning.js';
 
 export const toolChoiceFromToolName = {
   // eslint-disable-next-line @typescript-eslint/naming-convention -- Tavily search tool name
@@ -42,6 +50,14 @@ export class ToolService {
       }),
       [toolName.fileEdit]: fileEditTool,
       [toolName.imageAnalysis]: imageAnalysisTool,
+      [toolName.readFile]: readFileTool,
+      [toolName.listDirectory]: listDirectoryTool,
+      [toolName.createFile]: createFileTool,
+      [toolName.deleteFile]: deleteFileTool,
+      [toolName.grep]: grepTool,
+      [toolName.globSearch]: globSearchTool,
+      [toolName.getKernelResult]: getKernelResultTool,
+      [toolName.reasoning]: reasoningTool,
     } as const satisfies Partial<Record<ToolName, StructuredTool>>;
 
     const toolNameFromToolCategory = {
@@ -49,6 +65,14 @@ export class ToolService {
       [toolName.webBrowser]: toolCategoryToTool[toolName.webBrowser].name,
       [toolName.fileEdit]: toolCategoryToTool[toolName.fileEdit].name,
       [toolName.imageAnalysis]: toolCategoryToTool[toolName.imageAnalysis].name,
+      [toolName.readFile]: toolCategoryToTool[toolName.readFile].name,
+      [toolName.listDirectory]: toolCategoryToTool[toolName.listDirectory].name,
+      [toolName.createFile]: toolCategoryToTool[toolName.createFile].name,
+      [toolName.deleteFile]: toolCategoryToTool[toolName.deleteFile].name,
+      [toolName.grep]: toolCategoryToTool[toolName.grep].name,
+      [toolName.globSearch]: toolCategoryToTool[toolName.globSearch].name,
+      [toolName.getKernelResult]: toolCategoryToTool[toolName.getKernelResult].name,
+      [toolName.reasoning]: toolCategoryToTool[toolName.reasoning].name,
     } as const satisfies Partial<Record<ToolName, string>>;
 
     const toolNameFromToolChoice = {

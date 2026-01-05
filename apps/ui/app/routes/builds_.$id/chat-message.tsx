@@ -25,6 +25,14 @@ import { ChatMessageToolWebSearch } from '#routes/builds_.$id/chat-message-tool-
 import { ChatMessageToolWebBrowser } from '#routes/builds_.$id/chat-message-tool-web-browser.js';
 import { ChatMessageToolFileEdit } from '#routes/builds_.$id/chat-message-tool-file-edit.js';
 import { ChatMessageToolImageAnalysis } from '#routes/builds_.$id/chat-message-tool-image-analysis.js';
+import { ChatMessageToolReadFile } from '#routes/builds_.$id/chat-message-tool-read-file.js';
+import { ChatMessageToolListDirectory } from '#routes/builds_.$id/chat-message-tool-list-directory.js';
+import { ChatMessageToolCreateFile } from '#routes/builds_.$id/chat-message-tool-create-file.js';
+import { ChatMessageToolDeleteFile } from '#routes/builds_.$id/chat-message-tool-delete-file.js';
+import { ChatMessageToolGrep } from '#routes/builds_.$id/chat-message-tool-grep.js';
+import { ChatMessageToolGlobSearch } from '#routes/builds_.$id/chat-message-tool-glob-search.js';
+import { ChatMessageToolGetKernelResult } from '#routes/builds_.$id/chat-message-tool-get-kernel-result.js';
+import { ChatMessageToolReasoning } from '#routes/builds_.$id/chat-message-tool-reasoning.js';
 import { ChatMessagePartUnknown } from '#routes/builds_.$id/chat-message-tool-unknown.js';
 import { ChatMessageToolTransfer } from '#routes/builds_.$id/chat-message-tool-transfer.js';
 import { ChatMessageFile } from '#routes/builds_.$id/chat-message-file.js';
@@ -196,6 +204,39 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
 
                 case 'tool-transfer_back_to_supervisor': {
                   return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
+                }
+
+                // FILESYSTEM TOOLS
+                case 'tool-read_file': {
+                  return <ChatMessageToolReadFile key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-list_directory': {
+                  return <ChatMessageToolListDirectory key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-create_file': {
+                  return <ChatMessageToolCreateFile key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-delete_file': {
+                  return <ChatMessageToolDeleteFile key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-grep': {
+                  return <ChatMessageToolGrep key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-glob_search': {
+                  return <ChatMessageToolGlobSearch key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-get_kernel_result': {
+                  return <ChatMessageToolGetKernelResult key={part.toolCallId} part={part} />;
+                }
+
+                case 'tool-reasoning': {
+                  return <ChatMessageToolReasoning key={part.toolCallId} part={part} />;
                 }
 
                 case 'data-test': {

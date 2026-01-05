@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useMemo, useCallback, useEffect } from 'react';
-import { useActorRef } from '@xstate/react';
+import { useActorRef, useSelector } from '@xstate/react';
 import { waitFor } from 'xstate';
 import type { ActorRefFrom, SnapshotFrom } from 'xstate';
 import { fileManagerMachine } from '#machines/file-manager.machine.js';
 import type { FileWriteSource } from '#machines/file-manager.machine.js';
 import { joinPath } from '#utils/path.utils.js';
+import { generateFilesystemSnapshotFromMap } from '#utils/filesystem-snapshot.utils.js';
 
 type FileManagerSnapshot = SnapshotFrom<typeof fileManagerMachine>;
 
@@ -247,4 +248,28 @@ export function useFileManager(): FileManagerContextType {
   }
 
   return context;
+}
+
+/**
+ * Hook to get the current filesystem snapshot as a token-efficient string.
+ * This is used to provide context to the LLM about the project structure.
+ *
+ * @param rootLabel - Optional label for the root directory (defaults to "/project/")
+ * @returns The filesystem snapshot string, or undefined if the file manager is not ready
+ */
+export function useFilesystemSnapshot(rootLabel = '/project/'): string | undefined {
+  const { fileManagerRef } = useFileManager();
+
+  return useSelector(fileManagerRef, (state) => {
+    if (!state.matches('ready')) {
+      return undefined;
+    }
+
+    const { fileTree } = state.context;
+    if (fileTree.size === 0) {
+      return undefined;
+    }
+
+    return generateFilesystemSnapshotFromMap(fileTree, rootLabel);
+  });
 }

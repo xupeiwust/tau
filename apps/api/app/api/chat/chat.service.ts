@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { openai } from '@ai-sdk/openai';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { createSupervisor } from '@langchain/langgraph-supervisor';
 import { streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
@@ -53,71 +52,57 @@ export class ChatService {
     });
     await checkpointer.setup();
 
-    const researchTools = [tools.web_search, tools.web_browser].filter((tool) => tool !== undefined);
-    const { model: supervisorModel } = this.modelService.buildModel(modelId);
-    const { model: cadModel, support: cadSupport } = this.modelService.buildModel(modelId);
-    const { model: researchModel, support: researchSupport } = this.modelService.buildModel(modelId);
+    const { model, support } = this.modelService.buildModel(modelId);
 
-    // Create specialized agents for tool usage
-    const researchAgent = createReactAgent({
-      llm:
-        researchSupport?.tools === false ? researchModel : (researchModel.bindTools?.(researchTools) ?? researchModel),
-      tools: researchTools,
-      name: 'research_expert',
-      prompt: `You are a research expert that can use specialized tools to accomplish tasks. 
-        Always use the \`${toolName.webSearch}\` tool, and only the \`${toolName.webBrowser}\` tool if the \`${toolName.webSearch}\` tool does not supply enough information.`,
-    });
+    // Combine all tools into a single array for the unified agent
+    const allTools = [
+      // CAD and filesystem tools
+      tools.edit_file,
+      tools.analyze_image,
+      tools.read_file,
+      tools.list_directory,
+      tools.create_file,
+      tools.delete_file,
+      tools.grep,
+      tools.glob_search,
+      tools.get_kernel_result,
+      tools.reasoning,
+      // Research tools
+      tools.web_search,
+      tools.web_browser,
+    ].filter((tool) => tool !== undefined);
 
-    // Create a general agent for handling direct responses
-    const cadTools = [tools.edit_file, tools.analyze_image].filter((tool) => tool !== undefined);
+    // Build the unified system prompt
     const cadSystemPrompt = await getCadSystemPrompt(selectedKernel);
-    const cadAgent = createReactAgent({
-      llm: cadSupport?.tools === false ? cadModel : (cadModel.bindTools?.(cadTools) ?? cadModel),
-      tools: cadTools,
-      name: 'cad_expert',
-      prompt: cadSystemPrompt,
+    const unifiedSystemPrompt = `${cadSystemPrompt}
+
+<research_capabilities>
+## Web Research Tools
+You also have access to web research tools for gathering information:
+
+- **\`${toolName.webSearch}\`**: Search the web for current information, documentation, tutorials, or any external knowledge needed to complete your task. Use this when you need to look up technical details, find examples, or research best practices.
+
+- **\`${toolName.webBrowser}\`**: Browse specific web pages to extract detailed information. Use this only when the web search results are insufficient and you need to dive deeper into a specific URL.
+
+**When to use research tools:**
+- When you need current information about libraries, APIs, or techniques
+- When the user asks about topics outside your training data
+- When you need to look up specifications, dimensions, or reference materials for CAD models
+- When researching best practices for specific manufacturing techniques
+
+Always prefer \`${toolName.webSearch}\` first, and only use \`${toolName.webBrowser}\` if the search results don't provide enough detail.
+</research_capabilities>`;
+
+    // Create a single unified agent with all tools and persistence
+    const agent = createReactAgent({
+      llm: support?.tools === false ? model : (model.bindTools?.(allTools) ?? model),
+      tools: allTools,
+      name: 'cad_assistant',
+      prompt: unifiedSystemPrompt,
+      checkpointer,
     });
 
-    // Create a supervisor to orchestrate these agents
-    const supervisor = createSupervisor({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- TODO: fix types
-      agents: [researchAgent, cadAgent],
-      llm: supervisorModel,
-      prompt: `You are an intelligent supervisor coordinating a specialized team consisting of a research expert and a CAD expert. Your primary role is to understand user requests and delegate them to the most appropriate team member based on their expertise and available tools.
-
-# Core Delegation Philosophy
-Your strength lies in thoughtful delegation rather than direct tool usage. You serve as an intelligent router, ensuring that each request reaches the team member best equipped to handle it effectively. You do not use tools directly; instead, you leverage your team's specialized capabilities through the transfer system.
-
-# Task Routing Guidelines
-When users ask questions or make requests, you should:
-
-**For 3D modeling, CAD work, or file editing requests**: Immediately transfer to the CAD expert using the transfer_to_cad_expert tool. This includes any requests involving changes to 3D models, geometric modifications, design alterations, or file manipulation tasks. The CAD expert has specialized tools and knowledge for these technical operations and works with ${selectedKernel} as the selected CAD kernel.
-
-**For research, information gathering, or web-based queries**: Use the transfer_to_research_expert tool when the request requires external information, current data, or specialized research capabilities. The research expert can access web resources and gather comprehensive information to answer complex queries.
-
-**For error handling and iterative fixes**: When the conversation contains code errors, kernel errors, or any error feedback from previous CAD modeling attempts, ALWAYS route back to the CAD expert using transfer_to_cad_expert. The CAD expert is specifically trained to handle iterative error correction and can automatically fix compilation errors, geometric failures, and runtime issues. This ensures a seamless modeling experience where errors are resolved without user intervention.
-
-# Error Detection and Routing
-Pay special attention to messages that contain:
-- Code compilation errors or JavaScript errors
-- Kernel errors from the ${selectedKernel} system
-- Geometric operation failures
-- Runtime exceptions from 3D modeling operations
-- Screenshots or visual feedback from rendered CAD models
-- Design iteration requests based on visual inspection of the model
-
-When any of these error conditions are present, immediately route to the CAD expert for resolution, even if the original request might seem like a research question. The CAD expert has the specialized knowledge and tools to diagnose and fix these technical issues.
-
-Additionally, when screenshots of rendered models are provided in the conversation, always route to the CAD expert as they can use this visual feedback to iteratively refine the design to better match the user's intended requirements.
-
-# Communication Style
-When receiving responses back from your team members, maintain efficiency by being concise and focused. Once a team member has provided their response, you should synthesize their findings briefly and conclude the interaction rather than extending the conversation unnecessarily.
-
-Your goal is to ensure users receive expert-level assistance by connecting them with the right specialist for their specific needs, while maintaining a smooth and efficient workflow that automatically handles technical errors through iterative refinement.`,
-      outputMode: 'full_history', // Include full agent message history
-    }).compile({ checkpointer });
-
-    return supervisor;
+    return agent;
   }
 
   public getCallbacks(): LangGraphAdapterCallbacks {
@@ -140,9 +125,6 @@ Your goal is to ensure users receive expert-level assistance by connecting them 
             model: id,
           },
         });
-      },
-      onEvent(parameters) {
-        logger.verbose(`onEvent: ${JSON.stringify(parameters.event)}`);
       },
       onError(error) {
         if (error instanceof Error && error.message === 'Aborted') {

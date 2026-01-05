@@ -6,7 +6,7 @@ import type { StateSnapshot } from '@langchain/langgraph';
 import type { IterableReadableStream } from '@langchain/core/utils/stream';
 import type { StreamEvent } from '@langchain/core/tracers/log_stream';
 import type { ToolSelection } from '@taucad/chat';
-import { tryExtractLastToolResult } from '#api/chat/utils/extract-tool-result.js';
+import { tryExtractAllToolResults } from '#api/chat/utils/extract-tool-result.js';
 import { ToolService, toolChoiceFromToolName } from '#api/tools/tool.service.js';
 import { ChatService } from '#api/chat/chat.service.js';
 import { LangGraphAdapter } from '#api/chat/utils/langgraph-adapter.js';
@@ -38,8 +38,6 @@ export class ChatController {
     const sanitizedMessages = sanitizeMessagesForConversion(body.messages, this.logger);
     const coreMessages = convertToModelMessages(sanitizedMessages);
     const lastHumanMessage = body.messages.findLast((message) => message.role === 'user');
-
-    this.logger.debug(lastHumanMessage, `Last human message:`);
     let modelId: string;
     let selectedToolChoice: ToolSelection = 'auto';
 
@@ -90,7 +88,44 @@ export class ChatController {
     // Extract kernel from request body (default to openscad if not provided)
     const selectedKernel = lastHumanMessage.metadata?.kernel ?? 'openscad';
 
-    const langchainMessages = convertAiSdkMessagesToLangchainMessages(sanitizedMessages, coreMessages);
+    // Extract filesystem snapshot from metadata and inject into last message content
+    const filesystemSnapshot = lastHumanMessage.metadata?.filesystemSnapshot;
+    let messagesWithContext = sanitizedMessages;
+
+    if (filesystemSnapshot) {
+      this.logger.debug('Injecting filesystem snapshot into last message');
+      // Find the last user message and prepend the project layout
+      const lastUserMessageIndex = sanitizedMessages.findLastIndex((message) => message.role === 'user');
+      if (lastUserMessageIndex !== -1) {
+        const lastUserMessage = sanitizedMessages[lastUserMessageIndex];
+        if (lastUserMessage) {
+          const projectLayoutContext = `<project_layout>
+Below is a snapshot of the current project's file structure:
+
+${filesystemSnapshot}
+</project_layout>
+
+`;
+          // Create updated message with project layout prepended to text content
+          const updatedParts = lastUserMessage.parts.map((part) => {
+            if (part.type === 'text') {
+              return { ...part, text: projectLayoutContext + part.text };
+            }
+
+            return part;
+          });
+
+          messagesWithContext = [
+            ...sanitizedMessages.slice(0, lastUserMessageIndex),
+            { ...lastUserMessage, parts: updatedParts },
+            ...sanitizedMessages.slice(lastUserMessageIndex + 1),
+          ];
+        }
+      }
+    }
+
+    const coreMessagesWithContext = convertToModelMessages(messagesWithContext);
+    const langchainMessages = convertAiSdkMessagesToLangchainMessages(messagesWithContext, coreMessagesWithContext);
     const graph = await this.chatService.createGraph(modelId, selectedToolChoice, selectedKernel);
 
     // Configuration for the graph execution
@@ -124,14 +159,16 @@ export class ChatController {
 
     // Check if we're resuming from an interrupt
     if (currentState?.next && currentState.next.length > 0) {
-      // Thread appears interrupted - try to extract tool result for resume
-      const toolResult = tryExtractLastToolResult(langchainMessages);
+      // Thread appears interrupted - try to extract ALL tool results for resume
+      // This supports the "all-or-nothing" batch pattern for multiple tool calls
 
-      if (toolResult === undefined) {
-        // No valid tool result - likely a retry after successful processing
+      const toolResults = tryExtractAllToolResults(langchainMessages);
+
+      if (toolResults === undefined || toolResults.length === 0) {
+        // No valid tool results - likely a retry after successful processing
         // Fall back to normal execution - LangGraph handles message deduplication
         this.logger.debug(
-          `Thread ${body.id} appears interrupted but no tool result found. ` +
+          `Thread ${body.id} appears interrupted but no tool results found. ` +
             `Falling back to normal execution (likely a retry after successful processing).`,
         );
         eventStream = graph.streamEvents(
@@ -139,11 +176,13 @@ export class ChatController {
           { ...config, signal: abortController.signal },
         );
       } else {
-        // Valid tool result found - resume the graph
+        // Valid tool results found - resume the graph with all results
         this.logger.debug(`Resuming interrupted thread: ${body.id}`);
-        this.logger.debug(`Resuming with tool result: ${JSON.stringify(toolResult, null, 2)}`);
 
-        eventStream = graph.streamEvents(new Command({ resume: toolResult }), {
+        // Pass array of all tool results to resume
+        // Each result contains: { toolCallId, toolName, result }
+        const resumeValues: unknown[] = toolResults.map((toolResult) => toolResult.result);
+        eventStream = graph.streamEvents(new Command({ resume: resumeValues }), {
           ...config,
           signal: abortController.signal,
         });
