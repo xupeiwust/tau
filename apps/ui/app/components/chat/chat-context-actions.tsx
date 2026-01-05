@@ -73,7 +73,7 @@ export function ChatContextActions({
       options: {
         output: {
           format: 'image/webp', // Use WebP for consistency and performance
-          quality: 0.8, // Slightly higher quality for single screenshots
+          quality: 0.3, // Slightly higher quality for single screenshots
         },
         aspectRatio: 16 / 9, // Standard widescreen ratio for model shots
         maxResolution: 1200, // Good balance of quality and performance for single shots
@@ -106,7 +106,7 @@ export function ChatContextActions({
       options: {
         output: {
           format: 'image/webp', // Use PNG for transparent backgrounds
-          quality: 0.75,
+          quality: 0.3,
           isPreview: true,
         },
         cameraAngles: orthographicViews.slice(0, 6),
