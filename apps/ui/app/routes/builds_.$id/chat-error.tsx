@@ -100,12 +100,13 @@ export const ChatError = memo(function ({
         onOpenChange={onOpenChange}
       >
         <CollapsibleTrigger asChild>
-          <div className="flex w-full cursor-pointer items-center justify-between gap-2 p-2">
+          <div className="flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5">
             <ChevronRight className="size-4 transition-transform duration-300 ease-in-out group-data-[state=open]/collapsible:rotate-90" />
             <div className="flex w-full items-center justify-between">
               <p>Unable to send the message.</p>
               <Button
                 variant="outline"
+                className="h-7 hover:border-neutral/50"
                 size="sm"
                 onClick={async () => {
                   regenerate();
