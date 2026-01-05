@@ -36,7 +36,7 @@ const toggleChatHistoryKeyCombination = {
 // Memoized individual message item component to prevent re-renders
 const MessageItem = memo(function ({ messageId }: { readonly messageId: string }) {
   return (
-    <div className="py-2">
+    <div className="py-1.5">
       <ChatMessage messageId={messageId} />
     </div>
   );
