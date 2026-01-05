@@ -29,6 +29,7 @@ import {
   Pre,
 } from '#components/code/code-block.js';
 import { CopyButton } from '#components/copy-button.js';
+import { ExternalLink } from '#components/external-link.js';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '#components/ui/card.js';
 import { InfoTooltip } from '#components/ui/info-tooltip.js';
 import {
@@ -299,9 +300,9 @@ function ConverterContent(): React.JSX.Element {
                     Your data never leaves your browser{' '}
                   </div>
                   <Button asChild variant="link" className="text-sm underline">
-                    <a href={metaConfig.githubUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink href={metaConfig.githubUrl} arrowSize="xs">
                       View source code
-                    </a>
+                    </ExternalLink>
                   </Button>
                 </div>
               </div>
