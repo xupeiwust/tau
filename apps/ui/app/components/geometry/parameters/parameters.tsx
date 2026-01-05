@@ -1,6 +1,6 @@
 import type { IChangeEvent } from '@rjsf/core';
 import validator from '@rjsf/validator-ajv8';
-import { RefreshCcw, ChevronRight, Info } from 'lucide-react';
+import { RefreshCcw, Info } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import Form from '@rjsf/core';
 import type { RJSFSchema } from '@rjsf/utils';
@@ -13,7 +13,6 @@ import type { RJSFContext, Units } from '#components/geometry/parameters/rjsf-co
 import { rjsfIdPrefix, rjsfIdSeparator } from '#components/geometry/parameters/rjsf-utils.js';
 import { deleteValueAtPath, extractModifiedProperties, getValueAtPath, setValueAtPath } from '#utils/object.utils.js';
 import { EmptyItems } from '#components/ui/empty-items.js';
-import { hasJsonSchemaObjectProperties } from '#utils/schema.utils.js';
 
 type ParametersProperties = {
   readonly parameters: Record<string, unknown>;
@@ -23,11 +22,11 @@ type ParametersProperties = {
   readonly className?: string;
   readonly enableSearch?: boolean;
   readonly searchPlaceholder?: string;
-  readonly enableExpandAll?: boolean;
   readonly emptyMessage?: string;
   readonly emptyDescription?: string;
   readonly units: Units;
   readonly isInitialExpanded?: boolean;
+  readonly isAllExpanded?: boolean;
 };
 
 export function Parameters({
@@ -38,17 +37,32 @@ export function Parameters({
   className,
   enableSearch = true,
   searchPlaceholder = 'Search parameters...',
-  enableExpandAll = true,
   emptyMessage = 'No parameters available',
   emptyDescription = 'Parameters will appear here when they become available for this model',
   units,
   isInitialExpanded = true,
+  isAllExpanded,
 }: ParametersProperties): React.JSX.Element {
-  const [allExpanded, setAllExpanded] = useState(isInitialExpanded);
+  // Use controlled state if provided, otherwise use initial value
+  const allExpanded = isAllExpanded ?? isInitialExpanded;
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputReference = React.useRef<HTMLInputElement>(null);
   // Ref to track current form data from RJSF's onChange handler
   const currentFormDataRef = React.useRef<Record<string, unknown>>({});
+
+  // Focus the search input when search becomes visible
+  React.useEffect(() => {
+    if (enableSearch && searchInputReference.current) {
+      searchInputReference.current.focus();
+    }
+  }, [enableSearch]);
+
+  // Clear search term when search is hidden
+  React.useEffect(() => {
+    if (!enableSearch) {
+      setSearchTerm('');
+    }
+  }, [enableSearch]);
 
   const setParameters = useCallback(
     (newParameters: Record<string, unknown>) => {
@@ -88,11 +102,6 @@ export function Parameters({
   const resetAllParameters = useCallback(() => {
     setParameters({});
   }, [setParameters]);
-
-  const toggleAllGroups = useCallback(() => {
-    const newExpandedState = !allExpanded;
-    setAllExpanded(newExpandedState);
-  }, [allExpanded]);
 
   const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -138,7 +147,7 @@ export function Parameters({
       {hasParameters ? (
         <>
           {/* Search and Controls Bar */}
-          {enableSearch || enableExpandAll ? (
+          {enableSearch || Object.keys(parameters).length > 0 ? (
             <div className="flex w-full flex-row gap-2 border-b bg-sidebar p-2">
               {enableSearch ? (
                 <SearchInput
@@ -167,29 +176,6 @@ export function Parameters({
                   <TooltipContent side="bottom">Reset all parameters</TooltipContent>
                 </Tooltip>
               )}
-
-              {enableExpandAll && hasJsonSchemaObjectProperties(jsonSchema) ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="overlay"
-                      size="icon"
-                      className="size-7 text-muted-foreground transition-colors hover:text-foreground"
-                      aria-expanded={allExpanded}
-                      aria-label={allExpanded ? 'Collapse all' : 'Expand all'}
-                      onClick={toggleAllGroups}
-                    >
-                      <ChevronRight
-                        className={cn(
-                          'size-4 transition-transform duration-300 ease-in-out',
-                          allExpanded && 'rotate-90',
-                        )}
-                      />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{allExpanded ? 'Collapse all' : 'Expand all'}</TooltipContent>
-                </Tooltip>
-              ) : null}
             </div>
           ) : null}
           <Form<Record<string, unknown>, RJSFSchema, RJSFContext>

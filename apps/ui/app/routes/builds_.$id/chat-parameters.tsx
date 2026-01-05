@@ -1,5 +1,5 @@
-import { XIcon, SlidersHorizontal } from 'lucide-react';
-import { useCallback, memo } from 'react';
+import { XIcon, SlidersHorizontal, Search, ChevronRight } from 'lucide-react';
+import { useCallback, memo, useState } from 'react';
 import { useSelector } from '@xstate/react';
 import { KeyShortcut } from '#components/ui/key-shortcut.js';
 import {
@@ -8,9 +8,14 @@ import {
   FloatingPanelContent,
   FloatingPanelContentBody,
   FloatingPanelContentHeader,
+  FloatingPanelContentHeaderActions,
   FloatingPanelContentTitle,
   FloatingPanelTrigger,
 } from '#components/ui/floating-panel.js';
+import { Button } from '#components/ui/button.js';
+import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
+import { cn } from '#utils/ui.utils.js';
+import { hasJsonSchemaObjectProperties } from '#utils/schema.utils.js';
 import { useKeydown } from '#hooks/use-keydown.js';
 import type { KeyCombination } from '#utils/keys.utils.js';
 import { formatKeyCombination } from '#utils/keys.utils.js';
@@ -59,6 +64,20 @@ export const ChatParameters = memo(function (props: {
   // Build CadUnits object reactively from graphics state
   const units = useSelector(graphicsRef, (state) => state.context.units);
 
+  // State to toggle search visibility
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+
+  // State to toggle expand/collapse all
+  const [isAllExpanded, setIsAllExpanded] = useState(true);
+
+  const toggleSearch = useCallback(() => {
+    setIsSearchVisible((current) => !current);
+  }, []);
+
+  const toggleAllExpanded = useCallback(() => {
+    setIsAllExpanded((current) => !current);
+  }, []);
+
   const toggleParametersOpen = useCallback(() => {
     setIsExpanded?.((current) => !current);
   }, [setIsExpanded]);
@@ -82,6 +101,44 @@ export const ChatParameters = memo(function (props: {
       <FloatingPanelContent>
         <FloatingPanelContentHeader>
           <FloatingPanelContentTitle>Parameters</FloatingPanelContentTitle>
+          <FloatingPanelContentHeaderActions>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn('size-6 rounded-sm', isSearchVisible && 'text-primary')}
+                  aria-label={isSearchVisible ? 'Hide search' : 'Show search'}
+                  onClick={toggleSearch}
+                >
+                  <Search className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{isSearchVisible ? 'Hide search' : 'Search parameters'}</TooltipContent>
+            </Tooltip>
+            {jsonSchema && hasJsonSchemaObjectProperties(jsonSchema) ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 rounded-sm"
+                    aria-expanded={isAllExpanded}
+                    aria-label={isAllExpanded ? 'Collapse all' : 'Expand all'}
+                    onClick={toggleAllExpanded}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        'size-4 transition-transform duration-300 ease-in-out',
+                        isAllExpanded && 'rotate-90',
+                      )}
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{isAllExpanded ? 'Collapse all' : 'Expand all'}</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </FloatingPanelContentHeaderActions>
         </FloatingPanelContentHeader>
 
         <FloatingPanelContentBody className="overflow-y-hidden">
@@ -90,6 +147,8 @@ export const ChatParameters = memo(function (props: {
             defaultParameters={defaultParameters}
             jsonSchema={jsonSchema}
             units={units}
+            enableSearch={isSearchVisible}
+            isAllExpanded={isAllExpanded}
             onParametersChange={setParameters}
           />
         </FloatingPanelContentBody>
