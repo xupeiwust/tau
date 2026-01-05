@@ -49,12 +49,20 @@ export function Parameters({
   const searchInputReference = React.useRef<HTMLInputElement>(null);
   // Ref to track current form data from RJSF's onChange handler
   const currentFormDataRef = React.useRef<Record<string, unknown>>({});
+  // Ref to track previous enableSearch value to detect changes
+  const previousEnableSearchRef = React.useRef(enableSearch);
 
-  // Focus the search input when search becomes visible
+  // Focus the search input when search changes from disabled to enabled (not on initial render)
   React.useEffect(() => {
-    if (enableSearch && searchInputReference.current) {
+    const wasDisabled = !previousEnableSearchRef.current;
+    const isNowEnabled = enableSearch;
+
+    // Only focus if transitioning from disabled to enabled
+    if (wasDisabled && isNowEnabled && searchInputReference.current) {
       searchInputReference.current.focus();
     }
+
+    previousEnableSearchRef.current = enableSearch;
   }, [enableSearch]);
 
   // Clear search term when search is hidden
