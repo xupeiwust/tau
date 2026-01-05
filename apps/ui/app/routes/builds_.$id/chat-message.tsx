@@ -36,6 +36,7 @@ import { ChatMessageToolReasoning } from '#routes/builds_.$id/chat-message-tool-
 import { ChatMessagePartUnknown } from '#routes/builds_.$id/chat-message-tool-unknown.js';
 import { ChatMessageToolTransfer } from '#routes/builds_.$id/chat-message-tool-transfer.js';
 import { ChatMessageFile } from '#routes/builds_.$id/chat-message-file.js';
+import { ChatMessagePlanning } from '#routes/builds_.$id/chat-message-planning.js';
 
 type ChatMessageProperties = {
   readonly messageId: string;
@@ -127,6 +128,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
                 ))}
               </div>
             ) : null}
+            {/* eslint-disable-next-line complexity -- This is a complex switch statement, we want to keep it simple. */}
             {displayMessage.parts.map((part, index) => {
               switch (part.type) {
                 case 'text': {
@@ -179,7 +181,8 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
 
                 // TOOLS
                 case 'tool-web_search': {
-                  return <ChatMessageToolWebSearch key={part.toolCallId} part={part} />;
+                  const hasPartsAfter = index < displayMessage.parts.length - 1;
+                  return <ChatMessageToolWebSearch key={part.toolCallId} part={part} hasContent={hasPartsAfter} />;
                 }
 
                 case 'tool-web_browser': {
@@ -253,6 +256,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
             })}
           </div>
         </When>
+        <ChatMessagePlanning messageId={messageId} />
         <When shouldRender={!isUser}>
           <div className="mt-1 flex flex-row items-start justify-start text-muted-foreground">
             <CopyButton
