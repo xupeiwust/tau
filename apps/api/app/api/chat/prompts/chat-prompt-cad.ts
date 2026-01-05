@@ -11,6 +11,13 @@ const jscadExamplesString = jscadExamples
   .map((model) => `<example>\n${model.name}\n\`\`\`javascript\n${model.code}\`\`\`\n</example>`)
   .join('\n\n');
 
+/**
+ * File layout modes for different CAD kernels:
+ * - 'full-nesting': Can import any file from subdirectories (OpenSCAD, Replicad, JSCAD)
+ * - 'assembly-only': Subdirectory imports must reference main.kcl entry points (Zoo/KCL)
+ */
+type FileLayoutMode = 'full-nesting' | 'assembly-only';
+
 type KernelConfig = {
   fileExtension: string;
   languageName: string;
@@ -26,6 +33,7 @@ type KernelConfig = {
   parameterNamingExample: string;
   implementationApproach: string;
   mainFunctionDescription: string;
+  fileLayoutMode: FileLayoutMode;
 };
 
 const cadKernelConfigs: Record<KernelProvider, KernelConfig> = {
@@ -116,6 +124,7 @@ Your goal is to create models that are parametric, precise, and follow OpenSCAD 
     implementationApproach:
       'Break down the model into basic geometries and plan the CSG operations needed to achieve the final result.',
     mainFunctionDescription: 'module or code should use variables for key dimensions',
+    fileLayoutMode: 'full-nesting',
   },
   replicad: {
     fileExtension: '.ts',
@@ -183,6 +192,7 @@ Your goal is to create models that are not just functional, but elegant, maintai
     implementationApproach:
       'Identify which features belong to each category of the RMS framework. For complex models with multiple components, create a plan for each part.',
     mainFunctionDescription: 'function should accept a parameters object and return the final shape',
+    fileLayoutMode: 'full-nesting',
   },
   zoo: {
     fileExtension: '.kcl',
@@ -281,6 +291,7 @@ Your goal is to create models that leverage KCL's modern approach to parametric 
       "Plan the sketch geometry first, then build up 3D operations using KCL's functional approach with clear parameter definitions.",
     mainFunctionDescription:
       'code should use declarations for parameters and return the final geometry using KCL operations',
+    fileLayoutMode: 'assembly-only',
   },
   jscad: {
     fileExtension: '.js',
@@ -393,6 +404,7 @@ Your goal is to create models that leverage JSCAD's functional approach while ma
       'Plan which primitives and operations you need, then compose them functionally. For complex models, break down into reusable helper functions.',
     mainFunctionDescription:
       'function should accept a parameters object (with defaults) and return the final JSCAD geometry',
+    fileLayoutMode: 'full-nesting',
   },
 };
 
@@ -434,6 +446,132 @@ ${config.codeStandards}
 ${config.modelingStrategy}
 
 ${config.technicalResources}`;
+}
+
+function getFileOrganizationStrategy(config: KernelConfig): string {
+  const ext = config.fileExtension;
+
+  if (config.fileLayoutMode === 'full-nesting') {
+    return `### File Organization Strategy
+The main file (e.g., \`main${ext}\`) serves as the **entry point** for the project. All other files should be linked/imported from this main file.
+
+**Decision Framework - Complexity-Based File Organization:**
+
+Analyze the request to determine the appropriate file structure:
+
+1. **Single File (write to \`main${ext}\`)** - for simple, single-purpose models:
+   - Single geometric object (e.g., "make a cube", "create a gear", "a vase")
+   - One main shape with minor modifications (e.g., "a box with rounded corners", "cylinder with holes")
+   - Models under ~100 lines with no distinct sub-components
+   - **Examples**: "a cube", "parametric gear", "phone stand", "simple bracket"
+
+2. **Modular Files (create component files + update main)** - for complex, multi-component scenes or assemblies:
+   - Multiple distinct elements that serve different purposes
+   - Scene-based requests with different areas/zones (e.g., forest area, castle area, battlefield)
+   - Assemblies with separable components (e.g., car = wheels + body + engine)
+   - Projects where components could be independently modified or reused
+   - **Examples**: "battle map with forest, castle, and battlefield", "house with rooms and furniture", "robot with articulated limbs", "chess set"
+
+**Key Indicators for Modular Approach:**
+- Request mentions multiple distinct named elements (forest AND castle AND battlefield)
+- Request describes a scene or environment with different zones
+- Components have clearly different purposes (terrain vs. structures vs. props)
+- Total complexity would exceed ~150 lines of maintainable code
+- User explicitly mentions wanting organized/modular code
+
+**File Structure for Modular Projects:**
+- \`main${ext}\` - Entry point that imports and assembles all components
+- \`lib/parameters${ext}\` - Shared configuration (optional, for complex parametric models)
+- \`lib/<component>${ext}\` - Individual component modules (e.g., \`lib/forest${ext}\`, \`lib/castle${ext}\`)
+
+**Example - DnD Battle Map:**
+For "make a dnd battle map with a forest, castle, battlefield, and cover objects":
+- \`lib/terrain${ext}\` - Base terrain/ground module
+- \`lib/forest${ext}\` - Trees and vegetation
+- \`lib/castle${ext}\` - Castle walls, towers, gates
+- \`lib/props${ext}\` - Cover objects (well, barrels, crates)
+- \`main${ext}\` - Imports all modules and positions them on the battlefield
+
+**Critical Rule**: When creating multiple files, you MUST update \`main${ext}\` to import/include the new files and render the final model. A project with component files but no main file assembly is incomplete.
+
+**Workflow for Multi-File Projects:**
+1. Create component files first (e.g., \`lib/forest${ext}\`, \`lib/castle${ext}\`)
+2. **Then update \`main${ext}\`** to include these files and call their modules
+3. The main file should always produce a visible, renderable result`;
+  }
+
+  // Assembly-only mode (for KCL/Zoo) - promote flat file structure
+  return `### File Organization Strategy
+The main file (e.g., \`main${ext}\`) serves as the **entry point** for the project.
+
+**CRITICAL KCL Import Constraint:**
+KCL requires that import paths to subdirectories must only reference a \`main${ext}\` file. You cannot import individual component files directly from subdirectories. For this reason, **keep all files in the same directory as the main file**.
+
+**Decision Framework - Complexity-Based File Organization:**
+
+Analyze the request to determine the appropriate file structure:
+
+1. **Single File (write to \`main${ext}\`)** - the preferred approach for most models:
+   - Single geometric object (e.g., "make a cube", "create a gear", "a vase")
+   - One main shape with modifications (e.g., "a box with rounded corners", "cylinder with holes")
+   - Models with multiple related components that are part of one design
+   - **Examples**: "a cube", "parametric gear", "phone stand", "simple bracket", "a piston with rings"
+   - **This is the recommended approach** for KCL
+
+2. **Multiple Files (flat structure)** - for complex models that benefit from separation:
+   - Keep all component files in the **same directory** as \`main${ext}\`
+   - Use separate files for logically distinct components or shared parameters
+   - Import using simple filenames without subdirectory paths
+   - **Examples**: "2-cylinder engine", "chess set with many pieces", "complex assembly"
+
+**File Structure for Multi-File Projects (Flat):**
+- \`main${ext}\` - Entry point that imports and assembles all components
+- \`parameters${ext}\` - Shared configuration and dimensions
+- \`<component>${ext}\` - Individual component files (e.g., \`piston${ext}\`, \`crankshaft${ext}\`)
+
+**Example - 2-Cylinder Engine:**
+For "make a 2-cylinder engine with all components":
+- \`parameters${ext}\` - Shared dimensions (bore, stroke, etc.)
+- \`piston${ext}\` - Piston geometry
+- \`crankshaft${ext}\` - Crankshaft geometry
+- \`cylinder_block${ext}\` - Engine block
+- \`main${ext}\` - Imports all components and assembles them:
+  \`\`\`kcl
+  import * from "parameters${ext}"
+  import * from "piston${ext}"
+  import * from "crankshaft${ext}"
+  import * from "cylinder_block${ext}"
+  // Assemble engine
+  \`\`\`
+
+**Critical Rule**: Do NOT place component files in subdirectories. Keep all files flat in the project root alongside \`main${ext}\`.`;
+}
+
+function getMultiFileWorkflowExample(config: KernelConfig): string {
+  const ext = config.fileExtension;
+
+  if (config.fileLayoutMode === 'full-nesting') {
+    return `**Example workflow for a modular battle map:**
+1. Create lib/terrain${ext}
+2. Create lib/forest${ext}  
+3. Create lib/castle${ext}
+4. Create lib/props${ext}
+5. Update main${ext} to include and render all modules
+6. Call \`${toolName.getKernelResult}\` to verify everything compiles
+7. If errors, fix and repeat step 6`;
+  }
+
+  // Assembly-only mode (for KCL/Zoo) - flat structure
+  return `**Example workflow for a multi-file engine project:**
+1. Create parameters${ext} (shared dimensions)
+2. Create piston${ext}
+3. Create crankshaft${ext}
+4. Create cylinder_block${ext}
+5. Update main${ext} to import all components and assemble them
+6. Call \`${toolName.getKernelResult}\` to verify everything compiles
+7. If errors, fix and repeat step 6
+
+**Remember**: Keep all files in the same directory as main${ext} - no subdirectories.`;
 }
 
 export async function getCadSystemPrompt(kernel: KernelProvider): Promise<string> {
@@ -516,52 +654,7 @@ You have access to a complete set of filesystem tools to manage project files:
 - **\`${toolName.createFile}\`**: Create new files with specified content. Use for adding new modules, libraries, or assets.
 - **\`${toolName.deleteFile}\`**: Delete files that are no longer needed.
 
-### File Organization Strategy
-The main file (e.g., \`main${config.fileExtension}\`) serves as the **entry point** for the project. All other files should be linked/imported from this main file.
-
-**Decision Framework - Complexity-Based File Organization:**
-
-Analyze the request to determine the appropriate file structure:
-
-1. **Single File (write to \`main${config.fileExtension}\`)** - for simple, single-purpose models:
-   - Single geometric object (e.g., "make a cube", "create a gear", "a vase")
-   - One main shape with minor modifications (e.g., "a box with rounded corners", "cylinder with holes")
-   - Models under ~100 lines with no distinct sub-components
-   - **Examples**: "a cube", "parametric gear", "phone stand", "simple bracket"
-
-2. **Modular Files (create component files + update main)** - for complex, multi-component scenes or assemblies:
-   - Multiple distinct elements that serve different purposes
-   - Scene-based requests with different areas/zones (e.g., forest area, castle area, battlefield)
-   - Assemblies with separable components (e.g., car = wheels + body + engine)
-   - Projects where components could be independently modified or reused
-   - **Examples**: "battle map with forest, castle, and battlefield", "house with rooms and furniture", "robot with articulated limbs", "chess set"
-
-**Key Indicators for Modular Approach:**
-- Request mentions multiple distinct named elements (forest AND castle AND battlefield)
-- Request describes a scene or environment with different zones
-- Components have clearly different purposes (terrain vs. structures vs. props)
-- Total complexity would exceed ~150 lines of maintainable code
-- User explicitly mentions wanting organized/modular code
-
-**File Structure for Modular Projects:**
-- \`main${config.fileExtension}\` - Entry point that imports and assembles all components
-- \`lib/parameters${config.fileExtension}\` - Shared configuration (optional, for complex parametric models)
-- \`lib/<component>${config.fileExtension}\` - Individual component modules (e.g., \`lib/forest${config.fileExtension}\`, \`lib/castle${config.fileExtension}\`)
-
-**Example - DnD Battle Map:**
-For "make a dnd battle map with a forest, castle, battlefield, and cover objects":
-- \`lib/terrain${config.fileExtension}\` - Base terrain/ground module
-- \`lib/forest${config.fileExtension}\` - Trees and vegetation
-- \`lib/castle${config.fileExtension}\` - Castle walls, towers, gates
-- \`lib/props${config.fileExtension}\` - Cover objects (well, barrels, crates)
-- \`main${config.fileExtension}\` - Imports all modules and positions them on the battlefield
-
-**Critical Rule**: When creating multiple files, you MUST update \`main${config.fileExtension}\` to import/include the new files and render the final model. A project with component files but no main file assembly is incomplete.
-
-**Workflow for Multi-File Projects:**
-1. Create component files first (e.g., \`lib/forest${config.fileExtension}\`, \`lib/castle${config.fileExtension}\`)
-2. **Then update \`main${config.fileExtension}\`** to include these files and call their modules
-3. The main file should always produce a visible, renderable result
+${getFileOrganizationStrategy(config)}
 
 ### Working with Existing Projects
 When working on projects with existing files:
@@ -596,14 +689,7 @@ The \`${toolName.getKernelResult}\` tool is **essential** for verifying that you
 **Multi-File Projects:**
 When creating multiple files, create them all first, then update the main file to import/include them, then call \`${toolName.getKernelResult}\` once at the end. Do NOT call it after each individual file.
 
-**Example workflow for a modular battle map:**
-1. Create lib/terrain${config.fileExtension}
-2. Create lib/forest${config.fileExtension}  
-3. Create lib/castle${config.fileExtension}
-4. Create lib/props${config.fileExtension}
-5. Update main${config.fileExtension} to include and render all modules
-6. Call \`${toolName.getKernelResult}\` to verify everything compiles
-7. If errors, fix and repeat step 6
+${getMultiFileWorkflowExample(config)}
 
 ## Visual Validation Tool
 When you need to validate that your CAD model matches specific design requirements visually, use the \`${toolName.imageAnalysis}\` tool. This tool captures a screenshot of the currently rendered 3D model and performs a detailed visual analysis.
