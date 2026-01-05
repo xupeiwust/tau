@@ -269,6 +269,40 @@ function ChatToolCardTitle({ children, className }: ChatToolCardTitleProps): Rea
 }
 
 // ============================================================================
+// ChatToolCardTitleAction
+// ============================================================================
+
+type ChatToolCardTitleActionProps = {
+  readonly children: React.ReactNode;
+  readonly className?: string;
+};
+
+/**
+ * Inline component for the action verb in tool card titles (e.g., "Listed", "Thought", "Read").
+ * Renders with slightly lighter styling than the description.
+ */
+function ChatToolCardTitleAction({ children, className }: ChatToolCardTitleActionProps): React.JSX.Element {
+  return <span className={cn('font-medium', className)}>{children}</span>;
+}
+
+// ============================================================================
+// ChatToolCardTitleDescription
+// ============================================================================
+
+type ChatToolCardTitleDescriptionProps = {
+  readonly children: React.ReactNode;
+  readonly className?: string;
+};
+
+/**
+ * Inline component for the description in tool card titles (e.g., path, duration, count).
+ * Renders with slightly darker styling than the action.
+ */
+function ChatToolCardTitleDescription({ children, className }: ChatToolCardTitleDescriptionProps): React.JSX.Element {
+  return <span className={cn('text-muted-foreground', className)}>{children}</span>;
+}
+
+// ============================================================================
 // ChatToolCardActions
 // ============================================================================
 
@@ -420,6 +454,8 @@ export {
   ChatToolCardHeader,
   ChatToolCardIcon,
   ChatToolCardTitle,
+  ChatToolCardTitleAction,
+  ChatToolCardTitleDescription,
   ChatToolCardActions,
   ChatToolCardContent,
   ChatToolCardList,
