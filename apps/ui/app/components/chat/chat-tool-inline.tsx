@@ -76,43 +76,71 @@ export function ChatToolInline({
 type ChatToolInlineLinkProps = {
   readonly children: React.ReactNode;
   readonly status?: 'loading' | 'ready';
-  readonly onClick?: (event: React.MouseEvent) => void;
   readonly className?: string;
 };
 
 /**
- * Inline link component for clickable file/path references.
+ * Inline wrapper for file/path references that shows loading animation.
+ *
+ * Use with FileLink for clickable file references:
  *
  * @example
- * <ChatToolInlineLink status="loading" onClick={handleClick}>
- *   Reading main.kcl L1-10...
+ * <ChatToolInlineLink status="loading">
+ *   <ChatToolInlineAction>Reading</ChatToolInlineAction>{' '}
+ *   <ChatToolInlineDescription>main.kcl...</ChatToolInlineDescription>
  * </ChatToolInlineLink>
  *
- * <ChatToolInlineLink status="ready" onClick={handleClick}>
- *   Read main.kcl L1-10
+ * <ChatToolInlineLink status="ready">
+ *   <ChatToolInlineAction>Read</ChatToolInlineAction>{' '}
+ *   <FileLink path="main.kcl">
+ *     <ChatToolInlineDescription>main.kcl</ChatToolInlineDescription>
+ *   </FileLink>
  * </ChatToolInlineLink>
  */
 export function ChatToolInlineLink({
   children,
   status = 'ready',
-  onClick,
   className,
 }: ChatToolInlineLinkProps): React.JSX.Element {
   const isLoading = status === 'loading';
 
   return (
-    <span className={cn('text-sm text-muted-foreground', isLoading && 'animate-shiny-text', className)}>
-      {isLoading ? (
-        <AnimatedShinyText>{children}</AnimatedShinyText>
-      ) : (
-        <button
-          type="button"
-          className="cursor-pointer text-muted-foreground/80 underline-offset-2 hover:text-primary hover:underline"
-          onClick={onClick}
-        >
-          {children}
-        </button>
-      )}
+    <span className={cn('text-sm text-muted-foreground', className)}>
+      {isLoading ? <AnimatedShinyText>{children}</AnimatedShinyText> : children}
     </span>
   );
+}
+
+// ============================================================================
+// ChatToolInlineAction
+// ============================================================================
+
+type ChatToolInlineActionProps = {
+  readonly children: React.ReactNode;
+  readonly className?: string;
+};
+
+/**
+ * Inline component for the action verb in inline tool displays (e.g., "Read", "Visited").
+ * Renders with slightly lighter styling than the description.
+ */
+export function ChatToolInlineAction({ children, className }: ChatToolInlineActionProps): React.JSX.Element {
+  return <span className={cn('text-foreground/80', className)}>{children}</span>;
+}
+
+// ============================================================================
+// ChatToolInlineDescription
+// ============================================================================
+
+type ChatToolInlineDescriptionProps = {
+  readonly children: React.ReactNode;
+  readonly className?: string;
+};
+
+/**
+ * Inline component for the description in inline tool displays (e.g., path, domain).
+ * Renders with slightly darker styling than the action.
+ */
+export function ChatToolInlineDescription({ children, className }: ChatToolInlineDescriptionProps): React.JSX.Element {
+  return <span className={cn('text-foreground/50', className)}>{children}</span>;
 }

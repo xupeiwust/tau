@@ -4,6 +4,7 @@ import { File, FilePlus, LoaderCircle, X, ChevronDown, ChevronRight, Check, Rota
 import type { CodeError, KernelError } from '@taucad/types';
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { CopyButton } from '#components/copy-button.js';
+import { FileLink } from '#components/files/file-link.js';
 import { Tooltip, TooltipTrigger, TooltipContent } from '#components/ui/tooltip.js';
 import { Button } from '#components/ui/button.js';
 import { cn } from '#utils/ui.utils.js';
@@ -225,7 +226,7 @@ export function CodePreview({
   return (
     <div className={cn('relative border-t', isExpanded ? '' : 'max-h-32 overflow-y-auto')}>
       <div className="leading-0">
-        <CodeViewer language={language} text={displayContent} className="overflow-x-auto p-3 text-xs" />
+        <CodeViewer language={language} text={displayContent} className="overflow-x-auto px-2.5 py-1.5 text-xs" />
         {hasMoreLines ? (
           <Button
             size="xs"
@@ -389,7 +390,10 @@ type CollapsibleFileOperationTriggerProps = {
   readonly mode: 'edit' | 'create';
   readonly isOpen: boolean;
   readonly isSuccess?: boolean;
-  readonly onFileClick?: () => void;
+  /**
+   * When true, wraps the filename with FileLink for file opening functionality.
+   */
+  readonly enableFileLink?: boolean;
 };
 
 export function CollapsibleFileOperationTrigger({
@@ -398,20 +402,12 @@ export function CollapsibleFileOperationTrigger({
   mode,
   isOpen,
   isSuccess = true,
-  onFileClick,
+  enableFileLink = false,
 }: CollapsibleFileOperationTriggerProps): React.JSX.Element {
   const isStreaming = ['input-streaming', 'input-available'].includes(toolStatus);
   const isError = toolStatus === 'output-available' && !isSuccess;
   const filename = getFilename(targetFile);
   const hasPath = targetFile !== filename;
-
-  // Handle click on filename to open file (stops propagation to prevent collapsible toggle)
-  const handleFilenameClick = (event: React.MouseEvent): void => {
-    if (onFileClick && !isStreaming) {
-      event.stopPropagation();
-      onFileClick();
-    }
-  };
 
   // Render the filename content
   const filenameContent = isStreaming ? (
@@ -424,32 +420,24 @@ export function CollapsibleFileOperationTrigger({
     <span>{filename}</span>
   );
 
-  // Filename element - clickable only if onFileClick is provided
+  // Filename element - clickable when enableFileLink is true
   const filenameElement =
-    onFileClick && !isStreaming ? (
+    enableFileLink && !isStreaming ? (
       hasPath ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="min-w-0 cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
-              onClick={handleFilenameClick}
-            >
+            <FileLink path={targetFile} className="min-w-0 truncate hover:text-foreground">
               {filenameContent}
-            </button>
+            </FileLink>
           </TooltipTrigger>
           <TooltipContent side="top" align="start">
             {targetFile}
           </TooltipContent>
         </Tooltip>
       ) : (
-        <button
-          type="button"
-          className="min-w-0 cursor-pointer truncate underline-offset-2 hover:text-foreground hover:underline"
-          onClick={handleFilenameClick}
-        >
+        <FileLink path={targetFile} className="min-w-0 truncate hover:text-foreground">
           {filenameContent}
-        </button>
+        </FileLink>
       )
     ) : hasPath && !isStreaming ? (
       <Tooltip>
@@ -466,7 +454,7 @@ export function CollapsibleFileOperationTrigger({
 
   // Entire header is the collapsible trigger
   return (
-    <CollapsibleTrigger className="group flex h-7 min-w-0 flex-1 cursor-pointer flex-row items-center gap-1 pl-2 text-xs text-muted-foreground transition-colors hover:bg-foreground/5">
+    <CollapsibleTrigger className="group flex h-7 min-w-0 flex-1 cursor-pointer flex-row items-center gap-1 pl-2 text-xs text-muted-foreground transition-colors">
       {/* Status icon - visible by default, hidden on hover */}
       <span className="relative flex size-3 items-center justify-center">
         {isStreaming ? (
@@ -509,9 +497,9 @@ type CollapsibleFileOperationProps = {
   readonly footer?: React.ReactNode;
   readonly isDefaultOpen?: boolean;
   /**
-   * Callback when the filename is clicked. Use this to open the file in the editor.
+   * When true, wraps the filename with FileLink for file opening functionality.
    */
-  readonly onFileClick?: () => void;
+  readonly enableFileLink?: boolean;
 };
 
 export function CollapsibleFileOperation({
@@ -524,18 +512,22 @@ export function CollapsibleFileOperation({
   actions,
   footer,
   isDefaultOpen = false,
-  onFileClick,
+  enableFileLink = false,
 }: CollapsibleFileOperationProps): React.JSX.Element {
-  const [isOpen, setIsOpen] = useState(isDefaultOpen);
   const isStreaming = ['input-streaming', 'input-available'].includes(toolStatus);
+  // Default to open when content is available (after streaming completes)
+  const [isOpen, setIsOpen] = useState(isDefaultOpen || (!isStreaming && Boolean(content)));
   const filename = getFilename(targetFile);
   const hasPath = targetFile !== filename;
 
   // For streaming, show last 4 lines without collapsible
   if (isStreaming && content) {
     const lines = content.split('\n');
+    const totalLines = lines.length;
     const lastFourLines = lines.slice(-4).join('\n');
-    const hasContent = lastFourLines.trim().length > 0;
+    // Always show content area when we have 4+ lines to maintain consistent height,
+    // otherwise only show if there's actual content
+    const shouldShowContent = totalLines >= 4 || lastFourLines.trim().length > 0;
 
     return (
       <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
@@ -556,8 +548,8 @@ export function CollapsibleFileOperation({
             <AnimatedShinyText>{targetFile || 'file'}</AnimatedShinyText>
           )}
         </div>
-        {hasContent ? (
-          <div className="max-h-24 overflow-hidden border-t">
+        {shouldShowContent ? (
+          <div className="h-24 overflow-hidden border-t">
             <CodeViewer language="openscad" text={lastFourLines} className="overflow-x-auto p-3 text-xs" />
           </div>
         ) : null}
@@ -567,19 +559,19 @@ export function CollapsibleFileOperation({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="group/file-op @container/code overflow-hidden rounded-md border bg-neutral/10">
-        <div className="flex items-center">
+      <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
+        <div className="group/file-op flex items-center transition-colors hover:bg-foreground/5">
           <CollapsibleFileOperationTrigger
             targetFile={targetFile}
             toolStatus={toolStatus}
             mode={mode}
             isOpen={isOpen}
             isSuccess={isSuccess}
-            onFileClick={onFileClick}
+            enableFileLink={enableFileLink}
           />
           {actions ? (
             <div
-              className="ml-auto flex shrink-0 items-center gap-1 pr-1 opacity-0 group-hover/file-op:opacity-100"
+              className="ml-auto flex shrink-0 items-center gap-1 pr-1 text-muted-foreground opacity-0 group-hover/file-op:opacity-100"
               onClick={(event) => {
                 // Prevent triggering the collapsible when clicking actions
                 event.stopPropagation();
@@ -590,6 +582,7 @@ export function CollapsibleFileOperation({
           ) : undefined}
         </div>
         <CollapsibleContent>
+          {content ? <CodePreview content={content} /> : null}
           {children}
           {footer}
         </CollapsibleContent>
