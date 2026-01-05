@@ -27,7 +27,7 @@ export const ChatTextareaSubmitButton = memo(function ({
   onSubmit,
   onCancel,
 }: ChatTextareaSubmitButtonProperties): React.JSX.Element {
-  if (status === 'streaming') {
+  if (['streaming', 'submitted'].includes(status)) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
