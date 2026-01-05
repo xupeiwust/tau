@@ -134,8 +134,11 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
     });
 
     const fileDeletedSub = fileManagerRef.on('fileDeleted', (event) => {
-      const fileName = event.path.split('/').pop() ?? event.path;
-      toast.success(`Deleted: ${fileName}`);
+      // Only show toast for file-tree operations (user-initiated deletes)
+      if (event.source === 'file-tree') {
+        const fileName = event.path.split('/').pop() ?? event.path;
+        toast.success(`Deleted: ${fileName}`);
+      }
     });
 
     const fileWrittenSub = fileManagerRef.on('fileWritten', (event) => {
@@ -1303,7 +1306,6 @@ function PendingFileInput({
   );
 
   const handleBlur = useCallback(() => {
-    // Cancel on blur (user clicked elsewhere)
     onCancel();
   }, [onCancel]);
 
