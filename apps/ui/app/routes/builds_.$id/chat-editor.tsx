@@ -231,40 +231,38 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
       return;
     }
 
-    const subscription = fileExplorerActor.on(
-      'fileOpened',
-      (event: { path: string; lineNumber?: number; column?: number }) => {
-        // Always open the editor panel when a file is opened
-        setIsEditorOpen(true);
+    const subscription = fileExplorerActor.on('fileOpened', (event) => {
+      // Always open the editor panel when a file is opened
+      setIsEditorOpen(true);
 
-        // Only jump if a line number is specified
-        if (!event.lineNumber) {
-          return;
-        }
+      // Only jump if a line number is specified
+      const { lineNumber, column } = event;
+      if (!lineNumber) {
+        return;
+      }
 
-        // Defer Monaco navigation until after the layout has fully settled
-        // Double rAF ensures we wait for both React render and browser layout/paint cycles
-        // This prevents layout shifts when the editor panel is opening
+      // Defer Monaco navigation until after the layout has fully settled
+      // Double rAF ensures we wait for both React render and browser layout/paint cycles
+      // This prevents layout shifts when the editor panel is opening
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const uri = createBuildNamespacedUri(monaco, buildId, event.path);
-            const model = monaco.editor.getModel(uri);
+          const uri = createBuildNamespacedUri(monaco, buildId, event.path);
+          const model = monaco.editor.getModel(uri);
 
-            if (model) {
-              const editors = monaco.editor.getEditors();
-              const targetEditor = editors.find((editorInstance) => editorInstance.getModel() === model);
+          if (model) {
+            const editors = monaco.editor.getEditors();
+            const targetEditor = editors.find((editorInstance) => editorInstance.getModel() === model);
 
-              if (targetEditor) {
-                const position = new monaco.Position(event.lineNumber!, event.column ?? 1);
-                targetEditor.setPosition(position);
-                targetEditor.revealPositionInCenter(position);
-                targetEditor.focus();
-              }
+            if (targetEditor) {
+              const position = new monaco.Position(lineNumber, column ?? 1);
+              targetEditor.setPosition(position);
+              targetEditor.revealPositionInCenter(position);
+              targetEditor.focus();
             }
-          });
+          }
         });
-      },
-    );
+      });
+    });
 
     return () => {
       subscription.unsubscribe();
