@@ -18,8 +18,10 @@ type LangChainErrorCode =
   | 'MODEL_RATE_LIMIT'
   | 'OUTPUT_PARSING_FAILURE'
   | 'GRAPH_RECURSION_LIMIT'
+  | 'INVALID_CHAT_HISTORY'
   | 'INVALID_CONCURRENT_GRAPH_UPDATE'
   | 'INVALID_GRAPH_NODE_RETURN_VALUE'
+  | 'MISSING_CHECKPOINTER'
   | 'MULTIPLE_SUBGRAPHS'
   | 'UNREACHABLE_NODE';
 
@@ -36,8 +38,10 @@ const langChainCodeToCategory: Record<LangChainErrorCode, ErrorCategory> = {
   MODEL_RATE_LIMIT: errorCategory.rateLimit,
   OUTPUT_PARSING_FAILURE: errorCategory.toolError,
   GRAPH_RECURSION_LIMIT: errorCategory.server,
+  INVALID_CHAT_HISTORY: errorCategory.toolError,
   INVALID_CONCURRENT_GRAPH_UPDATE: errorCategory.toolError,
   INVALID_GRAPH_NODE_RETURN_VALUE: errorCategory.toolError,
+  MISSING_CHECKPOINTER: errorCategory.server,
   MULTIPLE_SUBGRAPHS: errorCategory.server,
   UNREACHABLE_NODE: errorCategory.server,
 };
