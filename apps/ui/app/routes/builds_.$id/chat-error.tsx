@@ -140,11 +140,21 @@ export const ChatError = memo(function ({
           <CollapsibleTrigger asChild>
             <div className="flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5">
               <ChevronRight className="size-4 transition-transform duration-300 ease-in-out group-data-[state=open]/collapsible:rotate-90" />
-              <div className="flex w-full items-center justify-between">
-                <p>{parsedError.title || 'Unable to send the message.'}</p>
+              <div className="flex w-full items-center justify-between gap-2">
+                <MarkdownViewer
+                  className={cn(
+                    'inline w-auto! text-sm text-foreground',
+                    // Inline-code styles for error messages
+                    '[&_code]:text-destructive',
+                    '[&_code]:border-destructive/30',
+                    '[&_code]:bg-background/80',
+                  )}
+                >
+                  {parsedError.message || parsedError.title || 'Unable to send the message.'}
+                </MarkdownViewer>
                 <Button
                   variant="outline"
-                  className="h-7 hover:border-neutral/50"
+                  className="h-7 shrink-0 hover:border-neutral/50"
                   size="sm"
                   onClick={() => {
                     regenerate();
