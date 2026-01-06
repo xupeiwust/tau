@@ -1,5 +1,5 @@
 import type { ToolUIPart } from 'ai';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { File, FilePlus, LoaderCircle, X, ChevronDown, ChevronRight, Check, RotateCcw, Play } from 'lucide-react';
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { CopyButton } from '#components/copy-button.js';
@@ -9,6 +9,8 @@ import { Button } from '#components/ui/button.js';
 import { cn } from '#utils/ui.utils.js';
 import { AnimatedShinyText } from '#components/magicui/animated-shiny-text.js';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#components/ui/collapsible.js';
+import { useCookie } from '#hooks/use-cookie.js';
+import { cookieName } from '#constants/cookie.constants.js';
 
 /**
  * Extract the filename from a path.
@@ -414,8 +416,23 @@ export function CollapsibleFileOperation({
   enableFileLink = false,
 }: CollapsibleFileOperationProps): React.JSX.Element {
   const isStreaming = ['input-streaming', 'input-available'].includes(toolStatus);
+  const [showCodePreview] = useCookie(cookieName.chatToolCodePreview, true);
+
+  // Track the previous streaming state to detect transitions
+  const wasStreamingRef = useRef(isStreaming);
+
   // Default to open when content is available (after streaming completes)
   const [isOpen, setIsOpen] = useState(isDefaultOpen || (!isStreaming && Boolean(content)));
+
+  // When transitioning from streaming to non-streaming, open if showCodePreview is enabled
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && content && showCodePreview) {
+      setIsOpen(true);
+    }
+
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, content, showCodePreview]);
+
   const filename = getFilename(targetFile);
   const hasPath = targetFile !== filename;
 
