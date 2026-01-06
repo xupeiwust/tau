@@ -24,11 +24,9 @@ export const formatCurrency = (value: number, options?: { significantFigures?: n
       .replace('$', '');
   }
 
-  return value
-    .toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 6,
-    })
-    .replace('$', '');
+  return value.toLocaleString('en-US', {
+    style: 'decimal',
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  });
 };
