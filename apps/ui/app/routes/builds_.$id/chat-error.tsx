@@ -231,5 +231,9 @@ export const ChatError = memo(function ({
     case errorCategory.generic: {
       return renderGenericError();
     }
+
+    default: {
+      return renderGenericError();
+    }
   }
 });
