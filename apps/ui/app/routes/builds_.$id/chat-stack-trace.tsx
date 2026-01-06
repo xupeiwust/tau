@@ -5,6 +5,7 @@ import type { KernelProvider, KernelError, KernelStackFrame } from '@taucad/type
 import { languageFromKernel } from '@taucad/types/constants';
 import { messageRole, messageStatus } from '@taucad/chat/constants';
 import { Button } from '#components/ui/button.js';
+import { FileLink } from '#components/files/file-link.js';
 import { useChatActions } from '#hooks/use-chat.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { useBuild } from '#hooks/use-build.js';
@@ -98,50 +99,106 @@ Please update the code to resolve this error.`;
 
 function StackFrame({ frame, index }: { readonly frame: KernelStackFrame; readonly index: number }): React.JSX.Element {
   const fileName = frame.fileName ?? '<unknown>';
+  const isClickable = Boolean(frame.fileName);
+
+  const locationContent = (
+    <>
+      <span className="shrink-0 text-muted-foreground">(</span>
+      <span className="min-w-0 truncate text-muted-foreground" dir="rtl" title={fileName}>
+        {fileName}
+      </span>
+      {frame.lineNumber !== undefined && frame.columnNumber !== undefined ? (
+        <span className="shrink-0 text-muted-foreground">
+          :{frame.lineNumber}:{frame.columnNumber}
+        </span>
+      ) : null}
+      <span className="shrink-0 text-muted-foreground">)</span>
+    </>
+  );
 
   return (
     <div className="flex min-w-0 items-center gap-2 font-mono text-[0.625rem]">
       <span className="w-3 shrink-0 text-right text-muted-foreground">{index + 1}</span>
       <span className="shrink-0 text-muted-foreground">|</span>
       <span className="shrink-0 text-foreground">{frame.functionName ?? '<anonymous>'}</span>
-      <div className="flex min-w-0">
-        <span className="shrink-0 text-muted-foreground">(</span>
-        <span className="min-w-0 truncate text-muted-foreground" dir="rtl" title={fileName}>
-          {fileName}
-        </span>
-        {frame.lineNumber !== undefined && frame.columnNumber !== undefined ? (
-          <span className="shrink-0 text-muted-foreground">
-            :{frame.lineNumber}:{frame.columnNumber}
-          </span>
-        ) : null}
-        <span className="shrink-0 text-muted-foreground">)</span>
-      </div>
+      {isClickable ? (
+        <FileLink
+          path={frame.fileName!}
+          lineNumber={frame.lineNumber}
+          column={frame.columnNumber}
+          className="flex min-w-0 hover:text-foreground"
+        >
+          {locationContent}
+        </FileLink>
+      ) : (
+        <div className="flex min-w-0">{locationContent}</div>
+      )}
     </div>
   );
 }
 
+function getBasename(path: string): string {
+  return path.split('/').pop() ?? path;
+}
+
+function formatLocation(fileName?: string, lineNumber?: number, column?: number): string {
+  if (!fileName) {
+    return '';
+  }
+
+  const basename = getBasename(fileName);
+
+  if (lineNumber === undefined) {
+    return basename;
+  }
+
+  if (column === undefined) {
+    return `${basename}:${lineNumber}`;
+  }
+
+  return `${basename}:${lineNumber}:${column}`;
+}
+
 function ErrorStackTrace({
   message,
+  fileName,
   startLineNumber,
   startColumn,
   stackFrames,
   onFixWithAi,
 }: {
   readonly message: string;
+  readonly fileName?: string;
   readonly startLineNumber?: number;
   readonly startColumn?: number;
   readonly stackFrames?: KernelStackFrame[];
   readonly onFixWithAi?: () => void;
 }): React.JSX.Element {
+  const isLocationClickable = Boolean(fileName && startLineNumber);
+  const locationText = formatLocation(fileName, startLineNumber, startColumn);
+
   return (
     <div className="flex flex-col gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-xs">
       {/* Error message with Fix button */}
       <div className="flex flex-row items-start justify-between gap-2">
         <div className="font-medium text-destructive">
           {message}
-          {startLineNumber ? (
-            <span className="ml-1 font-normal text-muted-foreground">
-              (Line {startLineNumber}:{startColumn})
+          {locationText ? (
+            <span className="ml-1.5 font-mono font-normal text-muted-foreground">
+              (
+              {isLocationClickable ? (
+                <FileLink
+                  path={fileName!}
+                  lineNumber={startLineNumber}
+                  column={startColumn}
+                  className="hover:text-foreground"
+                >
+                  {locationText}
+                </FileLink>
+              ) : (
+                locationText
+              )}
+              )
             </span>
           ) : null}
         </div>
@@ -254,6 +311,7 @@ export function ChatStackTrace({ className, ...props }: React.HTMLAttributes<HTM
           <ErrorStackTrace
             key={errorKey}
             message={error.message}
+            fileName={error.location?.fileName}
             startLineNumber={error.location?.startLineNumber}
             startColumn={error.location?.startColumn}
             stackFrames={error.stackFrames}
