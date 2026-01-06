@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { Globe, Code, Image, Eye, Check, Wand2, Ban, Zap } from 'lucide-react';
+import { Globe, Image, Eye, Check, Wand2, Ban, Zap } from 'lucide-react';
 import type { ToolSelection, ToolName } from '@taucad/chat';
 import { toolName, toolMode } from '@taucad/chat/constants';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
@@ -249,7 +249,7 @@ export const ChatToolSelector = memo(function ({
   return (
     <ComboBoxResponsive<ToolSelectorItem>
       {...properties}
-      className="[&[data-slot='popover-content']]:w-[280px]"
+      className="data-[slot='popover-content']:w-[280px]"
       popoverProperties={popoverProperties}
       emptyListMessage="No options found."
       searchPlaceHolder="Search tools..."
