@@ -80,4 +80,3 @@ ${contextParts.join('\n\n')}
     ...messages.slice(lastUserMessageIndex + 1),
   ] as T[];
 }
-

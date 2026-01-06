@@ -41,7 +41,7 @@ describe('injectSnapshotContext', () => {
       const result = injectSnapshotContext(messages, fullSnapshot);
 
       expect(result).toHaveLength(1);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       // Should have editor_context wrapper
       expect(text).toContain('<editor_context>');
@@ -70,7 +70,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Test')];
 
       const result = injectSnapshotContext(messages, fullSnapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       const activeFileIndex = text.indexOf('<active_file>');
       const openFilesIndex = text.indexOf('<open_files>');
@@ -87,7 +87,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('<project_layout>');
       expect(text).not.toContain('<active_file>');
@@ -101,7 +101,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('<active_file>');
       expect(text).toContain('main.scad');
@@ -119,7 +119,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('<open_files>');
       expect(text).toContain('file1.scad, file2.scad');
@@ -135,7 +135,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('<project_layout>');
       expect(text).not.toContain('<open_files>');
@@ -250,7 +250,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('The file currently being rendered by the CAD engine: lib/shapes.scad');
     });
@@ -266,7 +266,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, snapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toContain('Files currently open in the editor tabs: a.scad, b.scad, c.scad');
     });
@@ -275,7 +275,7 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('Hello')];
 
       const result = injectSnapshotContext(messages, fullSnapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toMatch(/^<editor_context>\n/);
       expect(text).toContain('</editor_context>\n\nHello');
@@ -285,10 +285,9 @@ describe('injectSnapshotContext', () => {
       const messages = [createUserMessage('My question')];
 
       const result = injectSnapshotContext(messages, fullSnapshot);
-      const text = (result[0]?.parts[0] as { type: 'text'; text: string }).text;
+      const { text } = result[0]?.parts[0] as { type: 'text'; text: string };
 
       expect(text).toMatch(/<\/editor_context>\n\nMy question$/);
     });
   });
 });
-
