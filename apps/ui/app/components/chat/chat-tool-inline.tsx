@@ -110,37 +110,3 @@ export function ChatToolInlineLink({
     </span>
   );
 }
-
-// ============================================================================
-// ChatToolInlineAction
-// ============================================================================
-
-type ChatToolInlineActionProps = {
-  readonly children: React.ReactNode;
-  readonly className?: string;
-};
-
-/**
- * Inline component for the action verb in inline tool displays (e.g., "Read", "Visited").
- * Renders with slightly lighter styling than the description.
- */
-export function ChatToolInlineAction({ children, className }: ChatToolInlineActionProps): React.JSX.Element {
-  return <span className={cn('text-foreground/80', className)}>{children}</span>;
-}
-
-// ============================================================================
-// ChatToolInlineDescription
-// ============================================================================
-
-type ChatToolInlineDescriptionProps = {
-  readonly children: React.ReactNode;
-  readonly className?: string;
-};
-
-/**
- * Inline component for the description in inline tool displays (e.g., path, domain).
- * Renders with slightly darker styling than the action.
- */
-export function ChatToolInlineDescription({ children, className }: ChatToolInlineDescriptionProps): React.JSX.Element {
-  return <span className={cn('text-foreground/50', className)}>{children}</span>;
-}
