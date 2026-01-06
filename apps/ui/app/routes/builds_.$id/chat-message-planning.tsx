@@ -1,5 +1,4 @@
 import { messageRole } from '@taucad/chat/constants';
-import type { MyUIMessage } from '@taucad/chat';
 import { useChatSelector } from '#hooks/use-chat.js';
 import { ChatToolInlineLink } from '#components/chat/chat-tool-inline.js';
 import { cn } from '#utils/ui.utils.js';
@@ -8,19 +7,34 @@ type ChatMessagePlanningProperties = {
   readonly messageId: string;
 };
 
+/** Part type for areAllPartsConcluded - only needs to check state property */
+export type PartWithOptionalState = { [key: string]: unknown; state?: string };
+
 /**
- * Check if all tool parts in a message have concluded (output-available or output-error).
- * Returns true if there are no tool parts or all tool parts have completed.
+ * Check if all parts in a message have concluded.
+ * Concluded states:
+ * - Text/Reasoning: 'done' (or no state = complete)
+ * - Tools: 'output-available' or 'output-error'
+ *
+ * Returns false if any part is still actively streaming or processing.
  */
-function areAllToolPartsConcluded(parts: MyUIMessage['parts']): boolean {
+export function areAllPartsConcluded(parts: readonly PartWithOptionalState[]): boolean {
   for (const part of parts) {
-    // Check if part has a state property (tool invocation parts)
-    if ('state' in part && part.state !== undefined) {
-      const state = part.state as string;
-      // If any tool is still processing, return false
-      if (state !== 'output-available' && state !== 'output-error') {
-        return false;
-      }
+    // Skip parts without state (considered complete)
+    if (!('state' in part) || part.state === undefined) {
+      continue;
+    }
+
+    const { state } = part;
+
+    // These are all concluded states:
+    // - 'done': text/reasoning finished streaming
+    // - 'output-available': tool completed successfully
+    // - 'output-error': tool completed with error
+    const isConcluded = state === 'done' || state === 'output-available' || state === 'output-error';
+
+    if (!isConcluded) {
+      return false;
     }
   }
 
@@ -51,9 +65,9 @@ export function ChatMessagePlanning({ messageId }: ChatMessagePlanningProperties
       return lastMessage.id === messageId;
     }
 
-    // Case 2: Last message is assistant message with all tool parts concluded
+    // Case 2: Last message is assistant message with all parts concluded (not actively streaming)
     if (lastMessage.role === messageRole.assistant && lastMessage.id === messageId) {
-      return areAllToolPartsConcluded(lastMessage.parts);
+      return areAllPartsConcluded(lastMessage.parts);
     }
 
     return false;
@@ -67,7 +81,7 @@ export function ChatMessagePlanning({ messageId }: ChatMessagePlanningProperties
   }
 
   return (
-    <div className={cn(isUser && 'ml-4')}>
+    <div className={cn(isUser && 'mt-1 ml-4')}>
       <ChatToolInlineLink status="loading">Planning next moves...</ChatToolInlineLink>
     </div>
   );
