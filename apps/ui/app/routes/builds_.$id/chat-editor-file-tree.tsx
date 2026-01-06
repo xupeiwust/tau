@@ -36,7 +36,7 @@ import type { KernelConfiguration } from '@taucad/types/constants';
 import type { FileItem } from '#machines/file-explorer.machine.js';
 import { cn } from '#utils/ui.utils.js';
 import { Button } from '#components/ui/button.js';
-import { Input } from '#components/ui/input.js';
+import { SearchInput } from '#components/search-input.js';
 import { toast } from '#components/ui/sonner.js';
 import {
   FloatingPanelContent,
@@ -96,7 +96,15 @@ function isHiddenFile(path: string, patterns: string[]): boolean {
   return patterns.some((pattern) => minimatch(path, pattern));
 }
 
-export const ChatEditorFileTree = memo(function (): React.JSX.Element {
+type ChatEditorFileTreeProps = {
+  readonly enableSearch?: boolean;
+  readonly onSearchChange?: (isOpen: boolean) => void;
+};
+
+export const ChatEditorFileTree = memo(function ({
+  enableSearch = false,
+  onSearchChange,
+}: ChatEditorFileTreeProps): React.JSX.Element {
   // It's necessary to opt out of React Compiler auto-memoization for this component due to:
   // https://headless-tree.lukasbach.com/guides/react-compiler/
   'use no memo'; // Opt out of React Compiler memoization
@@ -108,10 +116,17 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
     // FileExplorer → FileManager → CAD coordination
     const fileOpenedSub = fileExplorerRef.on('fileOpened', (event) => {
       fileManagerRef.send({ type: 'readFile', path: event.path });
-      cadRef.send({
-        type: 'setFile',
-        file: { path: `/builds/${buildId}`, filename: event.path },
-      });
+
+      // Only send setFile when switching to a different file
+      // This prevents unnecessary re-renders when clicking on an already open file
+      // Content changes from editor/chat tools trigger setFile separately
+      const currentFile = cadRef.getSnapshot().context.file;
+      if (currentFile?.filename !== event.path) {
+        cadRef.send({
+          type: 'setFile',
+          file: { path: `/builds/${buildId}`, filename: event.path },
+        });
+      }
     });
 
     // Build loaded → Open initial file
@@ -447,6 +462,13 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
           // Don't close search - user must press Escape or click X
         },
       },
+      // Override closeSearch to use external callback
+      closeSearch: {
+        hotkey: 'Escape',
+        handler() {
+          onSearchChange?.(false);
+        },
+      },
     },
     features: [
       syncDataLoaderFeature,
@@ -466,6 +488,16 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
     tree.rebuildTree();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tree object is not stable, only rebuild when fileTree or showHiddenFiles changes
   }, [fileTree, showHiddenFiles]);
+
+  // Sync tree search state with external enableSearch prop
+  useEffect(() => {
+    if (enableSearch && !tree.isSearchOpen()) {
+      tree.openSearch();
+    } else if (!enableSearch && tree.isSearchOpen()) {
+      tree.closeSearch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tree object is not stable, only sync when enableSearch changes
+  }, [enableSearch]);
 
   // Sync active file with tree focus
   useEffect(() => {
@@ -645,18 +677,18 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  aria-label="Search files"
-                  className="size-6 rounded-sm"
+                  aria-label={enableSearch ? 'Hide search' : 'Search files'}
+                  className={cn('size-6 rounded-sm', enableSearch && 'text-primary')}
                   size="icon"
                   variant="ghost"
                   onClick={() => {
-                    tree.openSearch();
+                    onSearchChange?.(!enableSearch);
                   }}
                 >
                   <Search className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Search files</TooltipContent>
+              <TooltipContent>{enableSearch ? 'Hide search' : 'Search files'}</TooltipContent>
             </Tooltip>
             <DropdownMenu>
               <Tooltip>
@@ -740,37 +772,32 @@ export const ChatEditorFileTree = memo(function (): React.JSX.Element {
             </Tooltip>
           </FloatingPanelContentHeaderActions>
         </FloatingPanelContentHeader>
-        <FloatingPanelContentBody className="flex min-h-0 flex-col p-1">
-          {tree.isSearchOpen() && (
-            <div className="mb-1 flex shrink-0 items-center gap-2 px-1">
-              <Input
+        <FloatingPanelContentBody className="flex min-h-0 flex-col">
+          {enableSearch ? (
+            <div className="flex w-full shrink-0 flex-row gap-2 border-b bg-sidebar p-2">
+              <SearchInput
                 {...tree.getSearchInputElementProps()}
                 placeholder="Search files..."
-                className="h-7 flex-1 text-sm"
-              />
-              <span className="text-xs text-muted-foreground">{tree.getSearchMatchingItems().length}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-6 rounded-sm"
-                aria-label="Close search"
-                onClick={() => {
-                  tree.closeSearch();
+                className="h-7 w-full bg-background"
+                // Override onBlur to prevent clearing search when clicking on tree items
+                onBlur={undefined}
+                onClear={() => {
+                  // Only clear the search text, don't close the search panel
+                  // Closing is handled by the search toggle button in the header
+                  tree.setSearch('');
                 }}
-              >
-                <span className="text-sm">×</span>
-              </Button>
+              />
             </div>
-          )}
+          ) : null}
 
           {selectedItems.length > 1 && (
-            <div className="mb-1 shrink-0 px-1 text-xs text-muted-foreground">
+            <div className="shrink-0 px-2 pt-1 text-xs text-muted-foreground">
               {selectedItems.length} items selected
             </div>
           )}
 
           {tree.getItems().length > 0 || pendingFolder !== undefined || pendingFile !== undefined ? (
-            <div {...tree.getContainerProps()} className="flex min-h-0 flex-col gap-0.5 outline-none">
+            <div {...tree.getContainerProps()} className="flex min-h-0 flex-col gap-0.5 p-1 outline-none">
               <AssistiveTreeDescription tree={tree} />
               {/* Pending folder at root level */}
               {pendingFolder?.parentPath === '' ? (
