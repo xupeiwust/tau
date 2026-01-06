@@ -158,7 +158,7 @@ export function DiffPreview({
     <CollapsibleContainer
       lineCount={lineCount}
       collapsedLineCount={maxCollapsedLines}
-      collapsedMaxHeight="max-h-32"
+      collapsedMaxHeight="max-h-24"
       className="border-t"
     >
       <DiffViewer originalContent={originalContent} modifiedContent={modifiedContent} language={language} />
