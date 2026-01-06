@@ -39,7 +39,6 @@ export function ChatMessageToolListDirectory({
     case 'output-available': {
       const { output } = part;
       const { entries, path } = output;
-      console.log(part);
 
       // Sort entries: directories first, then files
       const sortedEntries = [...entries].sort((a, b) => {
