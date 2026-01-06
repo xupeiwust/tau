@@ -6,7 +6,6 @@ import { messageRole, messageStatus } from '@taucad/chat/constants';
 import { ChatMessage } from '#routes/builds_.$id/chat-message.js';
 import { ScrollDownButton } from '#routes/builds_.$id/scroll-down-button.js';
 import { ChatError } from '#routes/builds_.$id/chat-error.js';
-import { ChatStatus } from '#routes/builds_.$id/chat-status.js';
 import type { ChatTextareaProperties, ChatTextareaHandle } from '#components/chat/chat-textarea-types.js';
 import { ChatTextarea } from '#components/chat/chat-textarea.js';
 import { createMessage } from '#utils/chat.utils.js';
@@ -37,7 +36,7 @@ const toggleChatHistoryKeyCombination = {
 // Memoized individual message item component to prevent re-renders
 const MessageItem = memo(function ({ messageId }: { readonly messageId: string }) {
   return (
-    <div className="py-1.5">
+    <div className="py-2">
       <ChatMessage messageId={messageId} />
     </div>
   );
@@ -203,7 +202,6 @@ export const ChatHistory = memo(function (props: {
 
         {/* Chat input area */}
         <div className="relative mx-2 mb-2">
-          <ChatStatus className="absolute inset-x-0 -top-7" />
           <ChatTextarea
             ref={chatTextareaRef}
             mode="main"
