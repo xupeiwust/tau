@@ -16,6 +16,8 @@ import {
 } from '#api/chat/utils/convert-messages.js';
 import { AuthGuard } from '#auth/auth.guard.js';
 import { CreateChatDto } from '#api/chat/chat.dto.js';
+import { sendSimpleModelStream } from '#api/chat/utils/simple-model-stream.js';
+import { injectSnapshotContext } from '#api/chat/utils/inject-snapshot-context.js';
 
 @UseGuards(AuthGuard)
 @Controller({ path: 'chat', version: '1' })
@@ -61,67 +63,32 @@ export class ChatController {
 
     if (modelId === 'name-generator') {
       const result = this.chatService.getBuildNameGenerator(coreMessages);
-
-      // Mark the response as a v1 data stream:
-      void response.header('content-type', 'text/event-stream');
-      void response.header('x-vercel-ai-ui-message-stream', 'v1');
-      void response.header('x-accel-buffering', 'no');
-
-      const sseStream = result.toUIMessageStream().pipeThrough(new JsonToSseTransformStream());
-
-      return response.send(sseStream.pipeThrough(new TextEncoderStream()));
+      return sendSimpleModelStream(response, result);
     }
 
     if (modelId === 'commit-name-generator') {
       const result = this.chatService.getCommitMessageGenerator(coreMessages);
-
-      // Mark the response as a v1 data stream:
-      void response.header('content-type', 'text/event-stream');
-      void response.header('x-vercel-ai-ui-message-stream', 'v1');
-      void response.header('x-accel-buffering', 'no');
-
-      const sseStream = result.toUIMessageStream().pipeThrough(new JsonToSseTransformStream());
-
-      return response.send(sseStream.pipeThrough(new TextEncoderStream()));
+      return sendSimpleModelStream(response, result);
     }
 
     // Extract kernel from request body (default to openscad if not provided)
     const selectedKernel = lastHumanMessage.metadata?.kernel ?? 'openscad';
 
-    // Extract filesystem snapshot from metadata and inject into last message content
-    const filesystemSnapshot = lastHumanMessage.metadata?.filesystemSnapshot;
-    let messagesWithContext = sanitizedMessages;
+    // Extract snapshot from metadata and inject into last message content
+    const snapshot = lastHumanMessage.metadata?.snapshot;
 
-    if (filesystemSnapshot) {
-      this.logger.debug('Injecting filesystem snapshot into last message');
-      // Find the last user message and prepend the project layout
-      const lastUserMessageIndex = sanitizedMessages.findLastIndex((message) => message.role === 'user');
-      if (lastUserMessageIndex !== -1) {
-        const lastUserMessage = sanitizedMessages[lastUserMessageIndex];
-        if (lastUserMessage) {
-          const projectLayoutContext = `<project_layout>
-Below is a snapshot of the current project's file structure:
+    // Inject snapshot context into messages if available
+    const messagesWithContext = snapshot ? injectSnapshotContext(sanitizedMessages, snapshot) : sanitizedMessages;
 
-${filesystemSnapshot}
-</project_layout>
-
-`;
-          // Create updated message with project layout prepended to text content
-          const updatedParts = lastUserMessage.parts.map((part) => {
-            if (part.type === 'text') {
-              return { ...part, text: projectLayoutContext + part.text };
-            }
-
-            return part;
-          });
-
-          messagesWithContext = [
-            ...sanitizedMessages.slice(0, lastUserMessageIndex),
-            { ...lastUserMessage, parts: updatedParts },
-            ...sanitizedMessages.slice(lastUserMessageIndex + 1),
-          ];
-        }
-      }
+    if (snapshot) {
+      const contextTypes = [
+        snapshot.fileTree ? 'fileTree' : undefined,
+        snapshot.activeFile ? 'activeFile' : undefined,
+        snapshot.openFiles ? 'openFiles' : undefined,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      this.logger.debug(`Injecting snapshot context into last message: ${contextTypes}`);
     }
 
     const coreMessagesWithContext = convertToModelMessages(messagesWithContext);
