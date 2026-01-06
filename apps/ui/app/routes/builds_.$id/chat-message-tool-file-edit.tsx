@@ -1,11 +1,10 @@
 import type { UIToolInvocation } from 'ai';
 import { useCallback } from 'react';
-import { AlertTriangle, Bug } from 'lucide-react';
 import { useActorRef, useSelector } from '@xstate/react';
 import { waitFor } from 'xstate';
 import type { MyTools } from '@taucad/chat';
 import type { toolName } from '@taucad/chat/constants';
-import { CollapsibleFileOperation, ErrorSection, ApplyButton } from '#components/chat/chat-tool-file-operation.js';
+import { CollapsibleFileOperation, ApplyButton } from '#components/chat/chat-tool-file-operation.js';
 import { CopyButton } from '#components/copy-button.js';
 import { useBuild } from '#hooks/use-build.js';
 import { fileEditMachine } from '#machines/file-edit.machine.js';
@@ -90,7 +89,6 @@ export function ChatMessageToolFileEdit({
     case 'output-available': {
       const { input } = part;
       const { targetFile = '', codeEdit = '' } = input;
-      const result = part.output;
 
       return (
         <CollapsibleFileOperation
@@ -112,24 +110,6 @@ export function ChatMessageToolFileEdit({
                 onApply={() => {
                   void handleApplyEdit(targetFile, codeEdit);
                 }}
-              />
-            </>
-          }
-          footer={
-            <>
-              <ErrorSection
-                isInitiallyOpen
-                className="border-t"
-                type="kernel"
-                errors={result.kernelErrors ?? []}
-                icon={Bug}
-              />
-              <ErrorSection
-                className="border-t"
-                type="linter"
-                errors={result.codeErrors}
-                icon={AlertTriangle}
-                isInitiallyOpen={result.codeErrors.length <= 3}
               />
             </>
           }

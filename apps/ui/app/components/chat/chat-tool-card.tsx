@@ -346,12 +346,18 @@ type ChatToolCardListItemProps = {
   readonly children: React.ReactNode;
   readonly className?: string;
   readonly icon?: LucideIcon;
+  readonly iconClassName?: string;
 };
 
-function ChatToolCardListItem({ children, className, icon: Icon }: ChatToolCardListItemProps): React.JSX.Element {
+function ChatToolCardListItem({
+  children,
+  className,
+  icon: Icon,
+  iconClassName,
+}: ChatToolCardListItemProps): React.JSX.Element {
   return (
     <div className={cn('flex items-start gap-2 py-0.5 text-xs text-muted-foreground', className)}>
-      {Icon ? <Icon className="mt-0.5 size-3 shrink-0" /> : undefined}
+      {Icon ? <Icon className={cn('mt-0.5 size-3 shrink-0', iconClassName)} /> : undefined}
       <span className="min-w-0 wrap-break-word">{children}</span>
     </div>
   );

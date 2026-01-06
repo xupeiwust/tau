@@ -75,7 +75,7 @@ export function ChatMessageToolGetKernelResult({
                   const key = `${location?.startLineNumber ?? index}-${error.message}`;
 
                   return (
-                    <ChatToolCardListItem key={key} icon={AlertTriangle} className="text-muted-foreground">
+                    <ChatToolCardListItem key={key} icon={AlertTriangle} iconClassName="text-destructive">
                       <span className="flex flex-1 flex-col items-start gap-0.5 @xs:flex-row @xs:gap-1">
                         {location ? (
                           <FileLink
