@@ -15,6 +15,7 @@ import { commitMessageGenerationSystemPrompt } from '#api/chat/prompts/commit-me
 import type { LangGraphAdapterCallbacks } from '#api/chat/utils/langgraph-adapter.js';
 import { getCadSystemPrompt } from '#api/chat/prompts/chat-prompt-cad.js';
 import { normalizeError } from '#api/chat/utils/error-normalizer.js';
+import { createCacheableSystemMessage } from '#api/chat/utils/convert-messages.js';
 import type { Environment } from '#config/environment.config.js';
 
 @Injectable()
@@ -94,12 +95,17 @@ You also have access to web research tools for gathering information:
 Always prefer \`${toolName.webSearch}\` first, and only use \`${toolName.webBrowser}\` if the search results don't provide enough detail.
 </research_capabilities>`;
 
+    // Create a cacheable system message to enable Anthropic prompt caching.
+    // This significantly reduces costs (up to 90%) and latency (up to 85%) for
+    // repeated prompts by marking the system prompt content for caching.
+    const systemMessage = createCacheableSystemMessage(unifiedSystemPrompt);
+
     // Create a single unified agent with all tools and persistence
     const agent = createReactAgent({
       llm: support?.tools === false ? model : (model.bindTools?.(allTools) ?? model),
       tools: allTools,
       name: 'cad_assistant',
-      prompt: unifiedSystemPrompt,
+      prompt: systemMessage,
       checkpointer,
     });
 
@@ -121,6 +127,10 @@ Always prefer \`${toolName.webSearch}\` first, and only use \`${toolName.webBrow
               outputTokens: normalizedUsageTokens.outputTokens,
               cachedReadTokens: normalizedUsageTokens.cachedReadTokens,
               cachedWriteTokens: normalizedUsageTokens.cachedWriteTokens,
+              inputTokensCost: usageCost.inputTokensCost,
+              outputTokensCost: usageCost.outputTokensCost,
+              cachedReadTokensCost: usageCost.cachedReadTokensCost,
+              cachedWriteTokensCost: usageCost.cachedWriteTokensCost,
               usageCost: usageCost.totalCost,
             },
             model: id,
