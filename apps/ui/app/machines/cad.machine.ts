@@ -9,6 +9,9 @@ import type { graphicsMachine } from '#machines/graphics.machine.js';
 import type { logMachine } from '#machines/logs.machine.js';
 import type { fileManagerMachine } from '#machines/file-manager.machine.js';
 
+// Default render timeout in milliseconds (30 seconds)
+const defaultRenderTimeout = 30_000;
+
 // Context type for CAD machine
 export type CadContext = {
   file: GeometryFile | undefined;
@@ -30,6 +33,7 @@ export type CadContext = {
   logActorRef?: ActorRefFrom<typeof logMachine>;
   fileManagerRef?: ActorRefFrom<typeof fileManagerMachine>;
   jsonSchema?: JSONSchema7;
+  renderTimeout: number; // Timeout in milliseconds for render operations (0 = disabled)
 };
 
 // Define the types of events the machine can receive
@@ -40,6 +44,7 @@ type CadEvent =
   | { type: 'setParameters'; parameters: Record<string, unknown> }
   | { type: 'setCodeErrors'; errors: CadContext['codeErrors'] }
   | { type: 'exportGeometry'; format: ExportFormat }
+  | { type: 'setRenderTimeout'; timeout: number }
   | KernelEventExternal;
 
 type CadEmitted =
@@ -198,6 +203,30 @@ export const cadMachine = setup({
         return event.errors;
       },
     }),
+    setRenderTimeout: assign({
+      renderTimeout({ event }) {
+        assertEvent(event, 'setRenderTimeout');
+        return event.timeout;
+      },
+    }),
+    setTimeoutError: assign({
+      kernelErrors({ context }) {
+        const currentFilePath = context.file?.filename;
+        if (!currentFilePath) {
+          return context.kernelErrors;
+        }
+
+        const newErrorsMap = new Map(context.kernelErrors);
+        newErrorsMap.set(currentFilePath, [
+          {
+            message: 'Render timed out. The model may be too complex or contain an infinite loop.',
+            location: undefined,
+          },
+        ]);
+
+        return newErrorsMap;
+      },
+    }),
     setDefaultParameters: assign({
       defaultParameters({ event }) {
         assertEvent(event, 'parametersParsed');
@@ -283,6 +312,8 @@ export const cadMachine = setup({
   delays: {
     fileDebounce: 500,
     parameterDebounce: 50,
+    // Dynamic render timeout based on context (0 = disabled)
+    renderTimeout: ({ context }) => (context.renderTimeout > 0 ? context.renderTimeout : Infinity),
   },
 }).createMachine({
   id: 'cad',
@@ -313,6 +344,7 @@ export const cadMachine = setup({
     logActorRef: input.logRef,
     fileManagerRef: input.fileManagerRef,
     jsonSchema: undefined,
+    renderTimeout: defaultRenderTimeout,
   }),
   initial: 'booting',
   states: {
@@ -359,12 +391,25 @@ export const cadMachine = setup({
         kernelLog: {
           actions: 'sendKernelLogs',
         },
+        // Allow file edits during booting - store them for when kernel is ready
+        setFile: {
+          actions: 'setFile',
+        },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
+        },
       },
     },
 
     // The initialization state is used when a new model is loaded.
     initializing: {
       entry: 'computeGeometry',
+      after: {
+        renderTimeout: {
+          target: 'error',
+          actions: 'setTimeoutError',
+        },
+      },
       on: {
         initializeModel: {
           target: 'initializing',
@@ -384,6 +429,23 @@ export const cadMachine = setup({
         },
         kernelLog: {
           actions: 'sendKernelLogs',
+        },
+        // Allow file edits during initialization - cancels current computation
+        setFile: [
+          {
+            // File switch - render immediately without debounce
+            guard: 'isDifferentFile',
+            target: 'rendering',
+            actions: 'setFile',
+          },
+          {
+            // Same file content change - debounce
+            target: 'bufferingFile',
+            actions: 'setFile',
+          },
+        ],
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
         },
       },
     },
@@ -424,6 +486,9 @@ export const cadMachine = setup({
         },
         kernelLog: {
           actions: 'sendKernelLogs',
+        },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
         },
       },
     },
@@ -468,6 +533,9 @@ export const cadMachine = setup({
         kernelLog: {
           actions: 'sendKernelLogs',
         },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
+        },
       },
     },
     // The bufferingParameters state debounces rapid parameter changes (50ms)
@@ -503,10 +571,19 @@ export const cadMachine = setup({
         kernelLog: {
           actions: 'sendKernelLogs',
         },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
+        },
       },
     },
     rendering: {
       entry: 'computeGeometry',
+      after: {
+        renderTimeout: {
+          target: 'error',
+          actions: 'setTimeoutError',
+        },
+      },
       on: {
         initializeModel: {
           target: 'initializing',
@@ -553,6 +630,9 @@ export const cadMachine = setup({
         kernelLog: {
           actions: 'sendKernelLogs',
         },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
+        },
       },
     },
     error: {
@@ -592,6 +672,9 @@ export const cadMachine = setup({
         },
         kernelLog: {
           actions: 'sendKernelLogs',
+        },
+        setRenderTimeout: {
+          actions: 'setRenderTimeout',
         },
       },
     },
