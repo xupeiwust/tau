@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalysisModule } from '#api/analysis/analysis.module.js';
 import { ChatModule } from '#api/chat/chat.module.js';
 import { CodeCompletionModule } from '#api/code-completion/code-completion.module.js';
 import { FileEditModule } from '#api/file-edit/file-edit.module.js';
@@ -12,6 +13,7 @@ import { ToolModule } from '#api/tools/tool.module.js';
 @Module({
   imports: [
     // Production modules
+    AnalysisModule,
     ChatModule,
     CodeCompletionModule,
     FileEditModule,

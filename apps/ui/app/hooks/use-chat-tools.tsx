@@ -7,6 +7,7 @@ import { createActor, waitFor } from 'xstate';
 import type {
   EditFileInput,
   EditFileOutput,
+  ImageAnalysisInput,
   ImageAnalysisOutput,
   ReadFileInput,
   ReadFileOutput,
@@ -25,11 +26,16 @@ import type {
   ReasoningOutput,
   MyUIMessage,
   MyTools,
+  Observation,
+  ViewSide,
 } from '@taucad/chat';
 import { toolName, clientToolNames } from '@taucad/chat/constants';
 import type { ClientToolName } from '@taucad/chat/constants';
+import { idPrefix } from '@taucad/types/constants';
+import { generatePrefixedId } from '@taucad/utils/id';
 import { fileEditMachine } from '#machines/file-edit.machine.js';
-import { screenshotRequestMachine } from '#machines/screenshot-request.machine.js';
+import { screenshotRequestMachine, orthographicViews } from '#machines/screenshot-request.machine.js';
+import { imageAnalysisMachine, buildImageAnalysisOutput } from '#machines/image-analysis.machine.js';
 import { decodeTextFile, encodeTextFile } from '#utils/filesystem.utils.js';
 import { useBuild } from '#hooks/use-build.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
@@ -152,45 +158,99 @@ export function useChatTools(): UseChatToolsReturn {
       };
 
       // Handler for image analysis tool
-      const handleImageAnalysis = async (): Promise<ImageAnalysisOutput> => {
-        return new Promise<ImageAnalysisOutput>((resolve) => {
-          const screenshotActor = createActor(screenshotRequestMachine, {
-            input: { graphicsRef: graphicsActor },
-          }).start();
+      const handleImageAnalysis = async (toolCall: {
+        toolCallId: string;
+        input: ImageAnalysisInput;
+      }): Promise<ImageAnalysisOutput> => {
+        const { input } = toolCall;
+        const { requirements } = input;
 
-          screenshotActor.send({
-            type: 'requestScreenshot',
-            options: {
-              output: { format: 'image/webp', quality: screenshotQuality },
-              aspectRatio: 16 / 9,
-              maxResolution: 1200,
-              zoomLevel: 1.4,
-            },
-            onSuccess(dataUrls) {
-              screenshotActor.stop();
-              const screenshot = dataUrls[0];
-              if (!screenshot) {
-                resolve({
-                  analysis: 'No screenshot data received',
-                  screenshot: 'failed',
-                });
-                return;
-              }
+        // 1. Capture 6 individual screenshots (one per orthographic view)
+        const viewSides: ViewSide[] = ['front', 'back', 'right', 'left', 'top', 'bottom'];
+        const viewAngles = orthographicViews.slice(0, 6);
 
-              resolve({
-                analysis: 'Screenshot captured and analyzed',
-                screenshot,
-              });
-            },
-            onError(errorMessage) {
-              screenshotActor.stop();
-              resolve({
-                analysis: `Screenshot capture failed: ${errorMessage}`,
-                screenshot: 'failed',
-              });
-            },
+        // Capture screenshots sequentially because the graphics machine
+        // can only handle one screenshot request at a time
+        const observations: Observation[] = [];
+
+        for (const [index, side] of viewSides.entries()) {
+          const cameraAngle = viewAngles[index];
+          if (!cameraAngle) {
+            throw new Error(`Missing camera angle for ${side} view`);
+          }
+
+          // eslint-disable-next-line no-await-in-loop -- This is a sequential operation.
+          const src = await new Promise<string>((resolve, reject) => {
+            const screenshotActor = createActor(screenshotRequestMachine, {
+              input: { graphicsRef: graphicsActor },
+            }).start();
+
+            screenshotActor.send({
+              type: 'requestScreenshot',
+              options: {
+                output: {
+                  format: 'image/webp',
+                  quality: screenshotQuality,
+                  isPreview: true,
+                },
+                cameraAngles: [cameraAngle],
+                aspectRatio: 1, // Square images
+                maxResolution: 800,
+                zoomLevel: 1.2,
+              },
+              onSuccess(dataUrls) {
+                screenshotActor.stop();
+                const capturedScreenshot = dataUrls[0];
+                if (!capturedScreenshot) {
+                  reject(new Error(`No screenshot data received for ${side} view`));
+                  return;
+                }
+
+                resolve(capturedScreenshot);
+              },
+              onError(errorMessage) {
+                console.error(`[ImageAnalysis] ${side} view capture failed:`, errorMessage);
+                screenshotActor.stop();
+                reject(new Error(errorMessage));
+              },
+            });
           });
-        });
+
+          const observation: Observation = {
+            id: generatePrefixedId(idPrefix.observation),
+            side,
+            src,
+          };
+
+          observations.push(observation);
+        }
+
+        // 2. Analyze all observations using the API via the image analysis machine
+        const analysisActor = createActor(imageAnalysisMachine, {
+          input: { observations, requirements },
+        }).start();
+
+        // Wait for the analysis to complete
+        const snapshot = await waitFor(analysisActor, (state) => state.matches('success') || state.matches('error'));
+
+        analysisActor.stop();
+
+        if (snapshot.matches('error')) {
+          console.error('[ImageAnalysis] Analysis failed with error:', snapshot.context.error);
+          // Return observations with empty results on error
+          return {
+            observations,
+            observationResults: [],
+            aggregatedResults: [],
+            evaluationCriteria: {
+              totalObservations: observations.length,
+              thresholdPercentage: 66,
+              thresholdCount: Math.ceil(observations.length * 0.66),
+            },
+          };
+        }
+
+        return buildImageAnalysisOutput(snapshot.context);
       };
 
       // Handler for read file tool
@@ -496,7 +556,7 @@ export function useChatTools(): UseChatToolsReturn {
           }
 
           case toolName.imageAnalysis: {
-            output = await handleImageAnalysis();
+            output = await handleImageAnalysis(toolCall);
             break;
           }
 

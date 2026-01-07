@@ -3,7 +3,6 @@ import { Eye, Check, X, Lightbulb } from 'lucide-react';
 import type { MyTools, RequirementResult } from '@taucad/chat';
 import type { toolName } from '@taucad/chat/constants';
 import { useChatSelector } from '#hooks/use-chat.js';
-import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { ImagePreviewGroup } from '#components/ui/image-preview-group.js';
 import type { ImagePreviewItem } from '#components/ui/image-preview-group.js';
@@ -62,7 +61,6 @@ export function ChatMessageToolImageAnalysis({
 }): React.JSX.Element {
   const chatStatus = useChatSelector((state) => state.status);
   const isLoading = chatStatus === 'streaming' && ['input-streaming', 'input-available'].includes(part.state);
-  const [showAnalysisImages] = useCookie(cookieName.chatToolAnalysisImages, true);
 
   switch (part.state) {
     case 'input-streaming':
@@ -71,7 +69,7 @@ export function ChatMessageToolImageAnalysis({
       const { requirements = [] } = input;
 
       return (
-        <ChatToolCard variant="minimal" status="loading" isDefaultOpen={false}>
+        <ChatToolCard key="loading" variant="minimal" status="loading" isDefaultOpen={false}>
           <ChatToolCardHeader>
             <ChatToolCardIcon icon={Eye} />
             <ChatToolCardTitle>
@@ -106,7 +104,12 @@ export function ChatMessageToolImageAnalysis({
       }));
 
       return (
-        <ChatToolCard isDefaultOpen={showAnalysisImages} variant="card" status={isLoading ? 'loading' : 'ready'}>
+        <ChatToolCard
+          key="output"
+          cookieName={cookieName.chatToolAnalysisImages}
+          variant="card"
+          status={isLoading ? 'loading' : 'ready'}
+        >
           <ChatToolCardHeader>
             <ChatToolCardIcon icon={Eye} />
             <ChatToolCardTitle>Visual Analysis</ChatToolCardTitle>
