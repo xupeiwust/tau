@@ -1,14 +1,18 @@
 import type { UIToolInvocation } from 'ai';
-import { Trash2, XCircle } from 'lucide-react';
+import { LoaderCircle, X } from 'lucide-react';
 import type { MyTools } from '@taucad/chat';
 import type { toolName } from '@taucad/chat/constants';
-import {
-  ChatToolCard,
-  ChatToolCardHeader,
-  ChatToolCardIcon,
-  ChatToolCardTitle,
-} from '#components/chat/chat-tool-card.js';
-import { ChatToolAction, ChatToolDescription } from '#components/chat/chat-tool-text.js';
+import { FileExtensionIcon } from '#components/icons/file-extension-icon.js';
+import { AnimatedShinyText } from '#components/magicui/animated-shiny-text.js';
+import { Tooltip, TooltipTrigger, TooltipContent } from '#components/ui/tooltip.js';
+
+/**
+ * Extract the filename from a path.
+ */
+function getFilename(path: string): string {
+  const parts = path.split('/');
+  return parts.at(-1) ?? path;
+}
 
 export function ChatMessageToolDeleteFile({
   part,
@@ -20,16 +24,29 @@ export function ChatMessageToolDeleteFile({
     case 'input-available': {
       const { input } = part;
       const targetFile = input?.targetFile ?? 'file';
+      const filename = getFilename(targetFile);
+      const hasPath = targetFile !== filename;
 
       return (
-        <ChatToolCard variant="minimal" status="loading" isCollapsible={false}>
-          <ChatToolCardHeader>
-            <ChatToolCardIcon icon={Trash2} />
-            <ChatToolCardTitle>
-              <ChatToolAction>Deleting</ChatToolAction> <ChatToolDescription>{targetFile}...</ChatToolDescription>
-            </ChatToolCardTitle>
-          </ChatToolCardHeader>
-        </ChatToolCard>
+        <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
+          <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-muted-foreground">
+            <LoaderCircle className="size-3 animate-spin" />
+            {hasPath ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="min-w-0 truncate">
+                    <AnimatedShinyText>{filename}</AnimatedShinyText>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start">
+                  {targetFile}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <AnimatedShinyText>{targetFile}</AnimatedShinyText>
+            )}
+          </div>
+        </div>
       );
     }
 
@@ -37,40 +54,61 @@ export function ChatMessageToolDeleteFile({
       const { input, output } = part;
       const { targetFile } = input;
       const { success } = output;
+      const filename = getFilename(targetFile);
+      const hasPath = targetFile !== filename;
 
       if (success) {
         return (
-          <ChatToolCard variant="minimal" status="ready" isCollapsible={false}>
-            <ChatToolCardHeader>
-              <ChatToolCardIcon icon={Trash2} />
-              <ChatToolCardTitle>
-                <ChatToolAction>Deleted</ChatToolAction> <ChatToolDescription>{targetFile}</ChatToolDescription>
-              </ChatToolCardTitle>
-            </ChatToolCardHeader>
-          </ChatToolCard>
+          <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
+            <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-muted-foreground">
+              <FileExtensionIcon filename={filename} className="size-3" />
+              {hasPath ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="min-w-0 truncate">{filename}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start">
+                    {targetFile}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="min-w-0 truncate">{filename}</span>
+              )}
+              <span className="text-destructive/50">Deleted</span>
+            </div>
+          </div>
         );
       }
 
       return (
-        <ChatToolCard variant="minimal" status="error" isCollapsible={false}>
-          <ChatToolCardHeader className="text-destructive">
-            <ChatToolCardIcon isError icon={XCircle} />
-            <ChatToolCardTitle>
-              <ChatToolAction>Failed to delete</ChatToolAction> <ChatToolDescription>{targetFile}</ChatToolDescription>
-            </ChatToolCardTitle>
-          </ChatToolCardHeader>
-        </ChatToolCard>
+        <div className="@container/code overflow-hidden rounded-md border border-destructive/50 bg-destructive/10">
+          <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-destructive">
+            <X className="size-3" />
+            {hasPath ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="min-w-0 truncate">Failed to delete {filename}</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start">
+                  {targetFile}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <span className="min-w-0 truncate">Failed to delete {filename}</span>
+            )}
+          </div>
+        </div>
       );
     }
 
     case 'output-error': {
       return (
-        <ChatToolCard variant="minimal" status="error" isCollapsible={false}>
-          <ChatToolCardHeader className="text-destructive">
-            <ChatToolCardIcon isError icon={XCircle} />
-            <ChatToolCardTitle>Failed to delete file</ChatToolCardTitle>
-          </ChatToolCardHeader>
-        </ChatToolCard>
+        <div className="@container/code overflow-hidden rounded-md border border-destructive/50 bg-destructive/10">
+          <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-destructive">
+            <X className="size-3" />
+            <span>Failed to delete file</span>
+          </div>
+        </div>
       );
     }
   }
