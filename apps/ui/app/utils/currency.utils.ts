@@ -16,8 +16,7 @@ export const formatCurrency = (value: number, options?: { significantFigures?: n
 
     return numericValue
       .toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
+        style: 'decimal',
         minimumFractionDigits: 2,
         maximumFractionDigits: 6,
       })
