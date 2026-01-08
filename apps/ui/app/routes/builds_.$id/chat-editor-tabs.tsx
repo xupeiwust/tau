@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { X, Download, Eye, EyeOff } from 'lucide-react';
 import { useSelector } from '@xstate/react';
 import { useBuild } from '#hooks/use-build.js';
@@ -87,6 +87,34 @@ export function ChatEditorTabs(): React.JSX.Element {
   // Enable horizontal scrolling with mouse wheel
   useHorizontalScroll(scrollContainerRef);
 
+  // Scroll a tab into view by path
+  const scrollToTab = useCallback((path: string) => {
+    if (!scrollContainerRef.current) {
+      return;
+    }
+
+    const tab = scrollContainerRef.current.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    if (tab) {
+      tab.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'nearest' });
+    }
+  }, []);
+
+  // Scroll active tab into view when it changes
+  useEffect(() => {
+    if (activeFilePath) {
+      scrollToTab(activeFilePath);
+    }
+  }, [activeFilePath, scrollToTab]);
+
+  // Subscribe to fileOpened events to scroll to tab even when file is already active
+  useEffect(() => {
+    const subscription = fileExplorerRef.on('fileOpened', (event) => {
+      scrollToTab(event.path);
+    });
+
+    return subscription.unsubscribe;
+  }, [fileExplorerRef, scrollToTab]);
+
   return (
     <FloatingPanelContentHeader className="pl-0">
       <div
@@ -99,7 +127,7 @@ export function ChatEditorTabs(): React.JSX.Element {
             const isActive = activeFilePath === file.path;
 
             return (
-              <Fragment key={file.path}>
+              <div key={file.path} data-path={file.path} className="flex h-full">
                 <div
                   className={cn(
                     'group/editor-tab flex h-full min-w-0 cursor-pointer items-center gap-0 border-y border-y-transparent pr-1 pl-3 text-sm transition-colors',
@@ -154,7 +182,7 @@ export function ChatEditorTabs(): React.JSX.Element {
                   </Tooltip>
                 </div>
                 <div className="h-full w-px bg-border" />
-              </Fragment>
+              </div>
             );
           })}
         </div>
