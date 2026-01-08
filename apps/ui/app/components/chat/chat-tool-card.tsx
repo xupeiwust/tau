@@ -14,7 +14,7 @@ import type { CookieName } from '#constants/cookie.constants.js';
 // ============================================================================
 
 type ChatToolCardVariant = 'card' | 'minimal';
-type ChatToolCardStatus = 'loading' | 'ready' | 'error';
+type ChatToolCardStatus = 'loading' | 'ready' | 'error' | 'warning';
 
 type ChatToolCardContextValue = {
   isOpen: boolean;

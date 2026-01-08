@@ -1,10 +1,11 @@
 import { useSelector } from '@xstate/react';
-import { useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { ChevronRight, Sparkles } from 'lucide-react';
 import type { KernelProvider, KernelIssue, KernelStackFrame, IssueSeverity } from '@taucad/types';
 import { languageFromKernel } from '@taucad/types/constants';
 import { messageRole, messageStatus } from '@taucad/chat/constants';
 import { Button } from '#components/ui/button.js';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#components/ui/collapsible.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 import { FileLink } from '#components/files/file-link.js';
 import { MarkdownViewer } from '#components/markdown/markdown-viewer.js';
@@ -153,7 +154,8 @@ function getBasename(path: string): string {
  * Get styling classes based on issue severity.
  */
 function getSeverityStyles(severity: IssueSeverity | undefined): {
-  container: string;
+  leftBorder: string;
+  background: string;
   text: string;
   code: string;
   stackBorder: string;
@@ -162,31 +164,33 @@ function getSeverityStyles(severity: IssueSeverity | undefined): {
   switch (severity) {
     case 'warning': {
       return {
-        container: 'border-warning/20 bg-warning/5',
+        leftBorder: 'border-l-warning',
+        background: 'bg-warning/5',
         text: 'text-warning',
         code: '[&_code]:text-warning [&_code]:border-warning/30',
-        stackBorder: 'border-warning/20',
+        stackBorder: 'border-border',
         buttonBorder: 'border-warning/30 hover:border-warning/50',
       };
     }
 
     case 'info': {
       return {
-        container: 'border-info/20 bg-info/5',
+        leftBorder: 'border-l-info',
+        background: 'bg-info/5',
         text: 'text-info',
         code: '[&_code]:text-info [&_code]:border-info/30',
-        stackBorder: 'border-info/20',
+        stackBorder: 'border-border',
         buttonBorder: 'border-info/30 hover:border-info/50',
       };
     }
 
-    case 'error':
     default: {
       return {
-        container: 'border-destructive/20 bg-destructive/5',
+        leftBorder: 'border-l-destructive',
+        background: 'bg-destructive/5',
         text: 'text-destructive',
         code: '[&_code]:text-destructive [&_code]:border-destructive/30',
-        stackBorder: 'border-destructive/20',
+        stackBorder: 'border-border',
         buttonBorder: 'border-destructive/30 hover:border-destructive/50',
       };
     }
@@ -218,6 +222,7 @@ function ErrorStackTrace({
   startColumn,
   stackFrames,
   severity,
+  isFirst,
   onFixWithAi,
 }: {
   readonly message: string;
@@ -226,6 +231,7 @@ function ErrorStackTrace({
   readonly startColumn?: number;
   readonly stackFrames?: KernelStackFrame[];
   readonly severity?: IssueSeverity;
+  readonly isFirst: boolean;
   readonly onFixWithAi?: (createNewChat: boolean) => void;
 }): React.JSX.Element {
   const isLocationClickable = Boolean(fileName && startLineNumber !== undefined);
@@ -242,7 +248,15 @@ function ErrorStackTrace({
   );
 
   return (
-    <div className={cn('flex flex-col gap-2 rounded-md border p-3 text-xs', styles.container)}>
+    <div
+      className={cn(
+        'flex flex-col gap-2 border-l-2 p-3 text-xs',
+        styles.leftBorder,
+        styles.background,
+        // Add top border for items after the first
+        !isFirst && 'border-t border-t-border',
+      )}
+    >
       {/* Error message with Fix button */}
       <div className="flex flex-row items-start justify-between gap-2">
         <div className={cn('flex flex-wrap items-baseline gap-x-1.5 font-medium', styles.text)}>
@@ -313,10 +327,93 @@ function ErrorStackTrace({
   );
 }
 
-export function ChatStackTrace({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): React.ReactNode {
+type IssueCounts = {
+  error: number;
+  warning: number;
+  info: number;
+};
+
+/**
+ * Counts issues by severity.
+ */
+function getIssueCounts(issues: KernelIssue[]): IssueCounts {
+  const counts: IssueCounts = {
+    error: 0,
+    warning: 0,
+    info: 0,
+  };
+
+  for (const { severity } of issues) {
+    counts[severity]++;
+  }
+
+  return counts;
+}
+
+type IssuePart = { key: string; element: React.ReactNode };
+
+/**
+ * Renders a color-coded summary of issues for the collapsible trigger.
+ */
+function IssuesSummary({ counts }: { readonly counts: IssueCounts }): React.JSX.Element {
+  const parts: IssuePart[] = [];
+
+  if (counts.error > 0) {
+    parts.push({
+      key: 'error',
+      element: (
+        <span className="text-destructive">
+          {counts.error} error{counts.error > 1 ? 's' : ''}
+        </span>
+      ),
+    });
+  }
+
+  if (counts.warning > 0) {
+    parts.push({
+      key: 'warning',
+      element: (
+        <span className="text-warning">
+          {counts.warning} warning{counts.warning > 1 ? 's' : ''}
+        </span>
+      ),
+    });
+  }
+
+  if (counts.info > 0) {
+    parts.push({
+      key: 'info',
+      element: <span className="text-info">{counts.info} info</span>,
+    });
+  }
+
+  return (
+    <>
+      {parts.map((part, index) => (
+        <span key={part.key}>
+          {index > 0 ? <span className="text-muted-foreground">, </span> : null}
+          {part.element}
+        </span>
+      ))}
+    </>
+  );
+}
+
+type ChatStackTraceProps = React.HTMLAttributes<HTMLDivElement> & {
+  /**
+   * Which side to show the collapsible trigger.
+   * - 'top': Trigger at the top, content expands below
+   * - 'bottom': Trigger at the bottom, content expands above
+   */
+  readonly side: 'top' | 'bottom';
+};
+
+export function ChatStackTrace({ className, side, ...props }: ChatStackTraceProps): React.ReactNode {
   const { getMainFilename, cadRef, fileExplorerRef, buildId, setLastChatId } = useBuild();
   const fileManager = useFileManager();
   const { createChat } = useChats(buildId);
+  const [isOpen, setIsOpen] = useState(true);
+
   // Get the active file path from file explorer
   const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
 
@@ -407,25 +504,75 @@ export function ChatStackTrace({ className, ...props }: React.HTMLAttributes<HTM
     return null;
   }
 
-  return (
-    <div {...props} className={cn('space-y-2', className)}>
-      {errors.map((error, errorIndex) => {
-        // Create a unique key from error properties
-        const errorKey = `${error.message}-${error.location?.startLineNumber ?? 'unknown'}-${error.location?.startColumn ?? 'unknown'}`;
+  const issueCounts = getIssueCounts(errors);
 
-        return (
-          <ErrorStackTrace
-            key={errorKey}
-            message={error.message}
-            fileName={error.location?.fileName}
-            startLineNumber={error.location?.startLineNumber}
-            startColumn={error.location?.startColumn}
-            stackFrames={error.stackFrames}
-            severity={error.severity}
-            onFixWithAi={async (createNewChat) => handleFixWithAi(errorIndex, createNewChat)}
-          />
-        );
-      })}
+  const trigger = (
+    <CollapsibleTrigger
+      className={cn(
+        'group/collapsible flex h-8 w-full items-center justify-between border-border bg-sidebar px-2 py-1.5 transition-colors hover:bg-accent',
+        
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-xs font-medium">
+        <span>Issues</span>
+        <span>
+          <span>(</span>
+          <IssuesSummary counts={issueCounts} />
+          <span>)</span>
+        </span>
+      </span>
+      <ChevronRight
+        className={cn(
+          'size-3.5 text-muted-foreground transition-transform duration-200 ease-in-out',
+          // Rotate based on side: top trigger rotates down when open, bottom trigger rotates up when open
+          side === 'top'
+            ? 'group-data-[state=open]/collapsible:rotate-90'
+            : 'group-data-[state=open]/collapsible:-rotate-90',
+        )}
+      />
+    </CollapsibleTrigger>
+  );
+
+  const content = (
+    <CollapsibleContent className={cn('border-border', side === 'bottom' && 'border-b',side === 'top' && 'border-b',)}>
+      <div className="flex flex-col">
+        {errors.map((error, errorIndex) => {
+          // Create a unique key from error properties
+          const errorKey = `${error.message}-${error.location?.startLineNumber ?? 'unknown'}-${error.location?.startColumn ?? 'unknown'}`;
+
+          return (
+            <ErrorStackTrace
+              key={errorKey}
+              message={error.message}
+              fileName={error.location?.fileName}
+              startLineNumber={error.location?.startLineNumber}
+              startColumn={error.location?.startColumn}
+              stackFrames={error.stackFrames}
+              severity={error.severity}
+              isFirst={errorIndex === 0}
+              onFixWithAi={async (createNewChat) => handleFixWithAi(errorIndex, createNewChat)}
+            />
+          );
+        })}
+      </div>
+    </CollapsibleContent>
+  );
+
+  return (
+    <div {...props} className={cn('overflow-hidden rounded-md border bg-sidebar/50 border-border', className)}>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        {side === 'top' ? (
+          <>
+            {trigger}
+            {content}
+          </>
+        ) : (
+          <>
+            {content}
+            {trigger}
+          </>
+        )}
+      </Collapsible>
     </div>
   );
 }

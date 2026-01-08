@@ -494,19 +494,18 @@ export function useChatTools(): UseChatToolsReturn {
           // Get the kernel issues for the specified file
           const kernelIssues = cadSnapshot.context.kernelIssues.get(resolvedPath);
 
-          const status = cadSnapshot.value === 'error' || (kernelIssues && kernelIssues.length > 0) ? 'error' : 'ready';
+          // Determine status: error if there are any errors (not just warnings)
+          const hasErrors = kernelIssues?.some((issue) => issue.severity === 'error') ?? false;
+          const status = cadSnapshot.value === 'error' || hasErrors ? 'error' : 'ready';
 
           return {
             status,
             kernelIssues: kernelIssues ?? [],
-            message:
-              status === 'ready' ? 'Kernel compilation successful' : `Found ${kernelIssues?.length ?? 0} error(s)`,
           };
-        } catch (error) {
+        } catch {
           return {
             status: 'error',
             kernelIssues: [],
-            message: `Failed to get kernel result: ${getErrorMessage(error)}`,
           };
         }
       };
