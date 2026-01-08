@@ -182,7 +182,7 @@ function ErrorStackTrace({
   readonly stackFrames?: KernelStackFrame[];
   readonly onFixWithAi?: (createNewChat: boolean) => void;
 }): React.JSX.Element {
-  const isLocationClickable = Boolean(fileName && startLineNumber);
+  const isLocationClickable = Boolean(fileName && startLineNumber !== undefined);
   const locationText = formatLocation(fileName, startLineNumber, startColumn);
 
   // Track shift key state for "new chat" functionality
