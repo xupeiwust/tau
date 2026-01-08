@@ -139,6 +139,29 @@ export function getDiffLineCount(originalContent: string, modifiedContent: strin
 }
 
 /**
+ * Get the line number of the first change in the modified content.
+ * Useful for navigating to the first relevant change when opening a file.
+ * Returns 1 if no changes are found.
+ */
+export function getFirstChangedLine(originalContent: string, modifiedContent: string): number {
+  const changes = diffLines(originalContent, modifiedContent);
+  let lineNumber = 1;
+
+  for (const change of changes) {
+    // Found a change - return the current line number
+    if (change.added || change.removed) {
+      return lineNumber;
+    }
+
+    // For unchanged content, count lines to track position in modified content
+    const lineCount = change.value.split('\n').length - (change.value.endsWith('\n') ? 1 : 0);
+    lineNumber += lineCount;
+  }
+
+  return 1;
+}
+
+/**
  * Convert diff lines to Shiki notation syntax.
  */
 function linesToShikiNotation(lines: DiffLine[]): string {

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { File, FilePlus, LoaderCircle, X, ChevronRight, Check, RotateCcw, Play } from 'lucide-react';
 import { languageFromExtension } from '@taucad/types/constants';
 import { CodeViewer } from '#components/code/code-viewer.js';
-import { DiffViewer, getDiffLineCount } from '#components/code/diff-viewer.js';
+import { DiffViewer, getDiffLineCount, getFirstChangedLine } from '#components/code/diff-viewer.js';
 import { CopyButton } from '#components/copy-button.js';
 import { FileLink } from '#components/files/file-link.js';
 import { FileExtensionIcon } from '#components/icons/file-extension-icon.js';
@@ -249,6 +249,10 @@ export function CollapsibleFileOperationTrigger({
     <span>{filename}</span>
   );
 
+  // Calculate line number for first change when diff data is available
+  const firstChangedLine =
+    diffStats !== undefined ? getFirstChangedLine(diffStats.originalContent, diffStats.modifiedContent) : undefined;
+
   // Filename element - clickable when enableFileLink is true
   // Uses asChild to avoid nesting buttons inside CollapsibleTrigger
   const filenameElement =
@@ -256,7 +260,12 @@ export function CollapsibleFileOperationTrigger({
       hasPath ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <FileLink asChild path={targetFile} className="min-w-0 truncate hover:text-foreground">
+            <FileLink
+              asChild
+              path={targetFile}
+              lineNumber={firstChangedLine}
+              className="min-w-0 truncate hover:text-foreground"
+            >
               <span>{filenameContent}</span>
             </FileLink>
           </TooltipTrigger>
@@ -265,7 +274,12 @@ export function CollapsibleFileOperationTrigger({
           </TooltipContent>
         </Tooltip>
       ) : (
-        <FileLink asChild path={targetFile} className="min-w-0 truncate hover:text-foreground">
+        <FileLink
+          asChild
+          path={targetFile}
+          lineNumber={firstChangedLine}
+          className="min-w-0 truncate hover:text-foreground"
+        >
           <span>{filenameContent}</span>
         </FileLink>
       )
