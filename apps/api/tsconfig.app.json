@@ -6,7 +6,6 @@
     "target": "ESNext",
     "outDir": "./out-tsc/lib",
     "paths": {
-      "package.json": ["./package.json"],
       "#*": ["./app/*"]
     },
     "erasableSyntaxOnly": false // Incompatible with NestJS dependency injection.
