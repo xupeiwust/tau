@@ -176,7 +176,7 @@ function HiddenLinesSeparator({ count }: HiddenLinesSeparatorProps): React.JSX.E
 type DiffViewerProps = {
   readonly originalContent: string;
   readonly modifiedContent: string;
-  readonly language?: CodeLanguage;
+  readonly language: CodeLanguage;
   readonly className?: string;
 };
 
@@ -189,7 +189,7 @@ type DiffViewerProps = {
 export function DiffViewer({
   originalContent,
   modifiedContent,
-  language = 'openscad',
+  language,
   className,
 }: DiffViewerProps): React.JSX.Element {
   const [theme] = useTheme();
@@ -228,7 +228,7 @@ export function DiffViewer({
             '[&_.line]:relative [&_.line]:block [&_.line]:w-full [&_.line]:px-3!',
 
             // Diff styles
-            '[&_.diff]:border-l-2 [&_.diff]:border-transparent',
+            '[&_.line]:border-l-2 [&_.line]:border-transparent',
             // Diff add styles
             '[&_.diff.add]:bg-success/20',
             '[&_.diff.add]:border-l-success',
