@@ -210,7 +210,7 @@ export const ChatInterfaceDesktop = memo(function (): React.JSX.Element {
             {/* Bottom-left Content */}
             <div className="absolute bottom-0 left-2 z-10 flex w-100 shrink-0 flex-col gap-2">
               <ChatInterfaceGraphics />
-              <ChatStackTrace />
+              <ChatStackTrace side="bottom" />
               <ChatViewerControls />
             </div>
           </Allotment.Pane>

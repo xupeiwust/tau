@@ -55,7 +55,7 @@ export const ChatInterfaceMobile = memo(function (): React.JSX.Element {
             isModelTab || !drawerOpen ? 'block' : 'hidden',
           )}
         >
-          <ChatStackTrace />
+          <ChatStackTrace side="top" />
         </div>
 
         {/* Centered Content - Status indicators */}
