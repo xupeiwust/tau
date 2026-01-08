@@ -2,10 +2,10 @@
  * Shared error schemas used across multiple tool definitions.
  * These schemas are registered with unique IDs in Zod's registry.
  */
-import type { CodeError, KernelError } from '@taucad/types';
+import type { CodeIssue, KernelIssue } from '@taucad/types';
 import { z } from 'zod';
 
-export const codeErrorSchema: z.ZodType<CodeError> = z
+export const codeIssueSchema: z.ZodType<CodeIssue> = z
   .object({
     message: z.string(),
     startLineNumber: z.number(),
@@ -13,7 +13,7 @@ export const codeErrorSchema: z.ZodType<CodeError> = z
     startColumn: z.number(),
     endColumn: z.number(),
   })
-  .meta({ id: 'CodeError' });
+  .meta({ id: 'CodeIssue' });
 
 export const errorLocationSchema = z.object({
   fileName: z.string(),
@@ -23,7 +23,7 @@ export const errorLocationSchema = z.object({
   endColumn: z.number().optional(),
 });
 
-export const kernelErrorSchema: z.ZodType<KernelError> = z
+export const kernelIssueSchema: z.ZodType<KernelIssue> = z
   .object({
     message: z.string(),
     location: errorLocationSchema.optional(),
@@ -41,4 +41,4 @@ export const kernelErrorSchema: z.ZodType<KernelError> = z
       .optional(),
     type: z.enum(['compilation', 'runtime', 'kernel', 'connection', 'unknown']).optional(),
   })
-  .meta({ id: 'KernelError' });
+  .meta({ id: 'KernelIssue' });

@@ -5,6 +5,7 @@ import { useSelector } from '@xstate/react';
 import { FileCode } from 'lucide-react';
 import type * as Monaco from 'monaco-editor';
 import { languageFromExtension } from '@taucad/types/constants';
+import type { IssueSeverity } from '@taucad/types';
 import { CodeEditor } from '#components/code/code-editor.client.js';
 import { cn } from '#utils/ui.utils.js';
 import { HammerAnimation } from '#components/hammer-animation.js';
@@ -25,6 +26,26 @@ import { useViewContext } from '#routes/builds_.$id/chat-interface-view-context.
  * Build prefix for Monaco URIs, matching the file manager's root directory structure.
  */
 const buildsPrefix = '/builds';
+
+/**
+ * Map IssueSeverity to Monaco MarkerSeverity.
+ */
+function getMarkerSeverity(monaco: typeof Monaco, severity: IssueSeverity | undefined): Monaco.MarkerSeverity {
+  switch (severity) {
+    case 'warning': {
+      return monaco.MarkerSeverity.Warning;
+    }
+
+    case 'info': {
+      return monaco.MarkerSeverity.Info;
+    }
+
+    case 'error':
+    default: {
+      return monaco.MarkerSeverity.Error;
+    }
+  }
+}
 
 /**
  * Create a Monaco URI with build namespace to ensure file isolation between builds.
@@ -134,7 +155,7 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
     if (filteredErrors?.length) {
       // Send errors to the CAD actor
       cadActor.send({
-        type: 'setCodeErrors',
+        type: 'setCodeIssues',
         errors: filteredErrors.map((error) => ({
           startLineNumber: error.startLineNumber,
           startColumn: error.startColumn,
@@ -146,20 +167,20 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
       });
     } else {
       // Clear errors when there are none
-      cadActor.send({ type: 'setCodeErrors', errors: [] });
+      cadActor.send({ type: 'setCodeIssues', errors: [] });
     }
   }, [monaco, cadActor]);
 
-  // Get kernel errors for active file from CAD machine (errors stored per-file as an array)
-  const kernelErrors = useSelector(cadActor, (state) => {
+  // Get kernel issues for active file from CAD machine (errors stored per-file as an array)
+  const kernelIssues = useSelector(cadActor, (state) => {
     if (!activeFile) {
       return undefined;
     }
 
-    return state.context.kernelErrors.get(activeFile.path);
+    return state.context.kernelIssues.get(activeFile.path);
   });
 
-  // Show kernel errors as Monaco markers - only for the active file
+  // Show kernel issues as Monaco markers - only for the active file
   useEffect(() => {
     if (!monaco || !activeFile) {
       return;
@@ -172,20 +193,20 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
       return;
     }
 
-    // Map kernel errors to Monaco markers (only for errors with location info)
-    const markers = (kernelErrors ?? [])
-      .filter((kernelError) => kernelError.location)
-      .map((kernelError) => ({
-        startLineNumber: kernelError.location!.startLineNumber,
-        startColumn: kernelError.location!.startColumn,
-        endLineNumber: kernelError.location!.endLineNumber ?? kernelError.location!.startLineNumber,
-        endColumn: kernelError.location!.endColumn ?? kernelError.location!.startColumn + 1,
-        message: kernelError.message,
-        severity: monaco.MarkerSeverity.Error,
+    // Map kernel issues to Monaco markers (only for issues with location info)
+    const markers = (kernelIssues ?? [])
+      .filter((kernelIssue) => kernelIssue.location)
+      .map((kernelIssue) => ({
+        startLineNumber: kernelIssue.location!.startLineNumber,
+        startColumn: kernelIssue.location!.startColumn,
+        endLineNumber: kernelIssue.location!.endLineNumber ?? kernelIssue.location!.startLineNumber,
+        endColumn: kernelIssue.location!.endColumn ?? kernelIssue.location!.startColumn + 1,
+        message: kernelIssue.message,
+        severity: getMarkerSeverity(monaco, kernelIssue.severity),
       }));
 
     monaco.editor.setModelMarkers(model, 'kernel', markers);
-  }, [monaco, kernelErrors, activeFile, buildId]);
+  }, [monaco, kernelIssues, activeFile, buildId]);
 
   // Subscribe to file writes and update Monaco model for non-editor sources
   useEffect(() => {

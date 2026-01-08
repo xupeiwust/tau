@@ -1,7 +1,7 @@
 import { useSelector } from '@xstate/react';
 import { useCallback } from 'react';
 import { Sparkles } from 'lucide-react';
-import type { KernelProvider, KernelError, KernelStackFrame } from '@taucad/types';
+import type { KernelProvider, KernelIssue, KernelStackFrame, IssueSeverity } from '@taucad/types';
 import { languageFromKernel } from '@taucad/types/constants';
 import { messageRole, messageStatus } from '@taucad/chat/constants';
 import { Button } from '#components/ui/button.js';
@@ -27,7 +27,7 @@ import { useChatSnapshot } from '#hooks/use-chat-snapshot.js';
 const shiftKeyCombination = { key: 'Shift' } as const;
 
 type FormatErrorPromptOptions = {
-  error: KernelError;
+  error: KernelIssue;
   filePath: string;
   code: string;
   kernel: KernelProvider;
@@ -149,6 +149,50 @@ function getBasename(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
+/**
+ * Get styling classes based on issue severity.
+ */
+function getSeverityStyles(severity: IssueSeverity | undefined): {
+  container: string;
+  text: string;
+  code: string;
+  stackBorder: string;
+  buttonBorder: string;
+} {
+  switch (severity) {
+    case 'warning': {
+      return {
+        container: 'border-warning/20 bg-warning/5',
+        text: 'text-warning',
+        code: '[&_code]:text-warning [&_code]:border-warning/30',
+        stackBorder: 'border-warning/20',
+        buttonBorder: 'border-warning/30 hover:border-warning/50',
+      };
+    }
+
+    case 'info': {
+      return {
+        container: 'border-info/20 bg-info/5',
+        text: 'text-info',
+        code: '[&_code]:text-info [&_code]:border-info/30',
+        stackBorder: 'border-info/20',
+        buttonBorder: 'border-info/30 hover:border-info/50',
+      };
+    }
+
+    case 'error':
+    default: {
+      return {
+        container: 'border-destructive/20 bg-destructive/5',
+        text: 'text-destructive',
+        code: '[&_code]:text-destructive [&_code]:border-destructive/30',
+        stackBorder: 'border-destructive/20',
+        buttonBorder: 'border-destructive/30 hover:border-destructive/50',
+      };
+    }
+  }
+}
+
 function formatLocation(fileName?: string, lineNumber?: number, column?: number): string {
   if (!fileName) {
     return '';
@@ -173,6 +217,7 @@ function ErrorStackTrace({
   startLineNumber,
   startColumn,
   stackFrames,
+  severity,
   onFixWithAi,
 }: {
   readonly message: string;
@@ -180,10 +225,12 @@ function ErrorStackTrace({
   readonly startLineNumber?: number;
   readonly startColumn?: number;
   readonly stackFrames?: KernelStackFrame[];
+  readonly severity?: IssueSeverity;
   readonly onFixWithAi?: (createNewChat: boolean) => void;
 }): React.JSX.Element {
   const isLocationClickable = Boolean(fileName && startLineNumber !== undefined);
   const locationText = formatLocation(fileName, startLineNumber, startColumn);
+  const styles = getSeverityStyles(severity);
 
   // Track shift key state for "new chat" functionality
   const { isKeyPressed: isShiftHeld, formattedKeyCombination: shiftKey } = useKeydown(
@@ -195,18 +242,12 @@ function ErrorStackTrace({
   );
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-xs">
+    <div className={cn('flex flex-col gap-2 rounded-md border p-3 text-xs', styles.container)}>
       {/* Error message with Fix button */}
       <div className="flex flex-row items-start justify-between gap-2">
-        <div className="flex flex-wrap items-baseline gap-x-1.5 font-medium text-destructive">
+        <div className={cn('flex flex-wrap items-baseline gap-x-1.5 font-medium', styles.text)}>
           <MarkdownViewer
-            className={cn(
-              'inline w-auto! text-xs text-inherit',
-              // Inline-code styles
-              '[&_code]:text-destructive',
-              '[&_code]:border-destructive/30',
-              '[&_code]:bg-background/80',
-            )}
+            className={cn('inline w-auto! text-xs text-inherit', styles.code, '[&_code]:bg-background/80')}
           >
             {message}
           </MarkdownViewer>
@@ -235,7 +276,7 @@ function ErrorStackTrace({
               <Button
                 size="icon"
                 variant="outline"
-                className="size-6 shrink-0 border-destructive/30 bg-background/80 hover:border-destructive/50 hover:bg-background"
+                className={cn('size-6 shrink-0 bg-background/80 hover:bg-background', styles.buttonBorder)}
                 onClick={() => {
                   onFixWithAi(isShiftHeld);
                 }}
@@ -257,7 +298,7 @@ function ErrorStackTrace({
       {stackFrames && stackFrames.length > 0 ? (
         <div className="space-y-1">
           <div className="font-medium text-muted-foreground">Stack trace:</div>
-          <div className="space-y-0.5 rounded border border-destructive/20 bg-background/80 p-2">
+          <div className={cn('space-y-0.5 rounded border bg-background/80 p-2', styles.stackBorder)}>
             {stackFrames.map((frame, index) => (
               <StackFrame
                 key={`${frame.functionName}-${frame.fileName}-${frame.lineNumber}-${frame.columnNumber}`}
@@ -279,13 +320,13 @@ export function ChatStackTrace({ className, ...props }: React.HTMLAttributes<HTM
   // Get the active file path from file explorer
   const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
 
-  // Get all kernel errors for the active file
+  // Get all kernel issues for the active file
   const errors = useSelector(cadRef, (state) => {
     if (!activeFilePath) {
       return undefined;
     }
 
-    return state.context.kernelErrors.get(activeFilePath);
+    return state.context.kernelIssues.get(activeFilePath);
   });
 
   const { sendMessage } = useChatActions();
@@ -380,6 +421,7 @@ export function ChatStackTrace({ className, ...props }: React.HTMLAttributes<HTM
             startLineNumber={error.location?.startLineNumber}
             startColumn={error.location?.startColumn}
             stackFrames={error.stackFrames}
+            severity={error.severity}
             onFixWithAi={async (createNewChat) => handleFixWithAi(errorIndex, createNewChat)}
           />
         );

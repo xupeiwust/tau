@@ -1,9 +1,9 @@
-import type { ErrorLocation, KernelError } from '@taucad/types';
+import type { ErrorLocation, KernelIssue } from '@taucad/types';
 
 /**
  * Callback function type for adding parsed errors.
  */
-export type AddErrorFn = (error: KernelError) => void;
+export type AddErrorFn = (error: KernelIssue) => void;
 
 /**
  * Function type for lazily fetching file contents on demand.
@@ -134,6 +134,7 @@ export function parseStderrLine(
       message: error ?? 'Unknown error',
       location: createErrorLocation(fileName, lineNumber, getFileContents),
       type: 'compilation',
+      severity: 'error',
     });
     return;
   }
@@ -148,6 +149,7 @@ export function parseStderrLine(
       message: error ?? 'Unknown error',
       location: createErrorLocation(fileName, lineNumber, getFileContents),
       type: 'compilation',
+      severity: 'error',
     });
     return;
   }
@@ -162,6 +164,7 @@ export function parseStderrLine(
       message: warning ?? 'Unknown warning',
       location: createErrorLocation(fileName, lineNumber, getFileContents),
       type: 'compilation',
+      severity: 'warning',
     });
   }
 }

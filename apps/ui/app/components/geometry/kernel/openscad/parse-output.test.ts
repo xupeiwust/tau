@@ -1,4 +1,4 @@
-import type { KernelError } from '@taucad/types';
+import type { KernelIssue } from '@taucad/types';
 import { describe, it, expect } from 'vitest';
 import type { GetFileContentsFn } from '#components/geometry/kernel/openscad/parse-output.js';
 import { parseStderrLine } from '#components/geometry/kernel/openscad/parse-output.js';
@@ -13,7 +13,7 @@ function createGetFileContents(files: Record<string, string>): GetFileContentsFn
 describe('parseStderrLine', () => {
   describe('Parser errors', () => {
     it('should parse error format: ERROR: Parser error in file "X", line Y: message', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ERROR: Parser error in file "main.scad", line 118: syntax error', (error) => {
         errors.push(error);
       });
@@ -29,11 +29,12 @@ describe('parseStderrLine', () => {
           endColumn: 1000,
         },
         type: 'compilation',
+        severity: 'error',
       });
     });
 
     it('should parse error format: ERROR: Parser error: message in file X, line Y', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ERROR: Parser error: syntax error in file /main.scad, line 118', (error) => {
         errors.push(error);
       });
@@ -49,11 +50,12 @@ describe('parseStderrLine', () => {
           endColumn: 1000,
         },
         type: 'compilation',
+        severity: 'error',
       });
     });
 
     it('should strip leading slashes from filenames', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ERROR: Parser error: syntax error in file /path/to/file.scad, line 10', (error) => {
         errors.push(error);
       });
@@ -64,7 +66,7 @@ describe('parseStderrLine', () => {
 
     it('should parse += syntax errors (compound assignment not supported)', () => {
       // Real error from OpenSCAD when using += operator
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ERROR: Parser error: syntax error in file /main.scad, line 118', (error) => {
         errors.push(error);
       });
@@ -74,7 +76,7 @@ describe('parseStderrLine', () => {
     });
 
     it('should parse errors with different file paths', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ERROR: Parser error: unexpected token in file lib/utils.scad, line 42', (error) => {
         errors.push(error);
       });
@@ -90,7 +92,7 @@ describe('parseStderrLine', () => {
       const errorLine = 'x += 90 + 2*tray_clearance;';
       const getFileContents = createGetFileContents({ 'main.scad': `line 1\n${errorLine}\nline 3` });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'ERROR: Parser error: syntax error in file /main.scad, line 2',
         (error) => {
@@ -114,7 +116,7 @@ describe('parseStderrLine', () => {
       const errorLine = '    x += 90 + tray_clearance;';
       const getFileContents = createGetFileContents({ 'main.scad': `line 1\n${errorLine}\nline 3` });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'ERROR: Parser error: syntax error in file /main.scad, line 2',
         (error) => {
@@ -137,7 +139,7 @@ describe('parseStderrLine', () => {
       const errorLine = '\t\tx += 1;';
       const getFileContents = createGetFileContents({ 'main.scad': `line 1\n${errorLine}\nline 3` });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'ERROR: Parser error: syntax error in file /main.scad, line 2',
         (error) => {
@@ -153,7 +155,7 @@ describe('parseStderrLine', () => {
     it('should fallback to 1000 when file is not in contents map', () => {
       const getFileContents = createGetFileContents({ 'other.scad': 'content' });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'ERROR: Parser error: syntax error in file /main.scad, line 5',
         (error) => {
@@ -170,7 +172,7 @@ describe('parseStderrLine', () => {
     it('should fallback to 1000 when line number is out of range', () => {
       const getFileContents = createGetFileContents({ 'main.scad': 'line 1\nline 2' });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'ERROR: Parser error: syntax error in file /main.scad, line 99',
         (error) => {
@@ -187,7 +189,7 @@ describe('parseStderrLine', () => {
 
   describe('Warnings', () => {
     it('should parse warning format: WARNING: message in file X, line Y', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('WARNING: Undefined variable in file model.scad, line 42', (error) => {
         errors.push(error);
       });
@@ -201,7 +203,7 @@ describe('parseStderrLine', () => {
     });
 
     it('should parse warnings with trailing period', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('WARNING: Variable shadowing, in file test.scad, line 10.', (error) => {
         errors.push(error);
       });
@@ -214,7 +216,7 @@ describe('parseStderrLine', () => {
       const errorLine = 'undefined_var = x;';
       const getFileContents = createGetFileContents({ 'model.scad': `line 1\n${errorLine}\nline 3` });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'WARNING: Undefined variable in file model.scad, line 2',
         (error) => {
@@ -232,7 +234,7 @@ describe('parseStderrLine', () => {
       const errorLine = '  undefined_var = x;';
       const getFileContents = createGetFileContents({ 'model.scad': `line 1\n${errorLine}\nline 3` });
 
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine(
         'WARNING: Undefined variable in file model.scad, line 2',
         (error) => {
@@ -247,9 +249,52 @@ describe('parseStderrLine', () => {
     });
   });
 
+  describe('Severity detection', () => {
+    it('should set severity to error for ERROR: Parser error patterns', () => {
+      const errors: KernelIssue[] = [];
+      parseStderrLine('ERROR: Parser error in file "main.scad", line 5: syntax error', (error) => {
+        errors.push(error);
+      });
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.severity).toBe('error');
+    });
+
+    it('should set severity to warning for WARNING: patterns', () => {
+      const errors: KernelIssue[] = [];
+      parseStderrLine('WARNING: Undefined variable in file main.scad, line 10', (error) => {
+        errors.push(error);
+      });
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.severity).toBe('warning');
+    });
+
+    it('should set severity to warning for undefined module warnings', () => {
+      const errors: KernelIssue[] = [];
+      parseStderrLine("WARNING: Ignoring unknown module 'foo' in file main.scad, line 5", (error) => {
+        errors.push(error);
+      });
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.severity).toBe('warning');
+      expect(errors[0]?.message).toContain('Ignoring unknown module');
+    });
+
+    it('should set severity to warning for undefined function warnings', () => {
+      const errors: KernelIssue[] = [];
+      parseStderrLine("WARNING: Ignoring unknown function 'bar' in file main.scad, line 8", (error) => {
+        errors.push(error);
+      });
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.severity).toBe('warning');
+    });
+  });
+
   describe('Non-matching messages', () => {
     it('should not call addError for ECHO statements', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('ECHO: "Hello World"', (error) => {
         errors.push(error);
       });
@@ -258,7 +303,7 @@ describe('parseStderrLine', () => {
     });
 
     it('should not call addError for "Can\'t parse file" messages', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine("Can't parse file 'main.scad'!", (error) => {
         errors.push(error);
       });
@@ -267,7 +312,7 @@ describe('parseStderrLine', () => {
     });
 
     it('should not call addError for empty strings', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('', (error) => {
         errors.push(error);
       });
@@ -276,7 +321,7 @@ describe('parseStderrLine', () => {
     });
 
     it('should not call addError for generic info messages', () => {
-      const errors: KernelError[] = [];
+      const errors: KernelIssue[] = [];
       parseStderrLine('Compiling design (CSG Tree generation)...', (error) => {
         errors.push(error);
       });

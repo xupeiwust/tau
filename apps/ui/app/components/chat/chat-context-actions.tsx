@@ -47,15 +47,15 @@ export function ChatContextActions({
   // Get the active file path from file explorer
   const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
   // Get the kernel error for the active file
-  const kernelError = useSelector(cadActor, (state) => {
+  const kernelIssue = useSelector(cadActor, (state) => {
     if (!activeFilePath) {
       return undefined;
     }
 
-    return state.context.kernelErrors.get(activeFilePath);
+    return state.context.kernelIssues.get(activeFilePath);
   });
 
-  const codeErrors = useSelector(cadActor, (state) => state.context.codeErrors);
+  const codeIssues = useSelector(cadActor, (state) => state.context.codeIssues);
   const isScreenshotReady = useSelector(graphicsActor, (state) => state.context.isScreenshotReady);
   const { quality: screenshotQuality } = useImageQuality();
 
@@ -142,8 +142,8 @@ export function ChatContextActions({
     });
   }, [addImage, asPopoverMenu, onClose, screenshotActorRef, screenshotQuality]);
 
-  const handleAddCodeErrors = useCallback(() => {
-    const errors = codeErrors.map((error) => `- (${error.startLineNumber}:${error.startColumn}): ${error.message}`);
+  const handleAddCodeIssues = useCallback(() => {
+    const errors = codeIssues.map((error) => `- (${error.startLineNumber}:${error.startColumn}): ${error.message}`);
 
     const markdownErrors = `
 # Code errors
@@ -153,21 +153,21 @@ ${errors.join('\n')}
     if (asPopoverMenu) {
       onClose?.();
     }
-  }, [addText, codeErrors, asPopoverMenu, onClose]);
+  }, [addText, codeIssues, asPopoverMenu, onClose]);
 
-  const handleAddKernelError = useCallback(() => {
-    if (!kernelError || kernelError.length === 0) {
+  const handleAddKernelIssue = useCallback(() => {
+    if (!kernelIssue || kernelIssue.length === 0) {
       return;
     }
 
-    // Format all kernel errors
-    const errorsMarkdown = kernelError
+    // Format all kernel issues
+    const errorsMarkdown = kernelIssue
       .map((error, index) => {
         const locationInfo = error.location
           ? ` (Line ${error.location.startLineNumber}:${error.location.startColumn})`
           : '';
 
-        const headerPrefix = kernelError.length > 1 ? `## Error ${index + 1}` : '# Kernel error';
+        const headerPrefix = kernelIssue.length > 1 ? `## Error ${index + 1}` : '# Kernel error';
 
         return `${headerPrefix}${locationInfo}
 ${error.message}
@@ -175,13 +175,13 @@ ${error.stack ? `\n\`\`\`\n${error.stack}\n\`\`\`` : ''}`;
       })
       .join('\n\n');
 
-    const header = kernelError.length > 1 ? `# Kernel errors (${kernelError.length})\n\n` : '';
+    const header = kernelIssue.length > 1 ? `# Kernel issues (${kernelIssue.length})\n\n` : '';
     addText(`${header}${errorsMarkdown}\n`);
 
     if (asPopoverMenu) {
       onClose?.();
     }
-  }, [addText, kernelError, asPopoverMenu, onClose]);
+  }, [addText, kernelIssue, asPopoverMenu, onClose]);
 
   const contextItems = useMemo(
     (): ContextActionItem[] => [
@@ -206,26 +206,26 @@ ${error.stack ? `\n\`\`\`\n${error.stack}\n\`\`\`` : ''}`;
         label: 'Code errors',
         group: 'Code',
         icon: <AlertTriangle className="mr-2 size-4" />,
-        action: handleAddCodeErrors,
-        disabled: codeErrors.length === 0,
+        action: handleAddCodeIssues,
+        disabled: codeIssues.length === 0,
       },
       {
         id: 'add-kernel-error',
-        label: kernelError && kernelError.length > 1 ? `Kernel errors (${kernelError.length})` : 'Kernel error',
+        label: kernelIssue && kernelIssue.length > 1 ? `Kernel issues (${kernelIssue.length})` : 'Kernel error',
         group: 'Code',
         icon: <AlertCircle className="mr-2 size-4" />,
-        action: handleAddKernelError,
-        disabled: !kernelError || kernelError.length === 0,
+        action: handleAddKernelIssue,
+        disabled: !kernelIssue || kernelIssue.length === 0,
       },
     ],
     [
       handleAddModelScreenshot,
       isScreenshotReady,
       handleAddAllViewsScreenshots,
-      handleAddCodeErrors,
-      codeErrors.length,
-      handleAddKernelError,
-      kernelError,
+      handleAddCodeIssues,
+      codeIssues.length,
+      handleAddKernelIssue,
+      kernelIssue,
     ],
   );
 

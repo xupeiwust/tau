@@ -100,8 +100,8 @@ Key implementation details:
      - `codeStandards`: Code output requirements, syntax examples, and formatting rules
      - `modelingStrategy`: Design philosophy and modeling approach
      - `technicalResources`: Available APIs, modules, and example code
-     - `codeErrorDescription`: Description of compilation/syntax errors
-     - `kernelErrorDescription`: Description of runtime/geometric errors
+     - `codeIssueDescription`: Description of compilation/syntax errors
+     - `kernelIssueDescription`: Description of runtime/geometric errors
      - `commonErrorPatterns`: List of common issues and solutions
      - `parameterNamingConvention`: Naming style (camelCase, snake_case, etc.)
      - `parameterNamingExample`: Example of good parameter naming

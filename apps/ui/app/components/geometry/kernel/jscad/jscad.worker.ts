@@ -6,7 +6,7 @@ import type {
   ExportGeometryResult,
   ExtractParametersResult,
   Geometry,
-  KernelError,
+  KernelIssue,
   KernelErrorResult,
   KernelStackFrame,
 } from '@taucad/types';
@@ -66,7 +66,7 @@ function isModuleWithEntryPoint(module: unknown): module is {
 }
 
 /**
- * Helper function to create standardized kernel errors with stack trace information
+ * Helper function to create standardized kernel issues with stack trace information
  *
  * Extracts detailed error information from various error types:
  * - Error objects: Parses stack traces to extract file, line, and column information
@@ -80,7 +80,7 @@ function isModuleWithEntryPoint(module: unknown): module is {
  * @param fileName - Optional filename for location context
  * @returns KernelErrorResult with formatted error information
  */
-function createJscadKernelError(error: unknown, fallbackMessage: string, fileName?: string): KernelErrorResult {
+function createJscadKernelIssue(error: unknown, fallbackMessage: string, fileName?: string): KernelErrorResult {
   let message = fallbackMessage;
   let stack: string | undefined;
   let kernelStackFrames: KernelStackFrame[] = [];
@@ -118,15 +118,16 @@ function createJscadKernelError(error: unknown, fallbackMessage: string, fileNam
   // Only include location if we have a fileName and meaningful position data
   const hasLocation = fileName && (startLineNumber > 0 || startColumn > 0);
 
-  const kernelError: KernelError = {
+  const kernelIssue: KernelIssue = {
     message,
     location: hasLocation ? { fileName, startLineNumber, startColumn } : undefined,
     stack,
     stackFrames: kernelStackFrames.length > 0 ? kernelStackFrames : undefined,
     type,
+    severity: 'error',
   };
 
-  return createKernelError(kernelError);
+  return createKernelError([kernelIssue]);
 }
 
 /**
@@ -192,7 +193,7 @@ class JscadWorker extends KernelWorker {
    * 5. Returns both for UI generation and validation
    *
    * If no parameters are found, returns empty defaults with generated schema.
-   * Errors during extraction are caught and returned as kernel errors.
+   * Errors during extraction are caught and returned as kernel issues.
    *
    * @param file - Geometry file containing JSCAD source code
    * @returns ExtractParametersResult containing:
@@ -264,7 +265,7 @@ class JscadWorker extends KernelWorker {
         jsonSchema,
       });
     } catch (error) {
-      return createJscadKernelError(error, 'Failed to extract parameters', this.activeFilePath);
+      return createJscadKernelIssue(error, 'Failed to extract parameters', this.activeFilePath);
     }
   }
 
@@ -329,7 +330,7 @@ class JscadWorker extends KernelWorker {
           data: error,
           operation: 'computeGeometry',
         });
-        return createJscadKernelError(error, 'Failed to execute JSCAD code', this.activeFilePath);
+        return createJscadKernelIssue(error, 'Failed to execute JSCAD code', this.activeFilePath);
       }
 
       // Store shapes in memory for export with LRU cleanup
@@ -366,7 +367,7 @@ class JscadWorker extends KernelWorker {
 
       return createKernelSuccess(geometries);
     } catch (error) {
-      return createJscadKernelError(error, 'Failed to compute JSCAD geometry', this.activeFilePath);
+      return createJscadKernelIssue(error, 'Failed to compute JSCAD geometry', this.activeFilePath);
     }
   }
 
@@ -379,10 +380,13 @@ class JscadWorker extends KernelWorker {
       const shapes = this.shapesMemory[geometryId];
       if (!shapes || shapes.length === 0) {
         // System error - no location needed
-        return createKernelError({
-          message: `Geometry ${geometryId} not computed yet. Please compute geometry before exporting.`,
-          type: 'runtime',
-        });
+        return createKernelError([
+          {
+            message: `Geometry ${geometryId} not computed yet. Please compute geometry before exporting.`,
+            type: 'runtime',
+            severity: 'error',
+          },
+        ]);
       }
 
       // Handle GLTF/GLB export by converting shapes to GLTF
@@ -394,10 +398,13 @@ class JscadWorker extends KernelWorker {
         const blob = gltfBlobs[0];
         if (!blob) {
           // System error - no location needed
-          return createKernelError({
-            message: 'Failed to generate GLTF from computed geometry',
-            type: 'runtime',
-          });
+          return createKernelError([
+            {
+              message: 'Failed to generate GLTF from computed geometry',
+              type: 'runtime',
+              severity: 'error',
+            },
+          ]);
         }
 
         return createKernelSuccess([
@@ -411,12 +418,15 @@ class JscadWorker extends KernelWorker {
       // STL and STL-binary formats are not yet implemented for JSCAD
       // This would require installing and using @jscad/stl-serializer
       // System error - no location needed
-      return createKernelError({
-        message: `Export format '${fileType}' is not yet implemented for JSCAD. Only 'glb' and 'gltf' formats are currently supported.`,
-        type: 'runtime',
-      });
+      return createKernelError([
+        {
+          message: `Export format '${fileType}' is not yet implemented for JSCAD. Only 'glb' and 'gltf' formats are currently supported.`,
+          type: 'runtime',
+          severity: 'error',
+        },
+      ]);
     } catch (error) {
-      return createJscadKernelError(error, 'Failed to export JSCAD geometry');
+      return createJscadKernelIssue(error, 'Failed to export JSCAD geometry');
     }
   }
 
@@ -443,7 +453,7 @@ class JscadWorker extends KernelWorker {
    *          May also be undefined if code has no explicit return
    *
    * @throws Throws error if code execution fails (syntax errors, runtime errors)
-   *         Errors are caught by callers and converted to kernel errors
+   *         Errors are caught by callers and converted to kernel issues
    *
    * @internal This is a private method used internally by computeGeometry().
    */

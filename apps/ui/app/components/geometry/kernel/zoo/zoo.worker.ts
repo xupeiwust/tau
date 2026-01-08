@@ -5,18 +5,14 @@ import type {
   ExportGeometryResult,
   ExtractParametersResult,
   GeometryGltf,
-  KernelError,
+  KernelIssue,
   KernelErrorResult,
 } from '@taucad/types';
 import type { CompilationError } from '@taucad/kcl-wasm-lib/bindings/CompilationError';
-import {
-  createKernelError,
-  createKernelErrors,
-  createKernelSuccess,
-} from '#components/geometry/kernel/utils/kernel-helpers.js';
+import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { KclUtils } from '#components/geometry/kernel/zoo/kcl-utils.js';
 import { isKclError } from '#components/geometry/kernel/zoo/kcl-errors.js';
-import { convertKclErrorToKernelError, mapErrorToKclError } from '#components/geometry/kernel/zoo/error-mappers.js';
+import { convertKclErrorToKernelIssue, mapErrorToKclError } from '#components/geometry/kernel/zoo/error-mappers.js';
 import { getErrorPosition } from '#components/geometry/kernel/zoo/source-range-utils.js';
 import { asBuffer } from '#utils/file.utils.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
@@ -64,8 +60,8 @@ class ZooWorker extends KernelWorker<ZooOptions> {
       if (criticalErrors.length > 0) {
         this.warn('KCL parsing errors during parameter extraction', { data: criticalErrors });
         // Return ALL errors, not just the first one
-        const errors = this.mapCompilationErrorsToKernelErrors(criticalErrors, code, this.activeFilePath);
-        return createKernelErrors(errors);
+        const errors = this.mapCompilationErrorsToKernelIssues(criticalErrors, code, this.activeFilePath);
+        return createKernelError(errors);
       }
 
       // Log warnings separately for diagnostics
@@ -79,8 +75,8 @@ class ZooWorker extends KernelWorker<ZooOptions> {
       if (criticalExecutionErrors.length > 0) {
         this.warn('KCL execution errors during parameter extraction', { data: criticalExecutionErrors });
         // Return ALL execution errors
-        const errors = this.mapCompilationErrorsToKernelErrors(criticalExecutionErrors, code, this.activeFilePath);
-        return createKernelErrors(errors);
+        const errors = this.mapCompilationErrorsToKernelIssues(criticalExecutionErrors, code, this.activeFilePath);
+        return createKernelError(errors);
       }
 
       // Log warnings separately for diagnostics
@@ -96,7 +92,7 @@ class ZooWorker extends KernelWorker<ZooOptions> {
       });
     } catch (error) {
       const kclErrorResult = this.handleError(error, code, this.activeFilePath);
-      this.logKernelErrors(kclErrorResult.errors, 'extractParameters');
+      this.logKernelIssues(kclErrorResult.issues, 'extractParameters');
       return kclErrorResult;
     }
   }
@@ -121,8 +117,8 @@ class ZooWorker extends KernelWorker<ZooOptions> {
         if (criticalParseErrors.length > 0) {
           this.warn('KCL parsing errors', { data: criticalParseErrors });
           // Return ALL parse errors
-          const errors = this.mapCompilationErrorsToKernelErrors(criticalParseErrors, trimmedCode, this.activeFilePath);
-          return createKernelErrors(errors);
+          const errors = this.mapCompilationErrorsToKernelIssues(criticalParseErrors, trimmedCode, this.activeFilePath);
+          return createKernelError(errors);
         }
 
         // Log warnings separately for diagnostics
@@ -137,8 +133,8 @@ class ZooWorker extends KernelWorker<ZooOptions> {
         if (criticalExecutionErrors.length > 0) {
           this.warn('KCL execution errors', { data: criticalExecutionErrors });
           // Return ALL execution errors
-          const errors = this.mapCompilationErrorsToKernelErrors(criticalExecutionErrors, trimmedCode, this.activeFilePath);
-          return createKernelErrors(errors);
+          const errors = this.mapCompilationErrorsToKernelIssues(criticalExecutionErrors, trimmedCode, this.activeFilePath);
+          return createKernelError(errors);
         }
 
         // Log warnings separately for diagnostics
@@ -159,9 +155,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
         const gltf = exportResult[0];
         if (!gltf) {
           // System error - no location
-          return createKernelError({
-            message: 'No GLTF file in export result',
-          });
+          return createKernelError([
+            {
+              message: 'No GLTF file in export result',
+              severity: 'error',
+            },
+          ]);
         }
 
         this.gltfDataMemory[geometryId] = gltf.contents;
@@ -172,12 +171,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
         return createKernelSuccess([geometry]);
       } catch (error) {
         const kclErrorResult = this.handleError(error, code, this.activeFilePath);
-        this.logKernelErrors(kclErrorResult.errors, 'computeGeometry');
+        this.logKernelIssues(kclErrorResult.issues, 'computeGeometry');
         return kclErrorResult;
       }
     } catch (error) {
       const kclErrorResult = this.handleError(error, code, this.activeFilePath);
-      this.logKernelErrors(kclErrorResult.errors, 'computeGeometry');
+      this.logKernelIssues(kclErrorResult.issues, 'computeGeometry');
       return kclErrorResult;
     }
   }
@@ -191,9 +190,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
       const gltfData = this.gltfDataMemory[geometryId];
       if (!gltfData) {
         // System error - no location needed
-        return createKernelError({
-          message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
-        });
+        return createKernelError([
+          {
+            message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
+            severity: 'error',
+          },
+        ]);
       }
 
       switch (fileType) {
@@ -207,12 +209,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
               units: 'mm',
             });
             if (stlResult.length === 0) {
-              return createKernelError({ message: 'No STL data received from KCL export' });
+              return createKernelError([{ message: 'No STL data received from KCL export', severity: 'error' }]);
             }
 
             const stlFile = stlResult[0];
             if (!stlFile) {
-              return createKernelError({ message: 'No STL file in export result' });
+              return createKernelError([{ message: 'No STL file in export result', severity: 'error' }]);
             }
 
             const blob = new Blob([asBuffer(stlFile.contents.buffer)], {
@@ -226,7 +228,7 @@ class ZooWorker extends KernelWorker<ZooOptions> {
             ]);
           } catch (error) {
             const kclErrorResult = this.handleError(error);
-            this.logKernelErrors(kclErrorResult.errors, 'exportGeometry');
+            this.logKernelIssues(kclErrorResult.issues, 'exportGeometry');
             return kclErrorResult;
           }
         }
@@ -238,12 +240,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
               type: 'step',
             });
             if (stepResult.length === 0) {
-              return createKernelError({ message: 'No STEP data received from KCL export' });
+              return createKernelError([{ message: 'No STEP data received from KCL export', severity: 'error' }]);
             }
 
             const stepFile = stepResult[0];
             if (!stepFile) {
-              return createKernelError({ message: 'No STEP file in export result' });
+              return createKernelError([{ message: 'No STEP file in export result', severity: 'error' }]);
             }
 
             const blob = new Blob([asBuffer(stepFile.contents.buffer)], {
@@ -257,7 +259,7 @@ class ZooWorker extends KernelWorker<ZooOptions> {
             ]);
           } catch (error) {
             const kclErrorResult = this.handleError(error);
-            this.logKernelErrors(kclErrorResult.errors, 'exportGeometry');
+            this.logKernelIssues(kclErrorResult.issues, 'exportGeometry');
             return kclErrorResult;
           }
         }
@@ -271,12 +273,12 @@ class ZooWorker extends KernelWorker<ZooOptions> {
               presentation: 'pretty',
             });
             if (glbResult.length === 0) {
-              return createKernelError({ message: 'No GLB data received from KCL export' });
+              return createKernelError([{ message: 'No GLB data received from KCL export', severity: 'error' }]);
             }
 
             const glbFile = glbResult[0];
             if (!glbFile) {
-              return createKernelError({ message: 'No GLB file in export result' });
+              return createKernelError([{ message: 'No GLB file in export result', severity: 'error' }]);
             }
 
             const blob = new Blob([asBuffer(glbFile.contents.buffer)], {
@@ -290,7 +292,7 @@ class ZooWorker extends KernelWorker<ZooOptions> {
             ]);
           } catch (error) {
             const kclErrorResult = this.handleError(error);
-            this.logKernelErrors(kclErrorResult.errors, 'exportGeometry');
+            this.logKernelIssues(kclErrorResult.issues, 'exportGeometry');
             return kclErrorResult;
           }
         }
@@ -308,28 +310,28 @@ class ZooWorker extends KernelWorker<ZooOptions> {
             ]);
           } catch (error) {
             const kclErrorResult = this.handleError(error);
-            this.logKernelErrors(kclErrorResult.errors, 'exportGeometry');
+            this.logKernelIssues(kclErrorResult.issues, 'exportGeometry');
             return kclErrorResult;
           }
         }
 
         default: {
-          return createKernelError({ message: `Unsupported export format: ${fileType}` });
+          return createKernelError([{ message: `Unsupported export format: ${fileType}`, severity: 'error' }]);
         }
       }
     } catch (error) {
       const kclErrorResult = this.handleError(error);
-      this.logKernelErrors(kclErrorResult.errors, 'exportGeometry');
+      this.logKernelIssues(kclErrorResult.issues, 'exportGeometry');
       return kclErrorResult;
     }
   }
 
   /**
-   * Logs all kernel errors for debugging
+   * Logs all kernel issues for debugging
    */
-  private logKernelErrors(errors: KernelError[], operation: string): void {
-    for (const kernelError of errors) {
-      this.error(kernelError.message, { operation });
+  private logKernelIssues(errors: KernelIssue[], operation: string): void {
+    for (const kernelIssue of errors) {
+      this.error(kernelIssue.message, { operation });
     }
   }
 
@@ -341,13 +343,13 @@ class ZooWorker extends KernelWorker<ZooOptions> {
   }
 
   /**
-   * Maps an array of CompilationError to KernelError with location info
+   * Maps an array of CompilationError to KernelIssue with location info
    */
-  private mapCompilationErrorsToKernelErrors(
+  private mapCompilationErrorsToKernelIssues(
     errors: CompilationError[],
     code: string,
     fileName: string,
-  ): KernelError[] {
+  ): KernelIssue[] {
     return errors.map((error) => {
       const errorPosition = getErrorPosition(error, code);
       return {
@@ -358,17 +360,18 @@ class ZooWorker extends KernelWorker<ZooOptions> {
           startColumn: errorPosition.column,
         },
         type: 'compilation' as const,
+        severity: error.severity === 'Warning' ? ('warning' as const) : ('error' as const),
       };
     });
   }
 
   private handleError(error: unknown, code?: string, fileName?: string): KernelErrorResult {
     if (isKclError(error)) {
-      return convertKclErrorToKernelError(error, code, fileName);
+      return convertKclErrorToKernelIssue(error, code, fileName);
     }
 
     const mappedError = mapErrorToKclError(error);
-    return convertKclErrorToKernelError(mappedError, code, fileName);
+    return convertKclErrorToKernelIssue(mappedError, code, fileName);
   }
 
   private async getKclUtilsInstance(): Promise<KclUtils> {

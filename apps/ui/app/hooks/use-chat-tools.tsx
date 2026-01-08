@@ -491,21 +491,21 @@ export function useChatTools(): UseChatToolsReturn {
           // Wait for CAD processing to complete
           const cadSnapshot = await waitFor(cadActor, (state) => state.value === 'ready' || state.value === 'error');
 
-          // Get the kernel errors for the specified file
-          const kernelErrors = cadSnapshot.context.kernelErrors.get(resolvedPath);
+          // Get the kernel issues for the specified file
+          const kernelIssues = cadSnapshot.context.kernelIssues.get(resolvedPath);
 
-          const status = cadSnapshot.value === 'error' || (kernelErrors && kernelErrors.length > 0) ? 'error' : 'ready';
+          const status = cadSnapshot.value === 'error' || (kernelIssues && kernelIssues.length > 0) ? 'error' : 'ready';
 
           return {
             status,
-            kernelErrors: kernelErrors ?? [],
+            kernelIssues: kernelIssues ?? [],
             message:
-              status === 'ready' ? 'Kernel compilation successful' : `Found ${kernelErrors?.length ?? 0} error(s)`,
+              status === 'ready' ? 'Kernel compilation successful' : `Found ${kernelIssues?.length ?? 0} error(s)`,
           };
         } catch (error) {
           return {
             status: 'error',
-            kernelErrors: [],
+            kernelIssues: [],
             message: `Failed to get kernel result: ${getErrorMessage(error)}`,
           };
         }

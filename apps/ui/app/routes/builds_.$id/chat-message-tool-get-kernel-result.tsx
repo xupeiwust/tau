@@ -37,9 +37,9 @@ export function ChatMessageToolGetKernelResult({
 
     case 'output-available': {
       const { output } = part;
-      const { status, kernelErrors, message } = output;
+      const { status, kernelIssues, message } = output;
 
-      const hasErrors = kernelErrors && kernelErrors.length > 0;
+      const hasErrors = kernelIssues && kernelIssues.length > 0;
 
       // Success state - use minimal card with success icon, no collapsible content
       if (status === 'ready' && !hasErrors) {
@@ -58,12 +58,12 @@ export function ChatMessageToolGetKernelResult({
         <ChatToolCard isCookieDefaultOpen variant="minimal" status="error" isDefaultOpen={false}>
           <ChatToolCardHeader className="text-destructive hover:text-destructive">
             <ChatToolCardIcon isError icon={XCircle} />
-            <ChatToolCardTitle>{message ?? `Found ${kernelErrors?.length ?? 0} error(s)`}</ChatToolCardTitle>
+            <ChatToolCardTitle>{message ?? `Found ${kernelIssues?.length ?? 0} error(s)`}</ChatToolCardTitle>
           </ChatToolCardHeader>
           {hasErrors ? (
             <ChatToolCardContent>
               <ChatToolCardList maxHeight="max-h-48" className="border-destructive/30">
-                {kernelErrors.map((error, index) => {
+                {kernelIssues.map((error, index) => {
                   const { location } = error;
                   const key = `${location?.startLineNumber ?? index}-${error.message}`;
 

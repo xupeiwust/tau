@@ -65,11 +65,14 @@ class TauWorker extends KernelWorker {
     } catch (error) {
       this.error('Error converting file', { data: error, operation: 'computeGeometry' });
       const errorMessage = error instanceof Error ? error.message : 'Failed to convert file';
-      return createKernelError({
-        message: errorMessage,
-        location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
-        type: 'runtime',
-      });
+      return createKernelError([
+        {
+          message: errorMessage,
+          location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
+          type: 'runtime',
+          severity: 'error',
+        },
+      ]);
     }
   }
 
@@ -81,10 +84,13 @@ class TauWorker extends KernelWorker {
       const glbData = this.glbDataMemory[geometryId];
       if (!glbData) {
         // System error - no location needed
-        return createKernelError({
-          message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
-          type: 'runtime',
-        });
+        return createKernelError([
+          {
+            message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
+            type: 'runtime',
+            severity: 'error',
+          },
+        ]);
       }
 
       this.log('Exporting geometry', { operation: 'exportGeometry', data: { format: fileType } });
@@ -104,10 +110,13 @@ class TauWorker extends KernelWorker {
       this.error('Error exporting geometry', { data: error, operation: 'exportGeometry' });
       const errorMessage = error instanceof Error ? error.message : 'Failed to export geometry';
       // Export error - no specific file location
-      return createKernelError({
-        message: errorMessage,
-        type: 'runtime',
-      });
+      return createKernelError([
+        {
+          message: errorMessage,
+          type: 'runtime',
+          severity: 'error',
+        },
+      ]);
     }
   }
 }

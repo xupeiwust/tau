@@ -233,7 +233,7 @@ describe('ChatController', () => {
       });
 
       // Mock tool result extraction to return a valid result
-      const mockToolResult = { codeErrors: [], kernelErrors: undefined };
+      const mockToolResult = { codeIssues: [], kernelIssues: undefined };
       vi.mocked(tryExtractLastToolResult).mockReturnValue(mockToolResult);
 
       // Act

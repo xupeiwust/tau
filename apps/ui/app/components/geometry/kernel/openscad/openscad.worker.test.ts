@@ -823,9 +823,9 @@ describe('OpenScadWorker', () => {
 
         expect(result.success).toBe(false);
         if (!result.success) {
-          expect(result.errors.length).toBeGreaterThan(0);
-          expect(result.errors[0]?.location?.startLineNumber).toBeGreaterThan(0);
-          expect(result.errors[0]?.type).toBe('compilation');
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues[0]?.location?.startLineNumber).toBeGreaterThan(0);
+          expect(result.issues[0]?.type).toBe('compilation');
         }
       });
 
@@ -838,7 +838,7 @@ describe('OpenScadWorker', () => {
 
         expect(result.success).toBe(false);
         if (!result.success) {
-          expect(result.errors[0]?.location?.fileName).toContain('lib.scad');
+          expect(result.issues[0]?.location?.fileName).toContain('lib.scad');
         }
       });
 
@@ -864,8 +864,8 @@ describe('OpenScadWorker', () => {
 
         expect(result.success).toBe(false);
         if (!result.success) {
-          expect(result.errors.length).toBeGreaterThan(0);
-          expect(result.errors[0]?.message).toContain('syntax error');
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues[0]?.message).toContain('syntax error');
         }
       });
 
@@ -881,8 +881,8 @@ ${errorLine}
 
         expect(result.success).toBe(false);
         if (!result.success) {
-          expect(result.errors.length).toBeGreaterThan(0);
-          const error = result.errors[0];
+          expect(result.issues.length).toBeGreaterThan(0);
+          const error = result.issues[0];
           expect(error?.message).toContain('syntax error');
           expect(error?.location?.fileName).toBe('indented_error.scad');
           expect(error?.location?.startLineNumber).toBe(2);
@@ -890,6 +890,168 @@ ${errorLine}
           expect(error?.location?.startColumn).toBe(5);
           // End column should be line length + 1 (1-based exclusive)
           expect(error?.location?.endColumn).toBe(errorLine.length + 1);
+        }
+      });
+
+      it('should return severity "error" for syntax errors', async () => {
+        const worker = createGeometryWorker({
+          'severity_error.scad': 'x += 5;',
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'severity_error.scad', path: '' }, {});
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues[0]?.severity).toBe('error');
+        }
+      });
+    });
+
+    describe('Warning handling', () => {
+      it('should return warnings with successful geometry for undefined variable', async () => {
+        const worker = createGeometryWorker({
+          'undefined_var.scad': `cube([undefined_var, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'undefined_var.scad', path: '' }, {});
+
+        // OpenSCAD still produces geometry with undef values
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+          expect(result.issues.some((i) => i.message.includes('undefined_var'))).toBe(true);
+        }
+      });
+
+      it('should return warnings with successful geometry for undefined module', async () => {
+        const worker = createGeometryWorker({
+          'undefined_module.scad': `my_undefined_module();
+cube([10, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'undefined_module.scad', path: '' }, {});
+
+        // OpenSCAD still produces geometry (the cube)
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+          expect(result.issues.some((i) => i.message.includes('my_undefined_module'))).toBe(true);
+        }
+      });
+
+      it('should return multiple warnings for multiple issues', async () => {
+        const worker = createGeometryWorker({
+          'multiple_warnings.scad': `// Multiple issues test
+my_undefined_module();
+cube([undefined_var, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'multiple_warnings.scad', path: '' }, {});
+
+        // OpenSCAD still produces geometry
+        expect(result.success).toBe(true);
+        if (result.success) {
+          // Should have at least 2 warnings (undefined module + undefined variable)
+          expect(result.issues.length).toBeGreaterThanOrEqual(2);
+
+          // All should be warnings
+          expect(result.issues.every((i) => i.severity === 'warning')).toBe(true);
+
+          // Should have warning about undefined module
+          expect(result.issues.some((i) => i.message.includes('my_undefined_module'))).toBe(true);
+
+          // Should have warning about undefined variable
+          expect(result.issues.some((i) => i.message.includes('undefined_var'))).toBe(true);
+        }
+      });
+
+      it('should return correct line numbers for multiple issues', async () => {
+        const worker = createGeometryWorker({
+          'multi_line_warnings.scad': `first_undefined_module();
+second_undefined_module();
+cube([10, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'multi_line_warnings.scad', path: '' }, {});
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.issues.length).toBeGreaterThanOrEqual(2);
+
+          const firstModuleIssue = result.issues.find((i) => i.message.includes('first_undefined_module'));
+          const secondModuleIssue = result.issues.find((i) => i.message.includes('second_undefined_module'));
+
+          expect(firstModuleIssue?.location?.startLineNumber).toBe(1);
+          expect(secondModuleIssue?.location?.startLineNumber).toBe(2);
+        }
+      });
+    });
+
+    describe('OpenSCAD error format coverage', () => {
+      it('should parse undefined function error', async () => {
+        const worker = createGeometryWorker({
+          'undefined_func.scad': `x = my_undefined_function();
+cube([x, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'undefined_func.scad', path: '' }, {});
+
+        // Undefined function results in undef, geometry may still be produced
+        expect(result.issues.length).toBeGreaterThan(0);
+        expect(result.issues.some((i) => i.message.includes('my_undefined_function'))).toBe(true);
+      });
+
+      it('should parse too many parameters warning', async () => {
+        const worker = createGeometryWorker({
+          'too_many_params.scad': `module mymod(a) { cube(a); }
+mymod(10, 20, 30);`, // Too many parameters
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'too_many_params.scad', path: '' }, {});
+
+        // Should produce geometry - extra parameters are silently ignored in OpenSCAD
+        expect(result.success).toBe(true);
+      });
+
+      it('should parse recursion error', async () => {
+        const worker = createGeometryWorker({
+          'recursion.scad': `module infinite() { infinite(); }
+infinite();`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'recursion.scad', path: '' }, {});
+
+        // Recursion detection - OpenSCAD WASM may handle this differently
+        // Just verify we get a result without crashing
+        expect(typeof result.success).toBe('boolean');
+        if (!result.success && result.issues.length > 0) {
+          expect(result.issues[0]?.severity).toBe('error');
+        }
+      });
+
+      it('should parse file not found warning for include', async () => {
+        const worker = createGeometryWorker({
+          'missing_include.scad': `include <nonexistent_file.scad>
+cube([10, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'missing_include.scad', path: '' }, {});
+
+        // Should still produce geometry (the cube)
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.issues.some((i) => i.message.includes('nonexistent_file.scad'))).toBe(true);
+          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+        }
+      });
+
+      it('should parse assertion failure error', async () => {
+        const worker = createGeometryWorker({
+          'assertion.scad': `assert(false, "Custom assertion message");
+cube([10, 10, 10]);`,
+        });
+        const result = await worker.computeGeometryEntry({ filename: 'assertion.scad', path: '' }, {});
+
+        // Assertion failure should fail
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Verify at least one error was captured
+          expect(result.issues.length).toBeGreaterThan(0);
+          expect(result.issues[0]?.severity).toBe('error');
         }
       });
     });

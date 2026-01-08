@@ -8,7 +8,7 @@ import type {
   KernelStackFrame,
   ExportGeometryResult,
   ExtractParametersResult,
-  KernelError,
+  KernelIssue,
   ExtractNameResult,
   ExportFormat,
   GeometryGltf,
@@ -100,10 +100,13 @@ try {
       return createKernelSuccess((result ?? {}) as string | undefined);
     } catch {
       // System error - no location needed
-      return createKernelError({
-        message: 'Failed to extract default name from code',
-        type: 'runtime',
-      });
+      return createKernelError([
+        {
+          message: 'Failed to extract default name from code',
+          type: 'runtime',
+          severity: 'error',
+        },
+      ]);
     }
   }
 
@@ -197,8 +200,8 @@ try {
         jsonSchema,
       });
     } catch (error) {
-      const kernelError = await this.formatKernelError(error, this.activeFilePath);
-      return createKernelError(kernelError);
+      const kernelIssue = await this.formatKernelIssue(error, this.activeFilePath);
+      return createKernelError([kernelIssue]);
     }
   }
 
@@ -230,8 +233,8 @@ try {
           data: error,
           operation: 'computeGeometry',
         });
-        const kernelError = await this.formatKernelError(error, this.activeFilePath);
-        return createKernelError(kernelError);
+        const kernelIssue = await this.formatKernelIssue(error, this.activeFilePath);
+        return createKernelError([kernelIssue]);
       }
 
       const renderStartTime = performance.now();
@@ -272,14 +275,11 @@ try {
       const totalTime = performance.now() - startTime;
       this.log(`Total computeGeometry time: ${totalTime}ms`, { operation: 'computeGeometry' });
 
-      return {
-        success: true,
-        data: [...gltfShapes, ...shapes2d],
-      };
+      return createKernelSuccess([...gltfShapes, ...shapes2d]);
     } catch (error) {
       this.error('Error in computeGeometry', { data: error, operation: 'computeGeometry' });
-      const kernelError = await this.formatKernelError(error, this.activeFilePath);
-      return createKernelError(kernelError);
+      const kernelIssue = await this.formatKernelIssue(error, this.activeFilePath);
+      return createKernelError([kernelIssue]);
     }
   }
 
@@ -297,10 +297,13 @@ try {
     try {
       if (!this.shapesMemory[geometryId]) {
         // System error - no location needed
-        return createKernelError({
-          message: `Geometry ${geometryId} not computed yet`,
-          type: 'runtime',
-        });
+        return createKernelError([
+          {
+            message: `Geometry ${geometryId} not computed yet`,
+            type: 'runtime',
+            severity: 'error',
+          },
+        ]);
       }
 
       if (fileType === 'glb' || fileType === 'gltf') {
@@ -353,13 +356,16 @@ try {
       return createKernelSuccess(result);
     } catch (error) {
       // Export errors don't have file context, so omit location
-      const kernelError = await this.formatKernelError(error);
-      return createKernelError({
-        message: kernelError.message,
-        stack: kernelError.stack,
-        stackFrames: kernelError.stackFrames,
-        type: kernelError.type,
-      });
+      const kernelIssue = await this.formatKernelIssue(error);
+      return createKernelError([
+        {
+          message: kernelIssue.message,
+          stack: kernelIssue.stack,
+          stackFrames: kernelIssue.stackFrames,
+          type: kernelIssue.type,
+          severity: 'error',
+        },
+      ]);
     }
   }
 
@@ -487,8 +493,8 @@ return main(replicad, __inputParams || dp)
     };
   }
 
-  private async formatKernelError(error: unknown, fileName?: string): Promise<KernelError> {
-    this.debug('Formatting kernel error', { data: error, operation: 'formatKernelError' });
+  private async formatKernelIssue(error: unknown, fileName?: string): Promise<KernelIssue> {
+    this.debug('Formatting kernel error', { data: error, operation: 'formatKernelIssue' });
     let message = 'Unknown error occurred';
     let stack: string | undefined;
     let kernelStackFrames: KernelStackFrame[] = [];
@@ -508,7 +514,7 @@ return main(replicad, __inputParams || dp)
           type = 'kernel';
         }
       } catch (ocError) {
-        this.warn('Failed to format OpenCascade exception', { data: ocError, operation: 'formatKernelError' });
+        this.warn('Failed to format OpenCascade exception', { data: ocError, operation: 'formatKernelIssue' });
         message = `Kernel error ${error}`;
         type = 'kernel';
       }
@@ -533,7 +539,7 @@ return main(replicad, __inputParams || dp)
         startLineNumber = userFrame?.lineNumber ?? 0;
         startColumn = userFrame?.columnNumber ?? 0;
       } catch (parseError) {
-        this.warn('Failed to parse error stack', { data: parseError, operation: 'formatKernelError' });
+        this.warn('Failed to parse error stack', { data: parseError, operation: 'formatKernelIssue' });
       }
     } else if (typeof error === 'string') {
       message = error;
@@ -549,6 +555,7 @@ return main(replicad, __inputParams || dp)
       stack,
       stackFrames: kernelStackFrames.length > 0 ? kernelStackFrames : undefined,
       type,
+      severity: 'error' as const,
     };
   }
 

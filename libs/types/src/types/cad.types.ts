@@ -2,7 +2,7 @@ import type { LengthSymbol } from '@taucad/units';
 import type { StandardSchemaV1 } from '#types/schema.types.js';
 import type { engineeringDisciplines } from '#constants/cad.constants.js';
 
-export type CodeError = {
+export type CodeIssue = {
   message: string;
   startLineNumber: number;
   endLineNumber: number;

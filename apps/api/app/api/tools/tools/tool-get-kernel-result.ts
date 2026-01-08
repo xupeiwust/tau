@@ -16,7 +16,7 @@ Use this tool AFTER using \`edit_file\` or \`create_file\` to verify that your c
 
 Returns:
 - status: 'ready' if compilation succeeded, 'error' if there were errors, 'pending' if still processing
-- kernelErrors: Array of compilation/runtime errors if any occurred
+- kernelIssues: Array of compilation/runtime errors if any occurred
 - message: Human-readable status message
 
 Best Practice: Always call this tool after making file changes to ensure the model renders correctly before proceeding.`,

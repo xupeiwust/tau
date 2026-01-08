@@ -18,25 +18,29 @@ export type ErrorLocation = {
   endColumn?: number;
 };
 
-export type KernelErrorType = 'compilation' | 'runtime' | 'kernel' | 'connection' | 'unknown';
+export type KernelIssueType = 'compilation' | 'runtime' | 'kernel' | 'connection' | 'unknown';
 
-export type KernelError = {
+export type IssueSeverity = 'error' | 'warning' | 'info';
+
+export type KernelIssue = {
   message: string;
   location?: ErrorLocation;
   stack?: string;
   stackFrames?: KernelStackFrame[];
-  type?: KernelErrorType;
+  type?: KernelIssueType;
+  severity: IssueSeverity;
 };
 
 // Result pattern types for kernel operations
 export type KernelSuccessResult<T> = {
   success: true;
   data: T;
+  issues: KernelIssue[];
 };
 
 export type KernelErrorResult = {
   success: false;
-  errors: KernelError[];
+  issues: KernelIssue[];
 };
 
 export type KernelProvider = (typeof kernelProviders)[number];

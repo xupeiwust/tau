@@ -9,7 +9,7 @@ import type {
   ExtractParametersResult,
   ExportFormat,
   GeometryGltf,
-  KernelError,
+  KernelIssue,
 } from '@taucad/types';
 import type { OpenScadParameterExport } from '#components/geometry/kernel/openscad/parse-parameters.js';
 import {
@@ -23,11 +23,7 @@ import { asBuffer } from '#utils/file.utils.js';
 import { logLevels } from '#types/console.types.js';
 import type { LogLevel } from '#types/console.types.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
-import {
-  createKernelError,
-  createKernelErrors,
-  createKernelSuccess,
-} from '#components/geometry/kernel/utils/kernel-helpers.js';
+import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import type { AddErrorFn, GetFileContentsFn } from '#components/geometry/kernel/openscad/parse-output.js';
 import { parseStderrLine } from '#components/geometry/kernel/openscad/parse-output.js';
 // Font files for OpenSCAD text() rendering (Vite ?url imports)
@@ -158,10 +154,13 @@ export class OpenScadWorker extends KernelWorker {
     } catch (error) {
       this.error('Error extracting parameters', { data: error });
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createKernelError({
-        message: errorMessage,
-        location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
-      });
+      return createKernelError([
+        {
+          message: errorMessage,
+          location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
+          severity: 'error',
+        },
+      ]);
     }
   }
 
@@ -178,10 +177,10 @@ export class OpenScadWorker extends KernelWorker {
       return fileContentsCache.get(fileName);
     };
 
-    // Collect errors from stderr parsing in real-time
-    const collectedErrors: KernelError[] = [];
-    const addError = (error: KernelError): void => {
-      collectedErrors.push(error);
+    // Collect issues from stderr parsing in real-time
+    const collectedIssues: KernelIssue[] = [];
+    const addError = (issue: KernelIssue): void => {
+      collectedIssues.push(issue);
     };
 
     try {
@@ -212,16 +211,19 @@ export class OpenScadWorker extends KernelWorker {
       const result = instance.callMain(args);
 
       if (result !== 0) {
-        // Return parsed errors if we collected any from stderr
-        if (collectedErrors.length > 0) {
-          return createKernelErrors(collectedErrors);
+        // Return all collected issues (errors + warnings) for full diagnostic context
+        if (collectedIssues.length > 0) {
+          return createKernelError(collectedIssues);
         }
 
         // Fallback error when OpenSCAD fails without a parseable error message
-        return createKernelError({
-          message: 'OpenSCAD build failed',
-          location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
-        });
+        return createKernelError([
+          {
+            message: 'OpenSCAD build failed',
+            location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
+            severity: 'error',
+          },
+        ]);
       }
 
       const offData = instance.FS.readFile(outputFile, { encoding: 'utf8' });
@@ -234,20 +236,25 @@ export class OpenScadWorker extends KernelWorker {
         content: gltfBlob,
       };
 
-      return createKernelSuccess([geometry]);
+      // Return warnings (non-error issues) with the successful result
+      const warnings = collectedIssues.filter((issue) => issue.severity !== 'error');
+      return createKernelSuccess([geometry], warnings);
     } catch (error) {
       this.error('Error while building geometries from code', { data: error });
 
-      // Return parsed errors if we collected any before the exception
-      if (collectedErrors.length > 0) {
-        return createKernelErrors(collectedErrors);
+      // Return parsed issues if we collected any before the exception
+      if (collectedIssues.length > 0) {
+        return createKernelError(collectedIssues);
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createKernelError({
-        message: errorMessage,
-        location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
-      });
+      return createKernelError([
+        {
+          message: errorMessage,
+          location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
+          severity: 'error',
+        },
+      ]);
     }
   }
 
@@ -259,9 +266,12 @@ export class OpenScadWorker extends KernelWorker {
       const offData = this.offDataMemory[geometryId];
       if (!offData) {
         // System error - no location needed
-        return createKernelError({
-          message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
-        });
+        return createKernelError([
+          {
+            message: `Geometry ${geometryId} not computed yet. Please build geometries before exporting.`,
+            severity: 'error',
+          },
+        ]);
       }
 
       switch (fileType) {
@@ -291,12 +301,12 @@ export class OpenScadWorker extends KernelWorker {
         }
 
         default: {
-          return createKernelError({ message: `Unsupported export format: ${fileType}` });
+          return createKernelError([{ message: `Unsupported export format: ${fileType}`, severity: 'error' }]);
         }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return createKernelError({ message: errorMessage });
+      return createKernelError([{ message: errorMessage, severity: 'error' }]);
     }
   }
 
