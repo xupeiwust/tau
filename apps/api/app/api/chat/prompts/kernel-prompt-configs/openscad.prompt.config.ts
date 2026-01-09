@@ -9,7 +9,7 @@ export function createOpenscadConfig(canonicalExample: string): KernelConfig {
     fileExtension: '.scad',
     languageName: 'OpenSCAD',
 
-    codeStandards: `Output executable OpenSCAD code. Use snake_case for variables (e.g., \`grip_diameter\`). Define modules for reusable geometry.`,
+    codeStandards: `Output executable OpenSCAD code. Use snake_case for variables (e.g., \`grip_diameter\`). Define modules for reusable geometry. Use hex colors (e.g., \`color("#8B5A2B")\`).`,
 
     commonErrorPatterns:
       'missing semicolons, undefined variables, invalid dimensions (must be positive), unclosed modules',
