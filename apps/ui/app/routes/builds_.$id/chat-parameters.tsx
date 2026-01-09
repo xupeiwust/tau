@@ -44,6 +44,7 @@ export const ChatParametersTrigger = memo(function ({
           <KeyShortcut variant="tooltip">{formatKeyCombination(toggleParametersKeyCombination)}</KeyShortcut>
         </div>
       }
+      tooltipSide="left"
       className={isOpen ? 'text-primary' : undefined}
       onClick={onToggle}
     />

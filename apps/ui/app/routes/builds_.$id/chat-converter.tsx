@@ -52,6 +52,7 @@ export const ChatConverterTrigger = memo(function ({
           <KeyShortcut variant="tooltip">{formatKeyCombination(toggleConverterKeyCombination)}</KeyShortcut>
         </div>
       }
+      tooltipSide="left"
       className={isOpen ? 'text-primary' : undefined}
       onClick={onToggle}
     />
