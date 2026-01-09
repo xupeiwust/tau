@@ -46,6 +46,14 @@ import {
   FloatingPanelContentTitle,
 } from '#components/ui/floating-panel.js';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#components/ui/dialog.js';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -245,6 +253,8 @@ export const ChatEditorFileTree = memo(function ({
   const [pendingFolder, setPendingFolder] = useState<PendingFolder | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<PendingFile | undefined>(undefined);
   const pendingFileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState<Array<ItemInstance<TreeItemData>>>([]);
 
   // Build virtual folder structure from flat file paths
   const allPaths = useMemo(() => {
@@ -558,39 +568,37 @@ export const ChatEditorFileTree = memo(function ({
     setPendingFolder({ parentPath, error: undefined });
   }, [focusedItem, tree]);
 
-  const handleDelete = useCallback(
-    (items: Array<ItemInstance<TreeItemData>>) => {
-      const count = items.length;
-      const itemWord = count === 1 ? 'item' : 'items';
+  const handleDelete = useCallback((items: Array<ItemInstance<TreeItemData>>) => {
+    setItemsToDelete(items);
+    setDeleteDialogOpen(true);
+  }, []);
 
-      // eslint-disable-next-line no-alert -- Confirmation for destructive action
-      if (globalThis.confirm(`Delete ${count} ${itemWord}?`)) {
-        for (const currentItem of items) {
-          const path = currentItem.getId();
-          if (path === rootId) {
-            continue;
-          }
-
-          if (currentItem.isFolder()) {
-            // Delete all files in folder
-            const nested = fileTree.filter((f) => f.path.startsWith(`${path}/`));
-            for (const file of nested) {
-              // Delete file from fileManager
-              fileManagerRef.send({ type: 'deleteFile', path: file.path });
-              // Close file in fileExplorer if it's open
-              fileExplorerRef.send({ type: 'closeFile', path: file.path });
-            }
-          } else {
-            // Delete file from fileManager
-            fileManagerRef.send({ type: 'deleteFile', path });
-            // Close file in fileExplorer if it's open
-            fileExplorerRef.send({ type: 'closeFile', path });
-          }
-        }
+  const confirmDelete = useCallback(() => {
+    for (const currentItem of itemsToDelete) {
+      const path = currentItem.getId();
+      if (path === rootId) {
+        continue;
       }
-    },
-    [fileExplorerRef, fileManagerRef, fileTree],
-  );
+
+      if (currentItem.isFolder()) {
+        // Delete all files in folder
+        const nested = fileTree.filter((f) => f.path.startsWith(`${path}/`));
+        for (const file of nested) {
+          // Delete file from fileManager
+          fileManagerRef.send({ type: 'deleteFile', path: file.path });
+          // Close file in fileExplorer if it's open
+          fileExplorerRef.send({ type: 'closeFile', path: file.path });
+        }
+      } else {
+        // Delete file from fileManager
+        fileManagerRef.send({ type: 'deleteFile', path });
+        // Close file in fileExplorer if it's open
+        fileExplorerRef.send({ type: 'closeFile', path });
+      }
+    }
+    setDeleteDialogOpen(false);
+    setItemsToDelete([]);
+  }, [fileExplorerRef, fileManagerRef, fileTree, itemsToDelete]);
 
   const handleDuplicate = useCallback((_items: Array<ItemInstance<TreeItemData>>) => {
     // Duplication requires file-manager content, which isn't exposed yet
@@ -643,6 +651,19 @@ export const ChatEditorFileTree = memo(function ({
     [uploadTargetPath, tree, fileManagerRef, fileExplorerRef],
   );
 
+  // Get display name for delete dialog
+  const deleteItemName = useMemo(() => {
+    if (itemsToDelete.length === 0) {
+      return '';
+    }
+
+    if (itemsToDelete.length === 1) {
+      return itemsToDelete[0]?.getItemName() ?? '';
+    }
+
+    return `${itemsToDelete.length} items`;
+  }, [itemsToDelete]);
+
   return (
     <>
       <input
@@ -653,6 +674,28 @@ export const ChatEditorFileTree = memo(function ({
         aria-label="Upload files"
         onChange={handleFileUpload}
       />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Are you sure you want to delete '{deleteItemName}'?</DialogTitle>
+            <DialogDescription>This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <FloatingPanelContent>
         <FloatingPanelContentHeader>
