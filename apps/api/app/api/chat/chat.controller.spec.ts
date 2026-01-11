@@ -15,12 +15,12 @@ import { ChatService } from '#api/chat/chat.service.js';
 import { ToolService } from '#api/tools/tool.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
 // Import mocked modules to access mock functions
-import { tryExtractLastToolResult } from '#api/chat/utils/extract-tool-result.js';
+import { tryExtractAllToolResults } from '#api/chat/utils/extract-tool-result.js';
 import { LangGraphAdapter } from '#api/chat/utils/langgraph-adapter.js';
 
 // Mock the extract-tool-result module
 vi.mock('#api/chat/utils/extract-tool-result.js', () => ({
-  tryExtractLastToolResult: vi.fn(),
+  tryExtractAllToolResults: vi.fn(),
 }));
 
 // Mock the convert-messages module
@@ -233,15 +233,18 @@ describe('ChatController', () => {
       });
 
       // Mock tool result extraction to return a valid result
-      const mockToolResult = { codeIssues: [], kernelIssues: undefined };
-      vi.mocked(tryExtractLastToolResult).mockReturnValue(mockToolResult);
+      // tryExtractAllToolResults returns an array of ToolResult objects
+      const mockToolResults = [
+        { toolCallId: 'tool-call-1', toolName: 'getKernelResult', result: '{"codeIssues":[],"kernelIssues":null}' },
+      ];
+      vi.mocked(tryExtractAllToolResults).mockReturnValue(mockToolResults);
 
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
 
       // Assert
       expect(mockGraph.getState).toHaveBeenCalled();
-      expect(tryExtractLastToolResult).toHaveBeenCalled();
+      expect(tryExtractAllToolResults).toHaveBeenCalled();
 
       // Should be called with a Command containing the tool result
       const streamEventsCall = mockGraph.streamEvents.mock.calls[0];
@@ -269,14 +272,14 @@ describe('ChatController', () => {
       });
 
       // Mock tool result extraction to return undefined (no valid tool result)
-      vi.mocked(tryExtractLastToolResult).mockReturnValue(undefined);
+      vi.mocked(tryExtractAllToolResults).mockReturnValue(undefined);
 
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
 
       // Assert
       expect(mockGraph.getState).toHaveBeenCalled();
-      expect(tryExtractLastToolResult).toHaveBeenCalled();
+      expect(tryExtractAllToolResults).toHaveBeenCalled();
 
       // Should fallback to normal execution with messages, NOT Command
       expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
