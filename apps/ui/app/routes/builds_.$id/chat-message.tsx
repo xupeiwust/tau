@@ -4,7 +4,7 @@ import { messageRole } from '@taucad/chat/constants';
 import type { MyUIMessage, UsageData } from '@taucad/chat';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
 import { ChatMessageReasoning } from '#routes/builds_.$id/chat-message-reasoning.js';
-import { ChatMessageUsage } from '#routes/builds_.$id/chat-message-usage.js';
+import { ChatMessageDataUsage } from '#routes/builds_.$id/chat-message-data-usage.js';
 import { ChatMessageText } from '#routes/builds_.$id/chat-message-text.js';
 import { Tooltip, TooltipTrigger, TooltipContent } from '#components/ui/tooltip.js';
 import { CopyButton } from '#components/copy-button.js';
@@ -323,7 +323,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
               <TooltipContent side="bottom">Switch model</TooltipContent>
             </Tooltip>
             <div className="flex flex-row items-center justify-end gap-1">
-              {usageParts.length > 0 ? <ChatMessageUsage usageParts={usageParts} /> : null}
+              {usageParts.length > 0 ? <ChatMessageDataUsage usageParts={usageParts} /> : null}
             </div>
           </div>
         </When>

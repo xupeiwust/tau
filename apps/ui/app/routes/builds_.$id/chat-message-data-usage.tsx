@@ -28,7 +28,11 @@ type UsageTotals = {
  * Component for displaying usage data from data parts.
  * Aggregates multiple usage parts across agent turns and displays totals.
  */
-export function ChatMessageUsage({ usageParts }: { readonly usageParts: UsageData[] }): React.JSX.Element | undefined {
+export function ChatMessageDataUsage({
+  usageParts,
+}: {
+  readonly usageParts: UsageData[];
+}): React.JSX.Element | undefined {
   const { data: models } = useModels();
   const [showModelCost] = useCookie(cookieName.chatModelCost, true);
 
