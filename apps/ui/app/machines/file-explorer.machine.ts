@@ -23,15 +23,28 @@ type FileExplorerContext = {
   activeFilePath: string | undefined;
 };
 
+/**
+ * Source of a file open event.
+ * - 'user': User-initiated action (e.g., clicked on file in tree, breadcrumb, link) - should open editor panel
+ * - 'machine': Programmatic action (e.g., build load, chat tool) - should not auto-open editor panel
+ */
+export type FileOpenSource = 'user' | 'machine';
+
 // Define the types of events the machine can receive
 type FileExplorerEvent =
-  | { type: 'openFile'; path: string; lineNumber?: number; column?: number }
+  | { type: 'openFile'; path: string; source: FileOpenSource; lineNumber?: number; column?: number }
   | { type: 'closeFile'; path: string }
   | { type: 'renameFile'; oldPath: string; newPath: string }
   | { type: 'setActiveFile'; path: string }
   | { type: 'closeAll' };
 
-type FileExplorerEmitted = { type: 'fileOpened'; path: string; lineNumber?: number; column?: number };
+type FileExplorerEmitted = {
+  type: 'fileOpened';
+  path: string;
+  lineNumber?: number;
+  column?: number;
+  source?: FileOpenSource;
+};
 
 /**
  * File Explorer Machine
@@ -63,6 +76,7 @@ export const fileExplorerMachine = setup({
             path: event.path,
             lineNumber: event.lineNumber,
             column: event.column,
+            source: event.source,
           });
           return;
         }
@@ -76,6 +90,7 @@ export const fileExplorerMachine = setup({
           path: event.path,
           lineNumber: event.lineNumber,
           column: event.column,
+          source: event.source,
         });
         return;
       }
@@ -96,6 +111,7 @@ export const fileExplorerMachine = setup({
         path: event.path,
         lineNumber: event.lineNumber,
         column: event.column,
+        source: event.source,
       });
     }),
 

@@ -13,11 +13,11 @@ import { joinPath, normalizePath } from '#utils/path.utils.js';
  */
 /**
  * The source of the file write operation.
- * - 'editor': Write originated from user typing in the Monaco editor
- * - 'file-tree': Write originated from file tree operations (create file, upload, etc.)
- * - 'external': Write originated from external source (e.g., chat AI)
+ * - 'editor': Write originated from user typing in the Monaco editor (special case for recursion prevention)
+ * - 'user': Write originated from user action (create file, upload, etc.)
+ * - 'machine': Write originated from machine/programmatic source (e.g., chat AI)
  */
-type FileWriteSource = 'editor' | 'file-tree' | 'external';
+type FileWriteSource = 'editor' | 'user' | 'machine';
 
 type FileManagerContext = {
   worker: Worker | undefined;
@@ -270,7 +270,7 @@ type FileManagerEventInternal =
   | { type: 'writeFiles'; files: Record<string, { content: Uint8Array }> }
   | { type: 'readFile'; path: string }
   | { type: 'renameFile'; oldPath: string; newPath: string }
-  | { type: 'deleteFile'; path: string; source?: FileWriteSource };
+  | { type: 'deleteFile'; path: string; source: FileWriteSource };
 
 type FileManagerEventExternal = OutputFrom<(typeof fileManagerActors)[FileManagerActorNames]>;
 type FileManagerEventExternalDone = DoneActorEvent<FileManagerEventExternal, FileManagerActorNames>;
@@ -388,9 +388,9 @@ export const fileManagerMachine = setup({
           return openFiles;
         }
 
-        // For file-tree operations, always add to openFiles (user explicitly created the file)
+        // For user operations, always add to openFiles (user explicitly created the file)
         // For other sources (editor, external), only update if already open
-        if (lastWriteSource === 'file-tree' || openFiles.has(lastWrittenPath)) {
+        if (lastWriteSource === 'user' || openFiles.has(lastWrittenPath)) {
           const newMap = new Map(openFiles);
           newMap.set(lastWrittenPath, lastWrittenData);
           return newMap;
@@ -493,7 +493,7 @@ export const fileManagerMachine = setup({
       },
       lastDeleteSource({ event }) {
         assertEvent(event, 'deleteFile');
-        return event.source ?? 'file-tree';
+        return event.source;
       },
     }),
 
@@ -661,7 +661,7 @@ export const fileManagerMachine = setup({
     emitFileDeleted: emit(({ context }) => ({
       type: 'fileDeleted' as const,
       path: context.lastDeletedPath ?? '',
-      source: context.lastDeleteSource ?? 'file-tree',
+      source: context.lastDeleteSource ?? 'user',
     })),
   },
   guards: {

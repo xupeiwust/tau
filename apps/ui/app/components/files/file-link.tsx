@@ -54,6 +54,7 @@ export function FileLink({
       build.fileExplorerRef.send({
         type: 'openFile',
         path,
+        source: 'user',
         lineNumber: lineNumber ?? 1,
         column: column ?? 1,
       });

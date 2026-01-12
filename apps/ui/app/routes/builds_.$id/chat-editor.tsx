@@ -235,9 +235,9 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
         if (existingModel.getValue() !== newContent) {
           existingModel.setValue(newContent);
         }
-      } else if (source === 'file-tree') {
-        // For file-tree operations (user created/uploaded), create a new model
-        // External sources (chat AI) should not auto-open files that weren't already open
+      } else if (source === 'user') {
+        // For user operations (user created/uploaded), create a new model
+        // Machine sources (chat AI) should not auto-open files that weren't already open
         const extension = getFileExtension(path);
         const language = languageFromExtension[extension as keyof typeof languageFromExtension];
         monaco.editor.createModel(newContent, language, uri);
@@ -256,8 +256,11 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
     }
 
     const subscription = fileExplorerActor.on('fileOpened', (event) => {
-      // Always open the editor panel when a file is opened
-      setIsEditorOpen(true);
+      // Only open the editor panel when the file was opened by user action
+      // Machine sources (build load, chat tools) should not auto-open the editor panel
+      if (event.source === 'user') {
+        setIsEditorOpen(true);
+      }
 
       // Only jump if a line number is specified
       const { lineNumber, column } = event;

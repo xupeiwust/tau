@@ -48,7 +48,7 @@ export function ChatMessageToolFileEdit({
           throw new Error('No content received from file edit service');
         }
 
-        void fileManager.writeFile(resolvedPath, encodeTextFile(result.editedContent), { source: 'external' });
+        void fileManager.writeFile(resolvedPath, encodeTextFile(result.editedContent), { source: 'machine' });
       }
 
       if (snapshot.matches('error')) {

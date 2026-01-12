@@ -140,7 +140,7 @@ export function useChatTools(): UseChatToolsReturn {
           throw new Error('No result received from file edit service');
         }
 
-        await fileManager.writeFile(resolvedPath, encodeTextFile(result.editedContent), { source: 'external' });
+        await fileManager.writeFile(resolvedPath, encodeTextFile(result.editedContent), { source: 'machine' });
 
         // Return with diffStats for UI display
         const linesAdded = result.diffStats?.linesAdded;
@@ -323,12 +323,12 @@ export function useChatTools(): UseChatToolsReturn {
         // This ensures the event won't be dropped if machine is busy with another operation
         await waitFor(fileManagerRef, (state) => state.matches('ready') || state.matches('error'));
 
-        // Send write file event - use 'file-tree' source for proper tracking
+        // Send write file event - use 'user' source for proper tracking
         fileManagerRef.send({
           type: 'writeFile',
           path: resolvedPath,
           data: encodeTextFile(input.content),
-          source: 'external',
+          source: 'machine',
         });
 
         // Calculate line count for new file (all lines are additions)
@@ -359,7 +359,7 @@ export function useChatTools(): UseChatToolsReturn {
         await waitFor(fileManagerRef, (state) => state.matches('ready') || state.matches('error'));
 
         // Send delete event to file manager machine
-        fileManagerRef.send({ type: 'deleteFile', path: resolvedPath, source: 'external' });
+        fileManagerRef.send({ type: 'deleteFile', path: resolvedPath, source: 'machine' });
 
         // Return immediately without waiting for completion
         // LLM should use get_kernel_result to verify changes

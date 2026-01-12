@@ -231,7 +231,7 @@ export function registerKclNavigation(
 
     // Open the file through the file explorer
     log.debug('Opening file through file explorer:', relativePath);
-    fileExplorerRef.send({ type: 'openFile', path: relativePath });
+    fileExplorerRef.send({ type: 'openFile', path: relativePath, source: 'user' });
 
     // Return the source editor to prevent Monaco from trying to navigate internally
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- Monaco internal API

@@ -94,14 +94,14 @@ export function BuildProvider({
   useEffect(() => {
     // FileManager → CAD coordination
     const fileWrittenSub = fileManager.fileManagerRef.on('fileWritten', (event) => {
-      // For external sources (LLM/chat tools streaming to multiple files),
+      // For machine sources (LLM/chat tools streaming to multiple files),
       // always render the active file to avoid switching context, but ensure
       // downstream file changes are incorporated into the active file's render
-      const isExternal = event.source === 'external';
+      const isMachine = event.source === 'machine';
       const { activeFilePath } = fileExplorerRef.getSnapshot().context;
 
-      if (isExternal) {
-        // External writes: always re-render the active file to pick up any
+      if (isMachine) {
+        // Machine writes: always re-render the active file to pick up any
         // downstream changes (e.g., imported files that were modified)
         if (activeFilePath) {
           cadRef.send({
@@ -110,7 +110,7 @@ export function BuildProvider({
           });
         }
       } else {
-        // Non-external writes: render the written file directly
+        // Non-machine writes: render the written file directly
         cadRef.send({
           type: 'setFile',
           file: { path: `/builds/${buildId}`, filename: event.path },

@@ -141,7 +141,7 @@ export const ChatEditorFileTree = memo(function ({
     const buildLoadedSub = buildRef.on('buildLoaded', (event) => {
       const mainFile = event.build.assets.mechanical?.main;
       if (mainFile) {
-        fileExplorerRef.send({ type: 'openFile', path: mainFile });
+        fileExplorerRef.send({ type: 'openFile', path: mainFile, source: 'machine' });
       }
     });
 
@@ -157,16 +157,16 @@ export const ChatEditorFileTree = memo(function ({
     });
 
     const fileDeletedSub = fileManagerRef.on('fileDeleted', (event) => {
-      // Only show toast for file-tree operations (user-initiated deletes)
-      if (event.source === 'file-tree') {
+      // Only show toast for user operations (user-initiated deletes)
+      if (event.source === 'user') {
         const fileName = event.path.split('/').pop() ?? event.path;
         toast.success(`Deleted: ${fileName}`);
       }
     });
 
     const fileWrittenSub = fileManagerRef.on('fileWritten', (event) => {
-      // Only show toast for file-tree operations (user-initiated creates/uploads)
-      if (event.source === 'file-tree') {
+      // Only show toast for user operations (user-initiated creates/uploads)
+      if (event.source === 'user') {
         const fileName = event.path.split('/').pop() ?? event.path;
         // Check if it's a .gitkeep (folder creation marker)
         if (fileName === '.gitkeep') {
@@ -447,6 +447,7 @@ export const ChatEditorFileTree = memo(function ({
         fileExplorerRef.send({
           type: 'openFile',
           path: item.getId(),
+          source: 'user',
         });
       }
     },
@@ -585,13 +586,13 @@ export const ChatEditorFileTree = memo(function ({
         const nested = fileTree.filter((f) => f.path.startsWith(`${path}/`));
         for (const file of nested) {
           // Delete file from fileManager
-          fileManagerRef.send({ type: 'deleteFile', path: file.path });
+          fileManagerRef.send({ type: 'deleteFile', path: file.path, source: 'user' });
           // Close file in fileExplorer if it's open
           fileExplorerRef.send({ type: 'closeFile', path: file.path });
         }
       } else {
         // Delete file from fileManager
-        fileManagerRef.send({ type: 'deleteFile', path });
+        fileManagerRef.send({ type: 'deleteFile', path, source: 'user' });
         // Close file in fileExplorer if it's open
         fileExplorerRef.send({ type: 'closeFile', path });
       }
@@ -633,11 +634,11 @@ export const ChatEditorFileTree = memo(function ({
             type: 'writeFile',
             path: filePath,
             data: uint8Array,
-            source: 'file-tree',
+            source: 'user',
           });
 
           // Open file in fileExplorer
-          fileExplorerRef.send({ type: 'openFile', path: filePath });
+          fileExplorerRef.send({ type: 'openFile', path: filePath, source: 'user' });
         } catch (error) {
           console.error(`Error uploading file ${file.name}:`, error);
         }
@@ -856,7 +857,7 @@ export const ChatEditorFileTree = memo(function ({
                       type: 'writeFile',
                       path: gitkeepPath,
                       data: encodeTextFile(''),
-                      source: 'file-tree',
+                      source: 'user',
                     });
                     setPendingFolder(undefined);
                     setExpandedItems((previous) => [...previous, name]);
@@ -884,9 +885,9 @@ export const ChatEditorFileTree = memo(function ({
                       type: 'writeFile',
                       path: filename,
                       data: encodeTextFile(pendingFile.content),
-                      source: 'file-tree',
+                      source: 'user',
                     });
-                    fileExplorerRef.send({ type: 'openFile', path: filename });
+                    fileExplorerRef.send({ type: 'openFile', path: filename, source: 'user' });
                     setPendingFile(undefined);
                   }}
                   onCancel={() => {
@@ -930,7 +931,7 @@ export const ChatEditorFileTree = memo(function ({
                             type: 'writeFile',
                             path: gitkeepPath,
                             data: encodeTextFile(''),
-                            source: 'file-tree',
+                            source: 'user',
                           });
                           setPendingFolder(undefined);
                           setExpandedItems((previous) => [...previous, folderPath]);
@@ -959,9 +960,9 @@ export const ChatEditorFileTree = memo(function ({
                             type: 'writeFile',
                             path: filePath,
                             data: encodeTextFile(pendingFile.content),
-                            source: 'file-tree',
+                            source: 'user',
                           });
-                          fileExplorerRef.send({ type: 'openFile', path: filePath });
+                          fileExplorerRef.send({ type: 'openFile', path: filePath, source: 'user' });
                           setPendingFile(undefined);
                         }}
                         onCancel={() => {
