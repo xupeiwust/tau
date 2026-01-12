@@ -1,23 +1,15 @@
 import { Body, Controller, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { convertToModelMessages, JsonToSseTransformStream } from 'ai';
+import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
+import { convertToModelMessages, createUIMessageStreamResponse } from 'ai';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { Command } from '@langchain/langgraph';
-import type { StateSnapshot } from '@langchain/langgraph';
-import type { IterableReadableStream } from '@langchain/core/utils/stream';
-import type { StreamEvent } from '@langchain/core/tracers/log_stream';
 import type { ToolSelection } from '@taucad/chat';
-import { tryExtractAllToolResults } from '#api/chat/utils/extract-tool-result.js';
-import { ToolService, toolChoiceFromToolName } from '#api/tools/tool.service.js';
 import { ChatService } from '#api/chat/chat.service.js';
-import { LangGraphAdapter } from '#api/chat/utils/langgraph-adapter.js';
-import {
-  convertAiSdkMessagesToLangchainMessages,
-  sanitizeMessagesForConversion,
-} from '#api/chat/utils/convert-messages.js';
+import { ModelService } from '#api/models/model.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
 import { CreateChatDto } from '#api/chat/chat.dto.js';
 import { sendSimpleModelStream } from '#api/chat/utils/simple-model-stream.js';
 import { injectSnapshotContext } from '#api/chat/utils/inject-snapshot-context.js';
+import { createStaticToolTransform } from '#api/chat/utils/static-tool-transform.js';
 
 @UseGuards(AuthGuard)
 @Controller({ path: 'chat', version: '1' })
@@ -26,20 +18,17 @@ export class ChatController {
 
   public constructor(
     private readonly chatService: ChatService,
-    private readonly toolService: ToolService,
+    private readonly modelService: ModelService,
   ) {}
 
   @Post()
-  // eslint-disable-next-line complexity -- Complex chat flow with multiple model types and state management
   public async createChat(
     @Body() body: CreateChatDto,
     @Res() response: FastifyReply,
     @Req() request: FastifyRequest,
   ): Promise<void> {
     this.logger.debug(`Creating chat: ${body.id}`);
-    // Sanitize messages to handle partial tool calls before conversion
-    const sanitizedMessages = sanitizeMessagesForConversion(body.messages, this.logger);
-    const coreMessages = convertToModelMessages(sanitizedMessages);
+
     const lastHumanMessage = body.messages.findLast((message) => message.role === 'user');
     let modelId: string;
     let selectedToolChoice: ToolSelection = 'auto';
@@ -62,13 +51,17 @@ export class ChatController {
       throw new Error('Last message is not a user message');
     }
 
+    // Handle simple model streams (name generator, commit generator)
+    // These use AI SDK's streamText, so they need ModelMessage[] from convertToModelMessages
     if (modelId === 'name-generator') {
-      const result = this.chatService.getBuildNameGenerator(coreMessages);
+      const modelMessages = await convertToModelMessages(body.messages);
+      const result = this.chatService.getBuildNameGenerator(modelMessages);
       return sendSimpleModelStream(response, result);
     }
 
     if (modelId === 'commit-name-generator') {
-      const result = this.chatService.getCommitMessageGenerator(coreMessages);
+      const modelMessages = await convertToModelMessages(body.messages);
+      const result = this.chatService.getCommitMessageGenerator(modelMessages);
       return sendSimpleModelStream(response, result);
     }
 
@@ -79,7 +72,7 @@ export class ChatController {
     const snapshot = lastHumanMessage.metadata?.snapshot;
 
     // Inject snapshot context into messages if available
-    const messagesWithContext = snapshot ? injectSnapshotContext(sanitizedMessages, snapshot) : sanitizedMessages;
+    const messagesWithContext = snapshot ? injectSnapshotContext(body.messages, snapshot) : body.messages;
 
     if (snapshot) {
       const contextTypes = [
@@ -92,28 +85,11 @@ export class ChatController {
       this.logger.debug(`Injecting snapshot context into last message: ${contextTypes}`);
     }
 
-    const coreMessagesWithContext = convertToModelMessages(messagesWithContext);
-    const langchainMessages = convertAiSdkMessagesToLangchainMessages(messagesWithContext, coreMessagesWithContext);
-    const graph = await this.chatService.createGraph(modelId, selectedToolChoice, selectedKernel);
+    // Convert UI messages to LangChain messages using the built-in adapter
+    const langchainMessages = await toBaseMessages(messagesWithContext);
 
-    // Configuration for the graph execution
-    const config = {
-      streamMode: 'values',
-      version: 'v2',
-      configurable: {
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
-        thread_id: body.id, // Enable persistence using conversation ID as thread ID
-      },
-    } as const;
-
-    // Check if this thread is in an interrupted state
-    let currentState: StateSnapshot | undefined;
-    try {
-      currentState = await graph.getState(config);
-    } catch {
-      // If we can't get state, assume it's a new conversation
-      // and no-op
-    }
+    // Get the agent from the service
+    const agent = await this.chatService.createAgent(modelId, selectedToolChoice, selectedKernel);
 
     // Abort the request if the client disconnects
     const abortController = new AbortController();
@@ -123,65 +99,49 @@ export class ChatController {
       }
     });
 
-    let eventStream: IterableReadableStream<StreamEvent>;
+    this.logger.debug(`Starting agent execution for thread: ${body.id}`);
 
-    // Check if we're resuming from an interrupt
-    if (currentState?.next && currentState.next.length > 0) {
-      // Thread appears interrupted - try to extract ALL tool results for resume
-      // This supports the "all-or-nothing" batch pattern for multiple tool calls
-
-      const toolResults = tryExtractAllToolResults(langchainMessages);
-
-      if (toolResults === undefined || toolResults.length === 0) {
-        // No valid tool results - likely a retry after successful processing
-        // Fall back to normal execution - LangGraph handles message deduplication
-        this.logger.debug(
-          `Thread ${body.id} appears interrupted but no tool results found. ` +
-            `Falling back to normal execution (likely a retry after successful processing).`,
-        );
-        eventStream = graph.streamEvents(
-          { messages: langchainMessages },
-          { ...config, signal: abortController.signal },
-        );
-      } else {
-        // Valid tool results found - resume the graph with all results
-        this.logger.debug(`Resuming interrupted thread: ${body.id}`);
-
-        // Pass array of all tool results to resume
-        // Each result contains: { toolCallId, toolName, result }
-        const resumeValues: unknown[] = toolResults.map((toolResult) => toolResult.result);
-        eventStream = graph.streamEvents(new Command({ resume: resumeValues }), {
-          ...config,
-          signal: abortController.signal,
-        });
-      }
-    } else {
-      this.logger.debug(`Starting normal execution for thread: ${body.id}`);
-      eventStream = graph.streamEvents(
-        {
-          messages: langchainMessages,
+    // Stream the agent response using the underlying graph
+    // With createAgent and humanInTheLoopMiddleware, resume is handled automatically
+    // when tool results are present in the messages
+    const stream = await agent.graph.stream(
+      { messages: langchainMessages },
+      {
+        configurable: {
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
+          thread_id: body.id,
         },
-        {
-          ...config,
-          signal: abortController.signal,
+        signal: abortController.signal,
+        // Include 'custom' to receive usage data from usageTrackingMiddleware
+        streamMode: ['values', 'messages', 'custom'],
+        // Pass context for usage tracking middleware
+        context: {
+          modelId,
+          modelService: this.modelService,
         },
-      );
-    }
+      },
+    );
 
-    // Use the LangGraphAdapter to handle the response
-    const result = LangGraphAdapter.toDataStream(eventStream, {
-      modelId,
-      toolTypeMap: toolChoiceFromToolName,
-      parseToolResults: this.toolService.getToolParsers(),
-      callbacks: this.chatService.getCallbacks(),
-    });
-
-    const sseStream = result.pipeThrough(new JsonToSseTransformStream());
-
+    // Set SSE headers
     void response.header('content-type', 'text/event-stream');
     void response.header('x-vercel-ai-ui-message-stream', 'v1');
     void response.header('x-accel-buffering', 'no');
 
-    return response.send(sseStream.pipeThrough(new TextEncoderStream()));
+    // Convert the LangGraph stream to UI message stream
+    // The toUIMessageStream adapter marks all tools as dynamic, so we pipe through
+    // a transform that strips the dynamic flag for known static tools
+    const uiMessageStream = toUIMessageStream(stream).pipeThrough(createStaticToolTransform());
+
+    const uiMessageStreamResponse = createUIMessageStreamResponse({
+      stream: uiMessageStream,
+    });
+
+    // Get the body from the response and pipe it
+    const responseBody = uiMessageStreamResponse.body;
+    if (responseBody) {
+      return response.send(responseBody);
+    }
+
+    throw new Error('Failed to create UI message stream response');
   }
 }

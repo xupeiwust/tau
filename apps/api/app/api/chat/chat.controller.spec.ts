@@ -5,47 +5,54 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { Command } from '@langchain/langgraph';
-import type { StateSnapshot } from '@langchain/langgraph';
-import { HumanMessage } from '@langchain/core/messages';
 import type { StreamTextResult as StreamTextResultType, ToolSet } from 'ai';
-import type { MyUIMessage } from '@taucad/chat';
+import type { ChatUsageTokens, MyUIMessage } from '@taucad/chat';
 import { ChatController } from '#api/chat/chat.controller.js';
 import { ChatService } from '#api/chat/chat.service.js';
-import { ToolService } from '#api/tools/tool.service.js';
+import { ModelService } from '#api/models/model.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
-// Import mocked modules to access mock functions
-import { tryExtractAllToolResults } from '#api/chat/utils/extract-tool-result.js';
-import { LangGraphAdapter } from '#api/chat/utils/langgraph-adapter.js';
 
-// Mock the extract-tool-result module
-vi.mock('#api/chat/utils/extract-tool-result.js', () => ({
-  tryExtractAllToolResults: vi.fn(),
+// Mock the @ai-sdk/langchain module
+vi.mock('@ai-sdk/langchain', () => ({
+  toBaseMessages: vi.fn(async () => [{ content: 'test message' }]),
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- AI SDK naming
+  toUIMessageStream: vi.fn(
+    () =>
+      new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+  ),
 }));
 
-// Mock the convert-messages module
-vi.mock('#api/chat/utils/convert-messages.js', () => ({
-  sanitizeMessagesForConversion: vi.fn((messages: MyUIMessage[]) => messages),
-  convertAiSdkMessagesToLangchainMessages: vi.fn(() => [new HumanMessage('test message')]),
-}));
-
-// Mock the langgraph-adapter module
-vi.mock('#api/chat/utils/langgraph-adapter.js', () => ({
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraphAdapter is a class
-  LangGraphAdapter: {
-    toDataStream: vi.fn(() => ({
-      pipeThrough: vi.fn(() => ({
-        pipeThrough: vi.fn(() => 'mocked-stream'),
-      })),
-    })),
-  },
-}));
+// Mock the ai module - use importOriginal to keep other exports
+vi.mock('ai', async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- Import original module
+  const actual = await importOriginal<typeof import('ai')>();
+  return {
+    ...actual,
+    convertToModelMessages: vi.fn(async () => [{ role: 'user', content: 'test' }]),
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- AI SDK naming
+    createUIMessageStreamResponse: vi.fn(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.close();
+            },
+          }),
+          { status: 200 },
+        ),
+    ),
+  };
+});
 
 /**
  * Type for the streamText return value used in name/commit generators.
  * We use the actual return type from the AI SDK to ensure type safety.
  */
-type StreamTextResult = StreamTextResultType<ToolSet, unknown>;
+type StreamTextResult = StreamTextResultType<ToolSet, never>;
 
 // Helper to create mock MyUIMessage
 function createMockUserMessage(model: string): MyUIMessage {
@@ -57,25 +64,22 @@ function createMockUserMessage(model: string): MyUIMessage {
   } as const satisfies MyUIMessage;
 }
 
-// Helper to create mock graph
-function createMockGraph(stateOverride?: Partial<StateSnapshot>): {
-  getState: ReturnType<typeof vi.fn>;
-  streamEvents: ReturnType<typeof vi.fn>;
-} {
-  const mockEventStream = {
-    async *[Symbol.asyncIterator]() {
-      yield { event: 'test' };
-    },
+// Helper to create mock agent with graph property
+function createMockAgent(): {
+  graph: {
+    stream: ReturnType<typeof vi.fn>;
   };
+} {
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
+  });
 
   return {
-    getState: vi.fn().mockResolvedValue({
-      values: {},
-      next: [],
-      tasks: [],
-      ...stateOverride,
-    }),
-    streamEvents: vi.fn().mockReturnValue(mockEventStream),
+    graph: {
+      stream: vi.fn().mockResolvedValue(mockStream),
+    },
   };
 }
 
@@ -132,23 +136,29 @@ describe('ChatController', () => {
   let controller: ChatController;
   let chatService: ChatService;
   let module: TestingModule;
-  let mockGraph: ReturnType<typeof createMockGraph>;
+  let mockAgent: ReturnType<typeof createMockAgent>;
 
   beforeEach(async () => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
-    mockGraph = createMockGraph();
+    mockAgent = createMockAgent();
 
     const mockChatService = {
-      createGraph: vi.fn().mockResolvedValue(mockGraph),
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
       getBuildNameGenerator: vi.fn(),
       getCommitMessageGenerator: vi.fn(),
-      getCallbacks: vi.fn().mockReturnValue({}),
     };
 
-    const mockToolService = {
-      getToolParsers: vi.fn().mockReturnValue({}),
+    const mockModelService = {
+      normalizeUsageTokens: vi.fn().mockImplementation((_modelId, usage) => usage as ChatUsageTokens),
+      getModelCost: vi.fn().mockReturnValue({
+        inputTokensCost: 0,
+        outputTokensCost: 0,
+        cachedReadTokensCost: 0,
+        cachedWriteTokensCost: 0,
+        totalCost: 0,
+      }),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -159,8 +169,8 @@ describe('ChatController', () => {
           useValue: mockChatService,
         },
         {
-          provide: ToolService,
-          useValue: mockToolService,
+          provide: ModelService,
+          useValue: mockModelService,
         },
         Reflector,
       ],
@@ -178,8 +188,8 @@ describe('ChatController', () => {
     await module.close();
   });
 
-  describe('createChat - Thread Resume Logic', () => {
-    it('should execute normally for new thread when next is empty', async () => {
+  describe('createChat - Agent Execution', () => {
+    it('should execute agent with correct parameters', async () => {
       // Arrange
       const mockResponse = createMockResponse();
       const mockRequest = createMockRequest();
@@ -188,206 +198,46 @@ describe('ChatController', () => {
         messages: [createMockUserMessage('test-model')],
       };
 
-      // Graph state with empty next array (not interrupted)
-      mockGraph.getState.mockResolvedValue({
-        values: {},
-        next: [],
-        tasks: [],
-      });
-
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
 
       // Assert
-      expect(chatService.createGraph).toHaveBeenCalledWith('test-model', 'auto', 'openscad');
-      expect(mockGraph.getState).toHaveBeenCalled();
-      expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
+      expect(chatService.createAgent).toHaveBeenCalledWith('test-model', 'auto', 'openscad');
+      expect(mockAgent.graph.stream).toHaveBeenCalledTimes(1);
 
-      // Verify streamEvents was called with messages (not a Command)
-      const [firstArg, secondArg] = mockGraph.streamEvents.mock.calls[0] as [
+      // Verify stream was called with messages and correct config
+      const [streamArgs, streamConfig] = mockAgent.graph.stream.mock.calls[0] as [
         { messages: unknown[] },
         { configurable: { thread_id: string } },
       ];
-      expect(firstArg).toHaveProperty('messages');
-      expect(Array.isArray(firstArg.messages)).toBe(true);
-      expect(firstArg).not.toBeInstanceOf(Command);
-      expect(secondArg.configurable.thread_id).toBe('chat_123');
+      expect(streamArgs).toHaveProperty('messages');
+      expect(Array.isArray(streamArgs.messages)).toBe(true);
+      expect(streamConfig.configurable.thread_id).toBe('chat_123');
 
       expect(mockResponse.send).toHaveBeenCalled();
     });
 
-    it('should resume with Command when interrupted with valid tool result', async () => {
+    it('should use custom tool choice when provided', async () => {
       // Arrange
       const mockResponse = createMockResponse();
       const mockRequest = createMockRequest();
       const body = {
-        id: 'chat_456',
-        messages: [createMockUserMessage('test-model')],
+        id: 'chat_tool_choice',
+        messages: [
+          {
+            id: 'msg_1',
+            role: 'user' as const,
+            parts: [{ type: 'text' as const, text: 'Hello' }],
+            metadata: { model: 'test-model', kernel: 'openscad' as const, toolChoice: 'none' as const },
+          },
+        ],
       };
-
-      // Graph state with non-empty next array (interrupted)
-      mockGraph.getState.mockResolvedValue({
-        values: {},
-        next: ['cad_expert'],
-        tasks: [],
-      });
-
-      // Mock tool result extraction to return a valid result
-      // tryExtractAllToolResults returns an array of ToolResult objects
-      const mockToolResults = [
-        { toolCallId: 'tool-call-1', toolName: 'getKernelResult', result: '{"codeIssues":[],"kernelIssues":null}' },
-      ];
-      vi.mocked(tryExtractAllToolResults).mockReturnValue(mockToolResults);
 
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
 
       // Assert
-      expect(mockGraph.getState).toHaveBeenCalled();
-      expect(tryExtractAllToolResults).toHaveBeenCalled();
-
-      // Should be called with a Command containing the tool result
-      const streamEventsCall = mockGraph.streamEvents.mock.calls[0];
-      expect(streamEventsCall).toBeDefined();
-      const [commandArg] = streamEventsCall as [Command, unknown];
-      expect(commandArg).toBeInstanceOf(Command);
-
-      expect(mockResponse.send).toHaveBeenCalled();
-    });
-
-    it('should fallback to normal execution when interrupted but no tool result found', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-      const mockRequest = createMockRequest();
-      const body = {
-        id: 'chat_789',
-        messages: [createMockUserMessage('test-model')],
-      };
-
-      // Graph state with non-empty next array (appears interrupted)
-      mockGraph.getState.mockResolvedValue({
-        values: {},
-        next: ['cad_expert'],
-        tasks: [],
-      });
-
-      // Mock tool result extraction to return undefined (no valid tool result)
-      vi.mocked(tryExtractAllToolResults).mockReturnValue(undefined);
-
-      // Act
-      await controller.createChat(body, mockResponse, mockRequest);
-
-      // Assert
-      expect(mockGraph.getState).toHaveBeenCalled();
-      expect(tryExtractAllToolResults).toHaveBeenCalled();
-
-      // Should fallback to normal execution with messages, NOT Command
-      expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
-
-      // Verify streamEvents was called with messages (not a Command)
-      const [firstArg, secondArg] = mockGraph.streamEvents.mock.calls[0] as [
-        { messages: unknown[] },
-        { configurable: { thread_id: string } },
-      ];
-      expect(firstArg).toHaveProperty('messages');
-      expect(Array.isArray(firstArg.messages)).toBe(true);
-      expect(firstArg).not.toBeInstanceOf(Command);
-      expect(secondArg.configurable.thread_id).toBe('chat_789');
-
-      expect(mockResponse.send).toHaveBeenCalled();
-    });
-
-    it('should handle getState failure gracefully and proceed with normal execution', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-      const mockRequest = createMockRequest();
-      const body = {
-        id: 'chat_error',
-        messages: [createMockUserMessage('test-model')],
-      };
-
-      // Mock getState to throw an error
-      mockGraph.getState.mockRejectedValue(new Error('Database connection failed'));
-
-      // Act
-      await controller.createChat(body, mockResponse, mockRequest);
-
-      // Assert
-      expect(mockGraph.getState).toHaveBeenCalled();
-
-      // Should still proceed with normal execution despite getState failure
-      expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
-
-      const [firstArg, secondArg] = mockGraph.streamEvents.mock.calls[0] as [
-        { messages: unknown[] },
-        { configurable: { thread_id: string } },
-      ];
-      expect(firstArg).toHaveProperty('messages');
-      expect(Array.isArray(firstArg.messages)).toBe(true);
-      expect(secondArg.configurable.thread_id).toBe('chat_error');
-
-      expect(mockResponse.send).toHaveBeenCalled();
-    });
-
-    it('should execute normally when currentState is undefined', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-      const mockRequest = createMockRequest();
-      const body = {
-        id: 'chat_new',
-        messages: [createMockUserMessage('test-model')],
-      };
-
-      // Graph state returns undefined (brand new thread)
-      mockGraph.getState.mockResolvedValue(undefined);
-
-      // Act
-      await controller.createChat(body, mockResponse, mockRequest);
-
-      // Assert
-      expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
-
-      const [firstArg, secondArg] = mockGraph.streamEvents.mock.calls[0] as [
-        { messages: unknown[] },
-        { configurable: { thread_id: string } },
-      ];
-      expect(firstArg).toHaveProperty('messages');
-      expect(Array.isArray(firstArg.messages)).toBe(true);
-      expect(secondArg.configurable.thread_id).toBe('chat_new');
-
-      expect(mockResponse.send).toHaveBeenCalled();
-    });
-
-    it('should execute normally when currentState.next is undefined', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-      const mockRequest = createMockRequest();
-      const body = {
-        id: 'chat_no_next',
-        messages: [createMockUserMessage('test-model')],
-      };
-
-      // Graph state has no next property
-      mockGraph.getState.mockResolvedValue({
-        values: {},
-        tasks: [],
-      });
-
-      // Act
-      await controller.createChat(body, mockResponse, mockRequest);
-
-      // Assert
-      expect(mockGraph.streamEvents).toHaveBeenCalledTimes(1);
-
-      const [firstArg, secondArg] = mockGraph.streamEvents.mock.calls[0] as [
-        { messages: unknown[] },
-        { configurable: { thread_id: string } },
-      ];
-      expect(firstArg).toHaveProperty('messages');
-      expect(Array.isArray(firstArg.messages)).toBe(true);
-      expect(secondArg.configurable.thread_id).toBe('chat_no_next');
-
-      expect(mockResponse.send).toHaveBeenCalled();
+      expect(chatService.createAgent).toHaveBeenCalledWith('test-model', 'none', 'openscad');
     });
   });
 
@@ -409,7 +259,7 @@ describe('ChatController', () => {
 
       // Assert
       expect(chatService.getBuildNameGenerator).toHaveBeenCalled();
-      expect(chatService.createGraph).not.toHaveBeenCalled();
+      expect(chatService.createAgent).not.toHaveBeenCalled();
       expect(mockResponse.send).toHaveBeenCalled();
     });
 
@@ -430,7 +280,7 @@ describe('ChatController', () => {
 
       // Assert
       expect(chatService.getCommitMessageGenerator).toHaveBeenCalled();
-      expect(chatService.createGraph).not.toHaveBeenCalled();
+      expect(chatService.createAgent).not.toHaveBeenCalled();
       expect(mockResponse.send).toHaveBeenCalled();
     });
   });
@@ -463,7 +313,7 @@ describe('ChatController', () => {
       const userMessageWithoutModel: MyUIMessage = {
         id: 'msg_1',
         role: 'user',
-        parts: [{ type: 'text', text: 'Hello' }],
+        parts: [{ type: 'text' as const, text: 'Hello' }],
         metadata: {}, // No model specified
       };
       const body = {
@@ -477,7 +327,7 @@ describe('ChatController', () => {
   });
 
   describe('createChat - Response Headers', () => {
-    it('should set correct SSE headers for graph execution', async () => {
+    it('should set correct SSE headers for agent execution', async () => {
       // Arrange
       const mockResponse = createMockResponse();
       const mockRequest = createMockRequest();
@@ -485,8 +335,6 @@ describe('ChatController', () => {
         id: 'chat_headers',
         messages: [createMockUserMessage('test-model')],
       };
-
-      mockGraph.getState.mockResolvedValue({ values: {}, next: [], tasks: [] });
 
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
@@ -498,8 +346,8 @@ describe('ChatController', () => {
     });
   });
 
-  describe('createChat - LangGraphAdapter Integration', () => {
-    it('should call LangGraphAdapter.toDataStream with correct parameters', async () => {
+  describe('createChat - Adapter Integration', () => {
+    it('should use toUIMessageStream to convert agent stream', async () => {
       // Arrange
       const mockResponse = createMockResponse();
       const mockRequest = createMockRequest();
@@ -508,17 +356,14 @@ describe('ChatController', () => {
         messages: [createMockUserMessage('test-model')],
       };
 
-      mockGraph.getState.mockResolvedValue({ values: {}, next: [], tasks: [] });
-
       // Act
       await controller.createChat(body, mockResponse, mockRequest);
 
       // Assert
-      expect(LangGraphAdapter.toDataStream).toHaveBeenCalled();
-      const toDataStreamCalls = vi.mocked(LangGraphAdapter.toDataStream).mock.calls;
-      expect(toDataStreamCalls).toHaveLength(1);
-      const [, options] = toDataStreamCalls[0] as [unknown, { modelId: string }];
-      expect(options.modelId).toBe('test-model');
+      // The agent.graph.stream should have been called
+      expect(mockAgent.graph.stream).toHaveBeenCalled();
+      // Response should have been sent
+      expect(mockResponse.send).toHaveBeenCalled();
     });
   });
 });

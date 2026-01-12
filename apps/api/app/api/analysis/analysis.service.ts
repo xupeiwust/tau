@@ -131,10 +131,10 @@ export class AnalysisService {
         results: z.array(requirementResultSchema),
       });
 
-      const { experimental_output: experimentalOutput } = await generateText({
+      const { output } = await generateText({
         model: openai('gpt-4o'),
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- AI SDK uses snake_case for experimental API
-        experimental_output: Output.object({
+
+        output: Output.object({
           schema: responseSchema,
         }),
         system: systemPrompt,
@@ -152,7 +152,7 @@ export class AnalysisService {
       return {
         id: observation.id,
         side: observation.side,
-        results: experimentalOutput.results,
+        results: output.results,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -203,10 +203,9 @@ export class AnalysisService {
     });
 
     try {
-      const { experimental_output: experimentalOutput } = await generateText({
+      const { output } = await generateText({
         model: openai('gpt-4o-mini'),
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- AI SDK uses snake_case for experimental API
-        experimental_output: Output.object({
+        output: Output.object({
           schema: responseSchema,
         }),
         system: `You are a helpful assistant that summarizes CAD model verification failures. Given multiple view-specific failures for a single requirement, synthesize them into ONE clear reason and ONE actionable suggestion. Be concise but preserve all important details.`,
@@ -221,8 +220,8 @@ ${failureDetails}`,
       });
 
       return {
-        reason: experimentalOutput.reason,
-        suggestion: experimentalOutput.suggestion,
+        reason: output.reason,
+        suggestion: output.suggestion,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

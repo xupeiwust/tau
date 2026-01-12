@@ -55,7 +55,7 @@ export class ProviderService {
           apiKey: configService.get('OPENAI_API_KEY', { infer: true }),
         },
         inputTokensIncludesCachedReadTokens: true,
-        createClass: (options) => new ChatOpenAI(options),
+        createClass: (options) => new ChatOpenAI({ useResponsesApi: true, ...options }),
       },
       ollama: {
         provider: 'ollama',

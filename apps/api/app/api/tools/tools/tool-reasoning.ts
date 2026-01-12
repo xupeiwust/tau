@@ -1,25 +1,31 @@
-import { tool } from '@langchain/core/tools';
-import { z } from 'zod';
+import { StructuredTool } from '@langchain/core/tools';
 import { reasoningInputSchema } from '@taucad/chat';
-import type { ReasoningOutput } from '@taucad/chat';
+import type { ReasoningInput, ReasoningOutput } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
 
-const reasoningJsonSchema = z.toJSONSchema(reasoningInputSchema);
+/**
+ * Reasoning tool that allows the LLM to think through complex problems step-by-step.
+ *
+ * The LLM's thinking is captured in the input and displayed to the user.
+ *
+ * Note: Returns a string to avoid LangChain's stringification of plain objects.
+ * LangChain's _formatToolOutput passes strings through as-is, but JSON.stringify's plain objects.
+ */
+class ReasoningTool extends StructuredTool {
+  public override name = toolName.reasoning;
 
-export const reasoningToolDefinition = {
-  name: toolName.reasoning,
-  description: `Think through complex problems step-by-step before acting.
+  public override description = `Think through complex problems step-by-step before acting.
 
 Use for Feature Tree planning, analyzing requirements, or deciding between approaches.
-Thinking is displayed to user in collapsible section.`,
-  schema: reasoningJsonSchema,
-} as const;
+Thinking is displayed to user in collapsible section.`;
 
-export const reasoningTool = tool(() => {
-  // Reasoning tool is purely for display - the LLM's thinking is captured in the input
-  return { acknowledged: true };
-}, reasoningToolDefinition);
+  public override schema = reasoningInputSchema;
 
-export const parseReasoningOutput = (content: string): ReasoningOutput => {
-  return JSON.parse(content) as ReasoningOutput;
-};
+  protected override async _call(_input: ReasoningInput): Promise<ReasoningOutput> {
+    // Reasoning tool is purely for display - the LLM's thinking is captured in the input
+    // Return a string to avoid LangChain stringification (strings are passed through as-is)
+    return 'success';
+  }
+}
+
+export const reasoningTool = new ReasoningTool();

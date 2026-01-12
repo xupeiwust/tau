@@ -1,29 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { openai } from '@ai-sdk/openai';
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { createAgent, humanInTheLoopMiddleware } from 'langchain';
+import type { ReactAgent } from 'langchain';
 import { streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { ConfigService } from '@nestjs/config';
 import type { KernelProvider } from '@taucad/types';
-import { idPrefix } from '@taucad/types/constants';
 import type { ToolSelection } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import { generatePrefixedId } from '@taucad/utils/id';
 import { ModelService } from '#api/models/model.service.js';
+import { usageTrackingMiddleware } from '#api/chat/middleware/usage-tracking.middleware.js';
 import { ToolService } from '#api/tools/tool.service.js';
 import { buildNameGenerationSystemPrompt } from '#api/chat/prompts/cad-name.prompt.js';
 import { commitMessageGenerationSystemPrompt } from '#api/chat/prompts/git-commit.prompt.js';
-import type { LangGraphAdapterCallbacks } from '#api/chat/utils/langgraph-adapter.js';
 import { getCadSystemPrompt } from '#api/chat/prompts/cad-agent.prompt.js';
-import { normalizeError } from '#api/chat/utils/error-normalizer.js';
-import { createCacheableSystemMessage } from '#api/chat/utils/convert-messages.js';
 import type { Environment } from '#config/environment.config.js';
 
 @Injectable()
 export class ChatService {
-  private readonly logger = new Logger(ChatService.name);
-
   public constructor(
     private readonly modelService: ModelService,
     private readonly toolService: ToolService,
@@ -46,8 +41,11 @@ export class ChatService {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- This is a complex generic that can be left inferred.
-  public async createGraph(modelId: string, selectedToolChoice: ToolSelection, selectedKernel: KernelProvider) {
+  public async createAgent(
+    modelId: string,
+    selectedToolChoice: ToolSelection,
+    selectedKernel: KernelProvider,
+  ): Promise<ReactAgent> {
     const { tools } = this.toolService.getTools(selectedToolChoice);
 
     const databaseUrl = this.configService.get('DATABASE_URL', { infer: true });
@@ -56,7 +54,7 @@ export class ChatService {
     });
     await checkpointer.setup();
 
-    const { model, support } = this.modelService.buildModel(modelId);
+    const { model } = this.modelService.buildModel(modelId);
 
     // Combine all tools into a single array for the unified agent
     const allTools = [
@@ -97,67 +95,23 @@ You also have access to web research tools for gathering information:
 Always prefer \`${toolName.webSearch}\` first, and only use \`${toolName.webBrowser}\` if the search results don't provide enough detail.
 </research_capabilities>`;
 
-    // Create a cacheable system message to enable Anthropic prompt caching.
-    // This significantly reduces costs (up to 90%) and latency (up to 85%) for
-    // repeated prompts by marking the system prompt content for caching.
-    const systemMessage = createCacheableSystemMessage(unifiedSystemPrompt);
-
-    // Create a single unified agent with all tools and persistence
-    const agent = createReactAgent({
-      llm: support?.tools === false ? model : (model.bindTools?.(allTools) ?? model),
+    // Create a unified agent with createAgent from LangChain v1
+    // Uses systemPrompt (string) instead of prompt (SystemMessage)
+    // Uses model instead of llm, and does NOT use pre-bound models with tools
+    const agent = createAgent({
+      model,
       tools: allTools,
-      name: 'cad_assistant',
-      prompt: systemMessage,
+      systemPrompt: unifiedSystemPrompt,
       checkpointer,
+      middleware: [
+        // Track token usage and costs after each model call
+        usageTrackingMiddleware,
+        // Handle tool interrupts - our tools use interrupt() from @langchain/langgraph
+        // The middleware manages the human-in-the-loop flow automatically
+        humanInTheLoopMiddleware({}),
+      ],
     });
 
     return agent;
-  }
-
-  public getCallbacks(): LangGraphAdapterCallbacks {
-    const { logger, modelService } = this;
-
-    return {
-      onChatModelEnd({ dataStream, modelId: id, usageTokens }) {
-        // Emit usage as a data part for each model turn
-        const normalizedUsageTokens = modelService.normalizeUsageTokens(id, usageTokens);
-        const usageCost = modelService.getModelCost(id, normalizedUsageTokens);
-
-        dataStream.write({
-          type: 'data-usage',
-          data: {
-            id: generatePrefixedId(idPrefix.data),
-            model: id,
-            inputTokens: normalizedUsageTokens.inputTokens,
-            outputTokens: normalizedUsageTokens.outputTokens,
-            cachedReadTokens: normalizedUsageTokens.cachedReadTokens,
-            cachedWriteTokens: normalizedUsageTokens.cachedWriteTokens,
-            inputTokensCost: usageCost.inputTokensCost,
-            outputTokensCost: usageCost.outputTokensCost,
-            cachedReadTokensCost: usageCost.cachedReadTokensCost,
-            cachedWriteTokensCost: usageCost.cachedWriteTokensCost,
-            totalCost: usageCost.totalCost,
-          },
-        });
-      },
-      onError(error) {
-        if (error instanceof Error && error.message === 'Aborted') {
-          logger.warn('Request aborted');
-          return JSON.stringify({
-            category: 'generic',
-            title: 'Aborted',
-            message: 'The request was aborted',
-          });
-        }
-
-        logger.error('Error in chat stream follows:');
-        logger.error(error);
-
-        // Use the error normalizer to create a structured error response
-        const normalized = normalizeError(error);
-
-        return normalized;
-      },
-    };
   }
 }
