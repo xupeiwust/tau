@@ -1,31 +1,13 @@
-/*
- * CSG Modules Demo
- * Demonstrates modules, conditionals, colors, and resolution settings.
- */
+// CSG Modules Demo
 
 title = "OpenSCAD";
-
-color("gray")
-    rotate([90, 0, 0])
-        translate([0, debug ? -60 : -20, 0])
-            linear_extrude(1)
-                text(title,
-                    halign="center",
-                    valign="center");
-
-// You can find the original for the following example in the file explorer above,
-// under openscad / examples / Basic / CSG-modules.scad
-
-// CSG-modules.scad - Basic usage of modules, if, color, $fs/$fa
-
-// Change this to false to remove the helper geometry
 debug = true;
 
-// Global resolution
-$fs=$preview ? 1 : 0.1;  // Don't generate smaller facets than 0.1 mm
-$fa=$preview ? 15 : 5;    // Don't generate larger angles than 5 degrees
+// Resolution: coarse for preview, fine for render
+$fs = $preview ? 1 : 0.1;
+$fa = $preview ? 15 : 5;
 
-// Main geometry
+// Main geometry: intersection minus holes
 difference() {
     intersection() {
         body();
@@ -34,12 +16,9 @@ difference() {
     holes();
 }
 
-// Helpers
 if (debug) helpers();
 
-// Core geometric primitives.
-// These can be modified to create variations of the final object
-
+// Primitives
 module body() {
     color("Blue") sphere(10);
 }
@@ -52,15 +31,7 @@ module holeObject() {
     color("Lime") cylinder(h=20, r=5, center=true);
 }
 
-// Various modules for visualizing intermediate components
-
-module intersected() {
-    intersection() {
-        body();
-        intersector();
-    }
-}
-
+// Hole orientations
 module holeA() rotate([0,90,0]) holeObject();
 module holeB() rotate([90,0,0]) holeObject();
 module holeC() holeObject();
@@ -73,8 +44,15 @@ module holes() {
     }
 }
 
+module intersected() {
+    intersection() {
+        body();
+        intersector();
+    }
+}
+
+// Debug visualization
 module helpers() {
-    // Inner module since it's only needed inside helpers
     module line() color("Black") cylinder(r=1, h=10, center=true);
 
     scale(0.5) {
@@ -98,6 +76,13 @@ module helpers() {
         translate([20,0,-22.5]) rotate([0,-45,0]) line();
     }
 }
+
+// Text with conditional positioning
+color("gray")
+    rotate([90, 0, 0])
+        translate([0, debug ? -60 : -20, 0])
+            linear_extrude(1)
+                text(title, halign="center", valign="center");
 
 sphere(5);
 
