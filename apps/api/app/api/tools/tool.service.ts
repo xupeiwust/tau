@@ -6,7 +6,7 @@ import type { ToolName, ToolMode, ToolSelection } from '@taucad/chat';
 import { toolName, toolMode } from '@taucad/chat/constants';
 import type { Environment } from '#config/environment.config.js';
 import { createWebBrowserTool } from '#api/tools/tools/tool-web-browser.js';
-import { editFileTool } from '#api/tools/tools/tool-file-edit.js';
+import { editFileTool } from '#api/tools/tools/tool-edit-file.js';
 import { imageAnalysisTool } from '#api/tools/tools/tool-image-analysis.js';
 import { createWebSearchTool } from '#api/tools/tools/tool-web-search.js';
 import { readFileTool } from '#api/tools/tools/tool-read-file.js';
