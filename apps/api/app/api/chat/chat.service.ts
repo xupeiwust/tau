@@ -10,6 +10,7 @@ import type { KernelProvider } from '@taucad/types';
 import type { ToolSelection } from '@taucad/chat';
 import { ModelService } from '#api/models/model.service.js';
 import { usageTrackingMiddleware } from '#api/chat/middleware/usage-tracking.middleware.js';
+import { createCachedSystemMessage } from '#api/chat/utils/create-cached-system-message.js';
 import { ToolService } from '#api/tools/tool.service.js';
 import { buildNameGenerationSystemPrompt } from '#api/chat/prompts/cad-name.prompt.js';
 import { commitMessageGenerationSystemPrompt } from '#api/chat/prompts/git-commit.prompt.js';
