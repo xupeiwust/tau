@@ -12,6 +12,11 @@ type ExternalLinkProps = {
    */
   readonly withArrow?: boolean;
   /**
+   * Whether to always show the arrow, regardless of hover state.
+   * @default true
+   */
+  readonly isArrowOnHoverOnly?: boolean;
+  /**
    * Size of the arrow icon.
    * @default 'sm'
    */
@@ -29,6 +34,7 @@ export function ExternalLink({
   children,
   className,
   withArrow = true,
+  isArrowOnHoverOnly = true,
   arrowSize = 'sm',
 }: ExternalLinkProps): React.JSX.Element {
   return (
@@ -46,7 +52,9 @@ export function ExternalLink({
         <ArrowUpRight
           className={cn(
             arrowSizeClasses[arrowSize],
-            '-translate-x-1 opacity-0 transition-all group-hover/external-link:translate-x-0 group-hover/external-link:opacity-100',
+            isArrowOnHoverOnly
+              ? '-translate-x-1 opacity-0 transition-all group-hover/external-link:translate-x-0 group-hover/external-link:opacity-100'
+              : '',
           )}
         />
       ) : undefined}

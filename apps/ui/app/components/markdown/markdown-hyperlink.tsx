@@ -26,7 +26,7 @@ export function MarkdownHyperlink({
 
   if (isExternal && href) {
     return (
-      <ExternalLink href={href} className={className} arrowSize="xs">
+      <ExternalLink href={href} className={className} arrowSize="xs" isArrowOnHoverOnly={false}>
         {children}
       </ExternalLink>
     );
