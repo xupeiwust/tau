@@ -313,7 +313,9 @@ export const fileManagerMachine = setup({
       error({ event }) {
         assertActorDoneEvent(event);
 
-        if (event.output.type === 'workerInitializationFailed') {
+        // Extract error from any failed actor output
+        // All failure types have the pattern { type: 'xxxFailed', error: Error }
+        if ('error' in event.output && event.output.error instanceof Error) {
           return event.output.error;
         }
 
