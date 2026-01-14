@@ -4,7 +4,7 @@
  */
 
 import { errorCategory } from '@taucad/types';
-import type { ErrorCategory, NormalizedChatError } from '@taucad/types';
+import type { ErrorCategory, ChatError } from '@taucad/types';
 
 /**
  * LangChain error codes that may be present on wrapped errors.
@@ -472,7 +472,7 @@ export function normalizeError(error: unknown): string {
   }
 
   // Build the normalized error with markdown-formatted message
-  const normalizedError: NormalizedChatError = {
+  const normalizedError: ChatError = {
     category,
     title: categoryTitles[category],
     message: formatMessageWithMarkdown(message),

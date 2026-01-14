@@ -1,76 +1,20 @@
 import { memo, useMemo } from 'react';
 import type React from 'react';
 import { ChevronRight, RefreshCcw } from 'lucide-react';
-import { errorCategory, errorCategories } from '@taucad/types';
-import type { ErrorCategory, NormalizedChatError } from '@taucad/types';
+import { errorCategory } from '@taucad/types';
+import type { ChatError as NormalizedChatError } from '@taucad/types';
 import { Button } from '#components/ui/button.js';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#components/ui/collapsible.js';
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { MarkdownViewer } from '#components/markdown/markdown-viewer.js';
 import { cn } from '#utils/ui.utils.js';
+import { parseErrorForPersistence } from '#utils/error.utils.js';
 import { ChatErrorUnauthorized } from '#routes/builds_.$id/chat-error-unauthorized.js';
 import { ChatErrorServiceUnavailable } from '#routes/builds_.$id/chat-error-service-unavailable.js';
 import { ChatErrorCredits } from '#routes/builds_.$id/chat-error-credits.js';
 import { ChatErrorRateLimit } from '#routes/builds_.$id/chat-error-rate-limit.js';
 import { ChatErrorTool } from '#routes/builds_.$id/chat-error-tool.js';
-
-/**
- * Parsed error ready for UI display (uses NormalizedChatError from API).
- */
-type ParsedError = NormalizedChatError;
-
-/**
- * Checks if error is a client-side network error (never reaches the API).
- */
-function isNetworkError(message: string): boolean {
-  return (
-    message.includes('Failed to fetch') ||
-    message.includes('NetworkError') ||
-    message.includes('net::ERR_') ||
-    message.includes('Load failed')
-  );
-}
-
-/**
- * Parses the JSON error from the API.
- */
-function tryParseApiError(message: string): ParsedError | undefined {
-  if (!message.startsWith('{')) {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(message) as Record<string, unknown>;
-
-    if (
-      typeof parsed['category'] === 'string' &&
-      typeof parsed['title'] === 'string' &&
-      typeof parsed['message'] === 'string'
-    ) {
-      // Validate category against known values, fallback to generic if unknown
-      const parsedCategory = parsed['category'];
-      const category: ErrorCategory = errorCategories.includes(parsedCategory as ErrorCategory)
-        ? (parsedCategory as ErrorCategory)
-        : errorCategory.generic;
-
-      return {
-        category,
-        title: parsed['title'],
-        message: parsed['message'],
-        code: typeof parsed['code'] === 'string' ? parsed['code'] : undefined,
-        httpStatus: typeof parsed['httpStatus'] === 'number' ? parsed['httpStatus'] : undefined,
-        raw: typeof parsed['raw'] === 'string' ? parsed['raw'] : undefined,
-        requestId: typeof parsed['requestId'] === 'string' ? parsed['requestId'] : undefined,
-        helpUrl: typeof parsed['helpUrl'] === 'string' ? parsed['helpUrl'] : undefined,
-      };
-    }
-  } catch {
-    // Not valid JSON
-  }
-
-  return undefined;
-}
 
 /**
  * Attempts to format a string as pretty-printed JSON.
@@ -93,40 +37,23 @@ export const ChatError = memo(function ({
   readonly onOpenChange?: (open: boolean) => void;
   readonly className?: string;
 }): React.ReactNode {
+  // Read both AI SDK error (runtime) and persisted error (from storage)
   const error = useChatSelector((state) => state.error);
+  const persistedError = useChatSelector((state) => state.persistedError);
   const { regenerate } = useChatActions();
 
-  const parsedError = useMemo((): ParsedError | undefined => {
-    if (!error) {
-      return undefined;
+  // Prefer AI SDK error when present, fallback to persisted error for page reloads
+  const parsedError = useMemo((): NormalizedChatError | undefined => {
+    // If there's a runtime error from AI SDK, parse it
+    if (error) {
+      return parseErrorForPersistence(error);
     }
 
-    // Handle client-side network errors (these never reach the API)
-    if (isNetworkError(error.message)) {
-      return {
-        category: errorCategory.network,
-        title: 'Connection Error',
-        message: 'Unable to connect to the server. Please check your internet connection.',
-        raw: error.message,
-      };
-    }
+    // Otherwise, use the persisted error (already normalized)
+    return persistedError;
+  }, [error, persistedError]);
 
-    // Parse structured error from API
-    const parsed = tryParseApiError(error.message);
-    if (parsed) {
-      return parsed;
-    }
-
-    // Fallback for unexpected formats
-    return {
-      category: errorCategory.generic,
-      title: 'Error',
-      message: error.message,
-      raw: error.message,
-    };
-  }, [error]);
-
-  if (!error || !parsedError) {
+  if (!parsedError) {
     return null;
   }
 

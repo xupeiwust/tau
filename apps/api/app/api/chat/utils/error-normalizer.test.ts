@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/naming-convention -- Test file uses external API shapes with snake_case properties */
-import type { NormalizedChatError } from '@taucad/types';
+import type { ChatError } from '@taucad/types';
 import { describe, it, expect } from 'vitest';
 import { normalizeError } from '#api/chat/utils/error-normalizer.js';
 
-function parseNormalizedError(result: string): NormalizedChatError {
-  return JSON.parse(result) as NormalizedChatError;
+function parseNormalizedError(result: string): ChatError {
+  return JSON.parse(result) as ChatError;
 }
 
 describe('normalizeError', () => {

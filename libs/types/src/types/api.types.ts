@@ -9,7 +9,7 @@ export type ErrorCategory = (typeof errorCategory)[keyof typeof errorCategory];
  * Normalized error response from the API.
  * All chat stream errors are normalized to this format.
  */
-export type NormalizedChatError = {
+export type ChatError = {
   /** Error category for routing to appropriate UI components */
   category: ErrorCategory;
   /** Optional error code (e.g., LangChain error code, HTTP status text) */

@@ -1,4 +1,4 @@
-import { Plus, Pencil, Trash, History, DollarSign } from 'lucide-react';
+import { Plus, Pencil, Trash, History, DollarSign, AlertCircle } from 'lucide-react';
 import { useState, useRef, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useChat } from '@ai-sdk/react';
@@ -191,6 +191,12 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
             {draftText ? (
               <div className="truncate text-xs text-muted-foreground italic">
                 <span className="font-medium">Draft</span>: {draftText}
+              </div>
+            ) : null}
+            {chat.error ? (
+              <div className="flex items-center gap-1 text-xs text-destructive">
+                <AlertCircle className="size-3 shrink-0 text-destructive" />
+                <span className="truncate">{chat.error.title}</span>
               </div>
             ) : null}
             <div className="text-xs text-muted-foreground">
