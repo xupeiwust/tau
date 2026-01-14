@@ -13,7 +13,7 @@ export const messageLoggingMiddleware = createMiddleware({
     console.log(`Model call with ${state.messages.length} messages:`);
 
     for (const message of state.messages) {
-      console.log(JSON.stringify(message.content, null, 2));
+      console.log(JSON.stringify(message.contentBlocks, null, 2));
     }
   },
 });
