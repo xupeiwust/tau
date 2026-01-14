@@ -43,7 +43,7 @@ export function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'group/external-link inline-flex items-center gap-1 underline decoration-muted-foreground/50 underline-offset-2 transition-colors hover:decoration-foreground',
+        'group/external-link underline decoration-muted-foreground/50 underline-offset-2 transition-colors hover:decoration-foreground',
         className,
       )}
     >
@@ -52,6 +52,7 @@ export function ExternalLink({
         <ArrowUpRight
           className={cn(
             arrowSizeClasses[arrowSize],
+            'ml-0.5 inline align-text-bottom',
             isArrowOnHoverOnly
               ? '-translate-x-1 opacity-0 transition-all group-hover/external-link:translate-x-0 group-hover/external-link:opacity-100'
               : '',
