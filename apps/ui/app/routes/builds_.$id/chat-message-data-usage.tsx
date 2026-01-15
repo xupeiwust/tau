@@ -94,7 +94,7 @@ export function ChatMessageDataUsage({
           {showModelCost ? <span>{formatCurrency(totals.totalCost, { significantFigures: 2 })}</span> : undefined}
         </Badge>
       </HoverCardTrigger>
-      <HoverCardContent className="w-auto p-2 pt-1">
+      <HoverCardContent className="w-auto overflow-hidden p-2 pt-1">
         <div className="flex flex-col space-y-1">
           <div className="flex flex-row items-baseline justify-between gap-4 p-2 pb-0">
             <h4 className="font-medium">Usage Details</h4>
@@ -105,7 +105,7 @@ export function ChatMessageDataUsage({
               </div>
             ) : undefined}
           </div>
-          <Table className="overflow-clip rounded-md">
+          <Table className="h-full overflow-clip rounded-md [&_tbody]:block [&_tbody]:max-h-[300px] [&_tbody]:scroll-shadows-y [&_tfoot]:block [&_thead]:block [&_tr]:grid [&_tr]:grid-cols-[1fr_auto_auto]">
             <TableHeader>
               <TableRow>
                 <TableHead>Metric</TableHead>
