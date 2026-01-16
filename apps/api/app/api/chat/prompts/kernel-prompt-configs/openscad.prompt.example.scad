@@ -11,15 +11,15 @@ difference() {
 
 // Primitives
 module body() {
-    color("Blue") sphere(10);
+    color("#0000FF") sphere(10);
 }
 
 module intersector() {
-    color("Red") cube(15, center=true);
+    color("#FF0000") cube(15, center=true);
 }
 
 module holeObject() {
-    color("Lime") cylinder(h=20, r=5, center=true);
+    color("#00FF00") cylinder(h=20, r=5, center=true);
 }
 
 // Hole orientations
