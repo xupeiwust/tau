@@ -3,7 +3,7 @@ import { Brain } from 'lucide-react';
 import type { ToolInvocation } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
 import { parseToolErrorText } from '@taucad/chat';
-import { defaultMarkdownControls, MarkdownViewer } from '#components/markdown/markdown-viewer.js';
+import { MarkdownViewerChat } from '#components/markdown/markdown-viewer-chat.js';
 import { useChatSelector } from '#hooks/use-chat.js';
 import {
   ChatToolCard,
@@ -63,13 +63,9 @@ export function ChatMessageToolReasoning({
       {hasContent ? (
         <ChatToolCardContent className="border-l-0">
           <div className="border-l border-foreground/20 pl-4 text-sm italic">
-            <MarkdownViewer
-              className="text-muted-foreground"
-              isStreaming={isStreaming}
-              controls={{ ...defaultMarkdownControls, table: true }}
-            >
-              {thinking.trim()}
-            </MarkdownViewer>
+            <MarkdownViewerChat className="text-muted-foreground" isStreaming={isStreaming}>
+              {thinking}
+            </MarkdownViewerChat>
           </div>
         </ChatToolCardContent>
       ) : undefined}

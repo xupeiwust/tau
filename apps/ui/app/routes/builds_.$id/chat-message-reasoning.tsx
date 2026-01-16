@@ -1,7 +1,7 @@
 import type { ReasoningUIPart } from 'ai';
 import { useState } from 'react';
 import { Brain } from 'lucide-react';
-import { defaultMarkdownControls, MarkdownViewer } from '#components/markdown/markdown-viewer.js';
+import { MarkdownViewerChat } from '#components/markdown/markdown-viewer-chat.js';
 import { useChatSelector } from '#hooks/use-chat.js';
 import {
   ChatToolCard,
@@ -45,17 +45,13 @@ export function ChatMessageReasoning({ part, hasContent }: ChatMessageReasoningP
     <ChatToolCard variant="minimal" status="ready" isOpen={shouldBeOpen} onOpenChange={setIsOpen}>
       <ChatToolCardHeader>
         <ChatToolCardIcon icon={Brain} />
-        <ChatToolCardTitle>Thought Process</ChatToolCardTitle>
+        <ChatToolCardTitle>Thought process</ChatToolCardTitle>
       </ChatToolCardHeader>
       <ChatToolCardContent className="border-l-0">
         <div className="border-l border-foreground/20 pl-4 text-sm italic">
-          <MarkdownViewer
-            className="text-muted-foreground"
-            isStreaming={isStreaming}
-            controls={{ ...defaultMarkdownControls, table: true }}
-          >
+          <MarkdownViewerChat className="text-muted-foreground" isStreaming={isStreaming}>
             {part.text.trim()}
-          </MarkdownViewer>
+          </MarkdownViewerChat>
         </div>
       </ChatToolCardContent>
     </ChatToolCard>
