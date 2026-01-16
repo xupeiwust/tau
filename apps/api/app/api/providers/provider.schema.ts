@@ -9,7 +9,9 @@ export const modelFamilySchema = z.enum(['gpt', 'claude', 'gemini']);
 export const providerSchema = z.object({
   provider: providerIdSchema,
   inputTokensIncludesCacheReadTokens: z.boolean().describe('Whether the input tokens include cached read tokens'),
-  inputTokensIncludesCacheWriteTokens: z.boolean().describe('Whether the input tokens include cached write (creation) tokens'),
+  inputTokensIncludesCacheWriteTokens: z
+    .boolean()
+    .describe('Whether the input tokens include cached write (creation) tokens'),
   streamingDoublesCacheTokens: z
     .boolean()
     .describe('Whether streaming aggregation doubles cache token counts (requires halving to correct)'),

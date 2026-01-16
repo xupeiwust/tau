@@ -1,13 +1,8 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import {
-  testModelInputSchema,
-  testFileSchema,
-  type TestModelOutput,
-  type CaptureObservationsOutput,
-  type VisualTestRequirement,
-} from '@taucad/chat';
+import { testModelInputSchema, testFileSchema } from '@taucad/chat';
+import type { TestModelOutput, CaptureObservationsOutput, VisualTestRequirement } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
 import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
 
@@ -81,7 +76,7 @@ export const testModelTool = tool(async (_input, runtime: ToolRuntime) => {
 
   // Filter to visual requirements only (measurement tests not yet implemented)
   const visualRequirements = testFile.requirements.filter(
-    (req): req is VisualTestRequirement => req.type === 'visual',
+    (request): request is VisualTestRequirement => request.type === 'visual',
   );
 
   if (visualRequirements.length === 0) {

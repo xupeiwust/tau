@@ -32,6 +32,7 @@ function createTestModelToolMessage(
 
   return new ToolMessage({
     content: JSON.stringify(output),
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
     tool_call_id: toolCallId,
     ...(includeName ? { name: toolName.testModel } : {}),
   });
@@ -52,10 +53,12 @@ function createDeserializedToolMessage(
   return {
     type: 'tool',
     content: JSON.stringify(output),
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
     tool_call_id: toolCallId,
     ...(includeName ? { name: toolName.testModel } : {}),
     id: ['tool', toolCallId],
     lc: 1,
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
     lc_serializable: true,
   };
 }
@@ -73,11 +76,8 @@ function parseTestModelOutput(message: ToolMessage): TestModelOutput {
 type TestRequest = { messages: BaseMessage[] };
 
 // Helper to call wrapModelCall with proper typing
-async function callWrapModelCall(
-  request: TestRequest,
-  handler: ReturnType<typeof vi.fn>,
-): Promise<void> {
-  const wrapModelCall = toolResultTrimmerMiddleware.wrapModelCall;
+async function callWrapModelCall(request: TestRequest, handler: ReturnType<typeof vi.fn>): Promise<void> {
+  const { wrapModelCall } = toolResultTrimmerMiddleware;
   if (!wrapModelCall) {
     throw new Error('wrapModelCall is not defined on middleware');
   }
@@ -113,9 +113,9 @@ describe('toolResultTrimmerMiddleware', () => {
 
       expect(ToolMessage.isInstance(trimmedMessage)).toBe(true);
       const parsed = parseTestModelOutput(trimmedMessage);
-      // passed should be removed
+      // Passed should be removed
       expect(parsed.passed).toBeUndefined();
-      // failures and total should be preserved
+      // Failures and total should be preserved
       expect(parsed.failures).toHaveLength(1);
       expect(parsed.total).toBe(4);
     });
@@ -143,21 +143,21 @@ describe('toolResultTrimmerMiddleware', () => {
 
   describe('multi-message chat - multiple tool messages', () => {
     it('should trim passed count from all TestModelOutput messages in conversation', async () => {
-      const failures1: TestFailure[] = [
-        { id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' },
-      ];
+      const failures1: TestFailure[] = [{ id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' }];
       const failures2: TestFailure[] = [];
 
       const messages: BaseMessage[] = [
         new HumanMessage('Build a sphere'),
         new AIMessage({
           content: '',
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
           tool_calls: [{ id: 'call_1', name: toolName.testModel, args: {} }],
         }),
         createTestModelToolMessage(failures1, 2, { toolCallId: 'call_1' }),
         new AIMessage('Fixed the issue, testing again'),
         new AIMessage({
           content: '',
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
           tool_calls: [{ id: 'call_2', name: toolName.testModel, args: {} }],
         }),
         createTestModelToolMessage(failures2, 3, { toolCallId: 'call_2' }),
@@ -170,7 +170,7 @@ describe('toolResultTrimmerMiddleware', () => {
       const [request] = handler.mock.calls[0] as [TestRequest];
 
       // Find the tool messages and verify they were trimmed
-      const toolMessages = request.messages.filter((msg) => ToolMessage.isInstance(msg)) as ToolMessage[];
+      const toolMessages = request.messages.filter((message) => ToolMessage.isInstance(message)) as ToolMessage[];
       expect(toolMessages).toHaveLength(2);
 
       for (const toolMessage of toolMessages) {
@@ -180,9 +180,7 @@ describe('toolResultTrimmerMiddleware', () => {
     });
 
     it('should trim passed count from tool messages without name in multi-message chat', async () => {
-      const failures1: TestFailure[] = [
-        { id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' },
-      ];
+      const failures1: TestFailure[] = [{ id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' }];
       const failures2: TestFailure[] = [];
 
       const messages: BaseMessage[] = [
@@ -196,7 +194,7 @@ describe('toolResultTrimmerMiddleware', () => {
       await callWrapModelCall({ messages }, handler);
 
       const [request] = handler.mock.calls[0] as [TestRequest];
-      const toolMessages = request.messages.filter((msg) => ToolMessage.isInstance(msg)) as ToolMessage[];
+      const toolMessages = request.messages.filter((message) => ToolMessage.isInstance(message)) as ToolMessage[];
 
       expect(toolMessages).toHaveLength(2);
       for (const toolMessage of toolMessages) {
@@ -208,9 +206,7 @@ describe('toolResultTrimmerMiddleware', () => {
 
   describe('deserialized messages from checkpoint', () => {
     it('should trim passed count from deserialized ToolMessage objects', async () => {
-      const failures: TestFailure[] = [
-        { id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' },
-      ];
+      const failures: TestFailure[] = [{ id: 'req_1', requirement: 'Test 1', reason: 'Failed', suggestion: 'Fix it' }];
       // This simulates a message loaded from PostgresSaver that lost its prototype
       const deserializedMessage = createDeserializedToolMessage(failures, 2);
 
@@ -221,7 +217,7 @@ describe('toolResultTrimmerMiddleware', () => {
       const trimmedMessage = request.messages[0];
 
       // The message should be detected as a ToolMessage and trimmed
-      const content = (trimmedMessage as { content: string }).content;
+      const { content } = trimmedMessage as { content: string };
       const parsed = JSON.parse(content) as TestModelOutput;
       expect(parsed.passed).toBeUndefined();
       expect(parsed.failures).toHaveLength(1);
@@ -259,6 +255,7 @@ describe('toolResultTrimmerMiddleware', () => {
       const otherToolOutput = { result: 'some data', value: 42 };
       const toolMessage = new ToolMessage({
         content: JSON.stringify(otherToolOutput),
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
         tool_call_id: 'call_other',
         name: 'other_tool',
       });
@@ -275,6 +272,7 @@ describe('toolResultTrimmerMiddleware', () => {
     it('should not modify ToolMessage with invalid JSON content', async () => {
       const toolMessage = new ToolMessage({
         content: 'not valid json',
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
         tool_call_id: 'call_invalid',
         name: toolName.testModel,
       });
@@ -289,9 +287,7 @@ describe('toolResultTrimmerMiddleware', () => {
 
   describe('preserves other message properties', () => {
     it('should preserve tool_call_id and other properties after trimming', async () => {
-      const failures: TestFailure[] = [
-        { id: 'req_1', requirement: 'Test', reason: 'Failed', suggestion: 'Fix' },
-      ];
+      const failures: TestFailure[] = [{ id: 'req_1', requirement: 'Test', reason: 'Failed', suggestion: 'Fix' }];
       const toolMessage = createTestModelToolMessage(failures, 2, {
         toolCallId: 'call_preserve_test',
       });
@@ -329,10 +325,10 @@ describe('toolResultTrimmerMiddleware', () => {
       const trimmedMessage = request.messages[0] as ToolMessage;
       const parsed = parseTestModelOutput(trimmedMessage);
 
-      // passed should be removed
+      // Passed should be removed
       expect(parsed.passed).toBeUndefined();
 
-      // failures and total should be preserved exactly
+      // Failures and total should be preserved exactly
       expect(parsed.failures).toEqual(failures);
       expect(parsed.total).toBe(4);
     });

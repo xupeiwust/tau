@@ -79,7 +79,7 @@ export class AnalysisService {
         .filter((result) => result.status === 'failed')
         .map((result) => {
           // Find the original requirement to get its description
-          const requirement = requirements.find((req) => req.id === result.id);
+          const requirement = requirements.find((request) => request.id === result.id);
 
           return {
             id: result.id,
@@ -107,9 +107,9 @@ export class AnalysisService {
       }
 
       // On error, return all requirements as failed with actionable message
-      const failures: TestFailure[] = requirements.map((req) => ({
-        id: req.id,
-        requirement: req.description,
+      const failures: TestFailure[] = requirements.map((request) => ({
+        id: request.id,
+        requirement: request.description,
         reason: `Analysis error: ${errorMessage}`,
         suggestion: 'Check API connectivity and retry. If the problem persists, simplify requirements.',
       }));
@@ -126,7 +126,9 @@ export class AnalysisService {
    * Format requirements into a user prompt for the multi-view analyzer.
    */
   private formatRequirementsPrompt(requirements: VisualTestRequirement[]): string {
-    const requirementsList = requirements.map((req) => `- ID: ${req.id}\n  Requirement: ${req.description}`).join('\n');
+    const requirementsList = requirements
+      .map((request) => `- ID: ${request.id}\n  Requirement: ${request.description}`)
+      .join('\n');
 
     return `Verify the following requirements against the 6 orthographic views provided:
 
