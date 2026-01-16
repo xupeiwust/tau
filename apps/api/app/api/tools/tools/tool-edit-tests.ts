@@ -44,71 +44,68 @@ const defaultTestFile = JSON.stringify(
   2,
 );
 
-export const editTestsTool = tool(
-  async (args, runtime: ToolRuntime) => {
-    const { chatToolsService, fileEditService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
-    const { toolCallId } = runtime;
-    const { codeEdit } = args;
+export const editTestsTool = tool(async (args, runtime: ToolRuntime) => {
+  const { chatToolsService, fileEditService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { toolCallId } = runtime;
+  const { codeEdit } = args;
 
-    // Step 1: Read the current test.json content via WebSocket
-    const readResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, {
-      targetFile: testFile,
-    });
+  // Step 1: Read the current test.json content via WebSocket
+  const readResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, {
+    targetFile: testFile,
+  });
 
-    // Return error objects directly to the LLM
-    if (isToolExecutionError(readResult)) {
-      return readResult;
-    }
+  // Return error objects directly to the LLM
+  if (isToolExecutionError(readResult)) {
+    return readResult;
+  }
 
-    // If file doesn't exist, use default content
-    const originalContent =
-      readResult.content.startsWith('Error reading file:') || readResult.content === ''
-        ? defaultTestFile
-        : readResult.content;
+  // If file doesn't exist, use default content
+  const originalContent =
+    readResult.content.startsWith('Error reading file:') || readResult.content === ''
+      ? defaultTestFile
+      : readResult.content;
 
-    // Step 2: Apply the edit using FileEditService (Morph fast-apply)
-    const editResult = await fileEditService.applyFileEdit({
-      targetFile: testFile,
-      originalContent,
-      codeEdit,
-      instructions: 'Apply the test requirements edit to test.json',
-    });
+  // Step 2: Apply the edit using FileEditService (Morph fast-apply)
+  const editResult = await fileEditService.applyFileEdit({
+    targetFile: testFile,
+    originalContent,
+    codeEdit,
+    instructions: 'Apply the test requirements edit to test.json',
+  });
 
-    if (!editResult.success || !editResult.editedContent) {
-      const result: EditTestsOutput = {
-        success: false,
-        diffStats: {
-          linesAdded: 0,
-          linesRemoved: 0,
-          originalContent,
-          modifiedContent: originalContent,
-        },
-      };
-      return result;
-    }
-
-    // Step 3: Write the edited content back via WebSocket
-    const writeResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.createFile, {
-      targetFile: testFile,
-      content: editResult.editedContent,
-    });
-
-    // Return error objects directly to the LLM
-    if (isToolExecutionError(writeResult)) {
-      return writeResult;
-    }
-
-    // Return the result with diff stats
+  if (!editResult.success || !editResult.editedContent) {
     const result: EditTestsOutput = {
-      success: true,
+      success: false,
       diffStats: {
-        linesAdded: editResult.diffStats?.linesAdded ?? 0,
-        linesRemoved: editResult.diffStats?.linesRemoved ?? 0,
+        linesAdded: 0,
+        linesRemoved: 0,
         originalContent,
-        modifiedContent: editResult.editedContent,
+        modifiedContent: originalContent,
       },
     };
     return result;
-  },
-  editTestsToolDefinition,
-);
+  }
+
+  // Step 3: Write the edited content back via WebSocket
+  const writeResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.createFile, {
+    targetFile: testFile,
+    content: editResult.editedContent,
+  });
+
+  // Return error objects directly to the LLM
+  if (isToolExecutionError(writeResult)) {
+    return writeResult;
+  }
+
+  // Return the result with diff stats
+  const result: EditTestsOutput = {
+    success: true,
+    diffStats: {
+      linesAdded: editResult.diffStats?.linesAdded ?? 0,
+      linesRemoved: editResult.diffStats?.linesRemoved ?? 0,
+      originalContent,
+      modifiedContent: editResult.editedContent,
+    },
+  };
+  return result;
+}, editTestsToolDefinition);
