@@ -5,8 +5,8 @@ import { observationSchema, visualTestRequirementSchema, testModelOutputSchema }
 // Request DTO for running visual tests
 export const runVisualTestsSchema = z
   .object({
-    observations: z.array(observationSchema),
-    requirements: z.array(visualTestRequirementSchema),
+    observations: z.array(observationSchema).min(1, 'At least one observation is required'),
+    requirements: z.array(visualTestRequirementSchema).min(1, 'At least one requirement is required'),
   })
   .meta({ id: 'RunVisualTests' });
 
