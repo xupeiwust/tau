@@ -39,7 +39,7 @@ export function HeroImage(): React.JSX.Element {
         <div className="mb-8 text-center">
           <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Design Faster. Build Smarter.</h2>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            From idea to 3D model in minutes — chat, code, or both. Your choice.
+            From idea to 3D model in seconds — chat, code, or both. Your choice.
           </p>
         </div>
 
