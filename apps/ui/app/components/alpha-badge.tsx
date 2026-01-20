@@ -9,11 +9,9 @@ export function AlphaBadge(): React.JSX.Element {
           ALPHA
         </Badge>
       </TooltipTrigger>
-      <TooltipContent className="max-w-58 text-balance">
+      <TooltipContent className="max-w-42 text-balance">
         <p className="font-semibold">Tau is in Alpha</p>
-        <p className="mt-1 text-white/80">
-          Features may be incomplete, unstable, or change without notice. Use at your own risk and expect bugs.
-        </p>
+        <p className="mt-1 text-white/80">Features may be unstable and change without notice.</p>
       </TooltipContent>
     </Tooltip>
   );
