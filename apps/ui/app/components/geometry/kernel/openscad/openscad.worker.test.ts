@@ -491,7 +491,7 @@ describe('OpenScadWorker', () => {
        * This contrasts with the OpenSCAD `use` behavior, where parameters are not extracted
        * from the referenced file. However this implementation DOES extract parameters from
        * the referenced file for better usability to ensure the user can modify those parameters.
-       * 
+       *
        * @see https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Include_Statement
        */
       it('should extract parameters from files referenced via use', async () => {
@@ -639,33 +639,29 @@ describe('OpenScadWorker', () => {
         expect(defaultParameters).not.toHaveProperty('unused_param');
       });
 
-      it(
-        'should stop recursion at depth limit of 50',
-        async () => {
-          // Create a deeply nested chain that would exceed 50 levels
-          const files: Record<string, string> = {};
+      it('should stop recursion at depth limit of 50', { timeout: 30_000 }, async () => {
+        // Create a deeply nested chain that would exceed 50 levels
+        const files: Record<string, string> = {};
 
-          // Create 60 levels of nesting
-          for (let i = 0; i < 60; i++) {
-            const nextFile = i < 59 ? `include <level${i + 1}.scad>\n` : '';
-            files[`level${i}.scad`] = `${nextFile}param${i} = ${i};`;
-          }
+        // Create 60 levels of nesting
+        for (let i = 0; i < 60; i++) {
+          const nextFile = i < 59 ? `include <level${i + 1}.scad>\n` : '';
+          files[`level${i}.scad`] = `${nextFile}param${i} = ${i};`;
+        }
 
-          const { defaultParameters } = await extractParameters(files, 'level0.scad');
+        const { defaultParameters } = await extractParameters(files, 'level0.scad');
 
-          // Should have params from first 50 levels (0-49), but not beyond
-          expect(defaultParameters).toHaveProperty('param0', 0);
+        // Should have params from first 50 levels (0-49), but not beyond
+        expect(defaultParameters).toHaveProperty('param0', 0);
 
-          // Check that we have Level49 but not Level50
-          // (main file is depth 0, so Level49 is the 50th file)
-          expect(defaultParameters).toHaveProperty('Level49');
+        // Check that we have Level49 but not Level50
+        // (main file is depth 0, so Level49 is the 50th file)
+        expect(defaultParameters).toHaveProperty('Level49');
 
-          // Level50 and beyond should NOT be included (depth limit reached)
-          expect(defaultParameters).not.toHaveProperty('Level50');
-          expect(defaultParameters).not.toHaveProperty('param50');
-        },
-        { timeout: 30_000 },
-      );
+        // Level50 and beyond should NOT be included (depth limit reached)
+        expect(defaultParameters).not.toHaveProperty('Level50');
+        expect(defaultParameters).not.toHaveProperty('param50');
+      });
     });
 
     describe('Edge cases', () => {

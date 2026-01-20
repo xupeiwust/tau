@@ -95,7 +95,7 @@ describe('parseStderrLine', () => {
           errors.push(error);
         },
         undefined,
-        'site/backyard.scad', // mainFilePath
+        'site/backyard.scad', // MainFilePath
       );
 
       expect(errors).toHaveLength(1);
@@ -112,7 +112,7 @@ describe('parseStderrLine', () => {
           errors.push(error);
         },
         undefined,
-        'site/main.scad', // mainFilePath (different file)
+        'site/main.scad', // MainFilePath (different file)
       );
 
       expect(errors).toHaveLength(1);
@@ -128,7 +128,7 @@ describe('parseStderrLine', () => {
           errors.push(error);
         },
         undefined,
-        'site/main.scad', // mainFilePath
+        'site/main.scad', // MainFilePath
       );
 
       expect(errors).toHaveLength(1);

@@ -59,6 +59,23 @@ export class OpenScadWorker extends KernelWorker {
     '3mf',
   ];
 
+  /**
+   * Maximum recursion depth for resolving use/include dependencies.
+   * Prevents infinite loops in circular dependencies.
+   */
+  private static get maxIncludeDepth() {
+    return 50;
+  }
+
+  /**
+   * Regex to match OpenSCAD use and include statements.
+   * Matches: use <path/to/file.scad> or include <path/to/file.scad>
+   * Also handles quoted paths: use "path/to/file.scad"
+   */
+  private static get useIncludeRegex() {
+    return /^\s*(?:use|include)\s*[<"]([^>"]+)[>"]/gm;
+  }
+
   protected override readonly name: string = 'OpenScadWorker';
 
   private offDataMemory: Record<string, string> = {};
@@ -365,19 +382,6 @@ export class OpenScadWorker extends KernelWorker {
   }
 
   /**
-   * Maximum recursion depth for resolving use/include dependencies.
-   * Prevents infinite loops in circular dependencies.
-   */
-  private static readonly MAX_INCLUDE_DEPTH = 50;
-
-  /**
-   * Regex to match OpenSCAD use and include statements.
-   * Matches: use <path/to/file.scad> or include <path/to/file.scad>
-   * Also handles quoted paths: use "path/to/file.scad"
-   */
-  private static readonly USE_INCLUDE_REGEX = /^\s*(?:use|include)\s*[<"]([^>"]+)[>"]/gm;
-
-  /**
    * Parse use and include statements from OpenSCAD code.
    *
    * @param code - The OpenSCAD source code.
@@ -385,12 +389,13 @@ export class OpenScadWorker extends KernelWorker {
    */
   private parseUseIncludeStatements(code: string): string[] {
     const paths: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- Regex exec returns null when no match is found
     let match: RegExpExecArray | null;
 
     // Reset regex state for fresh matching
-    OpenScadWorker.USE_INCLUDE_REGEX.lastIndex = 0;
+    OpenScadWorker.useIncludeRegex.lastIndex = 0;
 
-    while ((match = OpenScadWorker.USE_INCLUDE_REGEX.exec(code)) !== null) {
+    while ((match = OpenScadWorker.useIncludeRegex.exec(code)) !== null) {
       const path = match[1];
       if (path) {
         paths.push(path);
@@ -411,7 +416,7 @@ export class OpenScadWorker extends KernelWorker {
   private resolveIncludePath(basePath: string, relativePath: string): string {
     // Get the directory of the base file
     const lastSlash = basePath.lastIndexOf('/');
-    const baseDir = lastSlash >= 0 ? basePath.slice(0, lastSlash) : '';
+    const baseDir = lastSlash === -1 ? '' : basePath.slice(0, lastSlash);
 
     // Combine base directory with relative path
     const combinedPath = baseDir ? `${baseDir}/${relativePath}` : relativePath;
@@ -440,7 +445,7 @@ export class OpenScadWorker extends KernelWorker {
   private getProjectRootPath(): string {
     // Extract the subdirectory from activeFilePath (e.g., 'project' from 'project/main.scad')
     const lastSlash = this.activeFilePath.lastIndexOf('/');
-    const subDirectory = lastSlash >= 0 ? this.activeFilePath.slice(0, lastSlash) : '';
+    const subDirectory = lastSlash === -1 ? '' : this.activeFilePath.slice(0, lastSlash);
 
     // Remove the subdirectory from basePath to get the project root
     if (subDirectory && this.basePath.endsWith(`/${subDirectory}`)) {
@@ -481,8 +486,8 @@ export class OpenScadWorker extends KernelWorker {
       const normalizedPath = filePath.replace(/^\/+/, '');
 
       // Check depth limit
-      if (depth >= OpenScadWorker.MAX_INCLUDE_DEPTH) {
-        this.debug(`Max include depth (${OpenScadWorker.MAX_INCLUDE_DEPTH}) reached for ${normalizedPath}`, {
+      if (depth >= OpenScadWorker.maxIncludeDepth) {
+        this.debug(`Max include depth (${OpenScadWorker.maxIncludeDepth}) reached for ${normalizedPath}`, {
           operation: 'getReferencedScadFiles',
         });
         return;
