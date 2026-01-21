@@ -87,7 +87,7 @@ const determineWorkerActor = fromPromise<
     errors: [
       {
         message: `No kernel can handle file: ${event.file.filename}`,
-        location: { fileName: event.file.filename, startLineNumber: 0, startColumn: 0 },
+        location: { fileName: event.file.filename, startLineNumber: 1, startColumn: 1 },
         type: 'runtime',
         severity: 'error' as const,
       },
@@ -271,7 +271,7 @@ const parseParametersActor = fromPromise<
       errors: [
         {
           message: 'No worker selected',
-          location: { fileName: file.filename, startLineNumber: 0, startColumn: 0 },
+          location: { fileName: file.filename, startLineNumber: 1, startColumn: 1 },
           type: 'compilation',
           severity: 'error' as const,
         },
@@ -287,7 +287,7 @@ const parseParametersActor = fromPromise<
       errors: [
         {
           message: `${selectedWorker} worker not initialized`,
-          location: { fileName: file.filename, startLineNumber: 0, startColumn: 0 },
+          location: { fileName: file.filename, startLineNumber: 1, startColumn: 1 },
           type: 'compilation',
           severity: 'error' as const,
         },
@@ -363,7 +363,7 @@ const evaluateCodeActor = fromPromise<
       errors: [
         {
           message: 'No worker selected',
-          location: { fileName: file.filename, startLineNumber: 0, startColumn: 0 },
+          location: { fileName: file.filename, startLineNumber: 1, startColumn: 1 },
           type: 'runtime',
           severity: 'error' as const,
         },
@@ -379,7 +379,7 @@ const evaluateCodeActor = fromPromise<
       errors: [
         {
           message: `${selectedWorker} worker not initialized`,
-          location: { fileName: file.filename, startLineNumber: 0, startColumn: 0 },
+          location: { fileName: file.filename, startLineNumber: 1, startColumn: 1 },
           type: 'runtime',
           severity: 'error' as const,
         },

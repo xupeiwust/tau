@@ -68,7 +68,7 @@ class TauWorker extends KernelWorker {
       return createKernelError([
         {
           message: errorMessage,
-          location: { fileName: this.activeFilePath, startLineNumber: 0, startColumn: 0 },
+          location: { fileName: this.activeFilePath, startLineNumber: 1, startColumn: 1 },
           type: 'runtime',
           severity: 'error',
         },
