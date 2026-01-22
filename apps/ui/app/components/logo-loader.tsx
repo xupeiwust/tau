@@ -20,7 +20,7 @@ const styles = `
 
 export function LogoLoader({ className }: { readonly className?: string }): React.JSX.Element {
   return (
-    <div className={cn('size-4 text-primary', className)} style={{ zIndex: 10 }}>
+    <div className={cn('size-4', className)} style={{ zIndex: 10 }}>
       <style>{styles}</style>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="size-full">
         <path
