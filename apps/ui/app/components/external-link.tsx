@@ -30,6 +30,9 @@ const arrowSizeClasses = {
   md: 'size-5',
 } as const;
 
+/**
+ * External link that opens in a new tab and can show an optional arrow indicator.
+ */
 export function ExternalLink({
   href,
   children,
