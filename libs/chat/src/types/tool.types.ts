@@ -1,6 +1,6 @@
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import type { InferUITools, Tool as AiTool, UIToolInvocation } from 'ai';
-import type { toolName, toolMode, clientToolNames } from '#constants/tool.constants.js';
+import type { toolName, toolMode, clientToolNames, allRpcNames } from '#constants/tool.constants.js';
 import type { EditFileInput, EditFileOutput } from '#schemas/tools/edit-file.tool.schema.js';
 import type {
   TestModelInput,
@@ -39,6 +39,12 @@ import type { ToolExecutionError } from '#types/websocket.types.js';
 export type ToolName = (typeof toolName)[keyof typeof toolName];
 
 export type ClientToolName = (typeof clientToolNames)[number];
+
+/**
+ * RPC operation names - all operations that can be executed via WebSocket.
+ * Includes both client-visible tools and internal RPCs (like captureObservations).
+ */
+export type RpcName = (typeof allRpcNames)[number];
 
 /**
  * The tool mode. One of:

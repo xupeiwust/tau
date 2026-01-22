@@ -1,10 +1,10 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { readFileInputSchema } from '@taucad/chat';
+import { readFileInputSchema, isRpcError } from '@taucad/chat';
 import { isToolExecutionError } from '@taucad/chat/utils';
-import type { ChatTool, ReadFileInput, ReadFileOutput } from '@taucad/chat';
+import type { ChatTool, ReadFileInput, ReadFileOutput, ToolExecutionError } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const readFileToolDefinition = {
   name: toolName.readFile,
@@ -36,14 +36,25 @@ export const readFileTool: ChatTool<
   ReadFileOutput,
   typeof toolName.readFile
 > = tool(async (args, runtime: ToolRuntime) => {
-  const { chatToolsService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
 
-  const result = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, args);
+  const result = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.readFile, args);
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(result)) {
     return result;
+  }
+
+  // Handle RPC business errors (file not found, permission denied)
+  if (isRpcError(result)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot read file "${args.targetFile}": ${result.message}`,
+      toolName: toolName.readFile,
+      toolCallId,
+    };
+    return error;
   }
 
   // Add line numbers to the raw content for LLM display

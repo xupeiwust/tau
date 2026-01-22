@@ -1,9 +1,10 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { getKernelResultInputSchema } from '@taucad/chat';
-import type { ChatTool, GetKernelResultInput, GetKernelResultOutput } from '@taucad/chat';
+import { getKernelResultInputSchema, isRpcError } from '@taucad/chat';
+import { isToolExecutionError } from '@taucad/chat/utils';
+import type { ChatTool, GetKernelResultInput, GetKernelResultOutput, ToolExecutionError } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const getKernelResultToolDefinition = {
   name: toolName.getKernelResult,
@@ -28,8 +29,30 @@ export const getKernelResultTool: ChatTool<
   GetKernelResultOutput,
   typeof toolName.getKernelResult
 > = tool(async (args, runtime: ToolRuntime) => {
-  const { chatToolsService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
 
-  return chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.getKernelResult, args);
+  const result = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.getKernelResult, args);
+
+  // Handle infrastructure errors (timeout, disconnect)
+  if (isToolExecutionError(result)) {
+    return result;
+  }
+
+  // Handle RPC business errors
+  if (isRpcError(result)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot get kernel result for "${args.targetFile}": ${result.message}`,
+      toolName: toolName.getKernelResult,
+      toolCallId,
+    };
+    return error;
+  }
+
+  // Return success output
+  return {
+    status: result.status,
+    kernelIssues: result.kernelIssues,
+  };
 }, getKernelResultToolDefinition);

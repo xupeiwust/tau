@@ -4,7 +4,7 @@ import { convertToModelMessages, createUIMessageStreamResponse } from 'ai';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ToolSelection } from '@taucad/chat';
 import { ChatService } from '#api/chat/chat.service.js';
-import { ChatToolsService } from '#api/chat/chat-tools.service.js';
+import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { ModelService } from '#api/models/model.service.js';
 import { FileEditService } from '#api/file-edit/file-edit.service.js';
 import { AnalysisService } from '#api/analysis/analysis.service.js';
@@ -25,7 +25,7 @@ export class ChatController {
 
   public constructor(
     private readonly chatService: ChatService,
-    private readonly chatToolsService: ChatToolsService,
+    private readonly chatRpcService: ChatRpcService,
     private readonly modelService: ModelService,
     private readonly fileEditService: FileEditService,
     private readonly analysisService: AnalysisService,
@@ -117,7 +117,7 @@ export class ChatController {
           // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
           thread_id: body.id,
           // Pass services for tools to use
-          chatToolsService: this.chatToolsService,
+          chatRpcService: this.chatRpcService,
           fileEditService: this.fileEditService,
           analysisService: this.analysisService,
         },

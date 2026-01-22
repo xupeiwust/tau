@@ -5,8 +5,7 @@ export const deleteFileInputSchema = z.object({
 });
 
 export const deleteFileOutputSchema = z.object({
-  success: z.boolean().describe('Whether the file was deleted successfully.'),
-  message: z.string().optional().describe('Additional information about the operation.'),
+  message: z.string().describe('Information about the operation.'),
 });
 
 export type DeleteFileInput = z.infer<typeof deleteFileInputSchema>;

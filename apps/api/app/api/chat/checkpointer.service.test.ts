@@ -34,10 +34,7 @@ describe('CheckpointerService', () => {
     vi.clearAllMocks();
 
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        CheckpointerService,
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
+      providers: [CheckpointerService, { provide: ConfigService, useValue: mockConfigService }],
     }).compile();
 
     service = moduleRef.get<CheckpointerService>(CheckpointerService);

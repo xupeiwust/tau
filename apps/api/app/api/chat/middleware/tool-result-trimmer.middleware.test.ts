@@ -352,7 +352,6 @@ describe('toolResultTrimmerMiddleware', () => {
   describe('create_file trimmer', () => {
     function createCreateFileOutput(): CreateFileOutput {
       return {
-        success: true,
         message: 'File created successfully',
         diffStats: {
           linesAdded: 25,
@@ -379,7 +378,6 @@ describe('toolResultTrimmerMiddleware', () => {
       const parsed = JSON.parse(trimmedMessage.content as string) as unknown;
 
       expect(parsed).toEqual({
-        success: true,
         message: 'File created successfully',
         diffStats: {
           linesAdded: 25,
@@ -404,7 +402,6 @@ describe('toolResultTrimmerMiddleware', () => {
       const parsed = JSON.parse(trimmedMessage.content as string) as unknown;
 
       expect(parsed).toEqual({
-        success: true,
         message: 'File created successfully',
         diffStats: {
           linesAdded: 25,
@@ -417,7 +414,6 @@ describe('toolResultTrimmerMiddleware', () => {
   describe('edit_file trimmer', () => {
     function createEditFileOutput(): EditFileOutput {
       return {
-        success: true,
         diffStats: {
           linesAdded: 10,
           linesRemoved: 5,
@@ -443,7 +439,6 @@ describe('toolResultTrimmerMiddleware', () => {
       const parsed = JSON.parse(trimmedMessage.content as string) as unknown;
 
       expect(parsed).toEqual({
-        success: true,
         diffStats: {
           linesAdded: 10,
           linesRemoved: 5,
@@ -565,5 +560,4 @@ describe('toolResultTrimmerMiddleware', () => {
       });
     });
   });
-
 });

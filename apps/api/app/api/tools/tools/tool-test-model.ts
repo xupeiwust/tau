@@ -1,10 +1,16 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { testModelInputSchema, testFileSchema } from '@taucad/chat';
+import { testModelInputSchema, testFileSchema, isRpcError } from '@taucad/chat';
 import { isToolExecutionError } from '@taucad/chat/utils';
-import type { ChatTool, TestModelInput, TestModelOutput, VisualTestRequirement } from '@taucad/chat';
+import type {
+  ChatTool,
+  TestModelInput,
+  TestModelOutput,
+  VisualTestRequirement,
+  ToolExecutionError,
+} from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const testModelToolDefinition = {
   name: toolName.testModel,
@@ -29,21 +35,21 @@ export const testModelTool: ChatTool<
   TestModelOutput,
   typeof toolName.testModel
 > = tool(async (_input, runtime: ToolRuntime) => {
-  const { chatToolsService, analysisService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, analysisService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
 
   // Step 1: Read test.json to get requirements
-  const testFileContent = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, {
+  const testFileContent = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.readFile, {
     targetFile: 'test.json',
   });
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(testFileContent)) {
     return testFileContent;
   }
 
-  // Check if test.json exists
-  if (testFileContent.content.startsWith('Error reading file:') || testFileContent.content === '') {
+  // Handle RPC business errors (file not found)
+  if (isRpcError(testFileContent)) {
     const result: TestModelOutput = {
       failures: [
         {
@@ -51,6 +57,25 @@ export const testModelTool: ChatTool<
           requirement: 'test.json file must exist',
           reason: 'No test.json file found in project root',
           suggestion: 'Use edit_tests to create test.json with requirements before running tests',
+        },
+      ],
+      passes: [],
+      passed: 0,
+      total: 0,
+    };
+
+    return result;
+  }
+
+  // Check if test.json is empty
+  if (testFileContent.content === '') {
+    const result: TestModelOutput = {
+      failures: [
+        {
+          id: 'empty_test_file',
+          requirement: 'test.json file must have content',
+          reason: 'test.json file is empty',
+          suggestion: 'Use edit_tests to add requirements to test.json',
         },
       ],
       passes: [],
@@ -100,17 +125,23 @@ export const testModelTool: ChatTool<
     return result;
   }
 
-  // Step 2: Capture observations from the frontend via WebSocket
-  const captureResult = await chatToolsService.sendToolCallRequest(
-    chatId,
-    toolCallId,
-    toolName.captureObservations,
-    {},
-  );
+  // Step 2: Capture observations from the frontend via RPC
+  const captureResult = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.captureObservations, {});
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(captureResult)) {
     return captureResult;
+  }
+
+  // Handle RPC business errors
+  if (isRpcError(captureResult)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Failed to capture observations: ${captureResult.message}`,
+      toolName: toolName.testModel,
+      toolCallId,
+    };
+    return error;
   }
 
   const { observations } = captureResult;

@@ -5,7 +5,7 @@
  * - useChat from AI SDK is the source of truth for messages
  * - chatPersistenceMachine handles message persistence with debouncing
  * - draftMachine handles drafts/edits with direct persistence
- * - useChatToolsConnection handles tool execution via Socket.IO
+ * - useChatRpcConnection handles RPC execution via Socket.IO
  */
 
 import { useChat } from '@ai-sdk/react';

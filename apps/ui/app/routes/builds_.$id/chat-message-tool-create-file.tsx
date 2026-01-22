@@ -16,24 +16,20 @@ export function ChatMessageToolCreateFile({
       const targetFile = input?.targetFile ?? '';
       const content = input?.content ?? '';
 
-      return (
-        <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} mode="create" content={content} />
-      );
+      return <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} content={content} />;
     }
 
     case 'output-available': {
       const { input, output } = part;
       const { targetFile, content } = input;
-      const { success, diffStats } = output;
+      const { diffStats } = output;
 
       return (
         <CollapsibleFileOperation
           enableFileLink
           targetFile={targetFile}
           toolStatus={part.state}
-          mode="create"
-          content={success ? content : undefined}
-          isSuccess={success}
+          content={content}
           diffStats={diffStats}
         />
       );

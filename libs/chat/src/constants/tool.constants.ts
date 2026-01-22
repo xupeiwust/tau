@@ -21,15 +21,14 @@ export const toolName = {
 export const toolNames = Object.values(toolName) as [(typeof toolName)[keyof typeof toolName]];
 
 /**
- * Client-side tools that are executed on the frontend via WebSocket.
- * These tools require the client to execute the action and return the result.
+ * Client-side RPC operations that are exposed to the LLM and shown in the UI.
+ * These operations are executed on the frontend via WebSocket.
  *
  * Note: edit_file, edit_tests, and test_model are NOT included here because they are
- * orchestrated on the backend (they call these client tools internally).
+ * orchestrated on the backend (they call these client RPCs internally).
  * Server-only tools (transfers, web search) are also NOT included here.
  */
 export const clientToolNames = [
-  toolName.captureObservations,
   toolName.readFile,
   toolName.listDirectory,
   toolName.createFile,
@@ -38,6 +37,18 @@ export const clientToolNames = [
   toolName.globSearch,
   toolName.getKernelResult,
 ] as const;
+
+/**
+ * Internal RPC operations that are NOT shown in the UI.
+ * These are used by backend tools but don't appear as standalone tool calls.
+ */
+export const internalRpcNames = [toolName.captureObservations] as const;
+
+/**
+ * All RPC operations (client + internal).
+ * Used for validation in ChatRpcService.
+ */
+export const allRpcNames = [...clientToolNames, ...internalRpcNames] as const;
 
 export const toolMode = {
   none: 'none',

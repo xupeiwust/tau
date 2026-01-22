@@ -16,9 +16,7 @@ export function ChatMessageToolFileEdit({
       const { input } = part;
       const { targetFile = '', codeEdit = '' } = input ?? {};
 
-      return (
-        <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} mode="edit" content={codeEdit} />
-      );
+      return <CollapsibleFileOperation targetFile={targetFile} toolStatus={part.state} content={codeEdit} />;
     }
 
     case 'output-available': {
@@ -34,7 +32,6 @@ export function ChatMessageToolFileEdit({
           enableFileLink
           targetFile={targetFile}
           toolStatus={part.state}
-          mode="edit"
           content={displayContent}
           diffStats={diffStats}
           actions={

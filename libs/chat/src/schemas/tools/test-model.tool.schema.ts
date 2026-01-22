@@ -133,7 +133,6 @@ export type EditTestsInput = z.infer<typeof editTestsInputSchema>;
  * Mirrors edit_file output for consistent UX.
  */
 export const editTestsOutputSchema = z.object({
-  success: z.boolean().describe('Whether the edit was successfully applied'),
   diffStats: diffStatsWithContentSchema.describe('Statistics and content diff for the changes made'),
 });
 export type EditTestsOutput = z.infer<typeof editTestsOutputSchema>;

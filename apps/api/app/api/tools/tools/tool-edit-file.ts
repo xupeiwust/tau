@@ -1,10 +1,10 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { editFileInputSchema } from '@taucad/chat';
+import { editFileInputSchema, isRpcError } from '@taucad/chat';
 import { isToolExecutionError } from '@taucad/chat/utils';
-import type { ChatTool, EditFileInput, EditFileOutput } from '@taucad/chat';
+import type { ChatTool, EditFileInput, EditFileOutput, ToolExecutionError } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const editFileToolDefinition = {
   name: toolName.editFile,
@@ -37,33 +37,30 @@ export const editFileTool: ChatTool<
   EditFileOutput,
   typeof toolName.editFile
 > = tool(async (args, runtime: ToolRuntime) => {
-  const { chatToolsService, fileEditService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, fileEditService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
   const { targetFile, codeEdit } = args;
 
-  // Step 1: Read the original file content via WebSocket
+  // Step 1: Read the original file content via RPC
   // The frontend returns raw content without line numbers
-  const readResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, {
+  const readResult = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.readFile, {
     targetFile,
   });
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(readResult)) {
     return readResult;
   }
 
-  // Check if read failed (file doesn't exist)
-  if (readResult.content.startsWith('Error reading file:')) {
-    const result: EditFileOutput = {
-      success: false,
-      diffStats: {
-        linesAdded: 0,
-        linesRemoved: 0,
-        originalContent: '',
-        modifiedContent: '',
-      },
+  // Handle RPC business errors (file not found, permission denied)
+  if (isRpcError(readResult)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot edit file "${targetFile}": ${readResult.message}`,
+      toolName: toolName.editFile,
+      toolCallId,
     };
-    return result;
+    return error;
   }
 
   // Frontend sends raw content (no line numbers)
@@ -78,32 +75,39 @@ export const editFileTool: ChatTool<
   });
 
   if (!editResult.success || !editResult.editedContent) {
-    const result: EditFileOutput = {
-      success: false,
-      diffStats: {
-        linesAdded: 0,
-        linesRemoved: 0,
-        originalContent,
-        modifiedContent: originalContent,
-      },
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Failed to apply edit to "${targetFile}". The edit pattern may not match the file content.`,
+      toolName: toolName.editFile,
+      toolCallId,
     };
-    return result;
+    return error;
   }
 
-  // Step 3: Write the edited content back via WebSocket
-  const writeResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.createFile, {
+  // Step 3: Write the edited content back via RPC
+  const writeResult = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.createFile, {
     targetFile,
     content: editResult.editedContent,
   });
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(writeResult)) {
     return writeResult;
   }
 
-  // Return the result with diff stats
+  // Handle RPC business errors (permission denied, etc.)
+  if (isRpcError(writeResult)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot save edited file "${targetFile}": ${writeResult.message}`,
+      toolName: toolName.editFile,
+      toolCallId,
+    };
+    return error;
+  }
+
+  // Return the result with diff stats (success only - no success property)
   const result: EditFileOutput = {
-    success: true,
     diffStats: {
       linesAdded: editResult.diffStats?.linesAdded ?? 0,
       linesRemoved: editResult.diffStats?.linesRemoved ?? 0,

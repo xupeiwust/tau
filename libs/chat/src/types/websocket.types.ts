@@ -1,37 +1,37 @@
-import type { ClientToolName } from '#types/tool.types.js';
+import type { RpcName } from '#types/tool.types.js';
 import type { wsCloseCode } from '#constants/websocket.constants.js';
 
 export type WsCloseCode = (typeof wsCloseCode)[keyof typeof wsCloseCode];
 
 /**
- * Server -> Client: Request to execute a tool on the client.
+ * Server -> Client: Request to execute an RPC operation on the client.
  */
-export type ToolCallRequest = {
-  type: 'tool_call_request';
+export type RpcRequest = {
+  type: 'rpc_request';
   /** The chat ID this request is for */
   chatId: string;
   /** Unique ID for this request (used to match response) */
   requestId: string;
   /** The tool call ID from the LLM */
   toolCallId: string;
-  /** The name of the tool to execute */
-  toolName: ClientToolName;
-  /** The arguments for the tool */
+  /** The name of the RPC operation to execute */
+  rpcName: RpcName;
+  /** The arguments for the RPC operation */
   args: unknown;
 };
 
 /**
- * Client -> Server: Result of a tool execution.
+ * Client -> Server: Result of an RPC operation execution.
  */
-export type ToolCallResult = {
-  type: 'tool_call_result';
-  /** The request ID this result corresponds to */
+export type RpcResponse = {
+  type: 'rpc_response';
+  /** The request ID this response corresponds to */
   requestId: string;
   /** The tool call ID from the original request */
   toolCallId: string;
-  /** The result of the tool execution */
+  /** The result of the RPC operation */
   result: unknown;
-  /** Error message if the tool execution failed */
+  /** Error message if the RPC operation failed (infrastructure error) */
   error?: string;
 };
 
@@ -67,12 +67,12 @@ export type WsErrorMessage = {
 /**
  * All possible messages from server to client.
  */
-export type ServerToClientMessage = ToolCallRequest | WsConnectedMessage | WsErrorMessage;
+export type ServerToClientMessage = RpcRequest | WsConnectedMessage | WsErrorMessage;
 
 /**
  * All possible messages from client to server.
  */
-export type ClientToServerMessage = ToolCallResult | WsConnectMessage;
+export type ClientToServerMessage = RpcResponse | WsConnectMessage;
 
 /**
  * Structured error returned to LLM when tool execution times out.
@@ -148,6 +148,7 @@ export type ToolGenericExecutionError = {
 
 /**
  * All possible structured tool errors including validation errors.
+ * These are returned to the LLM so it can reason about errors.
  */
 export type ToolExecutionError =
   | ToolTimeoutError

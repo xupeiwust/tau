@@ -1,7 +1,7 @@
 /**
- * Chat Tools Socket Service
+ * Chat RPC Socket Service
  *
- * Singleton service that manages a single Socket.IO connection for chat tool execution.
+ * Singleton service that manages a single Socket.IO connection for chat RPC execution.
  * This service lives outside of React's lifecycle to avoid connection churn from
  * React Strict Mode and effect re-runs.
  *
@@ -13,54 +13,54 @@
  */
 import type { Socket } from 'socket.io-client';
 import { io } from 'socket.io-client';
-import type { ToolCallRequest, ToolCallResult } from '@taucad/chat';
+import type { RpcRequest, RpcResponse } from '@taucad/chat';
 import { ENV } from '#environment.config.js';
 
 /** Connection status for UI display */
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
-/** Handler for incoming tool call requests */
-export type ToolRequestHandler = (request: ToolCallRequest) => Promise<ToolCallResult>;
+/** Handler for incoming RPC requests */
+export type RpcRequestHandler = (request: RpcRequest) => Promise<RpcResponse>;
 
 /** Listener for connection status changes */
 export type StatusListener = (status: ConnectionStatus, error?: string) => void;
 
-/** Socket.IO URL for chat tools */
-const socketUrl = `${ENV.TAU_WEBSOCKET_URL}/v1/chat/tools`;
+/** Socket.IO URL for chat RPC */
+const socketUrl = `${ENV.TAU_WEBSOCKET_URL}/v1/chat/rpc`;
 
 /**
- * Singleton service for managing Socket.IO chat tools connection.
+ * Singleton service for managing Socket.IO chat RPC connection.
  *
  * Maintains a single Socket.IO connection per browser tab that can be joined
- * to multiple chat rooms simultaneously. Tool requests are routed to the
+ * to multiple chat rooms simultaneously. RPC requests are routed to the
  * appropriate handler based on the chatId in the request.
  *
  * Usage:
- * 1. Get instance: ChatToolsSocketService.getInstance()
+ * 1. Get instance: ChatRpcSocketService.getInstance()
  * 2. Connect: service.connect()
- * 3. Join chat: service.joinChat(chatId, onToolRequest)
+ * 3. Join chat: service.joinChat(chatId, onRpcRequest)
  * 4. Leave chat: service.leaveChat(chatId)
  * 5. Subscribe to status: service.subscribe(listener)
  */
-export class ChatToolsSocketService {
-  private static instance: ChatToolsSocketService | undefined;
+export class ChatRpcSocketService {
+  private static instance: ChatRpcSocketService | undefined;
 
   /**
    * Get the singleton instance of the service.
    */
   // eslint-disable-next-line @typescript-eslint/member-ordering -- Singleton pattern requires instance field before getInstance
-  public static getInstance(): ChatToolsSocketService {
-    ChatToolsSocketService.instance ??= new ChatToolsSocketService();
+  public static getInstance(): ChatRpcSocketService {
+    ChatRpcSocketService.instance ??= new ChatRpcSocketService();
 
-    return ChatToolsSocketService.instance;
+    return ChatRpcSocketService.instance;
   }
 
   private socket: Socket | undefined;
   private status: ConnectionStatus = 'disconnected';
   private error: string | undefined;
 
-  /** Map of chatId to tool request handler - supports multiple active chats */
-  private readonly chatHandlers = new Map<string, ToolRequestHandler>();
+  /** Map of chatId to RPC request handler - supports multiple active chats */
+  private readonly chatHandlers = new Map<string, RpcRequestHandler>();
 
   /** Set of status change listeners */
   private readonly statusListeners = new Set<StatusListener>();
@@ -116,12 +116,12 @@ export class ChatToolsSocketService {
   }
 
   /**
-   * Join a chat room and register a handler for tool requests.
+   * Join a chat room and register a handler for RPC requests.
    * Multiple chats can be joined simultaneously.
    */
-  public joinChat(chatId: string, onToolRequest: ToolRequestHandler): void {
+  public joinChat(chatId: string, onRpcRequest: RpcRequestHandler): void {
     // Store/update the handler for this chat
-    this.chatHandlers.set(chatId, onToolRequest);
+    this.chatHandlers.set(chatId, onRpcRequest);
 
     // If connected, join the room immediately
     if (this.socket?.connected) {
@@ -158,15 +158,15 @@ export class ChatToolsSocketService {
   }
 
   /**
-   * Send a tool call result back to the server.
+   * Send an RPC response back to the server.
    */
-  public sendToolCallResult(result: ToolCallResult): void {
+  public sendRpcResponse(response: RpcResponse): void {
     if (!this.socket?.connected) {
-      console.error('[ChatToolsSocket] Cannot send result - not connected');
+      console.error('[ChatRpcSocket] Cannot send response - not connected');
       return;
     }
 
-    this.socket.emit('tool_call_result', result);
+    this.socket.emit('rpc_response', response);
   }
 
   /**
@@ -263,9 +263,9 @@ export class ChatToolsSocketService {
       this.setStatus('error', 'Failed to reconnect');
     });
 
-    // Handle incoming tool call requests
-    socket.on('tool_call_request', (request: ToolCallRequest) => {
-      void this.handleToolCallRequest(request);
+    // Handle incoming RPC requests
+    socket.on('rpc_request', (request: RpcRequest) => {
+      void this.handleRpcRequest(request);
     });
 
     // Handle server errors
@@ -295,25 +295,25 @@ export class ChatToolsSocketService {
   }
 
   /**
-   * Handle an incoming tool call request.
+   * Handle an incoming RPC request.
    * Routes to the appropriate handler based on chatId.
    */
-  private async handleToolCallRequest(request: ToolCallRequest): Promise<void> {
+  private async handleRpcRequest(request: RpcRequest): Promise<void> {
     const { chatId } = request;
     const handler = this.chatHandlers.get(chatId);
 
     if (!handler) {
-      console.warn(`[ChatToolsSocket] Received tool request for unknown chat: ${chatId}`);
+      console.warn(`[ChatRpcSocket] Received RPC request for unknown chat: ${chatId}`);
       return;
     }
 
     try {
-      const result = await handler(request);
-      this.sendToolCallResult(result);
+      const response = await handler(request);
+      this.sendRpcResponse(response);
     } catch (execError) {
-      // Send error result
-      this.sendToolCallResult({
-        type: 'tool_call_result',
+      // Send error response
+      this.sendRpcResponse({
+        type: 'rpc_response',
         requestId: request.requestId,
         toolCallId: request.toolCallId,
         result: undefined,

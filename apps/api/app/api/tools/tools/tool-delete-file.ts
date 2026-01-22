@@ -1,9 +1,10 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { deleteFileInputSchema } from '@taucad/chat';
-import type { ChatTool, DeleteFileInput, DeleteFileOutput } from '@taucad/chat';
+import { deleteFileInputSchema, isRpcError } from '@taucad/chat';
+import { isToolExecutionError } from '@taucad/chat/utils';
+import type { ChatTool, DeleteFileInput, DeleteFileOutput, ToolExecutionError } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const deleteFileToolDefinition = {
   name: toolName.deleteFile,
@@ -27,8 +28,30 @@ export const deleteFileTool: ChatTool<
   DeleteFileOutput,
   typeof toolName.deleteFile
 > = tool(async (args, runtime: ToolRuntime) => {
-  const { chatToolsService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
 
-  return chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.deleteFile, args);
+  const result = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.deleteFile, args);
+
+  // Handle infrastructure errors (timeout, disconnect)
+  if (isToolExecutionError(result)) {
+    return result;
+  }
+
+  // Handle RPC business errors (file not found, permission denied)
+  if (isRpcError(result)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot delete file "${args.targetFile}": ${result.message}`,
+      toolName: toolName.deleteFile,
+      toolCallId,
+    };
+    return error;
+  }
+
+  // Return success output (no success property in schema)
+  const output: DeleteFileOutput = {
+    message: result.message,
+  };
+  return output;
 }, deleteFileToolDefinition);

@@ -51,51 +51,28 @@ export function ChatMessageToolDeleteFile({
     }
 
     case 'output-available': {
-      const { input, output } = part;
+      const { input } = part;
       const { targetFile } = input;
-      const { success } = output;
       const filename = getFilename(targetFile);
       const hasPath = targetFile !== filename;
 
-      if (success) {
-        return (
-          <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
-            <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-muted-foreground">
-              <FileExtensionIcon filename={filename} className="size-3" />
-              {hasPath ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="min-w-0 truncate">{filename}</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="start">
-                    {targetFile}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <span className="min-w-0 truncate">{filename}</span>
-              )}
-              <span className="text-destructive/80">Deleted</span>
-            </div>
-          </div>
-        );
-      }
-
       return (
-        <div className="@container/code overflow-hidden rounded-md border border-destructive/50 bg-destructive/10">
-          <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-destructive">
-            <X className="size-3" />
+        <div className="@container/code overflow-hidden rounded-md border bg-neutral/10">
+          <div className="flex h-7 w-full flex-row items-center gap-1 pr-2 pl-2 text-xs text-muted-foreground">
+            <FileExtensionIcon filename={filename} className="size-3" />
             {hasPath ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="min-w-0 truncate">Failed to delete {filename}</span>
+                  <span className="min-w-0 truncate">{filename}</span>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="start">
                   {targetFile}
                 </TooltipContent>
               </Tooltip>
             ) : (
-              <span className="min-w-0 truncate">Failed to delete {filename}</span>
+              <span className="min-w-0 truncate">{filename}</span>
             )}
+            <span className="text-destructive/80">Deleted</span>
           </div>
         </div>
       );

@@ -10,7 +10,7 @@ import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
 import type { ChatUsageTokens, MyUIMessage } from '@taucad/chat';
 import { ChatController } from '#api/chat/chat.controller.js';
 import { ChatService } from '#api/chat/chat.service.js';
-import { ChatToolsService } from '#api/chat/chat-tools.service.js';
+import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { ModelService } from '#api/models/model.service.js';
 import { FileEditService } from '#api/file-edit/file-edit.service.js';
 import { AnalysisService } from '#api/analysis/analysis.service.js';
@@ -165,7 +165,7 @@ describe('ChatController', () => {
       }),
     };
 
-    const mockChatToolsService = {};
+    const mockChatRpcService = {};
 
     const mockFileEditService = {};
 
@@ -179,8 +179,8 @@ describe('ChatController', () => {
           useValue: mockChatService,
         },
         {
-          provide: ChatToolsService,
-          useValue: mockChatToolsService,
+          provide: ChatRpcService,
+          useValue: mockChatRpcService,
         },
         {
           provide: ModelService,

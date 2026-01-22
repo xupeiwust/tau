@@ -7,18 +7,18 @@ import { WebSocketGateway, WebSocketServer, SubscribeMessage, ConnectedSocket, M
 import type { Server, Socket, Namespace } from 'socket.io';
 import type { Auth } from 'better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
-import type { ToolCallResult } from '@taucad/chat';
+import type { RpcResponse } from '@taucad/chat';
 import { authInstanceKey } from '#constants/auth.constant.js';
-import { ChatToolsService } from '#api/chat/chat-tools.service.js';
+import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { DevWebSocketService } from '#api/websocket/dev-websocket.service.js';
 
-const chatToolsPath = '/v1/chat/tools';
+const chatRpcPath = '/v1/chat/rpc';
 
 /**
- * WebSocket Gateway for chat tool execution using Socket.IO.
+ * WebSocket Gateway for chat RPC execution using Socket.IO.
  *
- * Provides a bidirectional channel for executing client-side tools
- * during LLM chat sessions. The backend sends tool call requests,
+ * Provides a bidirectional channel for executing client-side RPC operations
+ * during LLM chat sessions. The backend sends RPC requests,
  * and the client executes them and returns results.
  *
  * In development: Uses DevWebSocketService's Socket.IO server on port+1
@@ -28,22 +28,22 @@ const chatToolsPath = '/v1/chat/tools';
  * across multiple API instances.
  */
 @WebSocketGateway({
-  path: chatToolsPath,
+  path: chatRpcPath,
   transports: ['websocket'],
   cors: false, // CORS handled by NestJS/Fastify
 })
-export class ChatToolsGateway
+export class ChatRpcGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleInit, OnModuleDestroy
 {
   @WebSocketServer()
   // @ts-expect-error Injected by NestJS in production, manually set in dev
   private readonly server!: Server;
 
-  private readonly logger = new Logger(ChatToolsGateway.name);
+  private readonly logger = new Logger(ChatRpcGateway.name);
   private devServer: Namespace | undefined;
 
   public constructor(
-    private readonly chatToolsService: ChatToolsService,
+    private readonly chatRpcService: ChatRpcService,
     private readonly devWebSocketService: DevWebSocketService,
     @Inject(authInstanceKey) private readonly auth: Auth,
   ) {}
@@ -71,8 +71,8 @@ export class ChatToolsGateway
   private initDevSocketIo(): void {
     const io = this.devWebSocketService.getSocketIoServer();
 
-    // Create a namespace for chat tools
-    this.devServer = io.of(chatToolsPath);
+    // Create a namespace for chat RPC
+    this.devServer = io.of(chatRpcPath);
 
     // Set up connection handling
     this.devServer.on('connection', (socket: Socket) => {
@@ -80,7 +80,7 @@ export class ChatToolsGateway
     });
 
     const port = this.devWebSocketService.getPort();
-    this.logger.log(`Chat tools Socket.IO available at http://localhost:${port}${chatToolsPath} (dev mode)`);
+    this.logger.log(`Chat RPC Socket.IO available at http://localhost:${port}${chatRpcPath} (dev mode)`);
   }
 
   /**
@@ -117,8 +117,8 @@ export class ChatToolsGateway
         this.handleLeaveMessage(client, data);
       });
 
-      client.on('tool_call_result', (message: ToolCallResult) => {
-        this.chatToolsService.handleToolCallResult(message);
+      client.on('rpc_response', (message: RpcResponse) => {
+        this.chatRpcService.handleRpcResponse(message);
       });
 
       client.on('disconnect', () => {
@@ -136,7 +136,7 @@ export class ChatToolsGateway
    */
   private handleDevDisconnect(client: Socket): void {
     // Clean up all chat registrations for this socket
-    this.chatToolsService.handleSocketDisconnect(client);
+    this.chatRpcService.handleSocketDisconnect(client);
     this.logger.debug(`[Dev] Client disconnected: ${client.id}`);
   }
 
@@ -154,7 +154,7 @@ export class ChatToolsGateway
 
     // Join chat room and register connection
     void client.join(chatId);
-    this.chatToolsService.registerConnection(chatId, client);
+    this.chatRpcService.registerConnection(chatId, client);
 
     this.logger.debug(`Client ${client.id} joined chat: ${chatId}`);
     return { success: true };
@@ -173,7 +173,7 @@ export class ChatToolsGateway
 
     // Leave the room and unregister
     void client.leave(chatId);
-    this.chatToolsService.unregisterConnection(chatId, client);
+    this.chatRpcService.unregisterConnection(chatId, client);
 
     this.logger.debug(`Client ${client.id} left chat: ${chatId}`);
   }
@@ -187,7 +187,7 @@ export class ChatToolsGateway
    */
   public afterInit(_server: Server): void {
     if (import.meta.env.PROD) {
-      this.logger.log('Chat tools Socket.IO gateway initialized (production)');
+      this.logger.log('Chat RPC Socket.IO gateway initialized (production)');
     }
   }
 
@@ -218,16 +218,16 @@ export class ChatToolsGateway
   }
 
   /**
-   * Handle tool call results from the client (production only).
+   * Handle RPC responses from the client (production only).
    */
-  @SubscribeMessage('tool_call_result')
-  public handleToolCallResult(@ConnectedSocket() _client: Socket, @MessageBody() message: ToolCallResult): void {
+  @SubscribeMessage('rpc_response')
+  public handleRpcResponse(@ConnectedSocket() _client: Socket, @MessageBody() message: RpcResponse): void {
     // In dev mode, this is handled by the dev connection handler
     if (import.meta.env.DEV) {
       return;
     }
 
-    this.chatToolsService.handleToolCallResult(message);
+    this.chatRpcService.handleRpcResponse(message);
   }
 
   /**
@@ -272,7 +272,7 @@ export class ChatToolsGateway
     }
 
     // Clean up all chat registrations for this socket
-    this.chatToolsService.handleSocketDisconnect(client);
+    this.chatRpcService.handleSocketDisconnect(client);
     this.logger.debug(`Client disconnected: ${client.id}`);
   }
 }

@@ -1,10 +1,10 @@
 import type { ToolRuntime } from '@langchain/core/tools';
 import { tool } from '@langchain/core/tools';
-import { editTestsInputSchema } from '@taucad/chat';
+import { editTestsInputSchema, isRpcError } from '@taucad/chat';
 import { isToolExecutionError } from '@taucad/chat/utils';
-import type { ChatTool, EditTestsInput, EditTestsOutput } from '@taucad/chat';
+import type { ChatTool, EditTestsInput, EditTestsOutput, ToolExecutionError } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
-import type { ChatToolsConfigurable } from '#api/tools/tool.types.js';
+import type { ChatRpcConfigurable } from '#api/tools/tool.types.js';
 
 export const editTestsToolDefinition = {
   name: toolName.editTests,
@@ -51,25 +51,27 @@ export const editTestsTool: ChatTool<
   EditTestsOutput,
   typeof toolName.editTests
 > = tool(async (args, runtime: ToolRuntime) => {
-  const { chatToolsService, fileEditService, thread_id: chatId } = runtime.configurable as ChatToolsConfigurable;
+  const { chatRpcService, fileEditService, thread_id: chatId } = runtime.configurable as ChatRpcConfigurable;
   const { toolCallId } = runtime;
   const { codeEdit } = args;
 
-  // Step 1: Read the current test.json content via WebSocket
-  const readResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.readFile, {
+  // Step 1: Read the current test.json content via RPC
+  const readResult = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.readFile, {
     targetFile: testFile,
   });
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(readResult)) {
     return readResult;
   }
 
-  // If file doesn't exist, use default content
-  const originalContent =
-    readResult.content.startsWith('Error reading file:') || readResult.content === ''
-      ? defaultTestFile
-      : readResult.content;
+  // If file doesn't exist (RPC error), use default content
+  let originalContent: string;
+  if (isRpcError(readResult)) {
+    originalContent = defaultTestFile;
+  } else {
+    originalContent = readResult.content === '' ? defaultTestFile : readResult.content;
+  }
 
   // Step 2: Apply the edit using FileEditService (Morph fast-apply)
   const editResult = await fileEditService.applyFileEdit({
@@ -80,32 +82,39 @@ export const editTestsTool: ChatTool<
   });
 
   if (!editResult.success || !editResult.editedContent) {
-    const result: EditTestsOutput = {
-      success: false,
-      diffStats: {
-        linesAdded: 0,
-        linesRemoved: 0,
-        originalContent,
-        modifiedContent: originalContent,
-      },
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Failed to apply edit to test.json. The edit pattern may not match the file content.`,
+      toolName: toolName.editTests,
+      toolCallId,
     };
-    return result;
+    return error;
   }
 
-  // Step 3: Write the edited content back via WebSocket
-  const writeResult = await chatToolsService.sendToolCallRequest(chatId, toolCallId, toolName.createFile, {
+  // Step 3: Write the edited content back via RPC
+  const writeResult = await chatRpcService.sendRpcRequest(chatId, toolCallId, toolName.createFile, {
     targetFile: testFile,
     content: editResult.editedContent,
   });
 
-  // Return error objects directly to the LLM
+  // Handle infrastructure errors (timeout, disconnect)
   if (isToolExecutionError(writeResult)) {
     return writeResult;
   }
 
-  // Return the result with diff stats
+  // Handle RPC business errors (permission denied, etc.)
+  if (isRpcError(writeResult)) {
+    const error: ToolExecutionError = {
+      errorCode: 'TOOL_EXECUTION_ERROR',
+      message: `Cannot save test.json: ${writeResult.message}`,
+      toolName: toolName.editTests,
+      toolCallId,
+    };
+    return error;
+  }
+
+  // Return the result with diff stats (no success property)
   const result: EditTestsOutput = {
-    success: true,
     diffStats: {
       linesAdded: editResult.diffStats?.linesAdded ?? 0,
       linesRemoved: editResult.diffStats?.linesRemoved ?? 0,

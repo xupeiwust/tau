@@ -64,15 +64,11 @@ function isTestModelShape(content: unknown): boolean {
 
 /**
  * Checks if content has the shape of CreateFileOutput or EditFileOutput.
- * Both have success + diffStats with linesAdded/linesRemoved.
+ * Both have diffStats with linesAdded/linesRemoved.
  * We use the same detector for both since they have identical shapes.
  */
 function isDiffStatsShape(content: unknown): boolean {
   if (!isObject(content)) {
-    return false;
-  }
-
-  if (typeof content['success'] !== 'boolean') {
     return false;
   }
 
@@ -226,8 +222,8 @@ function detectToolNameFromContent(content: unknown): string | undefined {
  * Uses createTrimmer for type-safe trimmer definitions - the inner function
  * receives properly typed input based on ToolOutputRegistry.
  *
- * Note: Tool results are validated upstream via ChatToolsService (using Zod schemas
- * from clientToolSchemasRegistry) before being stored in messages. Error results
+ * Note: Tool results are validated upstream via the ChatController / ChatRpc service
+ * (using Zod schemas) before being stored in messages. Error results
  * (ToolExecutionError, ToolValidationError) are serialized differently and won't
  * match the content shape detectors, so trimmers won't be called for them.
  */
@@ -245,10 +241,9 @@ const toolResultTrimmers: Record<string, (result: unknown) => unknown> = {
   /**
    * Trims create_file result by removing full file content from diffStats.
    * The LLM just wrote this content, so it doesn't need to see it again.
-   * Keeps only success status and line change counts.
+   * Keeps only line change counts.
    */
   [toolName.createFile]: createTrimmer(toolName.createFile, (result) => ({
-    success: result.success,
     ...(result.message ? { message: result.message } : {}),
     diffStats: {
       linesAdded: result.diffStats.linesAdded,
@@ -260,10 +255,9 @@ const toolResultTrimmers: Record<string, (result: unknown) => unknown> = {
   /**
    * Trims edit_file result by removing full file content from diffStats.
    * The LLM just wrote this content, so it doesn't need to see it again.
-   * Keeps only success status and line change counts.
+   * Keeps only line change counts.
    */
   [toolName.editFile]: createTrimmer(toolName.editFile, (result) => ({
-    success: result.success,
     diffStats: {
       linesAdded: result.diffStats.linesAdded,
       linesRemoved: result.diffStats.linesRemoved,

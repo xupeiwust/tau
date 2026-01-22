@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Socket } from 'socket.io';
-import { ChatToolsService } from '#api/chat/chat-tools.service.js';
+import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 
 // Mock the dependencies
 vi.mock('@taucad/utils/id', () => ({
@@ -8,25 +8,25 @@ vi.mock('@taucad/utils/id', () => ({
 }));
 
 vi.mock('@taucad/chat', () => ({
-  clientToolSchemasRegistry: {
+  rpcSchemasRegistry: {
     // eslint-disable-next-line @typescript-eslint/naming-convention -- Tool name uses snake_case
     read_file: {
       inputSchema: { safeParse: vi.fn(() => ({ success: true, data: {} })) },
-      outputSchema: { safeParse: vi.fn(() => ({ success: true, data: {} })) },
+      resultSchema: { safeParse: vi.fn(() => ({ success: true, data: {} })) },
     },
   },
 }));
 
-describe('ChatToolsService', () => {
-  let service: ChatToolsService;
+describe('ChatRpcService', () => {
+  let service: ChatRpcService;
 
   beforeEach(() => {
-    service = new ChatToolsService();
+    service = new ChatRpcService();
   });
 
-  describe('sendToolCallRequest', () => {
+  describe('sendRpcRequest', () => {
     it('should return NO_CLIENT_CONNECTION error when no socket is registered', async () => {
-      const result = await service.sendToolCallRequest('chat_123', 'call_1', 'read_file', {
+      const result = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
         targetFile: 'test.txt',
       });
 
@@ -46,7 +46,7 @@ describe('ChatToolsService', () => {
       } as unknown as Socket;
       service.registerConnection('chat_123', mockSocket);
 
-      const result = await service.sendToolCallRequest('chat_123', 'call_1', 'read_file', {
+      const result = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
         targetFile: 'test.txt',
       });
 
@@ -60,7 +60,7 @@ describe('ChatToolsService', () => {
     });
 
     it('should include chatId context in error metadata', async () => {
-      const result = await service.sendToolCallRequest('chat_456', 'call_2', 'read_file', {
+      const result = await service.sendRpcRequest('chat_456', 'call_2', 'read_file', {
         targetFile: 'another.txt',
       });
 

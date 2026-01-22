@@ -27,7 +27,7 @@ import { BuildManagerProvider } from '#hooks/use-build-manager.js';
 import { ChatManagerProvider } from '#hooks/use-chat-manager.js';
 import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { AnalyticsProvider } from '#hooks/use-analytics.js';
-import { ChatToolsSocketProvider } from '#hooks/use-chat-tools-socket.js';
+import { ChatRpcSocketProvider } from '#hooks/use-chat-rpc-socket.js';
 
 export const links: LinksFunction = () => [...globalStylesLinks, ...webManifestLinks];
 
@@ -93,7 +93,7 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
           <FileManagerProvider rootDirectory="/">
             <BuildManagerProvider>
               <ChatManagerProvider>
-                <ChatToolsSocketProvider>
+                <ChatRpcSocketProvider>
                   <ThemeProvider specifiedTheme={ssrTheme} themeAction="/action/set-theme">
                     <ColorProvider>
                       <TooltipProvider>
@@ -103,7 +103,7 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
                       </TooltipProvider>
                     </ColorProvider>
                   </ThemeProvider>
-                </ChatToolsSocketProvider>
+                </ChatRpcSocketProvider>
               </ChatManagerProvider>
             </BuildManagerProvider>
           </FileManagerProvider>

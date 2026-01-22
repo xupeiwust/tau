@@ -263,7 +263,7 @@ describe('AnalysisService', () => {
         { id: 'right', side: 'right', src: 'data:image/png;base64,right' },
         { id: 'left', side: 'left', src: 'data:image/png;base64,left' },
         { id: 'top', side: 'top', src: 'data:image/png;base64,top' },
-        // bottom is missing
+        // Bottom is missing
       ];
       const requirements = createMockRequirements(1);
 

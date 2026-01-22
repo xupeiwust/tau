@@ -7,7 +7,6 @@ export const editFileInputSchema = z.object({
 });
 
 export const editFileOutputSchema = z.object({
-  success: z.boolean().describe('Whether the file edit was successfully applied'),
   diffStats: diffStatsWithContentSchema.describe('Statistics and content diff for the changes made'),
 });
 

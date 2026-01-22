@@ -20,7 +20,9 @@ export * from '#schemas/tools/transfer-back-to-supervisor.tool.schema.js';
 export * from '#schemas/metadata.schema.js';
 export * from '#schemas/message.schema.js';
 export * from '#schemas/message-data.schema.js';
-export * from '#schemas/tool-schemas-registry.js';
+export type * from '#schemas/tool-schemas-registry.js';
+export * from '#schemas/rpc.schema.js';
+export * from '#types/rpc.types.js';
 export * from '#utils/tool-error.utils.js';
 export * from '#utils/chat-error.utils.js';
 

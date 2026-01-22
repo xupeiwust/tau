@@ -7,7 +7,6 @@ export const createFileInputSchema = z.object({
 });
 
 export const createFileOutputSchema = z.object({
-  success: z.boolean().describe('Whether the file was created successfully.'),
   message: z.string().optional().describe('Additional information about the operation.'),
   diffStats: diffStatsWithContentSchema.describe('Statistics and content diff for the changes made'),
 });
