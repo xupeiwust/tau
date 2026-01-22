@@ -1,31 +1,40 @@
 import { createMiddleware } from 'langchain';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage, ToolCall } from '@langchain/core/messages';
+import type { PartialDeep } from 'type-fest';
 import { toolName } from '@taucad/chat/constants';
-import type {
-  TestModelOutput,
-  CreateFileOutput,
-  EditFileOutput,
-  GetKernelResultOutput,
-  CaptureObservationsOutput,
-  ReadFileOutput,
-} from '@taucad/chat';
+import type { ToolOutputRegistry, ReadFileOutput } from '@taucad/chat';
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
 /**
- * Type for a tool result trimmer function.
- * Takes the parsed tool result and returns a trimmed version.
- */
-type ToolResultTrimmer<T = unknown> = (result: T) => T;
-
-/**
  * Type for a content shape detector function.
  * Returns true if the parsed content matches the expected shape for a tool.
  */
 type ContentShapeDetector = (content: unknown) => boolean;
+
+/**
+ * Creates a type-safe trimmer function for a specific tool.
+ * The inner function receives properly typed input based on ToolOutputRegistry,
+ * while the returned function accepts unknown for use in the registry.
+ *
+ * The return type uses PartialDeep to allow returning a subset of the original
+ * structure with some properties removed (e.g., removing large content fields
+ * to reduce token usage). This provides type safety while allowing any depth
+ * of the structure to be partially returned, including array elements.
+ *
+ * @param _toolName - The tool name (used only for type inference)
+ * @param fn - The trimmer function with typed input, returns a trimmed structure
+ * @returns A function that accepts unknown and returns unknown
+ */
+function createTrimmer<T extends keyof ToolOutputRegistry>(
+  _toolName: T,
+  fn: (result: ToolOutputRegistry[T]) => PartialDeep<ToolOutputRegistry[T], { recurseIntoArrays: true }>,
+): (result: unknown) => unknown {
+  return fn as (result: unknown) => unknown;
+}
 
 // =============================================================================
 // Content Shape Detectors
@@ -213,114 +222,88 @@ function detectToolNameFromContent(content: unknown): string | undefined {
  *
  * These trimmers remove redundant data that the LLM doesn't need to see again,
  * significantly reducing token usage in long conversations.
+ *
+ * Uses createTrimmer for type-safe trimmer definitions - the inner function
+ * receives properly typed input based on ToolOutputRegistry.
+ *
+ * Note: Tool results are validated upstream via ChatToolsService (using Zod schemas
+ * from clientToolSchemasRegistry) before being stored in messages. Error results
+ * (ToolExecutionError, ToolValidationError) are serialized differently and won't
+ * match the content shape detectors, so trimmers won't be called for them.
  */
-const toolResultTrimmers: Record<string, ToolResultTrimmer> = {
+const toolResultTrimmers: Record<string, (result: unknown) => unknown> = {
   /**
    * Trims the test model result by removing the 'passed' count.
    * The LLM can infer it from total - failures.length if needed.
    */
-  [toolName.testModel](result: unknown): unknown {
-    const typedResult = result as TestModelOutput;
-
-    // Remove 'passed' count - LLM can infer from total - failures.length
-    return {
-      failures: typedResult.failures,
-      total: typedResult.total,
-    };
-  },
+  [toolName.testModel]: createTrimmer(toolName.testModel, (result) => ({
+    failures: result.failures,
+    total: result.total,
+    // REMOVED: passed, passes - LLM can infer from total - failures.length
+  })),
 
   /**
    * Trims create_file result by removing full file content from diffStats.
    * The LLM just wrote this content, so it doesn't need to see it again.
    * Keeps only success status and line change counts.
    */
-  [toolName.createFile](result: unknown): unknown {
-    // Use loose type to safely check for diffStats presence (can be missing on error)
-    const record = result as Record<string, unknown>;
-    const { diffStats } = record;
-    if (!isObject(diffStats)) {
-      return result;
-    }
-
-    const typedResult = result as CreateFileOutput;
-
-    return {
-      success: typedResult.success,
-      ...(typedResult.message ? { message: typedResult.message } : {}),
-      diffStats: {
-        linesAdded: typedResult.diffStats.linesAdded,
-        linesRemoved: typedResult.diffStats.linesRemoved,
-        // REMOVED: originalContent, modifiedContent - LLM just wrote this
-      },
-    };
-  },
+  [toolName.createFile]: createTrimmer(toolName.createFile, (result) => ({
+    success: result.success,
+    ...(result.message ? { message: result.message } : {}),
+    diffStats: {
+      linesAdded: result.diffStats.linesAdded,
+      linesRemoved: result.diffStats.linesRemoved,
+      // REMOVED: originalContent, modifiedContent - LLM just wrote this
+    },
+  })),
 
   /**
    * Trims edit_file result by removing full file content from diffStats.
    * The LLM just wrote this content, so it doesn't need to see it again.
    * Keeps only success status and line change counts.
    */
-  [toolName.editFile](result: unknown): unknown {
-    // Use loose type to safely check for diffStats presence (can be missing on error)
-    const record = result as Record<string, unknown>;
-    const { diffStats } = record;
-    if (!isObject(diffStats)) {
-      return result;
-    }
-
-    const typedResult = result as EditFileOutput;
-
-    return {
-      success: typedResult.success,
-      diffStats: {
-        linesAdded: typedResult.diffStats.linesAdded,
-        linesRemoved: typedResult.diffStats.linesRemoved,
-        // REMOVED: originalContent, modifiedContent - LLM just wrote this
-      },
-    };
-  },
+  [toolName.editFile]: createTrimmer(toolName.editFile, (result) => ({
+    success: result.success,
+    diffStats: {
+      linesAdded: result.diffStats.linesAdded,
+      linesRemoved: result.diffStats.linesRemoved,
+      // REMOVED: originalContent, modifiedContent - LLM just wrote this
+    },
+  })),
 
   /**
    * Trims get_kernel_result by removing verbose stack traces.
    * The message and location are sufficient for debugging.
    */
-  [toolName.getKernelResult](result: unknown): unknown {
-    const typedResult = result as GetKernelResultOutput;
-
-    return {
-      status: typedResult.status,
-      ...(typedResult.kernelIssues
-        ? {
-            kernelIssues: typedResult.kernelIssues.map((issue) => ({
-              message: issue.message,
-              ...(issue.location ? { location: issue.location } : {}),
-              severity: issue.severity,
-              ...(issue.type ? { type: issue.type } : {}),
-              // Keep stack and stackFrames - important for LLM to debug error origins
-              ...(issue.stack ? { stack: issue.stack } : {}),
-              ...(issue.stackFrames ? { stackFrames: issue.stackFrames } : {}),
-            })),
-          }
-        : {}),
-    };
-  },
+  [toolName.getKernelResult]: createTrimmer(toolName.getKernelResult, (result) => ({
+    status: result.status,
+    ...(result.kernelIssues
+      ? {
+          kernelIssues: result.kernelIssues.map((issue) => ({
+            message: issue.message,
+            ...(issue.location ? { location: issue.location } : {}),
+            severity: issue.severity,
+            ...(issue.type ? { type: issue.type } : {}),
+            // Keep stack and stackFrames - important for LLM to debug error origins
+            ...(issue.stack ? { stack: issue.stack } : {}),
+            ...(issue.stackFrames ? { stackFrames: issue.stackFrames } : {}),
+          })),
+        }
+      : {}),
+  })),
 
   /**
    * Trims capture_observations by removing base64 image data.
    * The images have already been processed/displayed to the user.
    * Keeps only metadata (id, side) for reference.
    */
-  [toolName.captureObservations](result: unknown): unknown {
-    const typedResult = result as CaptureObservationsOutput;
-
-    return {
-      observations: typedResult.observations.map((obs) => ({
-        id: obs.id,
-        side: obs.side,
-        // REMOVED: src - base64 image data, already processed
-      })),
-    };
-  },
+  [toolName.captureObservations]: createTrimmer(toolName.captureObservations, (result) => ({
+    observations: result.observations.map((obs) => ({
+      id: obs.id,
+      side: obs.side,
+      // REMOVED: src - base64 image data, already processed
+    })),
+  })),
 };
 
 // =============================================================================
@@ -560,13 +543,6 @@ function trimToolMessage(message: ToolMessage, context: TrimContext): BaseMessag
  * Trimming is applied uniformly to all messages to ensure stable content
  * for Anthropic prompt caching. Consistent content enables cache hits
  * across conversation turns.
- *
- * Trimming (all messages):
- * - test_model: Removes the `passed` count (can be inferred from total - failures.length)
- * - create_file: Removes `diffStats.originalContent` and `diffStats.modifiedContent`
- * - edit_file: Removes `diffStats.originalContent` and `diffStats.modifiedContent`
- * - get_kernel_result: Keeps essential error info for debugging
- * - capture_observations: Removes base64 `src` image data from observations
  *
  * Stale detection:
  * - read_file: If file was modified by create_file/edit_file after this read,

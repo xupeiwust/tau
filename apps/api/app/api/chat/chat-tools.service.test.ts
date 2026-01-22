@@ -8,7 +8,7 @@ vi.mock('@taucad/utils/id', () => ({
 }));
 
 vi.mock('@taucad/chat', () => ({
-  toolSchemasRegistry: {
+  clientToolSchemasRegistry: {
     // eslint-disable-next-line @typescript-eslint/naming-convention -- Tool name uses snake_case
     read_file: {
       inputSchema: { safeParse: vi.fn(() => ({ success: true, data: {} })) },

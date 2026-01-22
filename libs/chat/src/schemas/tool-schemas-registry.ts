@@ -25,6 +25,8 @@ import type {
   CaptureObservationsInput,
   CaptureObservationsOutput,
 } from '#schemas/tools/capture-observations.tool.schema.js';
+import type { TestModelOutput } from '#schemas/tools/test-model.tool.schema.js';
+import type { EditFileOutput } from '#schemas/tools/edit-file.tool.schema.js';
 
 type ToolSchemaEntry<Input = unknown, Output = unknown> = {
   inputSchema: z.ZodType<Input>;
@@ -32,10 +34,10 @@ type ToolSchemaEntry<Input = unknown, Output = unknown> = {
 };
 
 /**
- * Type representing the tool schemas registry.
- * Used for type inference in sendToolCallRequest.
+ * Type representing the client tool schemas registry.
+ * Used for type inference in sendToolCallRequest for WebSocket RPC tools.
  */
-export type ToolSchemasRegistry = {
+export type ClientToolSchemasRegistry = {
   [toolName.listDirectory]: ToolSchemaEntry<ListDirectoryInput, ListDirectoryOutput>;
   [toolName.readFile]: ToolSchemaEntry<ReadFileInput, ReadFileOutput>;
   [toolName.createFile]: ToolSchemaEntry<CreateFileInput, CreateFileOutput>;
@@ -47,10 +49,10 @@ export type ToolSchemasRegistry = {
 };
 
 /**
- * Type-safe registry mapping client tool names to their Zod schemas.
- * This provides compile-time type inference for tool inputs and outputs.
+ * Runtime registry mapping client tool names to their Zod schemas.
+ * Used by ChatToolsService for validating WebSocket RPC tool inputs/outputs.
  */
-export const toolSchemasRegistry: ToolSchemasRegistry = {
+export const clientToolSchemasRegistry: ClientToolSchemasRegistry = {
   [toolName.listDirectory]: {
     inputSchema: listDirectoryInputSchema,
     outputSchema: listDirectoryOutputSchema,
@@ -88,9 +90,32 @@ export const toolSchemasRegistry: ToolSchemasRegistry = {
 /**
  * Helper type to extract input type for a given client tool name.
  */
-export type ClientToolInput<T extends keyof ToolSchemasRegistry> = z.infer<ToolSchemasRegistry[T]['inputSchema']>;
+export type ClientToolInput<T extends keyof ClientToolSchemasRegistry> = z.infer<
+  ClientToolSchemasRegistry[T]['inputSchema']
+>;
 
 /**
  * Helper type to extract output type for a given client tool name.
  */
-export type ClientToolOutput<T extends keyof ToolSchemasRegistry> = z.infer<ToolSchemasRegistry[T]['outputSchema']>;
+export type ClientToolOutput<T extends keyof ClientToolSchemasRegistry> = z.infer<
+  ClientToolSchemasRegistry[T]['outputSchema']
+>;
+
+/**
+ * Type-only registry mapping tool names to their output types.
+ * Used for type inference in tool result trimmers (no runtime validation needed
+ * since validation happens upstream in ChatToolsService).
+ *
+ * Includes both client tools and server-orchestrated tools that produce trimmable output.
+ */
+export type ToolOutputRegistry = {
+  [toolName.testModel]: TestModelOutput;
+  [toolName.createFile]: CreateFileOutput;
+  [toolName.editFile]: EditFileOutput;
+  [toolName.getKernelResult]: GetKernelResultOutput;
+  [toolName.captureObservations]: CaptureObservationsOutput;
+  [toolName.readFile]: ReadFileOutput;
+  [toolName.listDirectory]: ListDirectoryOutput;
+  [toolName.grep]: GrepOutput;
+  [toolName.globSearch]: GlobSearchOutput;
+};

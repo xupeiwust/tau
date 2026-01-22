@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Socket } from 'socket.io';
 import { generatePrefixedId } from '@taucad/utils/id';
 import { idPrefix } from '@taucad/types/constants';
-import { toolSchemasRegistry } from '@taucad/chat';
+import { clientToolSchemasRegistry } from '@taucad/chat';
 import type {
-  ToolSchemasRegistry,
+  ClientToolSchemasRegistry,
   ClientToolInput,
   ClientToolOutput,
   ToolCallRequest,
@@ -20,7 +20,7 @@ type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
   timeoutId: ReturnType<typeof setTimeout>;
-  toolName: keyof ToolSchemasRegistry;
+  toolName: keyof ClientToolSchemasRegistry;
   toolCallId: string;
   chatId: string;
 };
@@ -100,14 +100,14 @@ export class ChatToolsService {
    * Type-safe: The tool name determines the expected input and output types.
    * Both input args and output results are validated against their Zod schemas.
    *
-   * @template T - The client tool name (must be a key in ToolSchemasRegistry)
+   * @template T - The client tool name (must be a key in ClientToolSchemasRegistry)
    * @param chatId - The chat room ID
    * @param toolCallId - The tool call ID for tracking
    * @param toolName - The name of the tool to execute
    * @param args - The input arguments (type-checked against tool's input schema)
    * @returns The validated output (type-checked against tool's output schema) or an error object
    */
-  public async sendToolCallRequest<T extends keyof ToolSchemasRegistry>(
+  public async sendToolCallRequest<T extends keyof ClientToolSchemasRegistry>(
     chatId: string,
     toolCallId: string,
     toolName: T,
@@ -229,12 +229,12 @@ export class ChatToolsService {
    * Validate tool input against its Zod schema.
    * Returns the validated data if successful, or a ToolValidationError if validation fails.
    */
-  private validateToolInput<T extends keyof ToolSchemasRegistry>(
+  private validateToolInput<T extends keyof ClientToolSchemasRegistry>(
     toolName: T,
     toolCallId: string,
     input: unknown,
   ): { success: true; data: ClientToolInput<T> } | { success: false; error: ToolValidationError } {
-    const schemas = toolSchemasRegistry[toolName];
+    const schemas = clientToolSchemasRegistry[toolName];
     const parseResult = schemas.inputSchema.safeParse(input);
 
     if (parseResult.success) {
@@ -262,11 +262,11 @@ export class ChatToolsService {
    * Returns the validated data if successful, or a ToolValidationError if validation fails.
    */
   private validateToolResult(
-    toolName: keyof ToolSchemasRegistry,
+    toolName: keyof ClientToolSchemasRegistry,
     toolCallId: string,
     result: unknown,
   ): { success: true; data: unknown } | { success: false; error: ToolValidationError } {
-    const schemas = toolSchemasRegistry[toolName];
+    const schemas = clientToolSchemasRegistry[toolName];
     const parseResult = schemas.outputSchema.safeParse(result);
 
     if (parseResult.success) {
