@@ -144,8 +144,8 @@ export class ChatToolsGateway
    * Shared join logic for both dev and prod.
    * Supports joining multiple rooms - doesn't leave previous rooms.
    */
-  private handleJoinMessage(client: Socket, data: { chatId: string }): { success: boolean } {
-    const { chatId } = data;
+  private handleJoinMessage(client: Socket, data: { chatId: string } | undefined): { success: boolean } {
+    const chatId = data?.chatId;
 
     if (!chatId) {
       this.logger.warn(`Join request without chatId from ${client.id}`);
@@ -163,8 +163,8 @@ export class ChatToolsGateway
   /**
    * Shared leave logic for both dev and prod.
    */
-  private handleLeaveMessage(client: Socket, data: { chatId: string }): void {
-    const { chatId } = data;
+  private handleLeaveMessage(client: Socket, data: { chatId: string } | undefined): void {
+    const chatId = data?.chatId;
 
     if (!chatId) {
       this.logger.warn(`Leave request without chatId from ${client.id}`);
