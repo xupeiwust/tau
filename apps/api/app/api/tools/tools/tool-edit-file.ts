@@ -74,10 +74,10 @@ export const editFileTool: ChatTool<
     instructions: 'Apply the code edit',
   });
 
-  if (!editResult.success || !editResult.editedContent) {
+  if (!editResult.success) {
     const error: ToolExecutionError = {
       errorCode: 'TOOL_EXECUTION_ERROR',
-      message: `Failed to apply edit to "${targetFile}". The edit pattern may not match the file content.`,
+      message: `Failed to apply edit to "${targetFile}": ${editResult.error}`,
       toolName: toolName.editFile,
       toolCallId,
     };

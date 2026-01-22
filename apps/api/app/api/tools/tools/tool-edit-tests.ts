@@ -65,10 +65,22 @@ export const editTestsTool: ChatTool<
     return readResult;
   }
 
-  // If file doesn't exist (RPC error), use default content
+  // Handle RPC errors - only use default for "file not found", propagate other errors
   let originalContent: string;
   if (isRpcError(readResult)) {
-    originalContent = defaultTestFile;
+    if (readResult.errorCode === 'FILE_NOT_FOUND') {
+      // File doesn't exist yet, use default content
+      originalContent = defaultTestFile;
+    } else {
+      // Other errors (permissions, I/O, etc.) should be propagated
+      const error: ToolExecutionError = {
+        errorCode: 'TOOL_EXECUTION_ERROR',
+        message: `Cannot read test.json: ${readResult.message}`,
+        toolName: toolName.editTests,
+        toolCallId,
+      };
+      return error;
+    }
   } else {
     originalContent = readResult.content === '' ? defaultTestFile : readResult.content;
   }
@@ -81,10 +93,10 @@ export const editTestsTool: ChatTool<
     instructions: 'Apply the test requirements edit to test.json',
   });
 
-  if (!editResult.success || !editResult.editedContent) {
+  if (!editResult.success) {
     const error: ToolExecutionError = {
       errorCode: 'TOOL_EXECUTION_ERROR',
-      message: `Failed to apply edit to test.json. The edit pattern may not match the file content.`,
+      message: `Failed to apply edit to test.json: ${editResult.error}`,
       toolName: toolName.editTests,
       toolCallId,
     };
@@ -113,7 +125,6 @@ export const editTestsTool: ChatTool<
     return error;
   }
 
-  // Return the result with diff stats (no success property)
   const result: EditTestsOutput = {
     diffStats: {
       linesAdded: editResult.diffStats?.linesAdded ?? 0,

@@ -11,14 +11,21 @@ export type FileEditRequest = {
   instructions?: string;
 };
 
-export type FileEditResult = {
-  success: boolean;
+export type FileEditSuccess = {
+  success: true;
   message: string;
-  error?: string;
-  editedContent?: string;
+  editedContent: string;
   udiff?: string;
   diffStats?: { linesAdded: number; linesRemoved: number };
 };
+
+export type FileEditFailure = {
+  success: false;
+  message: string;
+  error: string;
+};
+
+export type FileEditResult = FileEditSuccess | FileEditFailure;
 
 @Injectable()
 export class FileEditService {
@@ -45,11 +52,11 @@ export class FileEditService {
         filepath: targetFile,
       });
 
-      if (!result.success) {
+      if (!result.success || result.mergedCode === undefined) {
         return {
           success: false,
           message: 'Error applying file edit',
-          error: result.error,
+          error: result.error ?? 'Unknown error',
         };
       }
 
