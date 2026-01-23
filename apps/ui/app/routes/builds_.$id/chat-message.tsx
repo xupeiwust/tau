@@ -159,17 +159,14 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
                 }
 
                 case 'reasoning': {
-                  /* TODO: remove trim when backend is fixed to trim thinking tags */
                   const hasPartsAfter = index < displayMessage.parts.length - 1;
                   return (
-                    part.text.trim().length > 0 && (
-                      <ChatMessageReasoning
-                        // eslint-disable-next-line react/no-array-index-key -- Index is stable
-                        key={`${displayMessage.id}-message-part-${index}`}
-                        part={part}
-                        hasContent={hasPartsAfter}
-                      />
-                    )
+                    <ChatMessageReasoning
+                      // eslint-disable-next-line react/no-array-index-key -- Index is stable
+                      key={`${displayMessage.id}-message-part-${index}`}
+                      part={part}
+                      hasContent={hasPartsAfter}
+                    />
                   );
                 }
 
