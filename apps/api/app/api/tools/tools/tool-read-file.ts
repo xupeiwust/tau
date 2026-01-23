@@ -42,7 +42,13 @@ export const readFileTool: ChatTool<
   const result = await chatRpcService.sendRpcRequest(chatId, toolCallId, rpcName.readFile, args);
 
   // Assert RPC success - throws ToolError for any infrastructure or client error
-  assertRpcSuccess(result, toolName.readFile, toolCallId, `Cannot read file "${args.targetFile}"`);
+  assertRpcSuccess(result, toolName.readFile, toolCallId, (error) => {
+    if (error.errorCode === 'FILE_NOT_FOUND') {
+      return `File not found`;
+    }
+
+    return `Cannot read file`;
+  });
 
   // Add line numbers to the raw content for LLM display
   const startLine = result.startLine ?? 1;

@@ -278,6 +278,12 @@ export function assertRpcExecution<T>(
 }
 
 /**
+ * Resolver for client error messages.
+ * Can be a static string or a function that receives the error for dynamic messages.
+ */
+export type ClientErrorMessageResolver = string | ((error: RpcClientError) => string);
+
+/**
  * Assert RPC fully succeeded (no infrastructure OR client errors).
  * Throws ToolError for any non-success result.
  *
@@ -286,31 +292,40 @@ export function assertRpcExecution<T>(
  * @param result - The RPC result to check
  * @param toolName - The name of the tool (for error attribution)
  * @param toolCallId - The tool call ID (for tracking)
- * @param clientErrorMessage - Optional custom message for client errors
+ * @param clientErrorMessage - Optional custom message for client errors.
+ *   Can be a string or a function that receives the RpcClientError for dynamic messages.
  * @throws ToolError if result is any kind of error
  *
  * @example
  * ```typescript
- * const result = await chatRpcService.sendRpcRequest(...);
- *
+ * // Static message
  * assertRpcSuccess(result, toolName.readFile, toolCallId, 'Cannot read file');
  *
- * // result is now narrowed to success type
- * const content = result.content;
+ * // Dynamic message based on error code
+ * assertRpcSuccess(result, toolName.readFile, toolCallId, (error) => {
+ *   if (error.errorCode === 'FILE_NOT_FOUND') {
+ *     return 'File not found';
+ *   }
+ *   return 'Cannot read file';
+ * });
  * ```
  */
 export function assertRpcSuccess<T extends { success: boolean }>(
   result: T | RpcExecutionError | RpcValidationError,
   toolName: string,
   toolCallId: string,
-  clientErrorMessage?: string,
+  clientErrorMessage?: ClientErrorMessageResolver,
 ): asserts result is Exclude<T, RpcExecutionError | RpcValidationError | RpcClientError> {
   assertRpcExecution(result, toolName, toolCallId);
 
   if (isRpcClientError(result)) {
+    // Resolve message: call function if provided, otherwise use string or fallback to result.message
+    const message =
+      typeof clientErrorMessage === 'function' ? clientErrorMessage(result) : (clientErrorMessage ?? result.message);
+
     throw new ToolError({
       errorCode: 'TOOL_EXECUTION_ERROR',
-      message: clientErrorMessage ?? result.message,
+      message,
       toolName,
       toolCallId,
     });

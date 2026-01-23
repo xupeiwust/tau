@@ -66,6 +66,7 @@ ${config.codeStandards}
 <error_handling>
 On errors: analyze root cause, fix incrementally, preserve working geometry.
 On test failures: review the failure reason and suggestion, then fix the specific issue.
+Tool failures: stop after 1-2 retries and explain the issue to the user.
 
 ${config.languageName} patterns: ${config.commonErrorPatterns}
 </error_handling>
