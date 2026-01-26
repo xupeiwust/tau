@@ -11,6 +11,7 @@ import type {
   ExtractParametersRequest,
   ExtractParametersHandler,
   GeometryFile,
+  GeometryResponse,
   KernelMiddlewareRuntime,
   MiddlewareFileManager,
   Dependency,
@@ -417,10 +418,17 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     const internalResult = await chain(request);
 
     // Transform internal result to external result by adding hash to each geometry
+    // Each geometry gets a unique hash by combining the dependencyHash with a content hash
+    // This ensures unique React keys when multiple geometries are returned
     const result: ComputeGeometryResultCompleted = internalResult.success
       ? {
           ...internalResult,
-          data: internalResult.data.map((geometry) => ({ ...geometry, hash: dependencyHash })),
+          data: await Promise.all(
+            internalResult.data.map(async (geometry) => {
+              const contentHash = await this.hashGeometryContent(geometry);
+              return { ...geometry, hash: `${dependencyHash}-${contentHash}` };
+            }),
+          ),
         }
       : internalResult;
 
@@ -935,6 +943,50 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
+   * Hash geometry content to create a unique identifier.
+   * Used to ensure each geometry in an array has a unique hash for React keys.
+   *
+   * @param geometry - The geometry response to hash
+   * @returns A short hash (8 characters) of the geometry content
+   */
+  private async hashGeometryContent(geometry: GeometryResponse): Promise<string> {
+    const encoder = new TextEncoder();
+    let data: Uint8Array;
+
+    switch (geometry.format) {
+      case 'gltf': {
+        // GLTF content is already Uint8Array
+        data = geometry.content;
+        break;
+      }
+
+      case 'svg': {
+        // SVG: hash the paths and viewbox
+        const svgContent = JSON.stringify({
+          paths: geometry.paths,
+          viewbox: geometry.viewbox,
+          name: geometry.name,
+        });
+        data = encoder.encode(svgContent);
+        break;
+      }
+
+      case 'webrtc': {
+        // WebRTC: use a random ID since streams aren't hashable
+        data = encoder.encode(crypto.randomUUID());
+        break;
+      }
+
+      default: {
+        const _exhaustiveCheck: never = geometry;
+        throw new Error(`Unexpected geometry format: ${String(_exhaustiveCheck)}`);
+      }
+    }
+
+    return this.hashContent(data);
+  }
+
+  /**
    * Hash an asset URL by fetching and hashing its content.
    * Results are cached in memory to avoid repeated network requests.
    *
@@ -947,23 +999,27 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       return cached;
     }
 
-    let hash: string;
     try {
       const response = await fetch(url, { cache: 'force-cache' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
       const buffer = await response.arrayBuffer();
-      hash = await this.hashContent(new Uint8Array(buffer));
+      const hash = await this.hashContent(new Uint8Array(buffer));
+
+      // Only cache successful fetches
+      this.assetHashCache.set(url, hash);
+      return hash;
     } catch (error) {
-      // Fallback: hash the URL string itself (for tests or network failures)
-      this.warn(`Failed to fetch asset for hashing, using URL fallback: ${url}`, {
+      // Fallback: generate unique UUID to prevent cache poisoning
+      // DO NOT cache - next attempt should retry the fetch
+      this.warn(`Failed to fetch asset for hashing, using UUID fallback: ${url}`, {
         operation: 'hashAssetUrl',
         data: error,
       });
-      const encoder = new TextEncoder();
-      hash = await this.hashContent(encoder.encode(url));
+      return crypto.randomUUID();
     }
-
-    this.assetHashCache.set(url, hash);
-    return hash;
   }
 
   /**
