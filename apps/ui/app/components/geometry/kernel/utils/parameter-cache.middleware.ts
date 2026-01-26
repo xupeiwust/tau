@@ -21,7 +21,7 @@ import { createKernelMiddleware } from '#components/geometry/kernel/utils/kernel
  * @returns The full path to the cache file
  */
 function getCachePath(basePath: string, cacheKey: string): string {
-  return `${basePath}/.tau/cache/params/${cacheKey}.json`;
+  return `${basePath}/.tau/cache/parameters/${cacheKey}.json`;
 }
 
 /**
@@ -31,7 +31,7 @@ function getCachePath(basePath: string, cacheKey: string): string {
  * @returns The full path to the cache directory
  */
 function getCacheDir(basePath: string): string {
-  return `${basePath}/.tau/cache/params`;
+  return `${basePath}/.tau/cache/parameters`;
 }
 
 /**
