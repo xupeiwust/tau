@@ -15,7 +15,7 @@
  */
 
 import { uint8ArrayToBase64, base64ToUint8Array } from 'uint8array-extras';
-import type { ComputeGeometryResult, GeometryResponse, MiddlewareFileManager } from '@taucad/types';
+import type { GeometryResponse, MiddlewareFileManager } from '@taucad/types';
 import { createKernelMiddleware } from '#components/geometry/kernel/utils/kernel-middleware.js';
 import { createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 
@@ -248,7 +248,7 @@ export const geometryCacheMiddleware = createKernelMiddleware({
   name: 'GeometryCache',
   version: '1.0.0',
 
-  async wrapComputeGeometry(request, handler): Promise<ComputeGeometryResult> {
+  async wrapComputeGeometry(request, handler) {
     const { input, runtime } = request;
 
     // Use pre-computed dependency hash as cache key

@@ -10,7 +10,7 @@
  * 3. Write result to cache on the way back up
  */
 
-import type { ExtractParametersResult, ExtractParametersRequest, ExtractParametersHandler } from '@taucad/types';
+import type { ExtractParametersResult } from '@taucad/types';
 import { createKernelMiddleware } from '#components/geometry/kernel/utils/kernel-middleware.js';
 
 /**
@@ -46,10 +46,7 @@ export const parameterCacheMiddleware = createKernelMiddleware({
   name: 'ParameterCache',
   version: '1.0.0',
 
-  async wrapExtractParameters(
-    request: ExtractParametersRequest,
-    handler: ExtractParametersHandler,
-  ): Promise<ExtractParametersResult> {
+  async wrapExtractParameters(request, handler) {
     const { input, runtime } = request;
 
     // Use pre-computed dependency hash as cache key
