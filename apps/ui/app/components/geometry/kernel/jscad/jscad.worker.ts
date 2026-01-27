@@ -147,7 +147,7 @@ function createJscadKernelIssue(error: unknown, fallbackMessage: string, fileNam
  * - Converts JSCAD geometries to GLTF for rendering
  * - Supports parameter extraction from getParameterDefinitions()
  */
-class JscadWorker extends KernelWorker {
+export class JscadWorker extends KernelWorker {
   protected static override readonly supportedExportFormats: ExportFormat[] = ['glb', 'gltf'];
   protected override readonly name: string = 'JscadWorker';
 

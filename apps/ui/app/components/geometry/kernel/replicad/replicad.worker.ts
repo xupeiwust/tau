@@ -68,7 +68,7 @@ type ReplicadOptions = {
   };
 };
 
-class ReplicadWorker extends KernelWorker<ReplicadOptions> {
+export class ReplicadWorker extends KernelWorker<ReplicadOptions> {
   protected static override readonly supportedExportFormats: ExportFormat[] = [
     'stl',
     'stl-binary',

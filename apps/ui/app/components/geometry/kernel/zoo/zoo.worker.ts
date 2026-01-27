@@ -33,7 +33,7 @@ type ZooOptions = {
   baseUrl: string;
 };
 
-class ZooWorker extends KernelWorker<ZooOptions> {
+export class ZooWorker extends KernelWorker<ZooOptions> {
   protected static override readonly supportedExportFormats: ExportFormat[] = [
     'stl',
     'stl-binary',
