@@ -32,21 +32,43 @@ export async function configureFilesystem(backend: FilesystemBackend = 'indexedd
     return configurationPromise;
   }
 
-  // Create a new configuration promise
-  configurationPromise = (async (): Promise<void> => {
-    if (backend === 'memory') {
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS uses '/' as mount point key
-      await configure({ mounts: { '/': InMemory } });
-    } else {
-      await configure({
-        mounts: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS uses '/' as mount point key
-          '/': { backend: IndexedDB, storeName: `${metaConfig.databasePrefix}fs` },
-        },
-      });
+  // If there's an existing configuration in progress, await it before starting a new one
+  // This prevents concurrent reconfiguration races
+  if (configurationPromise) {
+    try {
+      await configurationPromise;
+    } catch {
+      // Previous configuration failed, proceed with new configuration
     }
 
-    currentBackend = backend;
+    // After awaiting, check again if we're now configured with the desired backend
+    if (currentBackend === backend) {
+      return;
+    }
+  }
+
+  // Create a new configuration promise with error handling to allow retries
+  configurationPromise = (async (): Promise<void> => {
+    try {
+      if (backend === 'memory') {
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS uses '/' as mount point key
+        await configure({ mounts: { '/': InMemory } });
+      } else {
+        await configure({
+          mounts: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS uses '/' as mount point key
+            '/': { backend: IndexedDB, storeName: `${metaConfig.databasePrefix}fs` },
+          },
+        });
+      }
+
+      // Only set currentBackend after successful configure() completes
+      currentBackend = backend;
+    } catch (error) {
+      // Clear the promise on failure so retries are possible
+      configurationPromise = undefined;
+      throw error;
+    }
   })();
 
   return configurationPromise;
