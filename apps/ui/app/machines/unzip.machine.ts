@@ -79,7 +79,7 @@ const extractZipActor = fromPromise<
       const content = await file.async('uint8array');
       files.set(normalizedPath, {
         filename: normalizedPath,
-        content,
+        content: content as Uint8Array<ArrayBuffer>,
       });
     }
 

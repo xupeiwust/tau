@@ -115,7 +115,8 @@ export class OcctLoader extends BaseLoader<OcctImportResult, OcctOptions> {
       scene.addChild(node);
     }
 
-    // Export to GLB binary format
-    return this.io.writeBinary(document);
+    // Assertion due to `gltf-transform` returning `Uint8Array` instead of `Uint8Array<ArrayBuffer>`
+    const glb = (await this.io.writeBinary(document)) as Uint8Array<ArrayBuffer>;
+    return glb;
   }
 }

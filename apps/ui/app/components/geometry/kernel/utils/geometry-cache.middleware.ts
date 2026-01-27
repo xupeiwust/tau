@@ -95,7 +95,7 @@ function deserializeGeometries(data: string): GeometryResponse[] {
     switch (item.format) {
       case 'gltf': {
         // Convert base64 back to Uint8Array using uint8array-extras
-        const content = base64ToUint8Array(item.content);
+        const content = base64ToUint8Array(item.content) as Uint8Array<ArrayBuffer>;
 
         geometries.push({ format: 'gltf', content });
         break;

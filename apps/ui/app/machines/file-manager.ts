@@ -62,7 +62,7 @@ async function readFile(
 
   // Return as Uint8Array
   const buffer = await fsp.readFile(filepath);
-  return asBuffer(new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+  return new Uint8Array(asBuffer(buffer.buffer), buffer.byteOffset, buffer.byteLength);
 }
 
 export const fileManager: FileManager = {
@@ -252,7 +252,7 @@ export const fileManager: FileManager = {
       fileStats.map(async (fileStat) => {
         const fullPath = `${path}/${fileStat.path}`;
         const buffer = await fsp.readFile(fullPath);
-        const content = asBuffer(new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+        const content = new Uint8Array(asBuffer(buffer.buffer), buffer.byteOffset, buffer.byteLength);
         return { path: fileStat.path, content };
       }),
     );

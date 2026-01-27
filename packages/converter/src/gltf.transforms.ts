@@ -140,8 +140,8 @@ export async function applyGlbTransforms(
     );
 
     // Export the transformed document back to GLB
-    const transformedGlb = await io.writeBinary(document);
-    return new Uint8Array(transformedGlb);
+    const transformedGlb = (await io.writeBinary(document)) as Uint8Array<ArrayBuffer>;
+    return transformedGlb;
   } catch (error) {
     console.warn('[GLB Transforms] Failed to apply transformations:', error);
     // Return original data if transformation fails

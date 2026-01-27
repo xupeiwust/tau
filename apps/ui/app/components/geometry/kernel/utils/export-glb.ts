@@ -372,7 +372,7 @@ export async function createGltf(meshData: IndexedPolyhedron): Promise<Uint8Arra
     const buffer = buffers[bufferIndex];
     if (buffer) {
       // Convert binary data to base64 using browser-compatible method
-      const uint8Array = new Uint8Array(resourceData);
+      const uint8Array = resourceData;
       let binaryString = '';
       for (const byte of uint8Array) {
         binaryString += String.fromCodePoint(byte);

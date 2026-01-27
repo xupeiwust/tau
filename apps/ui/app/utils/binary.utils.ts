@@ -16,7 +16,7 @@ export function binaryToUuid(binaryData: Uint8Array<ArrayBuffer> | BSONBinary | 
   // Handle MongoDB BSON Binary object
   if ('_bsontype' in binaryData) {
     // Extract the buffer from the BSON Binary object
-    buffer = binaryData.buffer;
+    buffer = binaryData.buffer as Uint8Array<ArrayBuffer>;
   }
   // Handle case where buffer property exists (some MongoDB drivers structure)
   else if (binaryData.buffer instanceof Uint8Array) {

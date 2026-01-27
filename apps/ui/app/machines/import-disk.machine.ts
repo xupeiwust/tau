@@ -95,7 +95,7 @@ const extractZipActor = fromPromise<
   // Process each file sequentially for progress tracking
   for (const [path, file] of fileEntries) {
     // eslint-disable-next-line no-await-in-loop -- processing files sequentially for progress tracking
-    const content = await file.async('uint8array');
+    const content = (await file.async('uint8array')) as Uint8Array<ArrayBuffer>;
     files.set(path, {
       filename: path,
       content,

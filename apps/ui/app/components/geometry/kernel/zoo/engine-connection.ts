@@ -6,7 +6,6 @@ import { binaryToUuid } from '#utils/binary.utils.js';
 import { KclError, KclAuthError, KclConnectionError } from '#components/geometry/kernel/zoo/kcl-errors.js';
 import type { FileSystemManager } from '#components/geometry/kernel/zoo/filesystem-manager.js';
 import { createZooLogger } from '#components/geometry/kernel/zoo/zoo-logs.js';
-import { asBuffer } from '#utils/file.utils.js';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- required
 export type WasmModule = typeof import('@taucad/kcl-wasm-lib');
@@ -156,7 +155,7 @@ export class EngineConnection {
 
       const response = (await this.sendCommand(modelingCommand)) as WebSocketResponse;
 
-      return asBuffer(msgpackEncode(response));
+      return msgpackEncode(response) as Uint8Array<ArrayBuffer>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 

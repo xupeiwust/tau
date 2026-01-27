@@ -86,7 +86,7 @@ export async function createCubeInstanceFixture(): Promise<Uint8Array<ArrayBuffe
   }
 
   // Convert to byte array
-  const bytes = doc.toByteArray();
+  const bytes = doc.toByteArray() as Uint8Array<ArrayBuffer>;
 
   return bytes;
 }
