@@ -237,7 +237,6 @@ export class OpenScadWorker extends KernelWorker {
     { filesystem, logger }: KernelRuntime,
   ): Promise<CreateGeometryResult> {
     const geometryId = 'default';
-    logger.log('Computing geometry from code', { data: { filePath, basePath, parameters, geometryId } });
     // Get relative path from absolute path
     const relativeFilePath = KernelWorker.resolveToRelative(filePath, basePath);
 

@@ -250,7 +250,6 @@ export const geometryCacheMiddleware = createKernelMiddleware({
 
   async wrapCreateGeometry(input, handler, { logger, filesystem, dependencyHash }) {
     const { basePath } = input;
-    logger.log('Checking geometry cache', { data: { ...input } });
     // Use pre-computed dependency hash as cache key
     const cacheKey = dependencyHash;
     const cachePath = getCachePath(basePath, cacheKey);
