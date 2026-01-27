@@ -41,11 +41,11 @@ importers:
         specifier: ^11.2.0
         version: 11.2.0
       '@gltf-transform/core':
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^4.3.0
+        version: 4.3.0
       '@gltf-transform/extensions':
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^4.3.0
+        version: 4.3.0
       '@headless-tree/core':
         specifier: ^1.6.1
         version: 1.6.1
@@ -525,8 +525,8 @@ importers:
         version: 4.1.13
     devDependencies:
       '@gltf-transform/functions':
-        specifier: ^4.2.1
-        version: 4.2.1
+        specifier: ^4.3.0
+        version: 4.3.0
       '@nestjs/schematics':
         specifier: ^11.0.5
         version: 11.0.5(chokidar@4.0.3)(typescript@5.8.3)
@@ -2902,20 +2902,23 @@ packages:
   '@formatjs/intl-localematcher@0.6.2':
     resolution: {integrity: sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==}
 
-  '@gltf-transform/core@4.2.0':
-    resolution: {integrity: sha512-43FtHNxMhT+VX/WZeXISorbtknwusdcfwu0qzfrDa1azsk5CBVOaZwM+ul7DsHty47eC49lSPN0g8uNso35WVw==}
-
   '@gltf-transform/core@4.2.1':
     resolution: {integrity: sha512-qKhrQ29KJ9K6sz7xGoGRllqPBlROjPJMQPvCLBOfgMPH3S/Ph5E0e6fD5WmwTY5QPyBsDMRqKd1Vl0ncThTXGw==}
 
-  '@gltf-transform/extensions@4.2.0':
-    resolution: {integrity: sha512-ujw3RdS1/tVEixFUNuI21cApCgYXTeew4VCF22S0PzHT1I3O+oxFctyllhJOo+BYnlC9w/AnCuQpTAy+pMIboA==}
+  '@gltf-transform/core@4.3.0':
+    resolution: {integrity: sha512-ZeaQfszGJ9LYwELszu45CuDQCsE26lJNNe36FVmN8xclaT6WDdCj7fwGpQXo0/l/YgAVAHX+uO7YNBW75/SRYw==}
 
   '@gltf-transform/extensions@4.2.1':
     resolution: {integrity: sha512-ieHSJU9qvb3ucWDxgHFcff+C7fLtFPa6G0Wtc/ki7GsN6Rh7o9eoyqi7Ggj2LO4i3ynCwLLPb/onbJKw2fBtsA==}
 
+  '@gltf-transform/extensions@4.3.0':
+    resolution: {integrity: sha512-XDAjQPYVMHa/VDpSbfCBwI+/1muwRJCaXhUpLgnUzAjn0D//PgvIAcbNm1EwBl3LIWBSwjDUCn2LiMAjp+aXVw==}
+
   '@gltf-transform/functions@4.2.1':
     resolution: {integrity: sha512-hFCI80N6zt7yHlqXbzlYEYQbFwK+2OOZNvacrRtrWiCWKI0k1Ad5+nZFsmuIZZV03aXb5XG6UF7JINT3wETS1Q==}
+
+  '@gltf-transform/functions@4.3.0':
+    resolution: {integrity: sha512-FZggHVgt3DHOezgESBrf2vDzuD2FYQYaNT2sT/aP316SIwhuiIwby3z7rhV9joDvWqqUaPkf1UmkjlOaY9riSQ==}
 
   '@hcaptcha/loader@2.1.0':
     resolution: {integrity: sha512-9HagrYGQmHD4zvZ3H5z/2U9MObl/q+ls0SRj/JVzl6L3cNFJp6LsxBL9Sg+8YjRDdtj/e7xWBgHuIgZ9cggY7w==}
@@ -13922,6 +13925,9 @@ packages:
   property-graph@3.0.0:
     resolution: {integrity: sha512-TnzxUsttmGtw+OiU0LDw+0FlMbJ8vV8pOjyDI7+Kdni4Tj0hW5BFh7TatQu7Y68hcvvFmiFOHilKShsA4R82fA==}
 
+  property-graph@4.0.0:
+    resolution: {integrity: sha512-I0hojAJfTbSCZy3y6xyK29eayxo14v1bj1VPiDkHjTdz33SV6RdfMz2AHnf4ai62Vng2mN5GkaKahkooBIo9gA==}
+
   property-information@6.5.0:
     resolution: {integrity: sha512-PgTgs/BlvHxOu8QuEN7wi5A0OmXaBcHpmCSTehcs6Uuu9IkDIEo13Hy7n898RHfrQ49vKCoGeWZSaAK01nwVig==}
 
@@ -18694,28 +18700,37 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@gltf-transform/core@4.2.0':
-    dependencies:
-      property-graph: 3.0.0
-
   '@gltf-transform/core@4.2.1':
     dependencies:
       property-graph: 3.0.0
 
-  '@gltf-transform/extensions@4.2.0':
+  '@gltf-transform/core@4.3.0':
     dependencies:
-      '@gltf-transform/core': 4.2.1
-      ktx-parse: 1.0.1
+      property-graph: 4.0.0
 
   '@gltf-transform/extensions@4.2.1':
     dependencies:
       '@gltf-transform/core': 4.2.1
       ktx-parse: 1.0.1
 
+  '@gltf-transform/extensions@4.3.0':
+    dependencies:
+      '@gltf-transform/core': 4.3.0
+      ktx-parse: 1.0.1
+
   '@gltf-transform/functions@4.2.1':
     dependencies:
       '@gltf-transform/core': 4.2.1
       '@gltf-transform/extensions': 4.2.1
+      ktx-parse: 1.0.1
+      ndarray: 1.0.19
+      ndarray-lanczos: 0.3.0
+      ndarray-pixels: 5.0.1
+
+  '@gltf-transform/functions@4.3.0':
+    dependencies:
+      '@gltf-transform/core': 4.3.0
+      '@gltf-transform/extensions': 4.3.0
       ktx-parse: 1.0.1
       ndarray: 1.0.19
       ndarray-lanczos: 0.3.0
@@ -31477,6 +31492,8 @@ snapshots:
       react-is: 16.13.1
 
   property-graph@3.0.0: {}
+
+  property-graph@4.0.0: {}
 
   property-information@6.5.0: {}
 

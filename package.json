@@ -40,8 +40,8 @@
     "@fastify/cors": "^11.0.1",
     "@fastify/helmet": "^13.0.1",
     "@fastify/websocket": "^11.2.0",
-    "@gltf-transform/core": "^4.2.0",
-    "@gltf-transform/extensions": "^4.2.0",
+    "@gltf-transform/core": "^4.3.0",
+    "@gltf-transform/extensions": "^4.3.0",
     "@headless-tree/core": "^1.6.1",
     "@headless-tree/react": "^1.6.1",
     "@hookform/resolvers": "^5.1.1",
@@ -203,7 +203,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@gltf-transform/functions": "^4.2.1",
+    "@gltf-transform/functions": "^4.3.0",
     "@nestjs/schematics": "^11.0.5",
     "@nestjs/testing": "^11.1.5",
     "@netlify/vite-plugin-react-router": "^2.1.2",
