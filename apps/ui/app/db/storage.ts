@@ -1,6 +1,6 @@
 import { IndexedDbStorageProvider } from '#db/indexeddb-storage.js';
 import { isBrowser } from '#constants/browser.constants.js';
-import { ensureGitMountConfigured, fs, gitMountPoint } from '#filesystem/zenfs-config.js';
+import { ensureGitMountConfigured, fs } from '#filesystem/zenfs-config.js';
 
 /**
  * Ensure git filesystem is configured before performing operations.
