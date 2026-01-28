@@ -139,7 +139,24 @@ const createWorkersActor = fromPromise<
       };
     }
 
-    const snapshot = await waitFor(context.fileManagerRef, (state) => state.matches('ready'));
+    // Wait for file manager to be ready OR error state (prevents infinite hang)
+    const snapshot = await waitFor(context.fileManagerRef, (state) => state.matches('ready') || state.matches('error'));
+
+    // Handle file manager error state
+    if (snapshot.matches('error')) {
+      const errorMessage = snapshot.context.error?.message ?? 'File manager initialization failed';
+      return {
+        type: 'kernelIssue',
+        errors: [
+          {
+            message: errorMessage,
+            type: 'runtime',
+            severity: 'error',
+          },
+        ],
+      };
+    }
+
     const fileManagerContext = snapshot.context;
     const wrappedFileManager = fileManagerContext.wrappedWorker;
 
