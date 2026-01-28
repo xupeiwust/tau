@@ -548,6 +548,19 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
+   * Get the middleware array for this worker.
+   * Override in subclasses to customize middleware (e.g., for testing).
+   *
+   * Symbol-keyed to hide from kernel developer autocomplete. Tests can import
+   * the symbol from @taucad/types/symbols to override this method.
+   *
+   * @returns Array of middleware to apply to kernel operations
+   */
+  public [kernelSymbols.getMiddleware](): KernelMiddleware[] {
+    return kernelMiddleware;
+  }
+
+  /**
    * Worker-specific initialization. Override this method to add custom initialization logic.
    * No need to call super.initialize() - common initialization is handled by initializeEntry.
    *
@@ -587,19 +600,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   protected getAssetUrls(): string[] {
     return [];
-  }
-
-  /**
-   * Get the middleware array for this worker.
-   * Override in subclasses to customize middleware (e.g., for testing).
-   *
-   * Symbol-keyed to hide from kernel developer autocomplete. Tests can import
-   * the symbol from @taucad/types/symbols to override this method.
-   *
-   * @returns Array of middleware to apply to kernel operations
-   */
-  protected [kernelSymbols.getMiddleware](): KernelMiddleware[] {
-    return kernelMiddleware;
   }
 
   /**

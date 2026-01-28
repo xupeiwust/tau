@@ -450,7 +450,7 @@ export class MockKernelWorker extends KernelWorker {
   /**
    * Override getMiddleware to return test middleware.
    */
-  protected override [kernelSymbols.getMiddleware](): KernelMiddleware[] {
+  public override [kernelSymbols.getMiddleware](): KernelMiddleware[] {
     return this.testMiddleware;
   }
 
