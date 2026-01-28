@@ -8,6 +8,7 @@ import deepmerge from 'deepmerge';
 import type { PartialDeep } from 'type-fest';
 import type {
   CreateGeometryResult,
+  CreateGeometryResultCompleted,
   GeometryResponse,
   KernelMiddlewareRuntime,
   KernelLogger,
@@ -30,6 +31,7 @@ import type {
 import { dirname } from '@zenfs/core/path';
 import { expose } from 'comlink';
 import { vi } from 'vitest';
+import * as kernelSymbols from '@taucad/types/symbols';
 import type { KernelMiddleware } from '#components/geometry/kernel/utils/kernel-middleware.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { configureFilesystem, resetFilesystem, fs } from '#filesystem/zenfs-config.js';
@@ -99,7 +101,7 @@ export async function initializeWorkerForTesting<T extends KernelWorker>(
   const channel = new MessageChannel();
   expose(fileManager, channel.port1);
 
-  await worker.initializeEntry(
+  await worker[kernelSymbols.initializeEntry](
     {
       onLog:
         options?.onLog ??
@@ -440,15 +442,15 @@ export class MockKernelWorker extends KernelWorker {
   public async runCreateGeometry(
     filename = 'test.kcl',
     parameters: Record<string, unknown> = {},
-  ): Promise<ReturnType<typeof this.createGeometryEntry>> {
+  ): Promise<CreateGeometryResultCompleted> {
     const mockFile: GeometryFile = { filename, path: filename };
-    return this.createGeometryEntry(mockFile, parameters);
+    return this[kernelSymbols.createGeometryEntry](mockFile, parameters);
   }
 
   /**
    * Override getMiddleware to return test middleware.
    */
-  protected override getMiddleware(): KernelMiddleware[] {
+  protected override [kernelSymbols.getMiddleware](): KernelMiddleware[] {
     return this.testMiddleware;
   }
 

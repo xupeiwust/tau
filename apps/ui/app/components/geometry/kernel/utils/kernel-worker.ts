@@ -27,6 +27,7 @@ import type {
   AssetDependency,
   OnWorkerLog,
 } from '@taucad/types';
+import * as kernelSymbols from '@taucad/types/symbols';
 import { wrap } from 'comlink';
 import type { Remote } from 'comlink';
 import { version as TAU_VERSION } from 'package.json';
@@ -220,13 +221,16 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Entry point for initializing the worker. This is called once when the worker is created.
    * Handles common initialization logic and then calls the protected initialize method.
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @param callbacks - Object containing callback functions (proxied).
    * @param callbacks.onLog - The function to call when a log is emitted.
    * @param transferables - Object containing transferable resources like MessagePorts.
    * @param transferables.fileManagerPort - Optional MessagePort for direct communication with file-manager worker.
    * @param options - The options passed to the worker. These are specific to the kernel provider.
    */
-  public async initializeEntry(
+  public async [kernelSymbols.initializeEntry](
     callbacks: { onLog: OnWorkerLog },
     transferables: { fileManagerPort?: MessagePort },
     options: Options,
@@ -250,17 +254,23 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /**
    * Get the supported export formats for the worker.
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @returns The supported export formats.
    */
-  public getSupportedExportFormats(): ExportFormat[] {
+  public [kernelSymbols.getExportFormats](): ExportFormat[] {
     return (this.constructor as typeof KernelWorker).supportedExportFormats;
   }
 
   /**
    * Entry point for cleaning up the worker. This is called when the worker is destroyed.
    * Handles common cleanup logic and then calls the protected cleanup method.
+   *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
    */
-  public async cleanupEntry(): Promise<void> {
+  public async [kernelSymbols.cleanupEntry](): Promise<void> {
     this.assetHashCache.clear();
     await this.cleanup();
   }
@@ -268,10 +278,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /**
    * Entry point for checking if this worker can handle the given file.
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @param file - The geometry file to check.
    * @returns True if this worker can handle the file, false otherwise.
    */
-  public async canHandleEntry(file: GeometryFile): Promise<boolean> {
+  public async [kernelSymbols.canHandleEntry](file: GeometryFile): Promise<boolean> {
     this.setBasePath(file);
     const basename = KernelWorker.getBasename(file.filename);
     const extension = KernelWorker.getFileExtension(basename);
@@ -289,10 +302,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Entry point for extracting parameters from a file.
    * Handles base path setup, timing, and middleware application using onion model.
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @param file - The geometry file to extract parameters from.
    * @returns The extracted parameters.
    */
-  public async getParametersEntry(file: GeometryFile): Promise<GetParametersResult> {
+  public async [kernelSymbols.getParametersEntry](file: GeometryFile): Promise<GetParametersResult> {
     this.setBasePath(file);
     const start = performance.now();
 
@@ -307,7 +323,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     const dependencyHash = await this.computeDependencyHash(dependencies);
 
     // Get middleware array (overridable for testing)
-    const middlewareArray = this.getMiddleware();
+    const middlewareArray = this[kernelSymbols.getMiddleware]();
 
     // Create runtimes map - one per middleware for the duration of this operation
     const runtimes = new Map<string, KernelMiddlewareRuntime>();
@@ -385,12 +401,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * - Code after handler() runs on the "response journey" (inside-out)
    * - Short-circuited results still flow through upstream middleware post-processing
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @param file - The geometry file to compute geometry from.
    * @param parameters - The parameters to use when computing geometry.
    * @param geometryId - The geometry ID to use when computing geometry.
    * @returns The computed geometry.
    */
-  public async createGeometryEntry(
+  public async [kernelSymbols.createGeometryEntry](
     file: GeometryFile,
     parameters: Record<string, unknown>,
   ): Promise<CreateGeometryResultCompleted> {
@@ -410,7 +429,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     const dependencyHash = await this.computeDependencyHash(dependencies);
 
     // Get middleware array (overridable for testing)
-    const middlewareArray = this.getMiddleware();
+    const middlewareArray = this[kernelSymbols.getMiddleware]();
 
     // Create runtimes map - one per middleware for the duration of this operation.
     // This ensures the state is shared across the entire wrap hook execution.
@@ -500,12 +519,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Entry point for exporting geometry.
    * Handles timing (no base path needed for export).
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Framework code imports
+   * the symbol from @taucad/types/symbols to access this method.
+   *
    * @param fileType - The file type to export the geometry as.
    * @param geometryId - The geometry ID to export the geometry from.
    * @param meshConfig - The mesh configuration to use when exporting the geometry.
    * @returns The exported geometry.
    */
-  public async exportGeometryEntry(
+  public async [kernelSymbols.exportGeometryEntry](
     fileType: ExportFormat,
     meshConfig?: { linearTolerance: number; angularTolerance: number },
   ): Promise<ExportGeometryResult> {
@@ -571,9 +593,12 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Get the middleware array for this worker.
    * Override in subclasses to customize middleware (e.g., for testing).
    *
+   * Symbol-keyed to hide from kernel developer autocomplete. Tests can import
+   * the symbol from @taucad/types/symbols to override this method.
+   *
    * @returns Array of middleware to apply to kernel operations
    */
-  protected getMiddleware(): KernelMiddleware[] {
+  protected [kernelSymbols.getMiddleware](): KernelMiddleware[] {
     return kernelMiddleware;
   }
 
@@ -708,7 +733,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     );
 
     // 2. Middleware dependencies (index preserves chain order)
-    const middlewareDeps: MiddlewareDependency[] = this.getMiddleware().map((middleware, index) => ({
+    const middlewareDeps: MiddlewareDependency[] = this[kernelSymbols.getMiddleware]().map((middleware, index) => ({
       type: 'middleware' as const,
       name: middleware.name,
       version: middleware.version ?? '1',
