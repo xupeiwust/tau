@@ -1,4 +1,3 @@
-import { expose } from 'comlink';
 import * as replicad from 'replicad';
 import ErrorStackParser from 'error-stack-parser';
 import type { OpenCascadeInstance as OpenCascadeInstanceWithExceptions } from 'replicad-opencascadejs/src/replicad_with_exceptions.js';
@@ -23,6 +22,7 @@ import type {
   ExportGeometryInput,
 } from '@taucad/types';
 import { isKernelError } from '@taucad/types/guards';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import {
   initOpenCascade,
@@ -612,6 +612,6 @@ return main(replicad, __inputParams || dp)
 }
 
 const service = new ReplicadWorker();
-expose(service);
+exposeWorker(service);
 
 export type ReplicadWorkerInterface = typeof service;

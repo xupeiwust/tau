@@ -1,4 +1,3 @@
-import { expose } from 'comlink';
 import ErrorStackParser from 'error-stack-parser';
 import type {
   CreateGeometryResult,
@@ -18,6 +17,7 @@ import type {
   CreateGeometryInput,
   ExportGeometryInput,
 } from '@taucad/types';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { buildEsModule, runInCjsContext, registerKernelModules } from '#components/geometry/kernel/replicad/vm.js';
@@ -554,5 +554,6 @@ export class JscadWorker extends KernelWorker {
 }
 
 const service = new JscadWorker();
-expose(service);
+exposeWorker(service);
+
 export type JscadWorkerInterface = typeof service;

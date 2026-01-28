@@ -1,4 +1,4 @@
-import { expose } from 'comlink';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import type {
   CreateGeometryResult,
   ExportFormat,
@@ -142,5 +142,6 @@ class TauWorker extends KernelWorker {
 }
 
 const service = new TauWorker();
-expose(service);
+exposeWorker(service);
+
 export type TauWorkerInterface = typeof service;

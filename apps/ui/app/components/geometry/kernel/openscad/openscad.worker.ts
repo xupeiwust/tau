@@ -1,4 +1,3 @@
-import { expose } from 'comlink';
 import { createOpenSCAD } from 'openscad-wasm-prebuilt';
 import type { OpenSCAD } from 'openscad-wasm-prebuilt';
 import { jsonDefault } from 'json-schema-default';
@@ -22,6 +21,7 @@ import type {
 } from '@taucad/types';
 import { logLevels } from '@taucad/types/constants';
 import type { OpenScadParameterExport } from '#components/geometry/kernel/openscad/parse-parameters.js';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import {
   processOpenScadParameters,
   flattenParametersForInjection,
@@ -778,5 +778,6 @@ export class OpenScadWorker extends KernelWorker {
 }
 
 const service = new OpenScadWorker();
-expose(service);
+exposeWorker(service);
+
 export type OpenScadBuilderInterface = typeof service;

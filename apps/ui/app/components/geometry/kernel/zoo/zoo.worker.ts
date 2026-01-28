@@ -1,4 +1,3 @@
-import { expose } from 'comlink';
 import type {
   CreateGeometryResult,
   ExportFormat,
@@ -18,6 +17,7 @@ import type {
   ExportGeometryInput,
 } from '@taucad/types';
 import type { CompilationError } from '@taucad/kcl-wasm-lib/bindings/CompilationError';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { KclUtils, kclWasmUrl } from '#components/geometry/kernel/zoo/kcl-utils.js';
 import { isKclError } from '#components/geometry/kernel/zoo/kcl-errors.js';
@@ -468,5 +468,6 @@ export class ZooWorker extends KernelWorker<ZooOptions> {
 }
 
 const service = new ZooWorker();
-expose(service);
+exposeWorker(service);
+
 export type ZooBuilderInterface = typeof service;
