@@ -122,6 +122,7 @@ export class ChatController {
 
     response.raw.on('finish', cleanupSocketListener);
     response.raw.on('error', cleanupSocketListener);
+    response.raw.on('close', cleanupSocketListener);
 
     this.logger.debug(`Starting execution for thread: ${body.id}`);
     const stream = await agent.graph.stream(
