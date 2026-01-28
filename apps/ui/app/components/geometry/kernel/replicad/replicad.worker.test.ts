@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { CreateGeometryResult } from '@taucad/types';
 import { describe, it, expect } from 'vitest';
 import { ReplicadWorker } from '#components/geometry/kernel/replicad/replicad.worker.js';

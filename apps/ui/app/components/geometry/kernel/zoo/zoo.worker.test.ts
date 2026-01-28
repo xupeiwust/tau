@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { ZooWorker } from '#components/geometry/kernel/zoo/zoo.worker.js';
 import {
