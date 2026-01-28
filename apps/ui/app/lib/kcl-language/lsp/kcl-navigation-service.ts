@@ -9,11 +9,12 @@ import type * as Monaco from 'monaco-editor';
 import type { AnyActorRef } from 'xstate';
 import { codeLanguages } from '@taucad/types/constants';
 import { createKclLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
+import { joinPath } from '#utils/path.utils.js';
 
 const log = createKclLogger('Navigation');
 
 type FileManagerApi = {
-  readFile: (path: string) => Promise<Uint8Array>;
+  readFile: (path: string) => Promise<Uint8Array<ArrayBuffer>>;
 };
 
 type NavigationServiceOptions = {
@@ -24,7 +25,7 @@ type NavigationServiceOptions = {
   /** Build ID for namespacing Monaco URIs */
   buildId: string;
   /** Decode file content from Uint8Array to string */
-  decodeTextFile: (data: Uint8Array) => string;
+  decodeTextFile: (data: Uint8Array<ArrayBuffer>) => string;
 };
 
 type PendingNavigation = {
@@ -46,7 +47,7 @@ const buildsPrefix = '/builds';
  * Create a Monaco URI with build namespace to ensure file isolation between builds.
  */
 function createBuildNamespacedUri(monaco: typeof Monaco, buildId: string, relativePath: string): Monaco.Uri {
-  return monaco.Uri.file(`${buildsPrefix}/${buildId}/${relativePath}`);
+  return monaco.Uri.file(joinPath(buildsPrefix, buildId, relativePath));
 }
 
 /**
@@ -54,7 +55,7 @@ function createBuildNamespacedUri(monaco: typeof Monaco, buildId: string, relati
  * Returns undefined if the path doesn't match the expected build namespace.
  */
 function extractRelativePathFromUri(uriPath: string, buildId: string): string | undefined {
-  const prefix = `${buildsPrefix}/${buildId}/`;
+  const prefix = joinPath(buildsPrefix, buildId) + '/';
   if (uriPath.startsWith(prefix)) {
     return uriPath.slice(prefix.length);
   }

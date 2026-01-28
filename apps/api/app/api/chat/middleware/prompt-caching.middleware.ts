@@ -27,6 +27,10 @@ function addCacheControlToHumanMessage(message: HumanMessage): HumanMessage {
           cache_control: { type: 'ephemeral' },
         },
       ],
+      id: message.id,
+      name: message.name,
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
+      additional_kwargs: message.additional_kwargs,
     });
   }
 
@@ -47,6 +51,10 @@ function addCacheControlToHumanMessage(message: HumanMessage): HumanMessage {
 
     return new HumanMessage({
       content: newContent,
+      id: message.id,
+      name: message.name,
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
+      additional_kwargs: message.additional_kwargs,
     });
   }
 
@@ -76,6 +84,7 @@ function addCacheControlToAiMessage(message: AIMessage): AIMessage {
           cache_control: { type: 'ephemeral' },
         },
       ],
+      id: message.id,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
       tool_calls: message.tool_calls,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
@@ -100,6 +109,7 @@ function addCacheControlToAiMessage(message: AIMessage): AIMessage {
 
     return new AIMessage({
       content: newContent,
+      id: message.id,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
       tool_calls: message.tool_calls,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
@@ -119,6 +129,7 @@ function addCacheControlToAiMessage(message: AIMessage): AIMessage {
           cache_control: { type: 'ephemeral' },
         },
       ],
+      id: message.id,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
       tool_calls: message.tool_calls,
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
@@ -151,6 +162,9 @@ function addCacheControlToToolMessage(message: ToolMessage): ToolMessage {
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
       tool_call_id: toolCallId,
       name,
+      id: message.id,
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
+      additional_kwargs: message.additional_kwargs,
     });
   }
 
@@ -174,6 +188,9 @@ function addCacheControlToToolMessage(message: ToolMessage): ToolMessage {
       // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
       tool_call_id: toolCallId,
       name,
+      id: message.id,
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
+      additional_kwargs: message.additional_kwargs,
     });
   }
 

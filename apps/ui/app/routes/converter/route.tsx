@@ -72,7 +72,7 @@ type UploadedFileInfo = {
 function ConverterContent(): React.JSX.Element {
   const { graphicsRef: graphicsActor } = useBuild();
   const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | undefined>(undefined);
-  const [glbData, setGlbData] = useState<Uint8Array | undefined>(undefined);
+  const [glbData, setGlbData] = useState<Uint8Array<ArrayBuffer> | undefined>(undefined);
   const [selectedFormats, setSelectedFormats] = useCookie<OutputFormat[]>(cookieName.converterOutputFormats, []);
   const [useZipForMultiple, setUseZipForMultiple] = useCookie<boolean>(cookieName.converterMultifileZip, true);
   const [isConverting, setIsConverting] = useState(false);
@@ -174,7 +174,8 @@ function ConverterContent(): React.JSX.Element {
   );
 
   // Construct geometries array for CadViewer
-  const geometries: Geometry[] = glbData ? [{ format: 'gltf', content: glbData }] : [];
+  // Use a static hash for the converter (not using kernel worker infrastructure)
+  const geometries: Geometry[] = glbData ? [{ format: 'gltf', content: glbData, hash: 'converter' }] : [];
 
   const hasModel = glbData !== undefined;
 

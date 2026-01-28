@@ -9,6 +9,9 @@ import type {
   KernelIssue,
   KernelProvider as CadKernelProvider,
   GeometryFile,
+  LogLevel,
+  LogOrigin,
+  OnWorkerLog,
 } from '@taucad/types';
 import { isKernelSuccess } from '@taucad/types/guards';
 import type { JSONSchema7 } from 'json-schema';
@@ -23,7 +26,6 @@ import TauBuilderWorker from '#components/geometry/kernel/tau/tau.worker.js?work
 import type { JscadWorkerInterface as JscadWorker } from '#components/geometry/kernel/jscad/jscad.worker.types.js';
 import JscadBuilderWorker from '#components/geometry/kernel/jscad/jscad.worker.js?worker';
 import { assertActorDoneEvent } from '#lib/xstate.js';
-import type { LogLevel, LogOrigin, OnWorkerLog } from '#types/console.types.js';
 import { ENV } from '#environment.config.js';
 import type { FileManagerMachine } from '#machines/file-manager.machine.js';
 
@@ -137,7 +139,24 @@ const createWorkersActor = fromPromise<
       };
     }
 
-    const snapshot = await waitFor(context.fileManagerRef, (state) => state.matches('ready'));
+    // Wait for file manager to be ready OR error state (prevents infinite hang)
+    const snapshot = await waitFor(context.fileManagerRef, (state) => state.matches('ready') || state.matches('error'));
+
+    // Handle file manager error state
+    if (snapshot.matches('error')) {
+      const errorMessage = snapshot.context.error?.message ?? 'File manager initialization failed';
+      return {
+        type: 'kernelIssue',
+        errors: [
+          {
+            message: errorMessage,
+            type: 'runtime',
+            severity: 'error',
+          },
+        ],
+      };
+    }
+
     const fileManagerContext = snapshot.context;
     const wrappedFileManager = fileManagerContext.wrappedWorker;
 
@@ -199,7 +218,10 @@ const createWorkersActor = fromPromise<
       wrappedReplicadWorker.initializeEntry(
         proxy({ onLog }),
         transfer({ fileManagerPort: replicadPort }, [replicadPort]),
-        { withExceptions: false },
+        {
+          withExceptions: false,
+          meshConfiguration: { linearTolerance: 0.1, angularTolerance: 0.1 },
+        },
       ),
       wrappedOpenscadWorker.initializeEntry(
         proxy({ onLog }),
@@ -296,7 +318,7 @@ const parseParametersActor = fromPromise<
   }
 
   try {
-    const parametersResult = await wrappedWorker.extractParametersEntry(file);
+    const parametersResult = await wrappedWorker.getParametersEntry(file);
 
     if (isKernelSuccess(parametersResult)) {
       const { defaultParameters, jsonSchema } = parametersResult.data as {
@@ -390,7 +412,7 @@ const evaluateCodeActor = fromPromise<
   // Merge default parameters with provided parameters
   const mergedParameters = deepmerge(defaultParameters, parameters);
 
-  const result = await wrappedWorker.computeGeometryEntry(file, mergedParameters);
+  const result = await wrappedWorker.createGeometryEntry(file, mergedParameters);
 
   // Handle the result pattern
   if (isKernelSuccess(result)) {
@@ -443,7 +465,7 @@ const exportGeometryActor = fromPromise<
   }
 
   try {
-    const supportedFormats = await wrappedWorker.getSupportedExportFormats();
+    const supportedFormats = await wrappedWorker.getExportFormats();
     if (!supportedFormats.includes(format)) {
       return {
         type: 'geometryExportFailed',
@@ -513,7 +535,7 @@ type KernelActorNames = keyof typeof kernelActors;
 // Define the types of events the machine can receive
 type KernelEventInternal =
   | { type: 'initializeKernel'; parentRef: CadActor }
-  | { type: 'computeGeometry'; file: GeometryFile; parameters: Record<string, unknown> }
+  | { type: 'createGeometry'; file: GeometryFile; parameters: Record<string, unknown> }
   | { type: 'exportGeometry'; format: ExportFormat };
 
 // Define the events that the workers can send to the kernel machine
@@ -683,7 +705,7 @@ export const kernelMachine = setup({
 
     ready: {
       on: {
-        computeGeometry: {
+        createGeometry: {
           target: 'determiningWorker',
         },
         exportGeometry: {
@@ -695,7 +717,7 @@ export const kernelMachine = setup({
     determiningWorker: {
       // Allow cancelling inflight operations
       on: {
-        computeGeometry: {
+        createGeometry: {
           target: 'determiningWorker',
         },
         exportGeometry: {
@@ -706,7 +728,7 @@ export const kernelMachine = setup({
         id: 'determineWorkerActor',
         src: 'determineWorkerActor',
         input({ context, event }) {
-          assertEvent(event, 'computeGeometry');
+          assertEvent(event, 'createGeometry');
           return {
             context,
             event: { file: event.file, parameters: event.parameters },
@@ -732,7 +754,7 @@ export const kernelMachine = setup({
     parsing: {
       // Allow cancelling inflight operations
       on: {
-        computeGeometry: {
+        createGeometry: {
           target: 'determiningWorker',
         },
         exportGeometry: {
@@ -776,7 +798,7 @@ export const kernelMachine = setup({
     evaluating: {
       // Allow cancelling inflight operations
       on: {
-        computeGeometry: {
+        createGeometry: {
           target: 'determiningWorker',
         },
         exportGeometry: {
@@ -807,7 +829,7 @@ export const kernelMachine = setup({
     exporting: {
       // Allow cancelling inflight operations
       on: {
-        computeGeometry: {
+        createGeometry: {
           target: 'determiningWorker',
         },
         exportGeometry: {

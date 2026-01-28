@@ -6,7 +6,7 @@ import type { FileEntry } from '@taucad/types';
 import FileManagerWorker from '#machines/file-manager.worker.js?worker';
 import type { FileManager as FileWorker } from '#machines/file-manager.js';
 import { assertActorDoneEvent } from '#lib/xstate.js';
-import { normalizePath } from '#utils/path.utils.js';
+import { normalizePath, joinPath } from '#utils/path.utils.js';
 
 /**
  * The source of the file write operation.
@@ -24,7 +24,7 @@ type FileManagerContext = {
   worker: Worker | undefined;
   wrappedWorker: Remote<FileWorker> | undefined;
   fileTree: Map<string, FileEntry>;
-  openFiles: Map<string, Uint8Array>;
+  openFiles: Map<string, Uint8Array<ArrayBuffer>>;
   error: Error | undefined;
   rootDirectory: string;
   shouldInitializeOnStart: boolean;
@@ -76,13 +76,13 @@ const readDirectoryActor = fromPromise<
 
   try {
     // Empty path means root directory
-    const absolutePath = path === '' ? normalizePath(context.rootDirectory) : `${context.rootDirectory}/${path}`;
+    const absolutePath = path === '' ? normalizePath(context.rootDirectory) : joinPath(context.rootDirectory, path);
     const fileStats = await context.wrappedWorker.getDirectoryStat(absolutePath);
     const entries: FileEntry[] = [];
 
     for (const fileStat of fileStats) {
       // FileStat.path is relative to the directory we scanned
-      const relativeFilePath = path === '' ? fileStat.path : `${path}/${fileStat.path}`;
+      const relativeFilePath = path === '' ? fileStat.path : joinPath(path, fileStat.path);
 
       entries.push({
         path: relativeFilePath,
@@ -119,8 +119,8 @@ type FileManagerEventLifecycle = { type: 'initialize' } | { type: 'setRoot'; pat
 // Hook calls worker directly, then sends ONE event to machine
 // Machine updates context, emits UI event, spawns background refresh
 type FileManagerEventMutation =
-  | { type: 'fileWritten'; path: string; data: Uint8Array; source: FileWriteSource }
-  | { type: 'fileRead'; path: string; data: Uint8Array }
+  | { type: 'fileWritten'; path: string; data: Uint8Array<ArrayBuffer>; source: FileWriteSource }
+  | { type: 'fileRead'; path: string; data: Uint8Array<ArrayBuffer> }
   | { type: 'fileRenamed'; oldPath: string; newPath: string }
   | { type: 'fileDeleted'; path: string; source: FileWriteSource }
   | { type: 'filesWritten'; paths: string[] };
@@ -139,8 +139,8 @@ type FileManagerInput = {
 
 // Emitted events for UI consumers (toasts, Monaco updates, etc.)
 type FileManagerEmitted =
-  | { type: 'fileWritten'; path: string; data: Uint8Array; source: FileWriteSource }
-  | { type: 'fileRead'; path: string; data: Uint8Array }
+  | { type: 'fileWritten'; path: string; data: Uint8Array<ArrayBuffer>; source: FileWriteSource }
+  | { type: 'fileRead'; path: string; data: Uint8Array<ArrayBuffer> }
   | { type: 'fileRenamed'; oldPath: string; newPath: string }
   | { type: 'fileDeleted'; path: string; source: FileWriteSource };
 
@@ -312,7 +312,7 @@ export const fileManagerMachine = setup({
         assertEvent(event, 'fileRenamed');
         const { oldPath, newPath } = event;
 
-        const newMap = new Map<string, Uint8Array>();
+        const newMap = new Map<string, Uint8Array<ArrayBuffer>>();
         const prefix = `${oldPath}/`;
 
         for (const [path, content] of context.openFiles.entries()) {

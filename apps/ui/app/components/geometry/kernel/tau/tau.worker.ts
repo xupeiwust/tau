@@ -1,32 +1,38 @@
-import { expose } from 'comlink';
 import type {
-  ComputeGeometryResult,
+  CreateGeometryResult,
   ExportFormat,
   ExportGeometryResult,
-  ExtractParametersResult,
+  GetParametersResult,
   GeometryGltf,
+  KernelRuntime,
+  CanHandleInput,
+  GetDependenciesInput,
+  CreateGeometryInput,
+  ExportGeometryInput,
 } from '@taucad/types';
 import { importToGlb, exportFromGlb, supportedExportFormats, supportedImportFormats } from '@taucad/converter';
 import type { InputFormat, OutputFormat } from '@taucad/converter';
+import { exposeWorker } from '#components/geometry/kernel/utils/comlink-worker.utils.js';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { asBuffer } from '#utils/file.utils.js';
+import { wrapForComlink } from '#components/geometry/kernel/utils/kernel-comlink-adapter.js';
 
 class TauWorker extends KernelWorker {
   protected static override readonly supportedExportFormats: ExportFormat[] = supportedExportFormats as ExportFormat[];
   protected override readonly name: string = 'TauWorker';
-  private glbDataMemory: Record<string, Uint8Array> = {};
+  private glbDataMemory: Record<string, Uint8Array<ArrayBuffer>> = {};
 
   protected override async cleanup(): Promise<void> {
     this.glbDataMemory = {};
   }
 
-  protected override async canHandle(_filename: string, extension: string): Promise<boolean> {
+  protected override async canHandle({ extension }: CanHandleInput, _runtime: KernelRuntime): Promise<boolean> {
     // Import supported formats from converter
     return supportedImportFormats.includes(extension as InputFormat);
   }
 
-  protected override async extractParameters(_filename: string): Promise<ExtractParametersResult> {
+  protected override async getParameters(): Promise<GetParametersResult> {
     // Files don't have parameters by default
     // In the future, we may extract parameters from file metadata
     return createKernelSuccess({
@@ -35,17 +41,31 @@ class TauWorker extends KernelWorker {
     });
   }
 
-  protected override async computeGeometry(
-    filename: string,
-    _parameters?: Record<string, unknown>,
-    geometryId = 'defaultGeometry',
-  ): Promise<ComputeGeometryResult> {
+  protected override async getDependencies({ filePath }: GetDependenciesInput): Promise<string[]> {
+    // TauWorker processes individual files without dependencies
+    // Return absolute path
+    return [filePath];
+  }
+
+  protected override getAssetUrls(): string[] {
+    // TauWorker uses @taucad/converter which bundles WASM internally.
+    // Cache invalidation relies on the Tau framework version.
+    return [];
+  }
+
+  protected override async createGeometry(
+    { filePath, basePath }: CreateGeometryInput,
+    { filesystem, logger }: KernelRuntime,
+  ): Promise<CreateGeometryResult> {
+    const relativeFilePath = KernelWorker.resolveToRelative(filePath, basePath);
+    const geometryId = 'default';
+    const filename = KernelWorker.getBasename(filePath);
     try {
       // Read file as binary
-      const data = await this.readFile(filename);
+      const data = await filesystem.readFile(filePath);
       const format = KernelWorker.getFileExtension(filename);
       const formattedFormat = String(format).toUpperCase();
-      this.log(`Converting ${formattedFormat} to GLB`, { operation: 'computeGeometry' });
+      logger.log(`Converting ${formattedFormat} to GLB`);
 
       // Convert file to GLB using the converter
       const glbData = await importToGlb([{ name: filename, data }], format as InputFormat);
@@ -59,16 +79,16 @@ class TauWorker extends KernelWorker {
         content: glbData,
       };
 
-      this.log(`Successfully converted ${formattedFormat} to GLB`, { operation: 'computeGeometry' });
+      logger.log(`Successfully converted ${formattedFormat} to GLB`);
 
       return createKernelSuccess([geometry]);
     } catch (error) {
-      this.error('Error converting file', { data: error, operation: 'computeGeometry' });
+      logger.error('Error converting file', { data: error });
       const errorMessage = error instanceof Error ? error.message : 'Failed to convert file';
       return createKernelError([
         {
           message: errorMessage,
-          location: { fileName: this.activeFilePath, startLineNumber: 1, startColumn: 1 },
+          location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 1 },
           type: 'runtime',
           severity: 'error',
         },
@@ -77,10 +97,11 @@ class TauWorker extends KernelWorker {
   }
 
   protected override async exportGeometry(
-    fileType: ExportFormat,
-    geometryId = 'defaultGeometry',
+    { fileType }: ExportGeometryInput,
+    { logger }: KernelRuntime,
   ): Promise<ExportGeometryResult> {
     try {
+      const geometryId = 'default';
       const glbData = this.glbDataMemory[geometryId];
       if (!glbData) {
         // System error - no location needed
@@ -93,7 +114,7 @@ class TauWorker extends KernelWorker {
         ]);
       }
 
-      this.log('Exporting geometry', { operation: 'exportGeometry', data: { format: fileType } });
+      logger.log('Exporting geometry', { data: { format: fileType } });
 
       // Use converter to export from GLB
       const files = await exportFromGlb(glbData, fileType as OutputFormat);
@@ -103,11 +124,11 @@ class TauWorker extends KernelWorker {
         name: file.name,
       }));
 
-      this.log('Successfully exported geometry', { operation: 'exportGeometry' });
+      logger.log('Successfully exported geometry');
 
       return createKernelSuccess(results);
     } catch (error) {
-      this.error('Error exporting geometry', { data: error, operation: 'exportGeometry' });
+      logger.error('Error exporting geometry', { data: error });
       const errorMessage = error instanceof Error ? error.message : 'Failed to export geometry';
       // Export error - no specific file location
       return createKernelError([
@@ -121,6 +142,8 @@ class TauWorker extends KernelWorker {
   }
 }
 
-const service = new TauWorker();
-expose(service);
+const worker = new TauWorker();
+const service = wrapForComlink(worker);
+exposeWorker(service);
+
 export type TauWorkerInterface = typeof service;
