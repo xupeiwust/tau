@@ -5,12 +5,14 @@ import http from 'isomorphic-git/http/web';
 import { gitFs, ensureGitFsConfigured } from '#db/storage.js';
 import { assertActorDoneEvent } from '#lib/xstate.js';
 import { gitAttributesTemplate } from '#constants/gitattributes-template.js';
+import { gitMountPoint } from '#filesystem/zenfs-config.js';
 
 /**
- * Get the directory path for a build in the virtual filesystem
+ * Get the directory path for a build in the git virtual filesystem.
+ * Uses the /git mount point for isolated git storage.
  */
 export function getBuildDirectory(buildId: string): string {
-  return `/builds/${buildId}`;
+  return `${gitMountPoint}/builds/${buildId}`;
 }
 
 /**

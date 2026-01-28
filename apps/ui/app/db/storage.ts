@@ -1,53 +1,23 @@
-import { fs, configure } from '@zenfs/core';
-import { IndexedDB } from '@zenfs/dom';
 import { IndexedDbStorageProvider } from '#db/indexeddb-storage.js';
 import { isBrowser } from '#constants/browser.constants.js';
-import { metaConfig } from '#constants/meta.constants.js';
+import { ensureGitMountConfigured, fs, gitMountPoint } from '#filesystem/zenfs-config.js';
 
 /**
- * Track git filesystem configuration state.
+ * Ensure git filesystem is configured before performing operations.
+ * Uses the centralized ZenFS configuration from zenfs-config.ts.
  */
-let gitFsConfigured = false;
-let gitFsConfigPromise: Promise<void> | undefined;
-
-/**
- * Configure ZenFS for git operations.
- * This should be called before using gitFs.
- * Uses a separate IndexedDB store to isolate git data.
- */
-export async function configureGitFs(): Promise<void> {
+export async function ensureGitFsConfigured(): Promise<void> {
   if (!isBrowser) {
     return;
   }
 
-  if (gitFsConfigured && gitFsConfigPromise) {
-    return gitFsConfigPromise;
-  }
-
-  gitFsConfigPromise = (async (): Promise<void> => {
-    await configure({
-      mounts: {
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS uses '/' as mount point key
-        '/': { backend: IndexedDB, storeName: `${metaConfig.databasePrefix}fs-git` },
-      },
-    });
-    gitFsConfigured = true;
-  })();
-
-  return gitFsConfigPromise;
+  await ensureGitMountConfigured();
 }
 
 /**
- * Ensure git filesystem is configured before performing operations.
+ * Git filesystem mount point.
+ * All git operations should use paths under this mount.
  */
-export async function ensureGitFsConfigured(): Promise<void> {
-  // eslint-disable-next-line unicorn/prefer-ternary -- better readability
-  if (gitFsConfigPromise) {
-    await gitFsConfigPromise;
-  } else {
-    await configureGitFs();
-  }
-}
 
 /**
  * ZenFS instance for git filesystem operations.
@@ -55,6 +25,7 @@ export async function ensureGitFsConfigured(): Promise<void> {
  *
  * Note: isomorphic-git expects a Node.js-compatible fs interface,
  * which ZenFS provides. Call ensureGitFsConfigured() before using.
+ * Git files are stored under the /git mount point.
  */
 export const gitFs = isBrowser ? fs : undefined;
 
