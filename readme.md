@@ -35,49 +35,18 @@ The AI-native CAD platform — open-source, browser-based, and kernel-agnostic. 
 - **CAD Prototyping** — Parametric code with version control and instant iteration
 - **Academic Research** — Kernel APIs for computational geometry and educational tools
 
-## Supported Kernels
+## Supported Integrations
 
-Tau's multi-kernel architecture lets you choose the best CAD engine for your needs.
+Tau's multi-kernel architecture lets you choose the best engine for your needs. We're currently focused on mechanical CAD, with plans to expand into electrical design, firmware development, and simulation.
 
-### Mechanical
-
-- [x] **[OpenSCAD](https://openscad.org/)** — Script-based CSG modeling, perfect for 3D printing
-- [x] **[Replicad](https://replicad.xyz/)** — TypeScript CAD with OpenCascade for precise engineering
-- [x] **[Zoo (KCL)](https://zoo.dev/)** — Cloud-native CAD with AI integration
-- [x] **[JSCAD](https://openjscad.xyz/)** — JavaScript parametric modeling
-- [ ] Fusion360
-- [ ] Build123D
-- [ ] TrCAD
-- [ ] ManifoldCAD
-- [ ] Curv
-- [ ] ScriptCAD
-
-### Electrical
-
-- [ ] **[TSCircuit](https://tscircuit.com/)** — Open-source PCB design
-- [ ] **[Atopile](https://atopile.io/)** — Hardware description language
-
-### Firmware
-
-- [ ] **[Arduino](https://www.arduino.cc/)** — Electronics platform
-
-## Supported Simulators
-
-Tau will integrate browser-compatible simulation environments for validating designs.
-
-### Mechanical
-
-- [ ] **[FEAScript](https://feascript.com/)** — JavaScript finite element analysis library
-
-### Electrical
-
-- [ ] **[ngspice](https://ngspice.sourceforge.io/)** — SPICE circuit simulator (WASM)
-- [ ] **[CircuitJS](https://www.falstad.com/circuit/)** — JavaScript circuit simulator
-
-### Firmware
-
-- [ ] **[QEMU](https://www.qemu.org/)** — Machine emulator and virtualizer (WASM)
-- [ ] **[Wokwi](https://wokwi.com/)** — Browser-based Arduino and ESP32 simulator
+| Category | Type | Implemented | Planned |
+| --- | --- | --- | --- |
+| **Mechanical** | CAD | • [OpenSCAD](https://openscad.org/)<br>• [Replicad](https://replicad.xyz/)<br>• [Zoo (KCL)](https://zoo.dev/)<br>• [JSCAD](https://openjscad.xyz/) | • [OnShape](https://www.onshape.com/)<br>• [Fusion360](https://www.autodesk.com/products/fusion-360)<br>• [Build123D](https://github.com/gumyr/build123d)<br>• [ManifoldCAD](https://github.com/elalish/manifold)<br>• [Curv](https://github.com/curv3d/curv) |
+| | Sim | — | • [FEAScript](https://feascript.com/) |
+| **Electrical** | CAD | — | • [TSCircuit](https://tscircuit.com/)<br>• [Atopile](https://atopile.io/) |
+| | Sim | — | • [ngspice](https://ngspice.sourceforge.io/)<br>• [CircuitJS](https://www.falstad.com/circuit/) |
+| **Firmware** | CAD | — | • [Arduino](https://www.arduino.cc/)<br>• [MicroPython](https://micropython.org/) |
+| | Sim | — | • [QEMU](https://www.qemu.org/)<br>• [Wokwi](https://wokwi.com/) |
 
 ## File Converter
 
