@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, Globe, HelpCircle } from 'lucide-react';
+import { ChevronRight, Globe } from 'lucide-react';
 import type { ToolInvocation } from '@taucad/chat';
 import { toolName } from '@taucad/chat/constants';
 import {
@@ -42,16 +42,7 @@ function SourceItem({ source }: { readonly source: WebSource }): React.JSX.Eleme
   );
 }
 
-function QueryItem({ query }: { readonly query: string }): React.JSX.Element {
-  return (
-    <div className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground">
-      <HelpCircle className="size-3.5 shrink-0" />
-      <span className="min-w-0 truncate italic">&quot;{query}&quot;</span>
-    </div>
-  );
-}
-
-function SourcesList({ sources, query }: { readonly sources: WebSource[]; readonly query: string }): React.JSX.Element {
+function SourcesList({ sources }: { readonly sources: WebSource[] }): React.JSX.Element {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const visibleSources = sources.slice(0, maxVisibleSources);
@@ -60,9 +51,6 @@ function SourcesList({ sources, query }: { readonly sources: WebSource[]; readon
 
   return (
     <div className="flex flex-col">
-      {/* Query at the top */}
-      <QueryItem query={query} />
-
       {/* Always visible sources */}
       {visibleSources.map((source) => (
         <SourceItem key={source.url} source={source} />
@@ -128,9 +116,9 @@ export function ChatMessageToolWebSearch({
             <ChatToolCardTitle>
               {query ? (
                 <>
-                  <ChatToolAction>Searching web:</ChatToolAction>{' '}
+                  <ChatToolAction>Searching web</ChatToolAction>{' '}
                   <ChatToolDescription>
-                    &quot;<span className="italic">{query}</span>&quot;
+                    <span className="italic">{query}</span>
                   </ChatToolDescription>
                 </>
               ) : (
@@ -177,7 +165,7 @@ export function ChatMessageToolWebSearch({
           </ChatToolCardHeader>
           <ChatToolCardContent className="border-l-0">
             <div className="border-l border-foreground/20 pl-4">
-              <SourcesList sources={sources} query={query} />
+              <SourcesList sources={sources} />
             </div>
           </ChatToolCardContent>
         </ChatToolCard>
