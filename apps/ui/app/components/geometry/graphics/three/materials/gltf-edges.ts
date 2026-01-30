@@ -225,10 +225,16 @@ function createEdgeLineMaterial(resolution: Vector2): LineMaterial {
       '#include <logdepthbuf_vertex>',
       `#include <logdepthbuf_vertex>
       // FOV scale for adaptive depth bias
-      // projectionMatrix[1][1] = 1 / tan(fov/2) for perspective cameras
-      float tanHalfFov = 1.0 / projectionMatrix[1][1];
-      float tanHalfRefFov = 0.57735; // tan(30°) for 60° reference FOV
-      vFovScale = tanHalfFov / tanHalfRefFov;`,
+      // Check if perspective camera (projectionMatrix[3][3] == 0 for perspective)
+      if (projectionMatrix[3][3] == 0.0) {
+        // projectionMatrix[1][1] = 1 / tan(fov/2) for perspective cameras
+        float tanHalfFov = 1.0 / projectionMatrix[1][1];
+        float tanHalfRefFov = 0.57735; // tan(30°) for 60° reference FOV
+        vFovScale = tanHalfFov / tanHalfRefFov;
+      } else {
+        // Orthographic camera - use default scale
+        vFovScale = 1.0;
+      }`,
     );
 
     // Declare the varying and uniform in fragment shader
@@ -251,9 +257,9 @@ function createEdgeLineMaterial(resolution: Vector2): LineMaterial {
 
         float biasedFragDepth = vFragDepth * adjustedBias;
         #if defined( USE_LOGDEPTHBUF_EXT )
-          gl_FragDepth = log2( biasedFragDepth ) * logDepthBufFC * 0.5;
-        #else
           gl_FragDepthEXT = log2( biasedFragDepth ) * logDepthBufFC * 0.5;
+        #else
+          gl_FragDepth = log2( biasedFragDepth ) * logDepthBufFC * 0.5;
         #endif
       #endif`,
     );
