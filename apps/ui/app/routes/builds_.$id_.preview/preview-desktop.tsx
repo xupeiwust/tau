@@ -295,7 +295,7 @@ export const PreviewDesktop = memo(function ({
                   <div className="relative min-w-0 flex-1">
                     <ViewerStatus />
                     {geometries.length > 0 ? (
-                      <CadViewer geometries={geometries} />
+                      <CadViewer enableZoom enablePan geometries={geometries} />
                     ) : (
                       <div className="flex h-full items-center justify-center">
                         <Loader className="size-16 text-primary" />

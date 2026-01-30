@@ -201,7 +201,7 @@ export const PreviewMobile = memo(function ({
         {/* 3D Viewer */}
         <div className="relative h-full">
           {geometries.length > 0 ? (
-            <CadViewer geometries={geometries} />
+            <CadViewer enableZoom enablePan geometries={geometries} />
           ) : (
             <div className="flex h-full items-center justify-center">
               <Loader className="size-16 text-primary" />
