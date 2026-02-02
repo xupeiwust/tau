@@ -43,9 +43,9 @@ export function ChatContextActions({
   className,
   ...properties
 }: ChatContextActionsProperties): React.JSX.Element {
-  const { cadRef: cadActor, graphicsRef: graphicsActor, fileExplorerRef } = useBuild();
-  // Get the active file path from file explorer
-  const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
+  const { cadRef: cadActor, graphicsRef: graphicsActor, editorRef } = useBuild();
+  // Get the active file path from editor
+  const activeFilePath = useSelector(editorRef, (state) => state.context.activeFilePath);
   // Get the kernel error for the active file
   const kernelIssue = useSelector(cadActor, (state) => {
     if (!activeFilePath) {

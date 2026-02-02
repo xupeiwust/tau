@@ -1,24 +1,15 @@
 import { Link, useNavigate } from 'react-router';
 import { useCallback } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { messageRole, messageStatus } from '@taucad/chat/constants';
-import { idPrefix } from '@taucad/types/constants';
-import { generatePrefixedId } from '@taucad/utils/id';
-import { createInitialBuild } from '#constants/build.constants.js';
 import type { ChatTextareaProperties } from '#components/chat/chat-textarea-types.js';
 import { ChatTextarea } from '#components/chat/chat-textarea.js';
 import { KernelSelector } from '#components/chat/kernel-selector.js';
 import { Button } from '#components/ui/button.js';
-import { createMessage } from '#utils/chat.utils.js';
-import { getMainFile, getEmptyCode } from '#utils/kernel.utils.js';
-import { encodeTextFile } from '#utils/filesystem.utils.js';
-import { defaultBuildName } from '#constants/build-names.js';
 import { ChatProvider } from '#hooks/use-chat.js';
 import { toast } from '#components/ui/sonner.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { useBuildManager } from '#hooks/use-build-manager.js';
-import { useChatManager } from '#hooks/use-chat-manager.js';
 import { useKernel } from '#hooks/use-kernel.js';
 
 export function CtaSection(): React.JSX.Element {
@@ -26,37 +17,13 @@ export function CtaSection(): React.JSX.Element {
   const { kernel, setKernel } = useKernel();
   const [, setIsChatOpen] = useCookie(cookieName.chatOpHistory, true);
   const buildManager = useBuildManager();
-  const chatManager = useChatManager();
 
   const onSubmit: ChatTextareaProperties['onSubmit'] = useCallback(
     async ({ content, model, metadata, imageUrls }) => {
       try {
-        const mainFileName = getMainFile(kernel);
-        const emptyCode = getEmptyCode(kernel);
-
-        const userMessage = createMessage({
-          content,
-          role: messageRole.user,
-          metadata: { ...metadata, kernel, model, status: messageStatus.pending },
-          imageUrls,
-        });
-
-        const chatId = generatePrefixedId(idPrefix.chat);
-
-        const { buildData, files } = createInitialBuild({
-          buildName: defaultBuildName,
-          chatId,
-          initialMessage: userMessage,
-          mainFileName,
-          emptyCodeContent: encodeTextFile(emptyCode),
-        });
-
-        const createdBuild = await buildManager.createBuild(buildData, files);
-
-        await chatManager.createChat(createdBuild.id, {
-          id: chatId,
-          name: 'Initial design',
-          messages: [userMessage],
+        const createdBuild = await buildManager.createBuild({
+          kernel,
+          initialMessage: { content, model, metadata, imageUrls },
         });
 
         setIsChatOpen(true);
@@ -66,7 +33,7 @@ export function CtaSection(): React.JSX.Element {
         toast.error('Failed to create build');
       }
     },
-    [kernel, buildManager, chatManager, setIsChatOpen, navigate],
+    [kernel, buildManager, setIsChatOpen, navigate],
   );
 
   return (

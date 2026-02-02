@@ -29,7 +29,7 @@ const newChatKeyCombination = {
 } satisfies KeyCombination;
 
 export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => void }): ReactNode {
-  const { buildRef, buildId, setLastChatId } = useBuild();
+  const { buildRef, editorRef, buildId, setLastChatId } = useBuild();
   const { chats, createChat, updateChatName, deleteChat, isLoading: isChatsLoading } = useChats(buildId);
 
   // Connection status for visual indicator
@@ -37,7 +37,7 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
   const isDisconnected = connectionStatus === 'disconnected' || connectionStatus === 'error';
 
   const isBuildLoading = useSelector(buildRef, (state) => state.context.isLoading);
-  const activeChatId = useSelector(buildRef, (state) => state.context.build?.lastChatId) ?? '';
+  const activeChatId = useSelector(editorRef, (state) => state.context.lastChatId) ?? '';
 
   // Derive activeChat and groupedChats from chats
   const activeChat = useMemo(() => chats.find((chat) => chat.id === activeChatId), [chats, activeChatId]);

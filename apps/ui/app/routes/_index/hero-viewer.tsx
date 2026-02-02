@@ -11,7 +11,6 @@ import { Parameters } from '#components/geometry/parameters/parameters.js';
 import { BuildProvider, useBuild } from '#hooks/use-build.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { useBuildManager } from '#hooks/use-build-manager.js';
-import { useChatManager } from '#hooks/use-chat-manager.js';
 import { Button } from '#components/ui/button.js';
 import { cn } from '#utils/ui.utils.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
@@ -95,7 +94,6 @@ function HeroViewerContent({ files }: HeroViewerContentProperties): React.JSX.El
   // Use the root FileManagerProvider (same pattern as project-grid.tsx)
   const { writeFiles } = useFileManager();
   const buildManager = useBuildManager();
-  const chatManager = useChatManager();
 
   const [hasLoadedModel, setHasLoadedModel] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<ExportFormatOption>(exportFormatOptions[0]!);
@@ -201,36 +199,26 @@ function HeroViewerContent({ files }: HeroViewerContentProperties): React.JSX.El
       // Get the current parameters from the CAD context
       const currentParameters = cadRef.getSnapshot().context.parameters;
 
-      // Create a new build with the current state
-      const newBuild: Omit<Build, 'id' | 'createdAt' | 'updatedAt'> = {
-        name: 'QR Code Generator',
-        description: 'A parametric QR code generator built with OpenSCAD',
-        thumbnail: '/tau-desktop.jpg',
-        author: {
-          name: 'Community',
-          avatar: '/avatar-sample.png',
-        },
-        tags: ['openscad', 'parametric', 'qr-code'],
-        assets: {
-          mechanical: {
-            main: 'main.scad',
-            parameters: currentParameters,
+      const createdBuild = await buildManager.createBuild({
+        build: {
+          name: 'QR Code Generator',
+          description: 'A parametric QR code generator built with OpenSCAD',
+          thumbnail: '/tau-desktop.jpg',
+          author: {
+            name: 'Community',
+            avatar: '/avatar-sample.png',
           },
+          tags: ['openscad', 'parametric', 'qr-code'],
+          assets: {
+            mechanical: {
+              main: 'main.scad',
+              parameters: currentParameters,
+            },
+          },
+          forkedFrom: heroBuildId,
         },
-        forkedFrom: heroBuildId,
-      };
-
-      // Create the build with the files
-      const createdBuild = await buildManager.createBuild(newBuild, files);
-
-      // Create the chat and get its ID
-      const createdChat = await chatManager.createChat(createdBuild.id, {
-        name: 'Initial chat',
-        messages: [],
+        files,
       });
-
-      // Update the build with the correct lastChatId
-      await buildManager.updateBuild(createdBuild.id, { lastChatId: createdChat.id });
 
       // Navigate to the new build
       await navigate(`/builds/${createdBuild.id}`);
@@ -239,7 +227,7 @@ function HeroViewerContent({ files }: HeroViewerContentProperties): React.JSX.El
       toast.error('Failed to create build');
       setIsCreatingBuild(false);
     }
-  }, [isCreatingBuild, cadRef, buildManager, chatManager, files, navigate]);
+  }, [isCreatingBuild, cadRef, buildManager, files, navigate]);
 
   const isLoading = ['initializing', 'booting'].includes(cadStatus);
   const canExport = geometries.length > 0;

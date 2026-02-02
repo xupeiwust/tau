@@ -409,13 +409,13 @@ type ChatStackTraceProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function ChatStackTrace({ className, side, ...props }: ChatStackTraceProps): React.ReactNode {
-  const { getMainFilename, cadRef, fileExplorerRef, buildId, setLastChatId } = useBuild();
+  const { getMainFilename, cadRef, editorRef, buildId, setLastChatId } = useBuild();
   const fileManager = useFileManager();
   const { createChat } = useChats(buildId);
   const [isOpen, setIsOpen] = useState(true);
 
-  // Get the active file path from file explorer
-  const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
+  // Get the active file path from editor
+  const activeFilePath = useSelector(editorRef, (state) => state.context.activeFilePath);
 
   // Get all kernel issues for the active file
   const errors = useSelector(cadRef, (state) => {

@@ -3,6 +3,7 @@ import type { PartialDeep } from 'type-fest';
 import type { Build } from '@taucad/types';
 import type { Chat } from '@taucad/chat';
 import { IndexedDbStorageProvider } from '#db/indexeddb-storage.js';
+import type { EditorState, EditorStateInput } from '#types/editor.types.js';
 
 // Create a singleton instance of the storage provider
 const storage = new IndexedDbStorageProvider();
@@ -17,26 +18,50 @@ const objectStoreWorker = {
     return storage.createBuild(build);
   },
 
+  /**
+   * Atomic method to create a build with its associated chat and Editor state in one call.
+   * This reduces roundtrips between main thread and worker.
+   */
+  async createBuildWithResources(options: {
+    build: Omit<Build, 'id' | 'createdAt' | 'updatedAt'>;
+    chat: Omit<Chat, 'id' | 'resourceId' | 'createdAt' | 'updatedAt'>;
+  }): Promise<{ build: Build; chat: Chat }> {
+    const build = await storage.createBuild(options.build);
+    const chat = await storage.createChat(build.id, options.chat);
+    await storage.updateEditorState({
+      buildId: build.id,
+      openFiles: [],
+      activeFilePath: undefined,
+      lastChatId: chat.id,
+    });
+    return { build, chat };
+  },
+
   async duplicateBuild(buildId: string): Promise<Build> {
     const build = await storage.getBuild(buildId);
     if (!build) {
       throw new Error(`Build not found: ${buildId}`);
     }
 
-    // Create the duplicated build first (without lastChatId)
+    // Create the duplicated build (lastChatId is now in Editor state, not build)
     const newBuild = await storage.createBuild({
       ...build,
       name: `${build.name} (Copy)`,
-      lastChatId: undefined,
     });
 
     // Duplicate all chats for this build
     const chatIdMapping = await storage.duplicateResourceChats(buildId, newBuild.id);
 
-    // Update the new build's lastChatId to point to the cloned chat
-    if (build.lastChatId && chatIdMapping[build.lastChatId]) {
-      await storage.updateBuild(newBuild.id, { lastChatId: chatIdMapping[build.lastChatId] });
-      newBuild.lastChatId = chatIdMapping[build.lastChatId];
+    // Duplicate Editor state if it exists, mapping lastChatId to the cloned chat
+    const sourceEditorState = await storage.getEditorState(buildId);
+    if (sourceEditorState) {
+      const newLastChatId = sourceEditorState.lastChatId ? chatIdMapping[sourceEditorState.lastChatId] : undefined;
+      await storage.updateEditorState({
+        buildId: newBuild.id,
+        openFiles: sourceEditorState.openFiles,
+        activeFilePath: sourceEditorState.activeFilePath,
+        lastChatId: newLastChatId,
+      });
     }
 
     return newBuild;
@@ -62,6 +87,14 @@ const objectStoreWorker = {
   },
 
   async deleteBuild(buildId: string): Promise<void> {
+    // Delete all chats associated with the build
+    const chats = await storage.getChatsForResource(buildId, { includeDeleted: true });
+    await Promise.all(chats.map(async (chat) => storage.deleteChat(chat.id)));
+
+    // Delete the Editor state for the build
+    await storage.deleteEditorState(buildId);
+
+    // Delete the build itself
     return storage.deleteBuild(buildId);
   },
 
@@ -102,6 +135,22 @@ const objectStoreWorker = {
 
   async duplicateResourceChats(sourceResourceId: string, targetResourceId: string): Promise<Record<string, string>> {
     return storage.duplicateResourceChats(sourceResourceId, targetResourceId);
+  },
+
+  // ============================================================================
+  // Editor State Methods
+  // ============================================================================
+
+  async getEditorState(buildId: string): Promise<EditorState | undefined> {
+    return storage.getEditorState(buildId);
+  },
+
+  async updateEditorState(editorState: EditorStateInput): Promise<EditorState> {
+    return storage.updateEditorState(editorState);
+  },
+
+  async deleteEditorState(buildId: string): Promise<void> {
+    return storage.deleteEditorState(buildId);
   },
 };
 

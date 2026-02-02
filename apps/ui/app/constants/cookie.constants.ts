@@ -6,8 +6,8 @@ import type { ConstantRecord } from '@taucad/types';
  * These must be short, hyphen separated, and lowercase.
  *
  * The following conventions are in place to reduce cookie name length:
- * - resize cookies use <namespace>-rs-<subject> (e.g. chat-resize-file-explorer)
- * - open cookies use <namespace>-op-<subject> (e.g. chat-file-explorer-open)
+ * - resize cookies use <namespace>-rs-<subject> (e.g. chat-rs-files)
+ * - open cookies use <namespace>-op-<subject> (e.g. chat-op-files)
  */
 export const cookieName = {
   /* Theme */
@@ -19,7 +19,7 @@ export const cookieName = {
   /* Layout */
   // Whether the sidebar is open.
   sidebarOp: 'sidebar-op',
-  // Whether the chat explorer is open.
+  // Whether the files panel is open.
   chatOpFileExplorer: 'chat-op-file-explorer',
   // Whether the chat is open.
   chatOpHistory: 'chat-op-history',
@@ -35,8 +35,6 @@ export const cookieName = {
   chatOpConverter: 'chat-op-converter',
   // Whether the chat git panel is open.
   chatOpGit: 'chat-op-git',
-  // The last selected chat explorer size.
-  chatRsFileExplorer: 'chat-rs-file-explorer',
   // The last selected chat console size.
   chatRsEditor: 'chat-rs-editor',
   // The last selected chat console size.

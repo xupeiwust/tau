@@ -18,8 +18,8 @@ type FileManagerApi = {
 };
 
 type NavigationServiceOptions = {
-  /** Reference to the file explorer state machine actor */
-  fileExplorerRef: AnyActorRef;
+  /** Reference to the editor state machine actor */
+  editorRef: AnyActorRef;
   /** File manager for reading file contents */
   fileManager: FileManagerApi;
   /** Build ID for namespacing Monaco URIs */
@@ -68,13 +68,13 @@ export function registerKclNavigation(
   editor: Monaco.editor.IStandaloneCodeEditor,
   options: NavigationServiceOptions,
 ): Monaco.IDisposable {
-  const { fileExplorerRef, fileManager, buildId, decodeTextFile } = options;
+  const { editorRef, fileManager, buildId, decodeTextFile } = options;
 
   // Store pending navigation info for position jumping after file opens
   let pendingNavigation: PendingNavigation | undefined;
 
-  // Subscribe to file explorer events to jump to position after file opens
-  const unsubscribe = fileExplorerRef.on('fileOpened', (event: { path: string }) => {
+  // Subscribe to editor events to jump to position after file opens
+  const unsubscribe = editorRef.on('fileOpened', (event: { path: string }) => {
     if (pendingNavigation && event.path === pendingNavigation.path) {
       // Capture navigation info to avoid race condition if another navigation
       // request arrives before the timeout fires
@@ -230,9 +230,9 @@ export function registerKclNavigation(
       }
     }
 
-    // Open the file through the file explorer
-    log.debug('Opening file through file explorer:', relativePath);
-    fileExplorerRef.send({ type: 'openFile', path: relativePath, source: 'user' });
+    // Open the file through the editor
+    log.debug('Opening file through editor:', relativePath);
+    editorRef.send({ type: 'openFile', path: relativePath, source: 'user' });
 
     // Return the source editor to prevent Monaco from trying to navigate internally
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- Monaco internal API

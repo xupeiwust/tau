@@ -24,7 +24,6 @@ import { globalStylesLinks } from '#styles/global.styles.js';
 import type { Handle } from '#types/matches.types.js';
 import { RootCommandPaletteItems } from '#root-command-items.js';
 import { BuildManagerProvider } from '#hooks/use-build-manager.js';
-import { ChatManagerProvider } from '#hooks/use-chat-manager.js';
 import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { AnalyticsProvider } from '#hooks/use-analytics.js';
 import { ChatRpcSocketProvider } from '#hooks/use-chat-rpc-socket.js';
@@ -92,19 +91,17 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
         <AnalyticsProvider>
           <FileManagerProvider rootDirectory="/">
             <BuildManagerProvider>
-              <ChatManagerProvider>
-                <ChatRpcSocketProvider>
-                  <ThemeProvider specifiedTheme={ssrTheme} themeAction="/action/set-theme">
-                    <ColorProvider>
-                      <TooltipProvider>
-                        <LayoutDocument env={data?.env ?? {}} ssrTheme={ssrTheme}>
-                          {children}
-                        </LayoutDocument>
-                      </TooltipProvider>
-                    </ColorProvider>
-                  </ThemeProvider>
-                </ChatRpcSocketProvider>
-              </ChatManagerProvider>
+              <ChatRpcSocketProvider>
+                <ThemeProvider specifiedTheme={ssrTheme} themeAction="/action/set-theme">
+                  <ColorProvider>
+                    <TooltipProvider>
+                      <LayoutDocument env={data?.env ?? {}} ssrTheme={ssrTheme}>
+                        {children}
+                      </LayoutDocument>
+                    </TooltipProvider>
+                  </ColorProvider>
+                </ThemeProvider>
+              </ChatRpcSocketProvider>
             </BuildManagerProvider>
           </FileManagerProvider>
         </AnalyticsProvider>

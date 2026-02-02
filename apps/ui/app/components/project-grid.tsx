@@ -2,7 +2,6 @@ import { Eye, ArrowRight } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useSelector } from '@xstate/react';
-import type { Build } from '@taucad/types';
 import { kernelConfigurations } from '@taucad/types/constants';
 import { fromPromise } from 'xstate';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
@@ -14,7 +13,6 @@ import { CadViewer } from '#components/geometry/cad/cad-viewer.js';
 import { Loader } from '#components/ui/loader.js';
 import { BuildProvider, useBuild } from '#hooks/use-build.js';
 import { useBuildManager } from '#hooks/use-build-manager.js';
-import { useChatManager } from '#hooks/use-chat-manager.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import type { BuildWithFiles } from '#constants/build-examples.js';
 
@@ -80,7 +78,6 @@ function ProjectCard({ id, name, description, thumbnail, author, tags, assets, f
   const geometries = useSelector(cadRef, (state) => state.context.geometries);
   const status = useSelector(cadRef, (state) => state.value);
   const buildManager = useBuildManager();
-  const chatManager = useChatManager();
   const { writeFiles } = useFileManager();
 
   const navigate = useNavigate();
@@ -111,28 +108,18 @@ function ProjectCard({ id, name, description, thumbnail, author, tags, assets, f
       setIsForking(true);
 
       try {
-        // Create a new build with forked data (without lastChatId)
-        const newBuild: Omit<Build, 'id' | 'createdAt' | 'updatedAt'> = {
-          name: `${name} (Remixed)`,
-          description,
-          thumbnail,
-          author, // TODO: This should be the current user in a real implementation
-          tags,
-          assets,
-          forkedFrom: id,
-        };
-
-        // Create the build first
-        const createdBuild = await buildManager.createBuild(newBuild, files);
-
-        // Create the chat and get its ID
-        const createdChat = await chatManager.createChat(createdBuild.id, {
-          name: 'Initial chat',
-          messages: [],
+        const createdBuild = await buildManager.createBuild({
+          build: {
+            name: `${name} (Remixed)`,
+            description,
+            thumbnail,
+            author, // TODO: This should be the current user in a real implementation
+            tags,
+            assets,
+            forkedFrom: id,
+          },
+          files,
         });
-
-        // Update the build with the correct lastChatId
-        await buildManager.updateBuild(createdBuild.id, { lastChatId: createdChat.id });
 
         // Navigate to the new build
         await navigate(`/builds/${createdBuild.id}`);
@@ -142,7 +129,7 @@ function ProjectCard({ id, name, description, thumbnail, author, tags, assets, f
         setIsForking(false);
       }
     },
-    [isForking, name, description, thumbnail, author, tags, assets, id, buildManager, chatManager, files, navigate],
+    [isForking, name, description, thumbnail, author, tags, assets, id, buildManager, files, navigate],
   );
 
   const handlePreviewToggle = useCallback(

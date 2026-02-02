@@ -16,16 +16,16 @@ import { asBuffer, downloadBlob } from '#utils/file.utils.js';
 import { decodeTextFile } from '#utils/filesystem.utils.js';
 
 export function ChatEditorTabs(): React.JSX.Element {
-  const { fileExplorerRef, gitRef } = useBuild();
+  const { editorRef, gitRef } = useBuild();
 
-  // Get active file path from file explorer
-  const activeFile = useSelector(fileExplorerRef, (state) => ({
+  // Get active file path from editor
+  const activeFile = useSelector(editorRef, (state) => ({
     path: state.context.activeFilePath,
     parts: state.context.activeFilePath?.split('/') ?? [],
     name: state.context.activeFilePath?.split('/').pop() ?? '',
   }));
-  const openFiles = useSelector(fileExplorerRef, (state) => state.context.openFiles);
-  const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
+  const openFiles = useSelector(editorRef, (state) => state.context.openFiles);
+  const activeFilePath = useSelector(editorRef, (state) => state.context.activeFilePath);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const fileManager = useFileManager();
@@ -71,17 +71,17 @@ export function ChatEditorTabs(): React.JSX.Element {
 
   const handleTabClick = useCallback(
     (path: string) => {
-      fileExplorerRef.send({ type: 'setActiveFile', path });
+      editorRef.send({ type: 'setActiveFile', path });
     },
-    [fileExplorerRef],
+    [editorRef],
   );
 
   const handleTabClose = useCallback(
     (event: React.MouseEvent, path: string) => {
       event.stopPropagation();
-      fileExplorerRef.send({ type: 'closeFile', path });
+      editorRef.send({ type: 'closeFile', path });
     },
-    [fileExplorerRef],
+    [editorRef],
   );
 
   // Enable horizontal scrolling with mouse wheel
@@ -108,12 +108,12 @@ export function ChatEditorTabs(): React.JSX.Element {
 
   // Subscribe to fileOpened events to scroll to tab even when file is already active
   useEffect(() => {
-    const subscription = fileExplorerRef.on('fileOpened', (event) => {
+    const subscription = editorRef.on('fileOpened', (event) => {
       scrollToTab(event.path);
     });
 
     return subscription.unsubscribe;
-  }, [fileExplorerRef, scrollToTab]);
+  }, [editorRef, scrollToTab]);
 
   return (
     <FloatingPanelContentHeader className="pl-0">

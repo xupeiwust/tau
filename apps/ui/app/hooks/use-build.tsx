@@ -3,11 +3,13 @@ import { createContext, useContext, useMemo, useCallback, useEffect } from 'reac
 import { useActorRef, useSelector } from '@xstate/react';
 import { fromPromise, waitFor } from 'xstate';
 import type { ActorRefFrom } from 'xstate';
+import type { Remote } from 'comlink';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import type { ObjectStoreWorker } from '#hooks/object-store.worker.js';
 import { buildMachine } from '#machines/build.machine.js';
 import type { gitMachine } from '#machines/git.machine.js';
-import { fileExplorerMachine } from '#machines/file-explorer.machine.js';
+import { editorMachine } from '#machines/editor.machine.js';
 import type { cadMachine } from '#machines/cad.machine.js';
 import type { graphicsMachine } from '#machines/graphics.machine.js';
 import type { screenshotCapabilityMachine } from '#machines/screenshot-capability.machine.js';
@@ -19,8 +21,8 @@ import { useBuildManager } from '#hooks/use-build-manager.js';
 type BuildContextType = {
   buildId: string;
   buildRef: ActorRefFrom<typeof buildMachine>;
+  editorRef: ActorRefFrom<typeof editorMachine>;
   gitRef: ActorRefFrom<typeof gitMachine>;
-  fileExplorerRef: ActorRefFrom<typeof fileExplorerMachine>;
   graphicsRef: ActorRefFrom<typeof graphicsMachine>;
   cadRef: ActorRefFrom<typeof cadMachine>;
   screenshotRef: ActorRefFrom<typeof screenshotCapabilityMachine>;
@@ -83,8 +85,42 @@ export function BuildProvider({
     },
   );
 
-  // Create fileExplorerRef independently
-  const fileExplorerRef = useActorRef(fileExplorerMachine);
+  // Get the worker for Editor state persistence
+  const getReadiedWorker = useCallback(async (): Promise<Remote<ObjectStoreWorker>> => {
+    const snapshot = await waitFor(
+      buildManager.buildManagerRef,
+      (state) => state.matches('ready') || state.matches('error'),
+    );
+    if (snapshot.matches('error')) {
+      throw new Error('Build manager worker failed to initialize');
+    }
+
+    if (!snapshot.context.wrappedWorker) {
+      throw new Error('Build manager worker not initialized');
+    }
+
+    return snapshot.context.wrappedWorker;
+  }, [buildManager.buildManagerRef]);
+
+  // Create Editor state machine with provided actors
+  const editorRef = useActorRef(
+    editorMachine.provide({
+      actors: {
+        loadEditorStateActor: fromPromise(async ({ input }) => {
+          const worker = await getReadiedWorker();
+          return worker.getEditorState(input.buildId);
+        }),
+        saveEditorStateActor: fromPromise(async ({ input }) => {
+          const worker = await getReadiedWorker();
+          await worker.updateEditorState(input.editorState);
+        }),
+      },
+    }),
+    {
+      input: { buildId },
+      inspect,
+    },
+  );
 
   // Select state from the machine
   const gitRef = useSelector(actorRef, (state) => state.context.gitRef);
@@ -101,7 +137,7 @@ export function BuildProvider({
       // always render the active file to avoid switching context, but ensure
       // downstream file changes are incorporated into the active file's render
       const isMachine = event.source === 'machine';
-      const { activeFilePath } = fileExplorerRef.getSnapshot().context;
+      const { activeFilePath } = editorRef.getSnapshot().context;
 
       if (isMachine) {
         // Machine writes: always re-render the active file to pick up any
@@ -124,15 +160,27 @@ export function BuildProvider({
     return () => {
       fileWrittenSub.unsubscribe();
     };
-  }, [fileManager.fileManagerRef, cadRef, buildId, fileExplorerRef]);
+  }, [fileManager.fileManagerRef, cadRef, buildId, editorRef]);
 
   useEffect(() => {
-    // Close all open files from previous build
-    fileExplorerRef.send({ type: 'closeAll' });
-
     // Load the new build when the buildId changes
     actorRef.send({ type: 'loadBuild', buildId });
-  }, [actorRef, buildId, fileExplorerRef]);
+
+    // Reload Editor state for new build (also clears open files via closeAll in updateBuildId)
+    editorRef.send({ type: 'reload', buildId });
+  }, [actorRef, buildId, editorRef]);
+
+  // Coordinate: load Editor state after build loads
+  useEffect(() => {
+    const buildLoadedSub = actorRef.on('buildLoaded', () => {
+      // Build loaded, now load Editor state
+      editorRef.send({ type: 'load' });
+    });
+
+    return () => {
+      buildLoadedSub.unsubscribe();
+    };
+  }, [actorRef, editorRef]);
 
   useEffect(() => {
     const subscription = actorRef.on('buildUpdated', () => {
@@ -190,9 +238,9 @@ export function BuildProvider({
 
   const setLastChatId = useCallback(
     (chatId: string) => {
-      actorRef.send({ type: 'setLastChatId', chatId });
+      editorRef.send({ type: 'setLastChatId', chatId });
     },
-    [actorRef],
+    [editorRef],
   );
 
   const getMainFilename = useCallback(async () => {
@@ -209,8 +257,8 @@ export function BuildProvider({
     return {
       buildId,
       buildRef: actorRef,
+      editorRef,
       gitRef,
-      fileExplorerRef,
       graphicsRef,
       cadRef,
       screenshotRef,
@@ -228,8 +276,8 @@ export function BuildProvider({
   }, [
     buildId,
     actorRef,
+    editorRef,
     gitRef,
-    fileExplorerRef,
     graphicsRef,
     cadRef,
     screenshotRef,

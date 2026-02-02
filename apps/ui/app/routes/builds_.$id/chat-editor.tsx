@@ -67,14 +67,14 @@ function createBuildNamespacedPath(buildId: string, relativePath: string): strin
 
 export const ChatEditor = memo(function ({ className }: { readonly className?: string }): React.JSX.Element {
   const monaco = useMonaco();
-  const { buildId, fileExplorerRef: fileExplorerActor, cadRef: cadActor, buildRef } = useBuild();
+  const { buildId, editorRef, cadRef: cadActor, buildRef } = useBuild();
   const fileManager = useFileManager();
   const { fileManagerRef } = useFileManager();
   const [forceOpenBinary, setForceOpenBinary] = useState(false);
   const { setIsEditorOpen } = useViewContext();
 
-  // Get active file path from file explorer
-  const activeFilePath = useSelector(fileExplorerActor, (state) => {
+  // Get active file path from editor
+  const activeFilePath = useSelector(editorRef, (state) => {
     return state.context.activeFilePath;
   });
 
@@ -271,7 +271,7 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
       return;
     }
 
-    const subscription = fileExplorerActor.on('fileOpened', (event) => {
+    const subscription = editorRef.on('fileOpened', (event) => {
       // Only open the editor panel when the file was opened by user action
       // Machine sources (build load, chat tools) should not auto-open the editor panel
       if (event.source === 'user') {
@@ -310,7 +310,7 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
     return () => {
       subscription.unsubscribe();
     };
-  }, [monaco, fileExplorerActor, buildId, setIsEditorOpen]);
+  }, [monaco, editorRef, buildId, setIsEditorOpen]);
 
   return (
     <div className={cn('flex h-full flex-col bg-background', className)}>
@@ -325,7 +325,7 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
             className="h-full bg-background"
             defaultLanguage={activeFile.language}
             defaultValue={editorContent}
-            fileExplorerRef={fileExplorerActor}
+            editorActorRef={editorRef}
             fileManager={fileManager}
             buildId={buildId}
             path={createBuildNamespacedPath(buildId, activeFile.path)}

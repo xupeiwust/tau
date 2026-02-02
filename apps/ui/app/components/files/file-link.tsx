@@ -51,7 +51,7 @@ export function FileLink({
         return;
       }
 
-      build.fileExplorerRef.send({
+      build.editorRef.send({
         type: 'openFile',
         path,
         source: 'user',

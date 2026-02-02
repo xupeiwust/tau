@@ -21,7 +21,6 @@ import { useKeydown } from '#hooks/use-keydown.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { useBuildManager } from '#hooks/use-build-manager.js';
-import { useChatManager } from '#hooks/use-chat-manager.js';
 import { useKernel } from '#hooks/use-kernel.js';
 
 export const handle: Handle = {
@@ -81,7 +80,6 @@ function useBuildCreation() {
   const { user } = useAuthenticate({ enabled: false });
   const [, setIsEditorOpen] = useCookie(cookieName.chatOpEditor, false);
   const buildManager = useBuildManager();
-  const chatManager = useChatManager();
 
   const createBuild = useCallback(
     async (buildData: { name: string; description: string; kernel: KernelProvider }) => {
@@ -89,42 +87,30 @@ function useBuildCreation() {
       try {
         const selectedOption = getKernelOption(buildData.kernel);
 
-        // Prepare build data without lastChatId (will be set after chat creation)
-        const newBuild = {
-          name: buildData.name.trim(),
-          description: buildData.description.trim(),
-          author: {
-            name: user?.name ?? 'You',
-            avatar: user?.image ?? '/avatar-sample.png',
-          },
-          tags: [],
-          thumbnail: '',
-          assets: {
-            mechanical: {
-              main: selectedOption.mainFile,
-              parameters: {},
+        const createdBuild = await buildManager.createBuild({
+          build: {
+            name: buildData.name.trim(),
+            description: buildData.description.trim(),
+            author: {
+              name: user?.name ?? 'You',
+              avatar: user?.image ?? '/avatar-sample.png',
+            },
+            tags: [],
+            thumbnail: '',
+            assets: {
+              mechanical: {
+                main: selectedOption.mainFile,
+                parameters: {},
+              },
             },
           },
-        };
-
-        // Prepare files separately
-        const files = {
-          [selectedOption.mainFile]: {
-            content: encodeTextFile(selectedOption.emptyCode),
+          files: {
+            [selectedOption.mainFile]: {
+              content: encodeTextFile(selectedOption.emptyCode),
+            },
           },
-        };
-
-        // Create the build first (without lastChatId)
-        const createdBuild = await buildManager.createBuild(newBuild, files);
-
-        // Create the chat and get its ID
-        const createdChat = await chatManager.createChat(createdBuild.id, {
-          name: 'Initial design',
-          messages: [],
+          chatName: 'Initial design',
         });
-
-        // Update the build with the correct lastChatId
-        await buildManager.updateBuild(createdBuild.id, { lastChatId: createdChat.id });
 
         // Ensure editor is open when navigating to the build page
         setIsEditorOpen(true);
@@ -137,7 +123,7 @@ function useBuildCreation() {
         setIsCreating(false);
       }
     },
-    [user?.name, user?.image, buildManager, chatManager, setIsEditorOpen, navigate],
+    [user?.name, user?.image, buildManager, setIsEditorOpen, navigate],
   );
 
   return { createBuild, isCreating };

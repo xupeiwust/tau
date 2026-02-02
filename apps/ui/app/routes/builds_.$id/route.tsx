@@ -66,10 +66,10 @@ function Chat(): React.JSX.Element {
 
 // Wrapper component that has access to build context and can configure ChatProvider
 function ChatWithProvider(): React.JSX.Element {
-  const { buildId, buildRef } = useBuild();
+  const { buildId, buildRef, editorRef } = useBuild();
   const name = useSelector(buildRef, (state) => state.context.build?.name);
   const description = useSelector(buildRef, (state) => state.context.build?.description);
-  const activeChatId = useSelector(buildRef, (state) => state.context.build?.lastChatId);
+  const activeChatId = useSelector(editorRef, (state) => state.context.lastChatId);
 
   return (
     <ViewContextProvider>

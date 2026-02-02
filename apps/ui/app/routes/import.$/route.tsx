@@ -101,8 +101,8 @@ export default function ImportRoute(): React.JSX.Element {
             buildFiles[path] = { content: file.content };
           }
 
-          const build = await buildManager.createBuild(
-            {
+          const build = await buildManager.createBuild({
+            build: {
               name: `${input.owner}/${input.repo}`,
               description: `Imported from GitHub: https://github.com/${input.owner}/${input.repo}`,
               author: {
@@ -118,8 +118,8 @@ export default function ImportRoute(): React.JSX.Element {
                 },
               },
             },
-            buildFiles,
-          );
+            files: buildFiles,
+          });
 
           return { type: 'buildCreated', buildId: build.id };
         }),
@@ -146,8 +146,8 @@ export default function ImportRoute(): React.JSX.Element {
             buildFiles[path] = { content: file.content };
           }
 
-          const build = await buildManager.createBuild(
-            {
+          const build = await buildManager.createBuild({
+            build: {
               name: input.importName,
               description: `Imported from disk`,
               author: {
@@ -163,8 +163,8 @@ export default function ImportRoute(): React.JSX.Element {
                 },
               },
             },
-            buildFiles,
-          );
+            files: buildFiles,
+          });
 
           return { type: 'buildCreated', buildId: build.id };
         }),

@@ -30,9 +30,10 @@ import {
   propMemoizationFeature,
 } from '@headless-tree/core';
 import { useTree, AssistiveTreeDescription } from '@headless-tree/react';
+import type { Build } from '@taucad/types';
 import { kernelConfigurations } from '@taucad/types/constants';
 import type { KernelConfiguration } from '@taucad/types/constants';
-import type { FileItem } from '#machines/file-explorer.machine.js';
+import type { FileItem } from '#types/editor.types.js';
 import { cn } from '#utils/ui.utils.js';
 import { Button, buttonVariants } from '#components/ui/button.js';
 import { SearchInput } from '#components/search-input.js';
@@ -190,14 +191,14 @@ export const ChatEditorFileTree = memo(function ({
   // It's necessary to opt out of React Compiler auto-memoization for this component due to:
   // https://headless-tree.lukasbach.com/guides/react-compiler/
   'use no memo'; // Opt out of React Compiler memoization
-  const { buildRef, fileExplorerRef, gitRef, cadRef } = useBuild();
+  const { buildRef, editorRef, gitRef, cadRef } = useBuild();
   const buildId = useSelector(buildRef, (state) => state.context.buildId);
   const fileManager = useFileManager();
   const { fileManagerRef, readFile, writeFile, renameFile, deleteFile } = fileManager;
 
   useEffect(() => {
-    // FileExplorer → FileManager → CAD coordination
-    const fileOpenedSub = fileExplorerRef.on('fileOpened', (event) => {
+    // Editor → FileManager → CAD coordination
+    const fileOpenedSub = editorRef.on('fileOpened', (event) => {
       // Read file directly - this properly awaits the worker call
       void readFile(event.path);
 
@@ -213,12 +214,42 @@ export const ChatEditorFileTree = memo(function ({
       }
     });
 
-    // Build loaded → Open initial file
-    const buildLoadedSub = buildRef.on('buildLoaded', (event) => {
-      const mainFile = event.build.assets.mechanical?.main;
-      if (mainFile) {
-        fileExplorerRef.send({ type: 'openFile', path: mainFile, source: 'machine' });
+    // Track both build and Editor state loading to handle race condition
+    // Both must be loaded before we can decide whether to open the main file
+    let loadedBuild: Build | undefined;
+    let loadedEditorState: { loaded: boolean; activeFilePath: string | undefined } | undefined;
+
+    const tryOpenMainFile = (): void => {
+      // Wait until both have loaded
+      if (!loadedBuild || !loadedEditorState) {
+        return;
       }
+
+      // If Editor state has an active file, the restoreFiles flow handles it
+      if (loadedEditorState.activeFilePath) {
+        return;
+      }
+
+      // No persisted active file - open main file as fallback
+      const mainFile = loadedBuild.assets.mechanical?.main;
+      if (mainFile) {
+        editorRef.send({ type: 'openFile', path: mainFile, source: 'machine' });
+      }
+    };
+
+    // Build loaded → Store build and try to open main file
+    const buildLoadedSub = buildRef.on('buildLoaded', (event) => {
+      loadedBuild = event.build;
+      tryOpenMainFile();
+    });
+
+    // Editor state loaded → Store Editor state and try to open main file
+    const editorStateLoadedSub = editorRef.on('editorStateLoaded', (event) => {
+      loadedEditorState = {
+        loaded: true,
+        activeFilePath: event.editorState?.activeFilePath,
+      };
+      tryOpenMainFile();
     });
 
     // Event-driven toasts for file operations
@@ -258,11 +289,12 @@ export const ChatEditorFileTree = memo(function ({
     return () => {
       fileOpenedSub.unsubscribe();
       buildLoadedSub.unsubscribe();
+      editorStateLoadedSub.unsubscribe();
       fileRenamedSub.unsubscribe();
       fileDeletedSub.unsubscribe();
       fileWrittenSub.unsubscribe();
     };
-  }, [buildRef, fileExplorerRef, fileManagerRef, cadRef, buildId, readFile]);
+  }, [buildRef, editorRef, fileManagerRef, cadRef, buildId, readFile]);
 
   // Derive file tree from file-manager (reactive selector)
   // Use custom equality to prevent unnecessary re-renders
@@ -315,8 +347,8 @@ export const ChatEditorFileTree = memo(function ({
     },
   );
 
-  const activeFilePath = useSelector(fileExplorerRef, (state) => state.context.activeFilePath);
-  const openFiles = useSelector(fileExplorerRef, (state) => state.context.openFiles);
+  const activeFilePath = useSelector(editorRef, (state) => state.context.activeFilePath);
+  const openFiles = useSelector(editorRef, (state) => state.context.openFiles);
 
   // Tree state management
   const [expandedItems, setExpandedItems] = useState<string[]>(() => [rootId]);
@@ -331,6 +363,39 @@ export const ChatEditorFileTree = memo(function ({
   const pendingFileInputRef = useRef<HTMLInputElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
+
+  // Reveal active file by expanding all parent directories (VSCode-style)
+  useEffect(() => {
+    if (!activeFilePath) {
+      return;
+    }
+
+    // Build array of parent paths: "foo/bar/baz.ts" → ["foo", "foo/bar"]
+    const parts = activeFilePath.split('/');
+    parts.pop(); // Remove filename
+    const parentPaths: string[] = [];
+    let current = '';
+    for (const part of parts) {
+      if (!part) {
+        continue;
+      }
+
+      current = current ? `${current}/${part}` : part;
+      parentPaths.push(current);
+    }
+
+    // Expand all parent directories
+    if (parentPaths.length > 0) {
+      setExpandedItems((previous) => {
+        const newExpanded = new Set(previous);
+        for (const path of parentPaths) {
+          newExpanded.add(path);
+        }
+
+        return [...newExpanded];
+      });
+    }
+  }, [activeFilePath]);
 
   // Build virtual folder structure from flat file paths
   const allPaths = useMemo(() => {
@@ -481,7 +546,7 @@ export const ChatEditorFileTree = memo(function ({
         await renameFile(oldPath, newPath);
 
         // Update file explorer paths atomically (no close/open to avoid fallback behavior)
-        fileExplorerRef.send({ type: 'renameFile', oldPath, newPath });
+        editorRef.send({ type: 'renameFile', oldPath, newPath });
       }
     },
     onRename(item, newName) {
@@ -502,7 +567,7 @@ export const ChatEditorFileTree = memo(function ({
         void renameFile(oldPath, newPath);
 
         // Update file explorer paths atomically (no close/open to avoid fallback behavior)
-        fileExplorerRef.send({ type: 'renameFile', oldPath, newPath });
+        editorRef.send({ type: 'renameFile', oldPath, newPath });
 
         // Keep folder expanded after rename
         if (wasExpanded) {
@@ -516,12 +581,12 @@ export const ChatEditorFileTree = memo(function ({
         void renameFile(oldPath, newPath);
 
         // Update file explorer path atomically (no close/open to avoid fallback behavior)
-        fileExplorerRef.send({ type: 'renameFile', oldPath, newPath });
+        editorRef.send({ type: 'renameFile', oldPath, newPath });
       }
     },
     onPrimaryAction(item) {
       if (!item.isFolder()) {
-        fileExplorerRef.send({
+        editorRef.send({
           type: 'openFile',
           path: item.getId(),
           source: 'user',
@@ -740,13 +805,13 @@ export const ChatEditorFileTree = memo(function ({
           // Delete file from fileManager - calls worker directly
           void deleteFile(file.path, { source: 'user' });
           // Close file in fileExplorer if it's open
-          fileExplorerRef.send({ type: 'closeFile', path: file.path });
+          editorRef.send({ type: 'closeFile', path: file.path });
         }
       } else {
         // Delete file from fileManager - calls worker directly
         void deleteFile(path, { source: 'user' });
         // Close file in fileExplorer if it's open
-        fileExplorerRef.send({ type: 'closeFile', path });
+        editorRef.send({ type: 'closeFile', path });
       }
     }
 
@@ -761,7 +826,7 @@ export const ChatEditorFileTree = memo(function ({
     setFocusedItem(firstRemainingItem?.getId());
 
     // Focus restoration is handled by DialogContent's onCloseAutoFocus
-  }, [fileExplorerRef, deleteFile, fileTree, itemsToDelete, tree]);
+  }, [editorRef, deleteFile, fileTree, itemsToDelete, tree]);
 
   const handleDuplicate = useCallback((_items: Array<ItemInstance<TreeItemData>>) => {
     // Duplication requires file-manager content, which isn't exposed yet
@@ -788,13 +853,13 @@ export const ChatEditorFileTree = memo(function ({
           await writeFile(filePath, uint8Array, { source: 'user' });
 
           // Open file in fileExplorer
-          fileExplorerRef.send({ type: 'openFile', path: filePath, source: 'user' });
+          editorRef.send({ type: 'openFile', path: filePath, source: 'user' });
         } catch (error) {
           console.error(`Error uploading file ${file.name}:`, error);
         }
       }
     },
-    [writeFile, fileExplorerRef],
+    [writeFile, editorRef],
   );
 
   const handleFileUpload = useCallback(
@@ -1048,7 +1113,7 @@ export const ChatEditorFileTree = memo(function ({
                   level={0}
                   onSubmit={(filename) => {
                     void writeFile(filename, encodeTextFile(pendingFile.content), { source: 'user' });
-                    fileExplorerRef.send({ type: 'openFile', path: filename, source: 'user' });
+                    editorRef.send({ type: 'openFile', path: filename, source: 'user' });
                     setPendingFile(undefined);
                   }}
                   onCancel={() => {
@@ -1150,7 +1215,7 @@ export const ChatEditorFileTree = memo(function ({
                                 onSubmit={(filename) => {
                                   const filePath = `${pendingFile.parentPath}/${filename}`;
                                   void writeFile(filePath, encodeTextFile(pendingFile.content), { source: 'user' });
-                                  fileExplorerRef.send({ type: 'openFile', path: filePath, source: 'user' });
+                                  editorRef.send({ type: 'openFile', path: filePath, source: 'user' });
                                   setPendingFile(undefined);
                                 }}
                                 onCancel={() => {

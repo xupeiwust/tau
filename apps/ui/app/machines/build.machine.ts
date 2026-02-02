@@ -77,7 +77,6 @@ type BuildEventInternal =
   | { type: 'updateDescription'; description: string }
   | { type: 'updateTags'; tags: string[] }
   | { type: 'updateThumbnail'; thumbnail: string }
-  | { type: 'setLastChatId'; chatId: string }
   | {
       type: 'updateCodeParameters';
       files: Record<string, { content: Uint8Array<ArrayBuffer> }>;
@@ -210,17 +209,6 @@ export const buildMachine = setup({
       return produce(context, (draft) => {
         draft.build!.thumbnail = event.thumbnail;
         // Don't update updatedAt for thumbnails - they're metadata
-      });
-    }),
-    setLastChatIdInContext: assign(({ context, event }) => {
-      assertEvent(event, 'setLastChatId');
-      if (!context.build) {
-        return {};
-      }
-
-      return produce(context, (draft) => {
-        draft.build!.lastChatId = event.chatId;
-        // Don't update updatedAt for switching active chat
       });
     }),
     updateCodeParametersInContext: enqueueActions(({ enqueue, context, event }) => {
@@ -512,9 +500,6 @@ export const buildMachine = setup({
             updateThumbnail: {
               actions: ['updateThumbnail'],
             },
-            setLastChatId: {
-              actions: ['setLastChatIdInContext'],
-            },
             updateCodeParameters: {
               actions: ['updateCodeParametersInContext'],
             },
@@ -549,9 +534,6 @@ export const buildMachine = setup({
                 updateThumbnail: {
                   target: 'pending',
                 },
-                setLastChatId: {
-                  target: 'pending',
-                },
                 updateCodeParameters: {
                   target: 'pending',
                 },
@@ -581,10 +563,6 @@ export const buildMachine = setup({
                   reenter: true,
                 },
                 updateThumbnail: {
-                  target: 'pending',
-                  reenter: true,
-                },
-                setLastChatId: {
                   target: 'pending',
                   reenter: true,
                 },

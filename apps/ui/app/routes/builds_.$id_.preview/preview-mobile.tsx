@@ -22,7 +22,6 @@ import { cn } from '#utils/ui.utils.js';
 import { useBuild } from '#hooks/use-build.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { useBuildManager } from '#hooks/use-build-manager.js';
-import { useChatManager } from '#hooks/use-chat-manager.js';
 import { usePreviewState } from '#routes/builds_.$id_.preview/use-preview-state.js';
 import { PreviewNav } from '#routes/builds_.$id_.preview/preview-nav.js';
 import { PreviewDetails } from '#routes/builds_.$id_.preview/preview-details.js';
@@ -45,7 +44,6 @@ export const PreviewMobile = memo(function ({
   const cadState = useSelector(cadRef, (state) => state.value);
   const fileManager = useFileManager();
   const buildManager = useBuildManager();
-  const chatManager = useChatManager();
 
   const [isCloning, setIsCloning] = useState(false);
 
@@ -144,31 +142,21 @@ export const PreviewMobile = memo(function ({
     setIsCloning(true);
 
     try {
-      // Create a new build with remixed data
-      const newBuild = {
-        name: `${build.name} (Remixed)`,
-        description: build.description,
-        thumbnail: build.thumbnail,
-        author: {
-          name: 'You',
-          avatar: '/avatar-sample.png',
+      const createdBuild = await buildManager.createBuild({
+        build: {
+          name: `${build.name} (Remixed)`,
+          description: build.description,
+          thumbnail: build.thumbnail,
+          author: {
+            name: 'You',
+            avatar: '/avatar-sample.png',
+          },
+          tags: build.tags,
+          assets: build.assets,
+          forkedFrom: build.id,
         },
-        tags: build.tags,
-        assets: build.assets,
-        forkedFrom: build.id,
-      };
-
-      // Create the build with the files
-      const createdBuild = await buildManager.createBuild(newBuild, staticBuildFiles);
-
-      // Create the chat and get its ID
-      const createdChat = await chatManager.createChat(createdBuild.id, {
-        name: 'Initial chat',
-        messages: [],
+        files: staticBuildFiles,
       });
-
-      // Update the build with the correct lastChatId
-      await buildManager.updateBuild(createdBuild.id, { lastChatId: createdChat.id });
 
       // Navigate to the new build
       await navigate(`/builds/${createdBuild.id}`);
@@ -177,7 +165,7 @@ export const PreviewMobile = memo(function ({
       toast.error('Failed to remix build');
       setIsCloning(false);
     }
-  }, [isStaticBuild, staticBuildFiles, build, isCloning, buildManager, chatManager, navigate]);
+  }, [isStaticBuild, staticBuildFiles, build, isCloning, buildManager, navigate]);
 
   const isLoading = ['buffering', 'rendering', 'booting', 'initializing'].includes(cadState);
 

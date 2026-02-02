@@ -9,15 +9,15 @@ import { FileExtensionIcon } from '#components/icons/file-extension-icon.js';
 import { FileSelector } from '#components/files/file-selector.js';
 
 export function ChatEditorBreadcrumbs(): ReactNode {
-  const { fileExplorerRef } = useBuild();
+  const { editorRef } = useBuild();
   const { fileManagerRef } = useFileManager();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Enable horizontal scrolling with mouse wheel
   useHorizontalScroll(scrollContainerRef);
 
-  // Get active file path from file explorer
-  const activeFile = useSelector(fileExplorerRef, (state) => ({
+  // Get active file path from editor
+  const activeFile = useSelector(editorRef, (state) => ({
     path: state.context.activeFilePath,
     parts: state.context.activeFilePath?.split('/') ?? [],
     name: state.context.activeFilePath?.split('/').pop() ?? '',
@@ -56,9 +56,9 @@ export function ChatEditorBreadcrumbs(): ReactNode {
   // Handle file selection - opens file in editor
   const handleFileSelect = useCallback(
     (path: string) => {
-      fileExplorerRef.send({ type: 'openFile', path, source: 'user' });
+      editorRef.send({ type: 'openFile', path, source: 'user' });
     },
-    [fileExplorerRef],
+    [editorRef],
   );
 
   // Compute breadcrumb data with paths for each segment
