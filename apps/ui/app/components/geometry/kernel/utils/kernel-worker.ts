@@ -28,7 +28,7 @@ import type {
   OnWorkerLog,
 } from '@taucad/types';
 import * as kernelSymbols from '@taucad/types/symbols';
-import { wrap } from 'comlink';
+import { wrap, transfer } from 'comlink';
 import type { Remote } from 'comlink';
 import { version as TAU_VERSION } from 'package.json';
 import { logLevels } from '@taucad/types/constants';
@@ -519,7 +519,21 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     const duration = performance.now() - start;
     this.logger.debug(`createGeometry completed (${duration.toFixed(2)}ms)`);
 
-    return result;
+    // Collect transferable ArrayBuffers from GLTF geometries for zero-copy transfer.
+    // Using Comlink's transfer() moves ownership of the buffers to the main thread
+    // instead of copying them, improving rendering pipeline performance for large models.
+    // After transfer, the original Uint8Array becomes detached (unusable) in this worker,
+    // which is fine since we don't need it after returning.
+    const transferables: ArrayBuffer[] = [];
+    if (result.success) {
+      for (const geometry of result.data) {
+        if (geometry.format === 'gltf') {
+          transferables.push(geometry.content.buffer);
+        }
+      }
+    }
+
+    return transfer(result, transferables);
   }
 
   /**
