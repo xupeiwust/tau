@@ -12,6 +12,8 @@ export type EditorStateContext = {
   lastChatId: string | undefined;
   isLoading: boolean;
   error: Error | undefined;
+  /** Flag indicating changes occurred during a write operation that need persisting */
+  hasPendingChanges: boolean;
 };
 
 /**
@@ -305,11 +307,20 @@ export const editorMachine = setup({
       assertEvent(event, 'setLastChatId');
       return { lastChatId: event.chatId };
     }),
+
+    // ============================================================================
+    // Persistence tracking
+    // ============================================================================
+    setPendingChanges: assign({ hasPendingChanges: true }),
+    clearPendingChanges: assign({ hasPendingChanges: false }),
   },
   guards: {
     isBuildIdChanging({ context, event }) {
       assertEvent(event, 'reload');
       return context.buildId !== event.buildId;
+    },
+    hasPendingChanges({ context }) {
+      return context.hasPendingChanges;
     },
   },
   delays: {
@@ -325,6 +336,7 @@ export const editorMachine = setup({
       lastChatId: undefined,
       isLoading: false,
       error: undefined,
+      hasPendingChanges: false,
     };
   },
   initial: 'idle',
@@ -353,6 +365,13 @@ export const editorMachine = setup({
         onError: {
           target: 'ready', // Editor state missing is fine, just use defaults
           actions: ['clearLoading', 'emitEditorStateLoadedEmpty'],
+        },
+      },
+      on: {
+        reload: {
+          target: 'loading',
+          actions: ['updateBuildId', 'setLoading'],
+          reenter: true,
         },
       },
     },
@@ -429,8 +448,23 @@ export const editorMachine = setup({
                     },
                   };
                 },
-                onDone: { target: 'idle' },
-                onError: { target: 'pending' },
+                onDone: [
+                  {
+                    guard: 'hasPendingChanges',
+                    target: 'pending',
+                    actions: 'clearPendingChanges',
+                  },
+                  { target: 'idle' },
+                ],
+                onError: { target: 'pending', actions: 'clearPendingChanges' },
+              },
+              on: {
+                // Track mutations during write so we persist again after completion
+                openFile: { actions: 'setPendingChanges' },
+                closeFile: { actions: 'setPendingChanges' },
+                setActiveFile: { actions: 'setPendingChanges' },
+                renameFile: { actions: 'setPendingChanges' },
+                setLastChatId: { actions: 'setPendingChanges' },
               },
             },
           },
