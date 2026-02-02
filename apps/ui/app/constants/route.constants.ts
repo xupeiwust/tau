@@ -65,11 +65,11 @@ export const navRoutes: {
       url: '/import',
       icon: Import,
     },
-    {
-      title: 'Workflows',
-      url: '/workflows',
-      icon: Workflow,
-    },
+    // {
+    //   title: 'Workflows',
+    //   url: '/workflows',
+    //   icon: Workflow,
+    // },
     {
       title: 'Models',
       url: '/models',
