@@ -124,7 +124,7 @@ export default function UsageDashboard(): React.JSX.Element {
                 ) : undefined}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="max-h-[300px] w-56 overflow-y-auto">
+            <DropdownMenuContent align="start" className="max-h-[300px] w-56 overflow-y-auto">
               <DropdownMenuLabel>Filter by Model</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {availableModels.map((model) => (
@@ -159,7 +159,7 @@ export default function UsageDashboard(): React.JSX.Element {
                 ) : undefined}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56">
+            <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuLabel>Filter by Provider</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {availableProviders.map((provider) => (
@@ -194,7 +194,7 @@ export default function UsageDashboard(): React.JSX.Element {
                 ) : undefined}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="max-h-[300px] w-56 overflow-y-auto">
+            <DropdownMenuContent align="start" className="max-h-[300px] w-56 overflow-y-auto">
               <DropdownMenuLabel>Filter by Build</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {availableBuilds.map((build) => (
