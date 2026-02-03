@@ -16,8 +16,8 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         toolChoice: false,
       },
       details: {
-        family: 'Claude',
-        families: ['Claude'],
+        family: 'claude',
+        families: ['claude'],
         contextWindow: 200_000,
         maxTokens: 32_000,
         cost: {
@@ -53,8 +53,8 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         toolChoice: false,
       },
       details: {
-        family: 'Claude',
-        families: ['Claude'],
+        family: 'claude',
+        families: ['claude'],
         contextWindow: 200_000,
         // Extended thinking mode supports up to 64000 tokens
         maxTokens: 64_000,
@@ -90,7 +90,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
       },
       model: 'gpt-5.2',
       details: {
-        family: 'GPT',
+        family: 'gpt',
         families: ['GPT-5.2'],
         contextWindow: 400_000,
         maxTokens: 128_000,
@@ -120,7 +120,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
       },
       model: 'gpt-5.2-codex',
       details: {
-        family: 'GPT',
+        family: 'gpt',
         families: ['GPT-5.2'],
         contextWindow: 400_000,
         maxTokens: 128_000,
@@ -150,7 +150,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
       },
       model: 'gpt-4.1',
       details: {
-        family: 'GPT',
+        family: 'gpt',
         families: ['GPT-4.1'],
         contextWindow: 1_047_576,
         maxTokens: 32_768,
@@ -178,8 +178,8 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
       },
       model: 'gemini-3-pro-preview',
       details: {
-        family: 'Gemini',
-        families: ['Gemini'],
+        family: 'gemini',
+        families: ['gemini'],
         contextWindow: 1_048_576,
         maxTokens: 65_536,
         cost: {
