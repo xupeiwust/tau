@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import type { ChartConfig } from '#components/ui/chart.js';
 import {
   ChartContainer,
@@ -136,21 +136,7 @@ function UsageStackedChartComponent({
       </CardHeader>
       <CardContent className="min-w-0">
         <ChartContainer config={chartConfig} className="h-[300px] w-full min-w-0">
-          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="fillInput" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-input)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-input)" stopOpacity={0.1} />
-              </linearGradient>
-              <linearGradient id="fillOutput" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-output)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-output)" stopOpacity={0.1} />
-              </linearGradient>
-              <linearGradient id="fillCache" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-cache)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-cache)" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="dateLabel" tickLine={false} axisLine={false} tickMargin={8} />
             <YAxis
@@ -163,31 +149,10 @@ function UsageStackedChartComponent({
             {/* @ts-expect-error - ChartTooltipContent types don't match Recharts exactly */}
             <ChartTooltip cursor={false} content={ChartTooltipContent} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Area
-              type="monotone"
-              dataKey="input"
-              stackId="1"
-              stroke="var(--color-input)"
-              fill="url(#fillInput)"
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey="output"
-              stackId="1"
-              stroke="var(--color-output)"
-              fill="url(#fillOutput)"
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey="cache"
-              stackId="1"
-              stroke="var(--color-cache)"
-              fill="url(#fillCache)"
-              strokeWidth={2}
-            />
-          </AreaChart>
+            <Bar dataKey="cache" stackId="1" fill="var(--color-cache)" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="input" stackId="1" fill="var(--color-input)" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="output" stackId="1" fill="var(--color-output)" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>

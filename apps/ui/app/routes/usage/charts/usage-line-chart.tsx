@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '#components/ui/chart.js';
 import type { ChartConfig } from '#components/ui/chart.js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#components/ui/card.js';
@@ -116,13 +116,7 @@ function UsageLineChartComponent({
       </CardHeader>
       <CardContent className="min-w-0">
         <ChartContainer config={chartConfig} className="h-[300px] w-full min-w-0">
-          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="fillCost" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-cost)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-cost)" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="dateLabel" tickLine={false} axisLine={false} tickMargin={8} />
             <YAxis
@@ -134,8 +128,8 @@ function UsageLineChartComponent({
             />
             {/* @ts-expect-error - ChartTooltipContent types don't match Recharts exactly */}
             <ChartTooltip cursor={false} content={ChartTooltipContent} />
-            <Area type="monotone" dataKey="cost" stroke="var(--color-cost)" fill="url(#fillCost)" strokeWidth={2} />
-          </AreaChart>
+            <Bar dataKey="cost" fill="var(--color-cost)" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>
