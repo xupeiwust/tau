@@ -113,6 +113,10 @@ export const cookieName = {
   /* Privacy */
   // The user's cookie consent choice.
   cookieConsent: 'cookie-consent',
+
+  /* Filesystem */
+  // The last selected filesystem backend.
+  filesystemBackend: 'filesystem-backend',
 } as const;
 
 /**

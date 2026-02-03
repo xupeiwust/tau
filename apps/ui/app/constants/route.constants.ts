@@ -3,6 +3,7 @@ import {
   Bot,
   ChartColumn,
   FileAxis3D,
+  Files,
   Frame,
   Hammer,
   Import,
@@ -82,6 +83,11 @@ export const navRoutes: {
     },
   ],
   navSecondary: [
+    {
+      title: 'Files',
+      url: '/files',
+      icon: Files,
+    },
     {
       title: 'Documentation',
       url: '/docs',
