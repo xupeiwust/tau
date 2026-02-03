@@ -1,7 +1,12 @@
 import { useState, useMemo } from 'react';
 import { getCoreRowModel, getFilteredRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
-import type { SortingState } from '@tanstack/react-table';
-import { DataTableVirtualized, DataTableSearch } from '#components/ui/data-table.js';
+import type { SortingState, VisibilityState } from '@tanstack/react-table';
+import {
+  DataTableVirtualized,
+  DataTableSearch,
+  DataTableSortingDropdown,
+  DataTableColumnVisibilityDropdown,
+} from '#components/ui/data-table.js';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#components/ui/card.js';
 import type { UsageRecord } from '#hooks/use-all-usage.js';
 import { usageColumns } from '#routes/usage/columns.js';
@@ -20,6 +25,7 @@ export function UsageTable({
   height = 400,
 }: UsageTableProps): React.JSX.Element {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo(() => usageColumns, []);
@@ -31,9 +37,11 @@ export function UsageTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     state: {
       sorting,
+      columnVisibility,
       globalFilter,
     },
   });
@@ -46,7 +54,11 @@ export function UsageTable({
             <CardTitle>{title}</CardTitle>
             {description ? <CardDescription className="mt-1">{description}</CardDescription> : undefined}
           </div>
-          <DataTableSearch table={table} placeholder="Search usage..." containerClassName="max-w-sm" />
+          <div className="flex items-center gap-2">
+            <DataTableSearch table={table} placeholder="Search usage..." containerClassName="max-w-sm" />
+            <DataTableSortingDropdown table={table} />
+            <DataTableColumnVisibilityDropdown table={table} />
+          </div>
         </div>
       </CardHeader>
       <CardContent>

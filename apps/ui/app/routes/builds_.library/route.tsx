@@ -6,12 +6,8 @@ import {
   ArrowRight,
   Table as TableIcon,
   Cog,
-  List,
   Trash,
   AlertCircle,
-  ArrowUpDown,
-  ArrowDown,
-  ArrowUp,
   Zap,
   Brain,
   Wrench,
@@ -35,11 +31,16 @@ import { createColumns } from '#routes/builds_.library/columns.js';
 import { CategoryBadge } from '#components/category-badge.js';
 import { Button, buttonVariants } from '#components/ui/button.js';
 import { Card, CardContent, CardHeader, CardDescription, CardFooter } from '#components/ui/card.js';
-import { DataTable, DataTableSearch, DataTablePagination } from '#components/ui/data-table.js';
+import {
+  DataTable,
+  DataTableSearch,
+  DataTablePagination,
+  DataTableSortingDropdown,
+  DataTableColumnVisibilityDropdown,
+} from '#components/ui/data-table.js';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
@@ -66,7 +67,6 @@ import { useCookie } from '#hooks/use-cookie.js';
 import { BuildActionDropdown } from '#routes/builds_.library/build-action-dropdown.js';
 import { Checkbox } from '#components/ui/checkbox.js';
 import { formatRelativeTime } from '#utils/date.utils.js';
-import { toTitleCase } from '#utils/string.utils.js';
 import { Loader } from '#components/ui/loader.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { InlineTextEditor } from '#components/inline-text-editor.js';
@@ -485,8 +485,8 @@ function UnifiedBuildList({
           {table.getFilteredSelectedRowModel().rows.length > 0 && (
             <BulkActions table={table} deleteBuild={actions.handleDelete} />
           )}
-          <SortingDropdown table={table} />
-          <ViewOptionsDropdown table={table} />
+          <DataTableSortingDropdown table={table} />
+          <DataTableColumnVisibilityDropdown table={table} />
         </div>
       </div>
 
@@ -517,101 +517,6 @@ function UnifiedBuildList({
         itemName="build"
       />
     </div>
-  );
-}
-
-function SortingDropdown({ table }: { readonly table: ReturnType<typeof useReactTable<Build>> }) {
-  const sortingState = table.getState().sorting[0];
-
-  // Dynamically get sortable columns from the table
-  const sortFields = table
-    .getAllColumns()
-    .filter((column) => column.getCanSort())
-    .map((column) => ({
-      id: column.id,
-      label: toTitleCase(column.id),
-    }));
-
-  const toggleSorting = (id: string) => {
-    if (sortingState?.id === id) {
-      // Toggle direction if already sorting by this column
-      table.setSorting([{ id, desc: !sortingState.desc }]);
-    } else {
-      // Set to descending order by default on first click
-      table.setSorting([{ id, desc: true }]);
-    }
-  };
-
-  const renderSortIndicator = (fieldId: string) => {
-    if (sortingState?.id !== fieldId) {
-      return null;
-    }
-
-    return sortingState.desc ? <ArrowDown className="ml-auto" /> : <ArrowUp className="ml-auto" />;
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
-          <ArrowUpDown className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {sortFields.map((field) => (
-          <DropdownMenuItem
-            key={field.id}
-            className="flex w-full items-center"
-            onClick={() => {
-              toggleSorting(field.id);
-            }}
-            onSelect={(event) => {
-              event.preventDefault();
-            }}
-          >
-            {field.label}
-            {renderSortIndicator(field.id)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ViewOptionsDropdown({ table }: { readonly table: ReturnType<typeof useReactTable<Build>> }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
-          <List className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {table
-          .getAllColumns()
-          .filter((column) => column.getCanHide())
-          .map((column) => {
-            return (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                checked={column.getIsVisible()}
-                onCheckedChange={(value) => {
-                  column.toggleVisibility(Boolean(value));
-                }}
-                onSelect={(event) => {
-                  event.preventDefault();
-                }}
-              >
-                {toTitleCase(column.id)}
-              </DropdownMenuCheckboxItem>
-            );
-          })}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
