@@ -45,12 +45,12 @@ function CommandInput({
   ...properties
 }: React.ComponentProps<typeof CommandPrimitive.Input>): React.JSX.Element {
   return (
-    <div data-slot="command-input-wrapper" className="relative flex h-7 items-center gap-2 border-b">
+    <div data-slot="command-input-wrapper" className="relative flex h-9 items-center gap-2 border-b">
       <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 shrink-0 -translate-y-1/2 opacity-50" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          'flex h-7 w-full rounded-md bg-transparent py-3 pr-3 pl-9 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
+          'flex h-9 w-full rounded-md bg-transparent py-3 pr-3 pl-9 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         {...properties}

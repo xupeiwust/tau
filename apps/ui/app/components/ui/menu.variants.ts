@@ -5,8 +5,8 @@ import { cva } from 'class-variance-authority';
  * Uses compact py-1 padding for a tighter, more refined appearance.
  */
 export const menuItemVariants = cva(
-  // Base: compact py-1 padding, rounded-md, standard disabled states
-  "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+  // Base: compact py-1 padding, rounded-sm, standard disabled states
+  "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
   {
     variants: {
       variant: {
