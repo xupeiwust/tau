@@ -78,6 +78,43 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         },
       },
     },
+    'claude-haiku-4.5': {
+      id: 'anthropic-claude-haiku-4.5',
+      name: 'Haiku 4.5',
+      slug: 'claude-haiku-4.5',
+      provider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+      },
+      model: 'claude-haiku-4-5-20251001',
+      support: {
+        toolChoice: false,
+      },
+      details: {
+        family: 'claude',
+        families: ['claude'],
+        contextWindow: 200_000,
+        maxTokens: 64_000,
+        cost: {
+          inputTokens: 1,
+          outputTokens: 5,
+          cacheReadTokens: 0.1,
+          cacheWriteTokens: 1.25,
+        },
+      },
+      configuration: {
+        streaming: true,
+        maxTokens: 16_000,
+        // @ts-expect-error: FIXME - some models use camelCase
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- some models use snake_case
+        max_tokens: 16_000,
+        thinking: {
+          type: 'enabled',
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- some models use snake_case
+          budget_tokens: 4000,
+        },
+      },
+    },
   },
   openai: {
     'gpt-5.2': {
