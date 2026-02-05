@@ -3,6 +3,44 @@ import type { CloudProviderId } from '#api/models/model.service.js';
 
 export const modelList: Record<CloudProviderId, Record<string, Model>> = {
   anthropic: {
+    'claude-4.6-opus': {
+      id: 'anthropic-claude-opus-4.6',
+      name: 'Opus 4.6',
+      slug: 'claude-opus-4.6',
+      provider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+      },
+      model: 'claude-opus-4-6',
+      support: {
+        toolChoice: false,
+      },
+      details: {
+        family: 'claude',
+        families: ['claude'],
+        contextWindow: 200_000,
+        maxTokens: 128_000,
+        cost: {
+          inputTokens: 5,
+          outputTokens: 25,
+          cacheReadTokens: 0.5,
+          cacheWriteTokens: 6.25,
+        },
+      },
+      configuration: {
+        streaming: true,
+        maxTokens: 20_000,
+        // @ts-expect-error: FIXME - some models use camelCase
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- some models use snake_case
+        max_tokens: 20_000,
+        thinking: {
+          type: 'adaptive',
+        },
+        outputConfig: {
+          effort: 'high',
+        },
+      },
+    },
     'claude-4.5-opus': {
       id: 'anthropic-claude-opus-4.5',
       name: 'Opus 4.5',
