@@ -290,8 +290,8 @@ importers:
         specifier: ^6.0.33
         version: 6.0.33(zod@4.1.13)
       allotment:
-        specifier: ^1.20.4
-        version: 1.20.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^1.20.5
+        version: 1.20.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       autoprefixer:
         specifier: 10.4.21
         version: 10.4.21(postcss@8.5.6)
@@ -3314,9 +3314,6 @@ packages:
 
   '@jspm/core@2.1.0':
     resolution: {integrity: sha512-3sRl+pkyFY/kLmHl0cgHiFp2xEqErA8N3ECjMs7serSUBmoJ70lBa0PG5t0IM6WJgdZNyyI0R8YFfi5wM8+mzg==}
-
-  '@juggle/resize-observer@3.4.0':
-    resolution: {integrity: sha512-dfLbk+PwWvFzSxwk3n5ySL0hfBog779o8h68wK/7/APo/7cgyWp5jcXockbxdk5kFRkbeXWm4Fbi9FrdN381sA==}
 
   '@kittycad/lib@2.0.46':
     resolution: {integrity: sha512-lttYMGeGAUccb1bITZRQXDFP9vwyBBC9EbAeZPQyk70WStpfLPzjgb3omPtlD0KF+LUIKU/SHxkD1Yo8dnWhZw==}
@@ -7932,8 +7929,8 @@ packages:
   alien-signals@0.4.14:
     resolution: {integrity: sha512-itUAVzhczTmP2U5yX67xVpsbbOiquusbWVyA9N+sy6+r6YVbFkahXvNCeEPWEOMhwDYwbVbGHFkVL03N9I5g+Q==}
 
-  allotment@1.20.4:
-    resolution: {integrity: sha512-LMM5Xe5nLePFOLAlW/5k3ARqznYGUyNekV4xJrfDKn1jimW3nlZE6hT/Tu0T8s0VgAkr9s2P7+uM0WvJKn5DAw==}
+  allotment@1.20.5:
+    resolution: {integrity: sha512-7i4NT7ieXEyAd5lBrXmE7WHz/e7hRuo97+j+TwrPE85ha6kyFURoc76nom0dWSZ1pTKVEAMJy/+f3/Isfu/41A==}
     peerDependencies:
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -12106,10 +12103,6 @@ packages:
   lodash.isboolean@3.0.3:
     resolution: {integrity: sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==}
 
-  lodash.isequal@4.5.0:
-    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
-    deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
-
   lodash.isinteger@4.0.4:
     resolution: {integrity: sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==}
 
@@ -16187,12 +16180,6 @@ packages:
       '@types/react':
         optional: true
 
-  use-resize-observer@9.1.0:
-    resolution: {integrity: sha512-R25VqO9Wb3asSD4eqtcxk8sJalvIOYBqS8MNZlpDSQ4l4xMQxC/J7Id9HoTqPq8FwULIn0PVW+OAqF2dyYbjow==}
-    peerDependencies:
-      react: 16.8.0 - 18
-      react-dom: 16.8.0 - 18
-
   use-sidecar@1.1.3:
     resolution: {integrity: sha512-Fedw0aZvkhynoPYlA5WXrMCAMm+nSWdZt6lzJQ7Ok8S6Q+VsHmHpRWndVRJ8Be0ZbkfPc5LRYH+5XrzXcEeLRQ==}
     engines: {node: '>=10'}
@@ -16207,6 +16194,12 @@ packages:
     resolution: {integrity: sha512-Rb46I4cGGVBmjamjphe8L/UnvJD+uPPtTkNvX5mZgqdbavhI4EbgIWJiIHXJ8bc/i9EQGPRh4DwEURJ552Do0A==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  usehooks-ts@3.1.1:
+    resolution: {integrity: sha512-I4diPp9Cq6ieSUH2wu+fDAVQO43xwtulo+fKEidHUwZPnYImbtkTjzIJYcDcJqxgmX31GVqNFURodvcgHcW0pA==}
+    engines: {node: '>=16.15.0'}
+    peerDependencies:
+      react: ^16.8.0  || ^17 || ^18 || ^19 || ^19.0.0-rc
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
@@ -19334,8 +19327,6 @@ snapshots:
       tslib: 2.8.1
 
   '@jspm/core@2.1.0': {}
-
-  '@juggle/resize-observer@3.4.0': {}
 
   '@kittycad/lib@2.0.46(patch_hash=1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0)(@swc/core@1.10.15(@swc/helpers@0.5.17))(@types/node@24.0.15)(typescript@5.9.3)':
     dependencies:
@@ -24408,16 +24399,16 @@ snapshots:
 
   alien-signals@0.4.14: {}
 
-  allotment@1.20.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  allotment@1.20.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       classnames: 2.5.1
       eventemitter3: 5.0.1
+      fast-deep-equal: 3.1.3
       lodash.clamp: 4.0.3
       lodash.debounce: 4.0.8
-      lodash.isequal: 4.5.0
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
-      use-resize-observer: 9.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      usehooks-ts: 3.1.1(react@19.2.0)
 
   ansi-colors@4.1.3: {}
 
@@ -29397,8 +29388,6 @@ snapshots:
 
   lodash.isboolean@3.0.3: {}
 
-  lodash.isequal@4.5.0: {}
-
   lodash.isinteger@4.0.4: {}
 
   lodash.isnumber@3.0.3: {}
@@ -34267,12 +34256,6 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.0.12
 
-  use-resize-observer@9.1.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
-    dependencies:
-      '@juggle/resize-observer': 3.4.0
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
-
   use-sidecar@1.1.3(@types/react@19.0.12)(react@19.2.0):
     dependencies:
       detect-node-es: 1.1.0
@@ -34283,6 +34266,11 @@ snapshots:
 
   use-sync-external-store@1.5.0(react@19.2.0):
     dependencies:
+      react: 19.2.0
+
+  usehooks-ts@3.1.1(react@19.2.0):
+    dependencies:
+      lodash.debounce: 4.0.8
       react: 19.2.0
 
   util-deprecate@1.0.2: {}
