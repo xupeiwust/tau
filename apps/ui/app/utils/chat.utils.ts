@@ -15,6 +15,8 @@ import { idPrefix } from '@taucad/types/constants';
 import { DefaultChatTransport, getStaticToolName } from 'ai';
 import { generatePrefixedId } from '@taucad/utils/id';
 import { ENV } from '#environment.config.js';
+import { metaConfig } from '#constants/meta.constants.js';
+import { formatExportDate } from '#utils/date.utils.js';
 
 export const useChatConstants: Parameters<typeof useChat>[0] = {
   transport: new DefaultChatTransport({
@@ -353,6 +355,34 @@ export function serializeMessage(message: MyUIMessage): string {
   }
 
   return segments.join('\n\n');
+}
+
+/**
+ * Serialize an array of messages into a markdown transcript with role headers,
+ * horizontal rule separators, and an export metadata header.
+ * Uses raw message content; UI-specific edits are not applied.
+ *
+ * @param messages - Array of UI messages
+ * @param title - Title for the transcript (e.g. the chat name)
+ * @returns Markdown transcript string
+ */
+export function serializeTranscript(messages: MyUIMessage[], title: string): string {
+  const exportDate = formatExportDate(new Date());
+  const header = `# ${title}\n\n_Exported on ${exportDate} from ${metaConfig.userAgent}_`;
+
+  if (messages.length === 0) {
+    return header;
+  }
+
+  const blocks = messages
+    .map((message) => {
+      const role = message.role.charAt(0).toUpperCase() + message.role.slice(1);
+      const body = serializeMessage(message);
+      return body.length > 0 ? `**${role}**\n\n${body}` : `**${role}**`;
+    })
+    .join('\n\n---\n\n');
+
+  return `${header}\n\n---\n\n${blocks}\n`;
 }
 
 // Helper function to create a new message

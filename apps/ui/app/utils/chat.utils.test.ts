@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import process from 'node:process';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyUIMessage } from '@taucad/chat';
-import { createMessage, serializeMessage } from '#utils/chat.utils.js';
+import { createMessage, serializeMessage, serializeTranscript } from '#utils/chat.utils.js';
+import { metaConfig } from '#constants/meta.constants.js';
 
 const baseMessage = (parts: MyUIMessage['parts']): MyUIMessage => ({
   id: 'msg-1',
@@ -428,6 +430,65 @@ describe('serializeMessage', () => {
         'Here is the result.\n\n<thinking>\nI looked it up.\n</thinking>\n\n<tool_call name="web_search">\nquery: test\n</tool_call>\n<tool_result>\n- [T](https://u)\n  C\n</tool_result>',
       );
     });
+  });
+});
+
+describe('serializeTranscript', () => {
+  const originalTz = process.env.TZ;
+  const header = `# Test Chat\n\n_Exported on 2/8/2026 at 23:29:19 GMT+13 from ${metaConfig.userAgent}_`;
+
+  beforeAll(() => {
+    process.env.TZ = 'Pacific/Auckland';
+  });
+
+  afterAll(() => {
+    process.env.TZ = originalTz;
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-08T10:29:19Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns header only for empty array', () => {
+    expect(serializeTranscript([], 'Test Chat')).toBe(header);
+  });
+
+  it('serializes single user message with bold role header', () => {
+    const message: MyUIMessage = {
+      id: 'msg-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Hello' }],
+      metadata: { createdAt: 0 },
+    };
+    expect(serializeTranscript([message], 'Test Chat')).toBe(`${header}\n\n---\n\n**User**\n\nHello\n`);
+  });
+
+  it('serializes single assistant message with bold role header', () => {
+    const message = baseMessage([{ type: 'text', text: 'Hi there' }]);
+    expect(serializeTranscript([message], 'Test Chat')).toBe(`${header}\n\n---\n\n**Assistant**\n\nHi there\n`);
+  });
+
+  it('serializes two messages separated by horizontal rules', () => {
+    const userMessage: MyUIMessage = {
+      id: 'msg-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Hello' }],
+      metadata: { createdAt: 0 },
+    };
+    const assistantMessage = baseMessage([{ type: 'text', text: 'Hi there' }]);
+    expect(serializeTranscript([userMessage, assistantMessage], 'Test Chat')).toBe(
+      `${header}\n\n---\n\n**User**\n\nHello\n\n---\n\n**Assistant**\n\nHi there\n`,
+    );
+  });
+
+  it('emits role header only when message body is empty (e.g. step-start only)', () => {
+    const message = baseMessage([{ type: 'step-start' }]);
+    expect(serializeTranscript([message], 'Test Chat')).toBe(`${header}\n\n---\n\n**Assistant**\n`);
   });
 });
 

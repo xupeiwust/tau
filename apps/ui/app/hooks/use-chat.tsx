@@ -31,6 +31,7 @@ type ChatContextValue = {
   chat: UseChatReturn;
   activeChatId: string | undefined;
   resourceId: string | undefined;
+  chatName: string;
   isLoadingChat: boolean;
   queuePersist: (messages: MyUIMessage[]) => void;
   draftActorRef: ReturnType<typeof useActorRef<typeof draftMachine>>;
@@ -49,7 +50,7 @@ export function ChatProvider({
   readonly resourceId?: string;
   readonly chatId?: string;
 }): React.JSX.Element {
-  const { getChat, updateChat } = useChats(resourceId ?? '');
+  const { getChat, updateChat, chats } = useChats(resourceId ?? '');
 
   // Refs for functions that actors need access to (set after useChat is created)
   const setMessagesRef = useRef<UseChatReturn['setMessages'] | undefined>(undefined);
@@ -194,17 +195,23 @@ export function ChatProvider({
     [activeChatId, persistenceActorRef],
   );
 
+  const chatName = useMemo(
+    () => chats.find((c) => c.id === activeChatId)?.name ?? 'Chat Transcript',
+    [chats, activeChatId],
+  );
+
   const contextValue = useMemo<ChatContextValue>(
     () => ({
       chat,
       activeChatId,
       resourceId,
+      chatName,
       isLoadingChat,
       queuePersist,
       draftActorRef,
       persistenceActorRef,
     }),
-    [chat, activeChatId, resourceId, isLoadingChat, queuePersist, draftActorRef, persistenceActorRef],
+    [chat, activeChatId, resourceId, chatName, isLoadingChat, queuePersist, draftActorRef, persistenceActorRef],
   );
 
   return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
@@ -233,6 +240,7 @@ type CombinedChatState = {
   // Persisted error - survives page reload (from chat entity)
   persistedError: ChatError | undefined;
   isLoading: boolean;
+  chatName: string;
   // Draft state from machine
   draftText: string;
   draftImages: string[];
@@ -265,7 +273,7 @@ function getMessagesById(messages: MyUIMessage[]): Map<string, MyUIMessage> {
  * Combines AI SDK useChat state with draft machine state and persistence state.
  */
 export function useChatSelector<T>(selector: (state: CombinedChatState) => T): T {
-  const { chat, draftActorRef, persistenceActorRef } = useChatContext();
+  const { chat, chatName, draftActorRef, persistenceActorRef } = useChatContext();
   const draftContext = useSelector(draftActorRef, (state) => state.context);
   const persistedError = useSelector(persistenceActorRef, (state) => state.context.persistedError);
 
@@ -283,6 +291,7 @@ export function useChatSelector<T>(selector: (state: CombinedChatState) => T): T
       error: chat.error,
       persistedError,
       isLoading: chat.status === 'streaming',
+      chatName,
       // Draft state
       draftText: draftContext.draftText,
       draftImages: draftContext.draftImages,
@@ -292,7 +301,7 @@ export function useChatSelector<T>(selector: (state: CombinedChatState) => T): T
       editDraftText: draftContext.editDraftText,
       editDraftImages: draftContext.editDraftImages,
     }),
-    [chat.messages, messagesById, messageOrder, chat.status, chat.error, persistedError, draftContext],
+    [chat.messages, messagesById, messageOrder, chat.status, chat.error, persistedError, chatName, draftContext],
   );
 
   return selector(combinedState);

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   Settings,
   DollarSign,
+  Download,
   File,
   Code,
   FolderTree,
@@ -17,6 +18,7 @@ import { InfoTooltip } from '#components/ui/info-tooltip.js';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSwitchItem,
   DropdownMenuSliderItem,
@@ -26,14 +28,20 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '#components/ui/dropdown-menu.js';
+import { useChatSelector } from '#hooks/use-chat.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { useImageQuality } from '#hooks/use-image-quality.js';
 import { cookieName } from '#constants/cookie.constants.js';
+import { downloadBlob } from '#utils/file.utils.js';
+import { serializeTranscript } from '#utils/chat.utils.js';
+import { toSnakeCase } from '#utils/string.utils.js';
 
 /**
  * Component that provides settings for the chat history panel
  */
 export function ChatHistorySettings(): React.ReactNode {
+  const messages = useChatSelector((state) => state.messages);
+  const chatName = useChatSelector((state) => state.chatName);
   const [showModelCost, setShowModelCost] = useCookie(cookieName.chatModelCost, true);
   const [showCodePreview, setShowCodePreview] = useCookie(cookieName.chatToolCodePreview, true);
   const [showAnalysisImages, setShowAnalysisImages] = useCookie(cookieName.chatToolAnalysisImages, true);
@@ -95,6 +103,14 @@ export function ChatHistorySettings(): React.ReactNode {
   const formatQualityValue = useCallback((value: number): string => {
     return `${Math.round(value * 100)}%`;
   }, []);
+
+  const handleExport = useCallback(() => {
+    const transcript = serializeTranscript(messages, chatName);
+    const blob = new Blob([transcript], { type: 'text/markdown;charset=utf-8' });
+    const timestamp = new Date().toISOString().slice(0, 16).replaceAll(':', '-');
+    const snakeName = toSnakeCase(chatName) || 'chat_transcript';
+    downloadBlob(blob, `${snakeName}_${timestamp}.md`);
+  }, [messages, chatName]);
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -205,6 +221,13 @@ export function ChatHistorySettings(): React.ReactNode {
             </DropdownMenuSliderItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Export</DropdownMenuLabel>
+        <DropdownMenuItem disabled={messages.length === 0} onSelect={handleExport}>
+          <Download className="size-4" />
+          Export Transcript
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
