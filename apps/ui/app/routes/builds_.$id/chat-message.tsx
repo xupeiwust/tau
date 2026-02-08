@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { memo, useState } from 'react';
 import { messageRole } from '@taucad/chat/constants';
-import type { MyUIMessage, UsageData } from '@taucad/chat';
+import type { UsageData } from '@taucad/chat';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
+import { serializeMessage } from '#utils/chat.utils.js';
 import { ChatMessageReasoning } from '#routes/builds_.$id/chat-message-reasoning.js';
 import { ChatMessageDataUsage } from '#routes/builds_.$id/chat-message-data-usage.js';
 import { ChatMessageText } from '#routes/builds_.$id/chat-message-text.js';
@@ -41,17 +42,6 @@ import { ChatMessagePlanning } from '#routes/builds_.$id/chat-message-planning.j
 
 type ChatMessageProperties = {
   readonly messageId: string;
-};
-
-const getMessageContent = (message: MyUIMessage): string => {
-  const content = [];
-  for (const part of message.parts) {
-    if (part.type === 'text') {
-      content.push(part.text);
-    }
-  }
-
-  return content.join('\n\n');
 };
 
 export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties): React.JSX.Element {
@@ -279,7 +269,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
             <CopyButton
               tooltipContentProperties={{ side: 'bottom' }}
               size="icon"
-              getText={() => getMessageContent(displayMessage)}
+              getText={() => serializeMessage(displayMessage)}
               tooltip="Copy message"
               className="size-7"
             />
