@@ -3,7 +3,7 @@ import type { PanelId, DesktopPanelId } from '#constants/editor.constants.js';
 import { allotmentPanelOrder } from '#constants/editor.constants.js';
 
 // ============================================================================
-// File Types (moved from file-explorer.machine.ts)
+// File Types
 // ============================================================================
 
 /**

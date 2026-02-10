@@ -114,7 +114,7 @@ const objectStoreWorker = {
       throw new Error(`Build not found: ${buildId}`);
     }
 
-    // Create the duplicated build (lastChatId is now in Editor state, not build)
+    // Create the duplicated build
     const newBuild = await storage.createBuild({
       ...build,
       name: `${build.name} (Copy)`,
