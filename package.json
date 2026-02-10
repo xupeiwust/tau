@@ -197,6 +197,7 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
     "sonner": "^2.0.6",
+    "source-map-js": "^1.2.1",
     "streamdown": "^1.6.10",
     "tailwind-merge": "^3.4.0",
     "three": "^0.179.0",

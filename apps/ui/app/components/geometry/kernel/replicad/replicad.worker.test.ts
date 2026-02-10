@@ -1,4 +1,5 @@
 // @vitest-environment node
+/* eslint-disable max-lines -- comprehensive kernel test suite */
 import * as kernelSymbols from '@taucad/types/symbols';
 import { describe, it, expect } from 'vitest';
 import { ReplicadWorker } from '#components/geometry/kernel/replicad/replicad.worker.js';
@@ -1194,6 +1195,86 @@ describe('ReplicadWorker', () => {
           expect(result.issues).toBeDefined();
           expect(result.issues.length).toBeGreaterThan(0);
           expect(result.issues[0]!.message).toMatch(/did not return/i);
+        }
+      });
+    });
+
+    describe('source map stack trace resolution', () => {
+      it('should map stack trace to original source positions (single file)', async () => {
+        const code = [
+          "import {} from 'replicad';", // Line 1
+          '', // Line 2
+          'export const defaultParams = {};', // Line 3
+          '', // Line 4
+          'export default function main() {', // Line 5
+          '  return bla;', // Line 6 -- error here
+          '}', // Line 7
+        ].join('\n');
+
+        const result = await createGeometry({ 'main.ts': code }, 'main.ts');
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const issue = result.issues[0]!;
+          expect(issue.message).toMatch(/bla is not defined/i);
+          expect(issue.stackFrames).toBeDefined();
+
+          const mainFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('main'));
+          expect(mainFrame).toBeDefined();
+          // Source map should resolve to original file name, not blob/data UUID
+          expect(mainFrame!.fileName).toBe('main.ts');
+          // Source map should resolve to original line 6, not the post-banner offset (line 9)
+          expect(mainFrame!.lineNumber).toBe(6);
+        }
+      });
+
+      it('should map stack trace to correct file in multi-file project', async () => {
+        const result = await createGeometry(
+          {
+            'main.ts': [
+              "import { broken } from './lib/helper';",
+              "import {} from 'replicad';",
+              'export default function main() { return broken(); }',
+            ].join('\n'),
+            'lib/helper.ts': 'export function broken() { return bla; }',
+          },
+          'main.ts',
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const issue = result.issues[0]!;
+          expect(issue.message).toMatch(/bla is not defined/i);
+          expect(issue.stackFrames).toBeDefined();
+
+          // The error originates in helper.ts, so we should find that frame
+          const helperFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('broken'));
+          expect(helperFrame).toBeDefined();
+          expect(helperFrame!.fileName).toContain('helper.ts');
+        }
+      });
+
+      it('should not expose blob or data UUIDs in user stack frames', async () => {
+        const code = [
+          "import {} from 'replicad';", // Line 1
+          '', // Line 2
+          'export default function main() {', // Line 3
+          '  return bla;', // Line 4 -- error here
+          '}', // Line 5
+        ].join('\n');
+
+        const result = await createGeometry({ 'main.ts': code }, 'main.ts');
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const issue = result.issues[0]!;
+          expect(issue.stackFrames).toBeDefined();
+
+          const userFrames = issue.stackFrames!.filter((frame) => !frame.isInternal);
+          expect(userFrames.length).toBeGreaterThan(0);
+
+          for (const frame of userFrames) {
+            expect(frame.fileName).not.toMatch(/^blob:/);
+            expect(frame.fileName).not.toMatch(/^data:/);
+          }
         }
       });
     });

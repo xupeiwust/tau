@@ -13,6 +13,7 @@
 import * as esbuild from 'esbuild-wasm';
 import type { Plugin, BuildResult, BuildOptions, Message } from 'esbuild-wasm';
 import type { KernelFilesystem, KernelIssue } from '@taucad/types';
+import { base64ToString } from 'uint8array-extras';
 import type { BuiltinModule } from '#components/geometry/kernel/utils/module-manager.js';
 import { ModuleManager } from '#components/geometry/kernel/utils/module-manager.js';
 import { isBareSpecifier, parsePackageSpecifier, getCdnCachePath, resolveRelativePath } from '#utils/import.utils.js';
@@ -162,6 +163,24 @@ function addCommonJsExports(code: string, names: string[]): string {
   }
 
   return code;
+}
+
+/**
+ * Extract the inline source map JSON from bundled code.
+ *
+ * esbuild with `sourcemap: 'inline'` appends a base64-encoded source map
+ * as a data URL comment. This extracts and decodes it for programmatic use.
+ *
+ * @param code - Bundled code potentially containing an inline source map
+ * @returns Decoded source map JSON string, or undefined if not found
+ */
+function extractInlineSourceMap(code: string): string | undefined {
+  const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m.exec(code);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  return base64ToString(match[1]);
 }
 
 // =============================================================================
@@ -524,8 +543,10 @@ const module = { exports };
       // Get output
       if (result.outputFiles && result.outputFiles.length > 0) {
         const output = result.outputFiles[0]!;
+        const sourceMap = this.sourceMaps ? extractInlineSourceMap(output.text) : undefined;
         return {
           code: output.text,
+          sourceMap,
           issues,
           success: result.errors.length === 0,
         };

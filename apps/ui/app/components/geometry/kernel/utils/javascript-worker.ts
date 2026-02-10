@@ -19,6 +19,7 @@ import type {
   InitializeInput,
   KernelStackFrame,
 } from '@taucad/types';
+import { SourceMapConsumer } from 'source-map-js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { EsbuildBundler } from '#components/geometry/kernel/utils/esbuild-bundler.js';
 import type { BundleResult } from '#components/geometry/kernel/utils/esbuild-bundler.js';
@@ -78,6 +79,18 @@ export abstract class JavaScriptWorker<
    * Initialized during worker initialization.
    */
   private bundler: EsbuildBundler | undefined;
+
+  /**
+   * Source map JSON from the most recent bundle.
+   * Used to resolve stack trace positions back to original source files.
+   */
+  private lastSourceMap: string | undefined;
+
+  /**
+   * Entry filename from the most recent bundle (e.g., 'main.ts').
+   * Used as the `//# sourceURL` directive so DevTools shows a readable name.
+   */
+  private lastEntryName: string | undefined;
 
   /**
    * Constructor - initializes the built-in modules map.
@@ -188,7 +201,13 @@ export abstract class JavaScriptWorker<
    */
   protected async bundle(entryPath: string, runtime: KernelRuntime, projectPath: string): Promise<BundleResult> {
     const bundler = await this.getBundler(runtime.filesystem, projectPath);
-    return bundler.bundle(entryPath);
+    const bundleResult = await bundler.bundle(entryPath);
+
+    // Store source map and entry name for stack trace resolution
+    this.lastSourceMap = bundleResult.sourceMap;
+    this.lastEntryName = entryPath.split('/').pop();
+
+    return bundleResult;
   }
 
   /**
@@ -206,6 +225,11 @@ export abstract class JavaScriptWorker<
     // eslint-disable-next-line n/prefer-global/process, @typescript-eslint/no-unnecessary-condition -- process may be undefined in browser
     const isNodejs = typeof process !== 'undefined' && Boolean(process.versions?.node);
 
+    // Append sourceURL directive so DevTools shows a readable filename
+    // instead of a blob UUID or data URL hash
+    const sourceUrlSuffix = this.lastEntryName ? `\n//# sourceURL=${this.lastEntryName}` : '';
+    const codeWithSourceUrl = bundledCode + sourceUrlSuffix;
+
     try {
       let url: string;
       let shouldRevoke = false;
@@ -214,11 +238,11 @@ export abstract class JavaScriptWorker<
         // Node.js: Use data URL (blob URLs don't work with import() in Node.js)
         // eslint-disable-next-line @typescript-eslint/naming-convention -- class
         const { Buffer: NodeBuffer } = await import('node:buffer');
-        const base64Code = NodeBuffer.from(bundledCode).toString('base64');
+        const base64Code = NodeBuffer.from(codeWithSourceUrl).toString('base64');
         url = `data:application/javascript;base64,${base64Code}`;
       } else {
         // Browser: Use blob URL for better memory management
-        const blob = new Blob([bundledCode], { type: 'application/javascript' });
+        const blob = new Blob([codeWithSourceUrl], { type: 'application/javascript' });
         url = URL.createObjectURL(blob);
         shouldRevoke = true;
       }
@@ -444,7 +468,8 @@ export abstract class JavaScriptWorker<
       }
     }
 
-    return frames;
+    // Apply source map resolution to map generated positions back to original source
+    return this.applySourceMapToFrames(frames);
   }
 
   /**
@@ -490,10 +515,99 @@ export abstract class JavaScriptWorker<
   protected override async cleanup(): Promise<void> {
     this.bundler?.dispose();
     this.bundler = undefined;
+    this.lastSourceMap = undefined;
+    this.lastEntryName = undefined;
 
     // Clear global module registry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-dynamic-delete -- globalThis cleanup
     delete (globalThis as any)[kernelModulesKey];
+  }
+
+  /**
+   * Apply source map resolution to parsed stack frames.
+   *
+   * Maps generated (post-bundle) positions in blob:/data: URLs back to
+   * original source file paths and line/column numbers using the inline
+   * source map produced by esbuild.
+   *
+   * @param frames - Parsed stack frames with generated positions
+   * @returns Frames with resolved original positions where possible
+   */
+  private applySourceMapToFrames(frames: KernelStackFrame[]): KernelStackFrame[] {
+    if (!this.lastSourceMap) {
+      return frames;
+    }
+
+    try {
+      const rawMap: unknown = JSON.parse(this.lastSourceMap);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any -- source-map-js accepts parsed JSON
+      const consumer = new SourceMapConsumer(rawMap as any);
+
+      return frames.map((frame) => {
+        // Only map frames from the bundled code (blob: or data: URLs, or sourceURL name)
+        const name = frame.fileName ?? '';
+        const isBundledFrame = name.startsWith('blob:') || name.startsWith('data:') || name === this.lastEntryName;
+
+        if (!isBundledFrame) {
+          return frame;
+        }
+
+        if (!frame.lineNumber) {
+          return frame;
+        }
+
+        const original = consumer.originalPositionFor({
+          line: frame.lineNumber,
+          // Source-map uses 0-based columns
+          column: (frame.columnNumber ?? 1) - 1,
+        });
+
+        if (!original.source) {
+          return frame;
+        }
+
+        // Convert source path to project-relative path
+        const fileName = this.resolveSourcePath(original.source);
+
+        return {
+          ...frame,
+          fileName,
+          // Resolve to original positions; fall back to generated positions
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
+          lineNumber: original.line ?? frame.lineNumber,
+          // Back to 1-based column
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
+          columnNumber: (original.column ?? 0) + 1,
+          functionName: original.name ?? frame.functionName,
+          // Mapped user code is never internal
+          isInternal: false,
+        };
+      });
+    } catch {
+      // Fall back to unmapped frames on any error
+      return frames;
+    }
+  }
+
+  /**
+   * Resolve a source map path to a project-relative path.
+   *
+   * esbuild generates source paths relative to the project root in the
+   * zenfs namespace (e.g., `/builds/<id>/main.ts`). This strips the
+   * project prefix to produce a clean relative path like `main.ts`.
+   *
+   * @param sourcePath - Source path from the source map
+   * @returns Project-relative path
+   */
+  private resolveSourcePath(sourcePath: string): string {
+    const projectPath = this.bundler?.getProjectPath();
+    if (projectPath && sourcePath.startsWith(projectPath)) {
+      const relative = sourcePath.slice(projectPath.length);
+      return relative.startsWith('/') ? relative.slice(1) : relative;
+    }
+
+    // Fall back to basename
+    return sourcePath.split('/').pop() ?? sourcePath;
   }
 
   /**
