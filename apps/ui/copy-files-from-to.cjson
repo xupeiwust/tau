@@ -43,6 +43,13 @@
     {
       "from": "../../node_modules/@taucad/kcl-wasm-lib/kcl_wasm_lib_bg.wasm",
       "to": "app/components/geometry/kernel/zoo/wasm/kcl_wasm_lib_bg.wasm"
+    },
+    // esbuild WASM file for JavaScript kernel bundling
+    // Using universal pattern for Node.js and browser compatibility
+    // @see https://web.dev/articles/bundling-non-js-resources#universal_pattern_for_browsers_and_bundlers
+    {
+      "from": "../../node_modules/esbuild-wasm/esbuild.wasm",
+      "to": "app/components/geometry/kernel/utils/wasm/esbuild.wasm"
     }
   ],
   // Always overwrite files
