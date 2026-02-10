@@ -49,6 +49,9 @@ export class ChatRpcService implements OnModuleDestroy {
   /** Pending RPC requests by requestId */
   private readonly pendingRequests = new Map<string, PendingRequest>();
 
+  /** Track aborted chats to reject new RPCs after abort */
+  private readonly abortedChats = new Set<string>();
+
   /**
    * Register a Socket.IO connection for a chat room.
    * Multiple sockets can join the same room (e.g., multiple tabs).
@@ -124,6 +127,39 @@ export class ChatRpcService implements OnModuleDestroy {
   }
 
   /**
+   * Register an AbortSignal for a chat request. When the signal fires:
+   * 1. All pending RPC requests for this chat are immediately rejected
+   * 2. Any new sendRpcRequest calls for this chat return an error immediately
+   *
+   * This ensures that when the client disconnects or aborts a request,
+   * in-flight RPC calls are rejected promptly rather than waiting for
+   * the 60s timeout. The registration is automatically cleaned up
+   * after the signal fires.
+   *
+   * Zero tool changes needed — tools keep calling sendRpcRequest as before.
+   */
+  public registerAbortSignal(chatId: string, signal: AbortSignal): void {
+    if (signal.aborted) {
+      this.rejectPendingRequestsForChat(chatId, 'CLIENT_DISCONNECTED');
+      return;
+    }
+
+    const onAbort = (): void => {
+      this.abortedChats.add(chatId);
+      this.rejectPendingRequestsForChat(chatId, 'CLIENT_DISCONNECTED');
+      signal.removeEventListener('abort', onAbort);
+
+      // Clean up after a short delay to catch any stragglers
+      // (RPCs that start after abort fires but before LangGraph fully stops)
+      setTimeout(() => {
+        this.abortedChats.delete(chatId);
+      }, 5000);
+    };
+
+    signal.addEventListener('abort', onAbort);
+  }
+
+  /**
    * Clean up all pending requests and timeouts on module destroy.
    * Called during graceful shutdown to prevent timeouts from running
    * and potentially accessing destroyed resources.
@@ -173,6 +209,16 @@ export class ChatRpcService implements OnModuleDestroy {
     rpcName: T,
     args: RpcInput<T>,
   ): Promise<RpcResult<T> | RpcExecutionError | RpcValidationError> {
+    // Reject immediately if this chat's request was already aborted
+    if (this.abortedChats.has(chatId)) {
+      const abortedError: RpcExecutionError = {
+        errorCode: 'CLIENT_DISCONNECTED',
+        message: 'Chat request was cancelled.',
+        rpcName,
+      };
+      return abortedError;
+    }
+
     const socketSet = this.connections.get(chatId);
 
     // Find the first connected socket from the set
