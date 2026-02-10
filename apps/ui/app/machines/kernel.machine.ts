@@ -219,7 +219,7 @@ const createWorkersActor = fromPromise<
         proxy({ onLog }),
         transfer({ fileManagerPort: replicadPort }, [replicadPort]),
         {
-          withExceptions: false,
+          withExceptions: true,
           meshConfiguration: { linearTolerance: 0.1, angularTolerance: 0.1 },
         },
       ),
