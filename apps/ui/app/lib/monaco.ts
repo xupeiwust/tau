@@ -5,10 +5,17 @@ import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 import { registerCompletion } from 'monacopilot';
 import type { CompletionRegistration, CompletionCopilot } from 'monacopilot';
 import type * as Monaco from 'monaco-editor';
-import { replicadTypesOriginal } from '@taucad/api-extractor';
 import { ENV } from '#environment.config.js';
-import { registerOpenScadLanguage } from '#lib/openscad-language/openscad-register-language.js';
-import { registerKclLanguage } from '#lib/kcl-language/kcl-register-language.js';
+import { registry } from '#lib/monaco-language-registry.js';
+import { monacoLanguages } from '#lib/monaco.constants.js';
+import { kclContribution } from '#lib/kcl-language/kcl-register-language.js';
+import { openscadContribution } from '#lib/openscad-language/openscad-register-language.js';
+import { jsTsContribution } from '#lib/javascript-contribution.js';
+
+// Register contributions at module load (idempotent -- safe under HMR)
+registry.addContribution(kclContribution);
+registry.addContribution(openscadContribution);
+registry.addContribution(jsTsContribution);
 
 /**
  * Configure the Monaco editor.
@@ -49,82 +56,63 @@ export const configureMonaco = async (): Promise<void> => {
     await import('monaco-editor/esm/vs/language/json/monaco.contribution.js');
     await import('monaco-editor/esm/vs/language/typescript/monaco.contribution.js');
 
-    registerOpenScadLanguage(monaco);
-    registerKclLanguage(monaco);
+    // Phase 1: Register language metadata for all contributions (idempotent)
+    registry.registerAll(monaco);
   }
 };
 
 /**
- * Register completions for the Monaco editor.
+ * Register completions for all supported Monaco languages.
+ *
+ * One completion provider is registered per language defined in
+ * {@link monacoLanguages}. The returned {@link CompletionRegistration}
+ * aggregates every individual registration so the caller can
+ * deregister, trigger, or update options for all of them at once.
  *
  * @param editor - The editor instance.
  * @param monaco - The Monaco instance.
- * @returns The completion registration.
+ * @returns A combined completion registration for all languages.
  */
 export const registerCompletions = (
   editor: Monaco.editor.IStandaloneCodeEditor,
   monaco: typeof Monaco,
 ): CompletionRegistration => {
-  return registerCompletion(monaco, editor, {
-    endpoint: `${ENV.TAU_API_URL}/v1/code-completion`,
-    language: 'typescript',
-    trigger: 'onTyping',
-    async requestHandler(request) {
-      const response = await fetch(`${ENV.TAU_API_URL}/v1/code-completion`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request.body),
-        credentials: 'include',
-      });
-      const data = (await response.json()) as Awaited<ReturnType<CompletionCopilot['complete']>>;
+  const registrations: CompletionRegistration[] = Object.values(monacoLanguages).map((language) =>
+    registerCompletion(monaco, editor, {
+      endpoint: `${ENV.TAU_API_URL}/v1/code-completion`,
+      language,
+      trigger: 'onTyping',
+      async requestHandler(request) {
+        const response = await fetch(`${ENV.TAU_API_URL}/v1/code-completion`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(request.body),
+          credentials: 'include',
+        });
+        const data = (await response.json()) as Awaited<ReturnType<CompletionCopilot['complete']>>;
 
-      return data;
-    },
-  });
-};
+        return data;
+      },
+    }),
+  );
 
-export const registerMonaco = async (monaco: typeof Monaco): Promise<void> => {
-  monaco.typescript.typescriptDefaults.setCompilerOptions({
-    experimentalDecorators: true,
-    allowSyntheticDefaultImports: true,
-    moduleResolution: monaco.typescript.ModuleResolutionKind.NodeJs,
-    target: monaco.typescript.ScriptTarget.ESNext,
-    noLib: false,
-    allowNonTsExtensions: true,
-    noEmit: true,
-    baseUrl: './',
-  });
-  monaco.typescript.typescriptDefaults.setEagerModelSync(true);
-  monaco.typescript.typescriptDefaults.setExtraLibs([
-    {
-      content: `declare module 'replicad' { ${replicadTypesOriginal} }`,
-      filePath: 'file:///node_modules/replicad/index.d.ts',
+  return {
+    trigger() {
+      for (const registration of registrations) {
+        registration.trigger();
+      }
     },
-    {
-      content: `declare module '@jscad/modeling' { ${replicadTypesOriginal} }`,
-      filePath: 'file:///node_modules/@jscad/modeling/index.d.ts',
+    deregister() {
+      for (const registration of registrations) {
+        registration.deregister();
+      }
     },
-    {
-      content: `
-    import * as replicadAll from 'replicad';
-    declare global {
-    declare var replicad = replicadAll;
-    }
-  `,
+    updateOptions(callback) {
+      for (const registration of registrations) {
+        registration.updateOptions(callback);
+      }
     },
-    //   {
-    //     content: `declare module 'zod' { ${zodTypes} }`,
-    //     filePath: 'file:///node_modules/zod/index.d.ts',
-    //   },
-    //   {
-    //     content: `
-    //   import {z as zAll} from 'zod';
-    //   declare global {
-    //   declare var z = zAll;
-    //   }
-    // `,
-    //   },
-  ]);
+  };
 };
