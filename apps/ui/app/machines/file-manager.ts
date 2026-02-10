@@ -12,7 +12,7 @@ const fsp = fs.promises;
  * This is awaited at the start of every fileManager method to guarantee
  * the ZenFS backend is initialized before any filesystem operations.
  */
-const ensureReady = async (): Promise<void> => ensureFilesystemConfigured('opfs');
+const ensureReady = async (): Promise<void> => ensureFilesystemConfigured('indexeddb');
 
 export type MkdirOptions = {
   mode?: number;
@@ -222,7 +222,8 @@ export const fileManager: FileManager = {
 
         if (stats.isFile()) {
           // Store relative path from the base directory
-          const relativePath = fullPath.slice(basePath.length + 1);
+          // Handle root path edge case: when basePath is '/', we only need to remove the leading slash
+          const relativePath = basePath === '/' ? fullPath.slice(1) : fullPath.slice(basePath.length + 1);
           // Extract filename from relative path (get the last segment)
           const pathSegments = relativePath.split('/');
           const filename = pathSegments.at(-1) ?? relativePath;

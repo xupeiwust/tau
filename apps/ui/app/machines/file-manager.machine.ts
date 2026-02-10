@@ -7,14 +7,7 @@ import FileManagerWorker from '#machines/file-manager.worker.js?worker';
 import type { FileManager as FileWorker } from '#machines/file-manager.js';
 import { assertActorDoneEvent } from '#lib/xstate.js';
 import { normalizePath, joinPath } from '#utils/path.utils.js';
-
-/**
- * The source of the file write operation.
- * - 'editor': Write originated from user typing in the Monaco editor (special case for recursion prevention)
- * - 'user': Write originated from user action (create file, upload, etc.)
- * - 'machine': Write originated from machine/programmatic source (e.g., chat AI)
- */
-type FileWriteSource = 'editor' | 'user' | 'machine';
+import type { FileWriteSource, FileManagerEmitted } from '#machines/file-manager.machine.types.js';
 
 /**
  * Context for the file manager machine.
@@ -136,13 +129,6 @@ type FileManagerInput = {
   rootDirectory: string;
   shouldInitializeOnStart?: boolean;
 };
-
-// Emitted events for UI consumers (toasts, Monaco updates, etc.)
-type FileManagerEmitted =
-  | { type: 'fileWritten'; path: string; data: Uint8Array<ArrayBuffer>; source: FileWriteSource }
-  | { type: 'fileRead'; path: string; data: Uint8Array<ArrayBuffer> }
-  | { type: 'fileRenamed'; oldPath: string; newPath: string }
-  | { type: 'fileDeleted'; path: string; source: FileWriteSource };
 
 /**
  * File Manager Machine (Lifecycle-Only Pattern with Background Refresh)
@@ -528,4 +514,3 @@ export const fileManagerMachine = setup({
 });
 
 export type FileManagerMachine = typeof fileManagerMachine;
-export type { FileManagerEmitted, FileWriteSource };
