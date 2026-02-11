@@ -18,6 +18,8 @@ import type {
   KernelRuntime,
   InitializeInput,
   KernelStackFrame,
+  ErrorLocation,
+  FrameContext,
 } from '@taucad/types';
 import { SourceMapConsumer } from 'source-map-js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
@@ -91,6 +93,13 @@ export abstract class JavaScriptWorker<
    * Used as the `//# sourceURL` directive so DevTools shows a readable name.
    */
   private lastEntryName: string | undefined;
+
+  /**
+   * Cache of parsed SourceMapConsumer instances for library source maps.
+   * Keyed by module name (e.g., 'replicad'). A value of `undefined` means
+   * the source map was attempted but unavailable.
+   */
+  private readonly librarySourceMapCache = new Map<string, SourceMapConsumer | undefined>();
 
   /**
    * Constructor - initializes the built-in modules map.
@@ -260,14 +269,7 @@ export abstract class JavaScriptWorker<
     } catch (error) {
       return {
         success: false,
-        issues: [
-          {
-            message: error instanceof Error ? error.message : String(error),
-            type: 'runtime',
-            severity: 'error',
-            stackFrames: this.parseStackTrace(error),
-          },
-        ],
+        issues: [await this.formatRuntimeError(error)],
       };
     }
   }
@@ -284,6 +286,25 @@ export abstract class JavaScriptWorker<
     // Return the first registered module
     const first = registry.values().next();
     return first.done ? undefined : first.value;
+  }
+
+  /**
+   * Format a runtime error into a KernelIssue.
+   * Subclasses may override to handle kernel-specific error types (e.g., OpenCASCADE numeric exceptions).
+   *
+   * @param error - The error thrown during main function execution
+   * @returns A KernelIssue for the error
+   */
+  protected async formatRuntimeError(error: unknown): Promise<KernelIssue> {
+    const stackFrames = await this.applyLibrarySourceMaps(this.parseStackTrace(error));
+    const location = this.deriveLocationFromFrames(stackFrames);
+    return {
+      message: error instanceof Error ? error.message : String(error),
+      location,
+      type: 'runtime',
+      severity: 'error',
+      stackFrames,
+    };
   }
 
   /**
@@ -329,34 +350,11 @@ export abstract class JavaScriptWorker<
         ? await mainFunction(this.getCommonJsInjectedModule(), parameters)
         : await mainFunction(parameters);
 
-      // Validate that main() returned something -- a missing return statement
-      // is a common mistake and causes cryptic errors downstream
-      // eslint-disable-next-line eqeqeq, no-eq-null -- intentional loose equality to catch both null and undefined
-      if (result == null) {
-        return {
-          success: false,
-          issues: [
-            {
-              message: 'The main function did not return a value. Did you forget a return statement?',
-              type: 'runtime',
-              severity: 'error',
-            },
-          ],
-        };
-      }
-
       return { success: true, value: result as T };
     } catch (error) {
       return {
         success: false,
-        issues: [
-          {
-            message: error instanceof Error ? error.message : String(error),
-            type: 'runtime',
-            severity: 'error',
-            stackFrames: this.parseStackTrace(error),
-          },
-        ],
+        issues: [await this.formatRuntimeError(error)],
       };
     }
   }
@@ -408,7 +406,7 @@ export abstract class JavaScriptWorker<
       stackFrames = this.parseStackTrace(error);
 
       // Find the first user frame for location
-      const userFrame = stackFrames.find((frame) => !frame.isInternal) ?? stackFrames[0];
+      const userFrame = stackFrames.find((frame) => frame.context === 'user') ?? stackFrames[0];
       startLineNumber = userFrame?.lineNumber ?? 0;
       startColumn = userFrame?.columnNumber ?? 0;
     } else if (typeof error === 'string') {
@@ -461,7 +459,7 @@ export abstract class JavaScriptWorker<
           fileName: fileName ?? '',
           lineNumber: Number.parseInt(lineNumber ?? '0', 10),
           columnNumber: Number.parseInt(columnNumber ?? '0', 10),
-          isInternal: this.isInternalFrame(fileName ?? '', projectPath),
+          context: this.classifyFrame(fileName ?? '', projectPath),
         };
 
         frames.push(frame);
@@ -473,39 +471,114 @@ export abstract class JavaScriptWorker<
   }
 
   /**
-   * Classify a stack frame as internal or user code.
+   * Get patterns for identifying library frames.
+   * Override in subclasses to register kernel-specific libraries.
    *
-   * User code runs in `blob:` URLs (bundled code executed in the VM).
-   * Everything else (platform kernel code, node_modules, data URIs)
-   * is classified as internal/platform frames.
+   * Each entry maps a path pattern to a module name. The module name
+   * is used to look up the library's source map in `builtinModules`.
+   *
+   * @returns Array of `{ pattern, moduleName }` entries
+   */
+  protected getLibraryPathPatterns(): Array<{ pattern: string; moduleName: string }> {
+    return [];
+  }
+
+  /**
+   * Classify a stack frame's origin.
+   *
+   * - `user` -- developer's project code (blob: URLs after bundling)
+   * - `library` -- third-party CAD libraries the user imported (replicad, @jscad/modeling)
+   * - `framework` -- kernel worker infrastructure (Proxy traps, bundler, kernel code)
+   * - `runtime` -- V8/Emscripten/WASM boundary frames, `node:` internals, native code
    *
    * @param fileName - The file name from the stack frame
    * @param projectPath - Project path for comparison
-   * @returns True if this is an internal frame
+   * @returns The frame's context classification
    */
-  protected isInternalFrame(fileName: string, projectPath?: string): boolean {
-    // Blob: URLs are where user's bundled code runs -- always user code
+  protected classifyFrame(fileName: string, projectPath?: string): FrameContext {
+    // 1. Blob URLs are bundled user code
     if (fileName.startsWith('blob:')) {
-      return false;
+      return 'user';
     }
 
-    // Known internal patterns
-    if (
-      fileName.includes('/node_modules/') ||
-      fileName.startsWith('data:') ||
-      fileName.startsWith('node:') ||
-      fileName.startsWith('<') ||
-      fileName.includes('/kernel/')
-    ) {
-      return true;
+    // 2. Check library patterns BEFORE generic node_modules check
+    const libraryPatterns = this.getLibraryPathPatterns();
+    if (libraryPatterns.some((lib) => fileName.includes(lib.pattern))) {
+      return 'library';
     }
 
-    // If we have a project path, anything outside it is internal
+    // 3. Runtime: engine and native frames
+    if (fileName.startsWith('node:') || fileName.startsWith('<') || fileName.startsWith('wasm:')) {
+      return 'runtime';
+    }
+
+    // 4. Framework: our infrastructure
+    if (fileName.includes('/node_modules/') || fileName.startsWith('data:') || fileName.includes('/kernel/')) {
+      return 'framework';
+    }
+
+    // 5. Outside project path = framework
     if (projectPath && !fileName.startsWith(projectPath)) {
-      return true;
+      return 'framework';
     }
 
-    return false;
+    return 'user';
+  }
+
+  /**
+   * Load the source map JSON string for a library module.
+   * Override in subclasses to provide library-specific source maps.
+   * Called once per module on first error with library frames; result is cached.
+   *
+   * @param _moduleName - The library module name (e.g., 'replicad')
+   * @returns The source map JSON string, or undefined if unavailable
+   */
+  protected async loadLibrarySourceMap(_moduleName: string): Promise<string | undefined> {
+    return undefined;
+  }
+
+  /**
+   * Derive an ErrorLocation from the first non-internal stack frame.
+   * Returns undefined if no user-code frame with a valid position exists.
+   *
+   * @param frames - Parsed (and source-mapped) stack frames
+   * @returns ErrorLocation for the first user frame, or undefined
+   */
+  protected deriveLocationFromFrames(frames: KernelStackFrame[]): ErrorLocation | undefined {
+    const userFrame = frames.find((frame) => frame.context === 'user');
+    if (!userFrame?.fileName || !userFrame.lineNumber) {
+      return undefined;
+    }
+
+    //
+    const startLineNumber = userFrame.lineNumber;
+    let startColumn = userFrame.columnNumber ?? 1;
+    let endColumn: number | undefined;
+
+    // Use the source map's own mapping data to compute the expression extent.
+    // Each mapping segment represents a token/expression boundary as determined
+    // by the bundler (esbuild). By collecting all mapped columns on the error's
+    // original line, we can determine how far the expression spans without
+    // any string parsing or heuristic expression matching.
+    if (this.lastSourceMap) {
+      try {
+        const extent = this.computeExpressionExtentFromSourceMap(userFrame.fileName, startLineNumber, startColumn);
+        if (extent) {
+          startColumn = extent.startColumn;
+          endColumn = extent.endColumn;
+        }
+      } catch {
+        // Fall through with no endColumn on source map errors
+      }
+    }
+
+    return {
+      fileName: userFrame.fileName,
+      startLineNumber,
+      startColumn,
+      endLineNumber: endColumn === undefined ? undefined : startLineNumber,
+      endColumn,
+    };
   }
 
   /**
@@ -517,10 +590,80 @@ export abstract class JavaScriptWorker<
     this.bundler = undefined;
     this.lastSourceMap = undefined;
     this.lastEntryName = undefined;
+    this.librarySourceMapCache.clear();
 
     // Clear global module registry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-dynamic-delete -- globalThis cleanup
     delete (globalThis as any)[kernelModulesKey];
+  }
+
+  /**
+   * Apply library source maps to resolve library frames to original TS positions.
+   *
+   * For frames with `context: 'library'`, looks up the library's source map
+   * (loaded lazily and cached) and resolves the compiled JS position back to
+   * the original TypeScript source file and line number.
+   *
+   * Falls back gracefully: if the source map is unavailable or has no mapping
+   * for a given position, the frame is returned unchanged.
+   *
+   * @param frames - Stack frames (after bundle source map resolution)
+   * @returns Frames with library positions resolved where possible
+   */
+  protected async applyLibrarySourceMaps(frames: KernelStackFrame[]): Promise<KernelStackFrame[]> {
+    const libraryPatterns = this.getLibraryPathPatterns();
+    if (libraryPatterns.length === 0) {
+      return frames;
+    }
+
+    return Promise.all(
+      frames.map(async (frame) => {
+        if (frame.context !== 'library' || !frame.fileName || !frame.lineNumber) {
+          return frame;
+        }
+
+        // Find which library this frame belongs to
+        const lib = libraryPatterns.find((l) => frame.fileName!.includes(l.pattern));
+        if (!lib) {
+          return frame;
+        }
+
+        // Try source map chaining: resolve compiled JS positions -> original TS positions.
+        // This is needed in browsers where Error.stack contains raw compiled paths.
+        const consumer = await this.getLibrarySourceMapConsumer(lib.moduleName);
+        if (consumer) {
+          try {
+            const original = consumer.originalPositionFor({
+              line: frame.lineNumber,
+              column: (frame.columnNumber ?? 1) - 1,
+            });
+
+            if (original.source) {
+              // Source map chaining succeeded (browser path)
+              return {
+                ...frame,
+                fileName: this.resolveLibrarySourcePath(lib.moduleName, original.source),
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
+                lineNumber: original.line ?? frame.lineNumber,
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
+                columnNumber: (original.column ?? 0) + 1,
+                functionName: original.name ?? frame.functionName,
+              };
+            }
+          } catch {
+            // Fall through to path normalization
+          }
+        }
+
+        // No source map or no mapping found. The frame may already have a resolved
+        // TS path (V8/Node.js applies source maps to Error.stack automatically).
+        // Just normalize the existing fileName to a clean display path.
+        return {
+          ...frame,
+          fileName: this.resolveLibrarySourcePath(lib.moduleName, frame.fileName),
+        };
+      }),
+    );
   }
 
   /**
@@ -579,14 +722,83 @@ export abstract class JavaScriptWorker<
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
           columnNumber: (original.column ?? 0) + 1,
           functionName: original.name ?? frame.functionName,
-          // Mapped user code is never internal
-          isInternal: false,
+          // Mapped user code from the bundle is always user code
+          context: 'user',
         };
       });
     } catch {
       // Fall back to unmapped frames on any error
       return frames;
     }
+  }
+
+  /**
+   * Get or create a cached SourceMapConsumer for a library module.
+   * Returns undefined if the source map is unavailable.
+   */
+  private async getLibrarySourceMapConsumer(moduleName: string): Promise<SourceMapConsumer | undefined> {
+    if (this.librarySourceMapCache.has(moduleName)) {
+      return this.librarySourceMapCache.get(moduleName);
+    }
+
+    try {
+      const sourceMapJson = await this.loadLibrarySourceMap(moduleName);
+      if (!sourceMapJson) {
+        this.librarySourceMapCache.set(moduleName, undefined);
+        return undefined;
+      }
+
+      const rawMap: unknown = JSON.parse(sourceMapJson);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any -- source-map-js accepts parsed JSON
+      const consumer = new SourceMapConsumer(rawMap as any);
+      this.librarySourceMapCache.set(moduleName, consumer);
+      return consumer;
+    } catch {
+      this.librarySourceMapCache.set(moduleName, undefined);
+      return undefined;
+    }
+  }
+
+  /**
+   * Resolve a library source map path to a clean display path.
+   *
+   * Library source maps use relative paths like `../src/sketches/Sketch.ts`.
+   * This normalizes them to `{moduleName}/src/sketches/Sketch.ts`.
+   *
+   * @param moduleName - The library module name (e.g., 'replicad')
+   * @param rawSource - The raw source path from the source map
+   * @returns Normalized display path
+   */
+  private resolveLibrarySourcePath(moduleName: string, rawSource: string): string {
+    let clean = rawSource;
+
+    // Strip file:// protocol prefix
+    if (clean.startsWith('file://')) {
+      clean = clean.slice(7);
+    }
+
+    // If the path contains a node_modules segment, extract everything after the package root.
+    // e.g., "/path/to/node_modules/replicad/src/sketches/Sketch.ts" -> "src/sketches/Sketch.ts"
+    const nodeModulesPattern = `node_modules/${moduleName}/`;
+    const nodeModulesIndex = clean.indexOf(nodeModulesPattern);
+    if (nodeModulesIndex === -1) {
+      // Fall back: strip leading '../' and './' segments
+      while (clean.startsWith('../')) {
+        clean = clean.slice(3);
+      }
+
+      while (clean.startsWith('./')) {
+        clean = clean.slice(2);
+      }
+    } else {
+      clean = clean.slice(nodeModulesIndex + nodeModulesPattern.length);
+    }
+
+    // Normalize separators
+    clean = clean.replaceAll('\\', '/').replaceAll(/\/+/g, '/');
+
+    // Prefix with module name
+    return `${moduleName}/${clean}`;
   }
 
   /**
@@ -619,6 +831,85 @@ export abstract class JavaScriptWorker<
 
     // Fall back to basename for unknown absolute paths
     return cleanPath.split('/').pop() ?? cleanPath;
+  }
+
+  /**
+   * Compute the expression extent (start/end columns) from source map mapping data.
+   *
+   * Uses the bundler's own mapping segments to determine how far the expression
+   * spans on the original line. Each mapping segment represents a token boundary
+   * as determined by esbuild, so this is compiler-driven rather than string-based.
+   *
+   * Also extends startColumn backward to include a leading '.' for method calls
+   * (e.g., `.extrude(0)`) by checking the embedded source content.
+   *
+   * @param fileName - Resolved source file name (e.g., 'main.ts')
+   * @param lineNumber - 1-based line number in original source
+   * @param startColumn - 1-based column from the stack frame
+   * @returns Adjusted startColumn and endColumn, or undefined
+   */
+  private computeExpressionExtentFromSourceMap(
+    fileName: string,
+    lineNumber: number,
+    startColumn: number,
+  ): { startColumn: number; endColumn: number } | undefined {
+    const rawMap: unknown = JSON.parse(this.lastSourceMap!);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any -- source-map-js accepts parsed JSON
+    const consumer = new SourceMapConsumer(rawMap as any);
+
+    // Find the raw source name (e.g., 'zenfs:main.ts') matching the resolved fileName
+    let sourceName: string | undefined;
+    for (const source of consumer.sources) {
+      if (this.resolveSourcePath(source) === fileName) {
+        sourceName = source;
+        break;
+      }
+    }
+
+    if (!sourceName) {
+      return undefined;
+    }
+
+    let adjustedStartColumn = startColumn;
+
+    // Extend startColumn backward to include leading '.' (method call syntax)
+    // by checking the embedded source content in the source map.
+    const sourceContent = consumer.sourceContentFor(sourceName) ?? undefined;
+    if (sourceContent) {
+      const lines = sourceContent.split('\n');
+      const line = lines[lineNumber - 1];
+      if (line && startColumn > 1 && line[startColumn - 2] === '.') {
+        adjustedStartColumn = startColumn - 1;
+      }
+    }
+
+    // Collect all original columns that the bundler mapped on this source line.
+    // These represent token/expression boundaries in the compiled output.
+    const columnsOnLine: number[] = [];
+    consumer.eachMapping((mapping) => {
+      if (mapping.source === sourceName && mapping.originalLine === lineNumber && mapping.originalColumn !== null) {
+        columnsOnLine.push(mapping.originalColumn); // 0-based
+      }
+    });
+
+    if (columnsOnLine.length === 0) {
+      return undefined;
+    }
+
+    // Find the last mapped column at or after our start position.
+    // This is the furthest point in the expression that the bundler tracked.
+    const start0 = adjustedStartColumn - 1; // Convert to 0-based
+    const lastMappedColumn = columnsOnLine
+      .filter((col) => col >= start0)
+      .sort((a, b) => a - b)
+      .pop();
+
+    if (lastMappedColumn === undefined) {
+      return undefined;
+    }
+
+    // Convert to 1-based exclusive endColumn: +1 for the character at the position, +1 for 1-based
+    return { startColumn: adjustedStartColumn, endColumn: lastMappedColumn + 2 };
   }
 
   /**

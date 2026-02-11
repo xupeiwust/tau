@@ -15,6 +15,8 @@ import {
   getNodeModulesPath,
   isBareSpecifier,
   extractPackageFromCdnUrl,
+  extractPackageInfoFromCdnUrl,
+  isEsmShUrl,
 } from '#utils/import.utils.js';
 
 describe('Module Manager', () => {
@@ -74,7 +76,9 @@ describe('Module Manager', () => {
 
   describe('extractPackageFromCdnUrl', () => {
     it('should extract package name from jsdelivr URLs', () => {
-      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/replicad-decorate/dist/studio/replicad-decorate.js')).toBe('replicad-decorate');
+      expect(
+        extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/replicad-decorate/dist/studio/replicad-decorate.js'),
+      ).toBe('replicad-decorate');
       expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/lodash')).toBe('lodash');
       expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/lodash@4.17.21')).toBe('lodash');
     });
@@ -96,10 +100,29 @@ describe('Module Manager', () => {
       expect(extractPackageFromCdnUrl('https://esm.run/lodash')).toBe('lodash');
     });
 
+    it('should extract package name from Skypack lookup URLs', () => {
+      expect(extractPackageFromCdnUrl('https://cdn.skypack.dev/qrcode-generator@2.0.4')).toBe('qrcode-generator');
+      expect(extractPackageFromCdnUrl('https://cdn.skypack.dev/react')).toBe('react');
+    });
+
+    it('should extract package name from Skypack pinned URLs', () => {
+      expect(extractPackageFromCdnUrl('https://cdn.skypack.dev/pin/react@v16.13.1-zjOHmKoBShdi3wIQWY2z/react.js')).toBe(
+        'react',
+      );
+      expect(
+        extractPackageFromCdnUrl(
+          'https://cdn.skypack.dev/pin/preact@v10.19.3-VLh4KNKC08lfhYfF3qms/dist=es2019,mode=imports/optimized/preact.js',
+        ),
+      ).toBe('preact');
+    });
+
     it('should handle scoped packages in CDN URLs', () => {
-      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/@scope/pkg@1.0.0/dist/index.js')).toBe('@scope/pkg');
+      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/@scope/pkg@1.0.0/dist/index.js')).toBe(
+        '@scope/pkg',
+      );
       expect(extractPackageFromCdnUrl('https://esm.sh/@jscad/modeling')).toBe('@jscad/modeling');
       expect(extractPackageFromCdnUrl('https://unpkg.com/@scope/pkg')).toBe('@scope/pkg');
+      expect(extractPackageFromCdnUrl('https://cdn.skypack.dev/@scope/pkg@1.0.0')).toBe('@scope/pkg');
     });
 
     it('should return undefined for non-CDN URLs', () => {
@@ -111,6 +134,50 @@ describe('Module Manager', () => {
       expect(extractPackageFromCdnUrl('lodash')).toBeUndefined();
       expect(extractPackageFromCdnUrl('./utils.ts')).toBeUndefined();
       expect(extractPackageFromCdnUrl('')).toBeUndefined();
+    });
+  });
+
+  describe('extractPackageInfoFromCdnUrl', () => {
+    it('should extract full package info from Skypack URLs', () => {
+      expect(extractPackageInfoFromCdnUrl('https://cdn.skypack.dev/qrcode-generator@2.0.4')).toEqual({
+        name: 'qrcode-generator',
+        version: '2.0.4',
+        path: '',
+      });
+    });
+
+    it('should extract full package info from esm.sh URLs', () => {
+      expect(extractPackageInfoFromCdnUrl('https://esm.sh/lodash@4.17.21')).toEqual({
+        name: 'lodash',
+        version: '4.17.21',
+        path: '',
+      });
+    });
+
+    it('should extract full package info from jsdelivr URLs', () => {
+      expect(
+        extractPackageInfoFromCdnUrl('https://cdn.jsdelivr.net/npm/replicad-decorate/dist/studio/replicad-decorate.js'),
+      ).toEqual({
+        name: 'replicad-decorate',
+        version: '',
+        path: 'dist/studio/replicad-decorate.js',
+      });
+    });
+
+    it('should return undefined for non-CDN URLs', () => {
+      expect(extractPackageInfoFromCdnUrl('https://example.com/module.js')).toBeUndefined();
+    });
+  });
+
+  describe('isEsmShUrl', () => {
+    it('should return true for esm.sh URLs', () => {
+      expect(isEsmShUrl('https://esm.sh/lodash@4.17.21')).toBe(true);
+      expect(isEsmShUrl('https://esm.sh/v135/lodash@4.17.21/index.d.ts')).toBe(true);
+    });
+
+    it('should return false for non-esm.sh URLs', () => {
+      expect(isEsmShUrl('https://cdn.jsdelivr.net/npm/lodash')).toBe(false);
+      expect(isEsmShUrl('https://cdn.skypack.dev/react')).toBe(false);
     });
   });
 
@@ -145,28 +212,52 @@ describe('Module Manager', () => {
 });
 
 describe('Stack Frame Classification', () => {
-  it('should mark node_modules frames as internal', () => {
-    const fileName = '/builds/project/node_modules/replicad/index.js';
-    const isInternal = fileName.includes('/node_modules/');
-    expect(isInternal).toBe(true);
+  it('should classify node_modules frames as framework', () => {
+    const fileName = '/builds/project/node_modules/some-lib/index.js';
+    // Node_modules without a library pattern match -> framework
+    const isFramework = fileName.includes('/node_modules/');
+    expect(isFramework).toBe(true);
   });
 
-  it('should mark data: URLs as internal', () => {
+  it('should classify data: URLs as framework', () => {
     const fileName = 'data:text/javascript;base64,abc123';
-    const isInternal = fileName.startsWith('data:');
-    expect(isInternal).toBe(true);
+    const isFramework = fileName.startsWith('data:');
+    expect(isFramework).toBe(true);
   });
 
-  it('should mark blob: URLs as internal', () => {
+  it('should classify blob: URLs as user code', () => {
     const fileName = 'blob:https://example.com/abc123';
-    const isInternal = fileName.startsWith('blob:');
-    expect(isInternal).toBe(true);
+    // Blob: URLs are where user's bundled code runs -> user
+    const isUser = fileName.startsWith('blob:');
+    expect(isUser).toBe(true);
   });
 
-  it('should not mark user files as internal', () => {
+  it('should classify regular files as user code', () => {
     const fileName = '/builds/project/main.ts';
-    const isInternal =
-      fileName.includes('/node_modules/') || fileName.startsWith('data:') || fileName.startsWith('blob:');
-    expect(isInternal).toBe(false);
+    const isKnownInternal =
+      fileName.includes('/node_modules/') ||
+      fileName.startsWith('data:') ||
+      fileName.startsWith('node:') ||
+      fileName.startsWith('<') ||
+      fileName.includes('/kernel/');
+    expect(isKnownInternal).toBe(false);
+  });
+
+  it('should classify node: URLs as runtime', () => {
+    const fileName = 'node:fs';
+    const isRuntime = fileName.startsWith('node:');
+    expect(isRuntime).toBe(true);
+  });
+
+  it('should classify anonymous frames as runtime', () => {
+    const fileName = '<anonymous>';
+    const isRuntime = fileName.startsWith('<');
+    expect(isRuntime).toBe(true);
+  });
+
+  it('should classify kernel paths as framework', () => {
+    const fileName = '/builds/project/kernel/worker.js';
+    const isFramework = fileName.includes('/kernel/');
+    expect(isFramework).toBe(true);
   });
 });
