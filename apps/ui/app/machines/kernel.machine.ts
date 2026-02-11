@@ -91,7 +91,7 @@ const determineWorkerActor = fromPromise<
         message: `No kernel can handle file: ${event.file.filename}`,
         location: { fileName: event.file.filename, startLineNumber: 1, startColumn: 1 },
         type: 'runtime',
-        severity: 'error' as const,
+        severity: 'warning' as const,
       },
     ],
   };
