@@ -14,6 +14,7 @@ import {
   resolveRelativePath,
   getNodeModulesPath,
   isBareSpecifier,
+  extractPackageFromCdnUrl,
 } from '#utils/import.utils.js';
 
 describe('Module Manager', () => {
@@ -68,6 +69,48 @@ describe('Module Manager', () => {
     it('should return false for URL imports', () => {
       expect(isBareSpecifier('https://cdn.jsdelivr.net/npm/lodash')).toBe(false);
       expect(isBareSpecifier('http://example.com/module.js')).toBe(false);
+    });
+  });
+
+  describe('extractPackageFromCdnUrl', () => {
+    it('should extract package name from jsdelivr URLs', () => {
+      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/replicad-decorate/dist/studio/replicad-decorate.js')).toBe('replicad-decorate');
+      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/lodash')).toBe('lodash');
+      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/lodash@4.17.21')).toBe('lodash');
+    });
+
+    it('should extract package name from esm.sh URLs', () => {
+      expect(extractPackageFromCdnUrl('https://esm.sh/lodash')).toBe('lodash');
+      expect(extractPackageFromCdnUrl('https://esm.sh/lodash@4.17.21')).toBe('lodash');
+    });
+
+    it('should handle esm.sh version prefix', () => {
+      expect(extractPackageFromCdnUrl('https://esm.sh/v135/lodash@4.17.21/index.d.ts')).toBe('lodash');
+    });
+
+    it('should extract package name from unpkg URLs', () => {
+      expect(extractPackageFromCdnUrl('https://unpkg.com/lodash@4.17.21/lodash.js')).toBe('lodash');
+    });
+
+    it('should extract package name from esm.run URLs', () => {
+      expect(extractPackageFromCdnUrl('https://esm.run/lodash')).toBe('lodash');
+    });
+
+    it('should handle scoped packages in CDN URLs', () => {
+      expect(extractPackageFromCdnUrl('https://cdn.jsdelivr.net/npm/@scope/pkg@1.0.0/dist/index.js')).toBe('@scope/pkg');
+      expect(extractPackageFromCdnUrl('https://esm.sh/@jscad/modeling')).toBe('@jscad/modeling');
+      expect(extractPackageFromCdnUrl('https://unpkg.com/@scope/pkg')).toBe('@scope/pkg');
+    });
+
+    it('should return undefined for non-CDN URLs', () => {
+      expect(extractPackageFromCdnUrl('https://example.com/module.js')).toBeUndefined();
+      expect(extractPackageFromCdnUrl('https://github.com/user/repo')).toBeUndefined();
+    });
+
+    it('should return undefined for non-URL strings', () => {
+      expect(extractPackageFromCdnUrl('lodash')).toBeUndefined();
+      expect(extractPackageFromCdnUrl('./utils.ts')).toBeUndefined();
+      expect(extractPackageFromCdnUrl('')).toBeUndefined();
     });
   });
 

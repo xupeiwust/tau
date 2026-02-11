@@ -1213,18 +1213,20 @@ describe('ReplicadWorker', () => {
 
         const result = await createGeometry({ 'main.ts': code }, 'main.ts');
         expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.message).toMatch(/bla is not defined/i);
-          expect(issue.stackFrames).toBeDefined();
 
-          const mainFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('main'));
-          expect(mainFrame).toBeDefined();
-          // Source map should resolve to original file name, not blob/data UUID
-          expect(mainFrame!.fileName).toBe('main.ts');
-          // Source map should resolve to original line 6, not the post-banner offset (line 9)
-          expect(mainFrame!.lineNumber).toBe(6);
-        }
+        // Internal frames have machine-specific paths; filter to user frames only
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'bla is not defined',
+          type: 'runtime',
+          severity: 'error',
+          // Source map should resolve to original file name (not blob UUID)
+          // and original line 6 (not post-banner offset line 9)
+          stackFrames: [
+            { functionName: 'main', fileName: 'main.ts', lineNumber: 6, columnNumber: 3, isInternal: false },
+          ],
+        });
       });
 
       it('should map stack trace to correct file in multi-file project', async () => {
@@ -1241,16 +1243,18 @@ describe('ReplicadWorker', () => {
         );
 
         expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.message).toMatch(/bla is not defined/i);
-          expect(issue.stackFrames).toBeDefined();
 
-          // The error originates in helper.ts, so we should find that frame
-          const helperFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('broken'));
-          expect(helperFrame).toBeDefined();
-          expect(helperFrame!.fileName).toContain('helper.ts');
-        }
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'bla is not defined',
+          type: 'runtime',
+          severity: 'error',
+          stackFrames: [
+            { functionName: 'broken', fileName: 'lib/helper.ts', lineNumber: 1, columnNumber: 28, isInternal: false },
+            { functionName: 'main', fileName: 'main.ts', lineNumber: 3, columnNumber: 41, isInternal: false },
+          ],
+        });
       });
 
       it('should map stack trace through function call to correct line', async () => {
@@ -1270,23 +1274,18 @@ describe('ReplicadWorker', () => {
 
         const result = await createGeometry({ 'main.ts': code }, 'main.ts');
         expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.message).toMatch(/bla is not defined/i);
-          expect(issue.stackFrames).toBeDefined();
 
-          // Should have a frame for makeBadShape at line 4 (error site)
-          const errorFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('makeBadShape'));
-          expect(errorFrame).toBeDefined();
-          expect(errorFrame!.fileName).toBe('main.ts');
-          expect(errorFrame!.lineNumber).toBe(4);
-
-          // Should have a frame for main at line 8 (call site)
-          const callFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('main'));
-          expect(callFrame).toBeDefined();
-          expect(callFrame!.fileName).toBe('main.ts');
-          expect(callFrame!.lineNumber).toBe(8);
-        }
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'bla is not defined',
+          type: 'runtime',
+          severity: 'error',
+          stackFrames: [
+            { functionName: 'makeBadShape', fileName: 'main.ts', lineNumber: 4, columnNumber: 3, isInternal: false },
+            { functionName: 'main', fileName: 'main.ts', lineNumber: 8, columnNumber: 10, isInternal: false },
+          ],
+        });
       });
 
       it('should map stack trace through 3-file import chain', async () => {
@@ -1309,58 +1308,19 @@ describe('ReplicadWorker', () => {
         );
 
         expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.message).toMatch(/bla is not defined/i);
-          expect(issue.stackFrames).toBeDefined();
 
-          // Should have a frame for the error in bad.ts
-          const errorFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('broken'));
-          expect(errorFrame).toBeDefined();
-          expect(errorFrame!.fileName).toContain('bad.ts');
-
-          // Should have a frame for the call in middle.ts
-          const middleFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('getShape'));
-          expect(middleFrame).toBeDefined();
-          expect(middleFrame!.fileName).toContain('middle.ts');
-
-          // Should have a frame for main
-          const mainFrame = issue.stackFrames?.find((frame) => frame.functionName?.includes('main'));
-          expect(mainFrame).toBeDefined();
-          expect(mainFrame!.fileName).toBe('main.ts');
-
-          // No blob/data UUIDs in any user frames
-          const userFrames = issue.stackFrames!.filter((frame) => !frame.isInternal);
-          for (const frame of userFrames) {
-            expect(frame.fileName).not.toMatch(/^blob:/);
-            expect(frame.fileName).not.toMatch(/^data:/);
-          }
-        }
-      });
-
-      it('should not expose blob or data UUIDs in user stack frames', async () => {
-        const code = [
-          "import {} from 'replicad';", // Line 1
-          '', // Line 2
-          'export default function main() {', // Line 3
-          '  return bla;', // Line 4 -- error here
-          '}', // Line 5
-        ].join('\n');
-
-        const result = await createGeometry({ 'main.ts': code }, 'main.ts');
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.stackFrames).toBeDefined();
-
-          const userFrames = issue.stackFrames!.filter((frame) => !frame.isInternal);
-          expect(userFrames.length).toBeGreaterThan(0);
-
-          for (const frame of userFrames) {
-            expect(frame.fileName).not.toMatch(/^blob:/);
-            expect(frame.fileName).not.toMatch(/^data:/);
-          }
-        }
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'bla is not defined',
+          type: 'runtime',
+          severity: 'error',
+          stackFrames: [
+            { functionName: 'broken', fileName: 'lib/bad.ts', lineNumber: 1, columnNumber: 28, isInternal: false },
+            { functionName: 'getShape', fileName: 'lib/middle.ts', lineNumber: 2, columnNumber: 37, isInternal: false },
+            { functionName: 'main', fileName: 'main.ts', lineNumber: 3, columnNumber: 41, isInternal: false },
+          ],
+        });
       });
     });
 
@@ -1411,15 +1371,18 @@ describe('ReplicadWorker', () => {
         expect(result.success).toBe(false);
         if (!result.success) {
           expect(result.issues.length).toBeGreaterThan(0);
-          // Error should reference the file path - check message if location is not available
-          const firstIssue = result.issues[0];
-          const hasLocation = firstIssue?.location?.fileName !== undefined;
-          if (hasLocation) {
-            expect(firstIssue.location?.fileName).toContain('main.ts');
-          } else {
-            // Error message should contain file reference
-            expect(firstIssue?.message).toMatch(/main\.ts|undefinedFunction/);
-          }
+
+          const issue = result.issues[0]!;
+          const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+          expect({ ...issue, stackFrames: userFrames }).toEqual({
+            message: 'undefinedFunction is not defined',
+            type: 'runtime',
+            severity: 'error',
+            // Source map should resolve to full relative path including subdirectory
+            stackFrames: [
+              { functionName: 'main', fileName: 'project/main.ts', lineNumber: 5, columnNumber: 15, isInternal: false },
+            ],
+          });
         }
       });
     });

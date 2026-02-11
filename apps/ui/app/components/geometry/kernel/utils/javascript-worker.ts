@@ -592,22 +592,33 @@ export abstract class JavaScriptWorker<
   /**
    * Resolve a source map path to a project-relative path.
    *
-   * esbuild generates source paths relative to the project root in the
-   * zenfs namespace (e.g., `/builds/<id>/main.ts`). This strips the
-   * project prefix to produce a clean relative path like `main.ts`.
+   * esbuild source maps contain paths prefixed with the namespace (e.g., `zenfs:main.ts`).
+   * The plugin uses project-relative paths within the zenfs namespace, so after stripping
+   * the namespace prefix the path is already clean. For backwards compatibility, this also
+   * handles absolute paths by stripping the project prefix.
    *
    * @param sourcePath - Source path from the source map
    * @returns Project-relative path
    */
   private resolveSourcePath(sourcePath: string): string {
+    // Strip esbuild namespace prefix (e.g., "zenfs:main.ts" -> "main.ts")
+    const zenfsPrefix = 'zenfs:';
+    const cleanPath = sourcePath.startsWith(zenfsPrefix) ? sourcePath.slice(zenfsPrefix.length) : sourcePath;
+
+    // Strip project path prefix for absolute paths (e.g., "/builds/id/main.ts" -> "main.ts")
     const projectPath = this.bundler?.getProjectPath();
-    if (projectPath && sourcePath.startsWith(projectPath)) {
-      const relative = sourcePath.slice(projectPath.length);
+    if (projectPath && cleanPath.startsWith(projectPath)) {
+      const relative = cleanPath.slice(projectPath.length);
       return relative.startsWith('/') ? relative.slice(1) : relative;
     }
 
-    // Fall back to basename
-    return sourcePath.split('/').pop() ?? sourcePath;
+    // Path is already relative (common case with project-relative zenfs paths)
+    if (!cleanPath.startsWith('/')) {
+      return cleanPath;
+    }
+
+    // Fall back to basename for unknown absolute paths
+    return cleanPath.split('/').pop() ?? cleanPath;
   }
 
   /**

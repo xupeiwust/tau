@@ -5,9 +5,14 @@
  * for ZenFS filesystem integration and node_modules resolution.
  *
  * This bundler is designed to run in kernel workers and uses:
+ * - A `zenfs` namespace for project files (project-relative paths) and CDN modules
  * - A `builtin` namespace for pre-loaded modules served from memory (zero FS I/O)
- * - A `zenfs` namespace for project files and CDN-cached modules read from ZenFS
+ * - An `http-url` namespace for HTTP/HTTPS URLs fetched on demand
  * - ModuleManager for CDN module fetching and caching at root `/node_modules/`
+ *
+ * Project files use project-relative paths (e.g., `main.ts`, `src/utils.ts`) within
+ * the `zenfs` namespace. The bundler resolves the `zenfs:` prefix that esbuild adds
+ * to error messages, producing clean filenames for UI display and FileLink navigation.
  */
 
 import * as esbuild from 'esbuild-wasm';
@@ -241,6 +246,24 @@ function getLoader(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' | 'json' | 'te
 }
 
 // =============================================================================
+// Path Resolution
+// =============================================================================
+
+/** Namespace prefix that esbuild adds to file paths in error messages for the zenfs namespace. */
+const zenfsPrefix = 'zenfs:';
+
+/**
+ * Resolve an esbuild file path to a clean project-relative path.
+ *
+ * esbuild prefixes file paths with `namespace:` for custom namespaces.
+ * Since the plugin uses project-relative paths in the zenfs namespace,
+ * stripping the prefix yields a clean filename (e.g., `main.ts`).
+ */
+function resolveEsbuildFilePath(filePath: string): string {
+  return filePath.startsWith(zenfsPrefix) ? filePath.slice(zenfsPrefix.length) : filePath;
+}
+
+// =============================================================================
 // ZenFS Plugin
 // =============================================================================
 
@@ -257,9 +280,13 @@ type ZenFsPluginOptions = {
  * Create a plugin that resolves and loads files from the ZenFS filesystem.
  *
  * Architecture:
+ * - `zenfs` namespace: Project files (project-relative paths) and CDN modules
  * - `builtin` namespace: Built-in modules served directly from memory (zero FS I/O)
- * - `zenfs` namespace: Project files and CDN-cached modules read from ZenFS
  * - `http-url` namespace: HTTP/HTTPS URLs fetched on demand
+ *
+ * Project files use project-relative paths (e.g., `main.ts`, `src/utils.ts`) within
+ * the `zenfs` namespace. All filesystem I/O reconstructs absolute paths from the
+ * relative esbuild path + projectPath.
  *
  * Bare specifier resolution:
  * 1. Builtins (replicad, jscad, zod) -> `builtin` namespace (memory)
@@ -268,16 +295,34 @@ type ZenFsPluginOptions = {
  */
 function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
   const { filesystem, moduleManager, builtinModules, projectPath, entryPath, autoExportNames } = options;
+
+  // Path conversion helpers: esbuild sees project-relative paths in the zenfs namespace,
+  // but all filesystem I/O uses absolute ZenFS paths.
+  const projectPrefix = projectPath.endsWith('/') ? projectPath : projectPath + '/';
+
+  /** Convert absolute ZenFS path to project-relative path for esbuild identity. */
+  function toRelative(absolutePath: string): string {
+    return absolutePath.startsWith(projectPrefix) ? absolutePath.slice(projectPrefix.length) : absolutePath;
+  }
+
+  /** Reconstruct absolute ZenFS path from esbuild's project-relative path for filesystem I/O. */
+  function toAbsolute(relativePath: string): string {
+    return relativePath.startsWith('/') ? relativePath : `${projectPrefix}${relativePath}`;
+  }
+
+  // Pre-compute the relative entry path for comparison in onLoad
+  const relativeEntryPath = toRelative(entryPath);
+
   return {
     name: 'zenfs',
     setup(build) {
       // -----------------------------------------------------------------
-      // onResolve: entry points
+      // onResolve: all imports
       // -----------------------------------------------------------------
       build.onResolve({ filter: /.*/ }, async (args) => {
-        // Skip if it's the entry point
+        // Entry point: convert to project-relative path in zenfs namespace
         if (args.kind === 'entry-point') {
-          return { path: args.path, namespace: 'zenfs' };
+          return { path: toRelative(args.path), namespace: 'zenfs' };
         }
 
         // Handle data: URLs (esbuild internal)
@@ -306,6 +351,7 @@ function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
           }
 
           // CDN modules: ensure cached at root /node_modules/, return zenfs path
+          // These keep absolute paths since they're outside the project directory
           try {
             const cachePath = getCdnCachePath(pkgInfo.name, pkgInfo.path || undefined);
             await moduleManager.ensureCdnModule(pkgInfo.name, pkgInfo.path || undefined);
@@ -322,12 +368,15 @@ function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
         }
 
         // --- Relative / absolute imports ---
-        const importerPath = args.importer || `${projectPath}/entry.ts`;
+        // Reconstruct the importer's absolute path for resolution, since
+        // project files use relative paths in esbuild
+        const importerAbsolute = toAbsolute(args.importer || relativeEntryPath);
 
         try {
-          const resolvedPath = resolveRelativePath(args.path, importerPath);
+          const resolvedPath = resolveRelativePath(args.path, importerAbsolute);
           const withExtension = await resolveFileExtension(filesystem, resolvedPath);
-          return { path: withExtension, namespace: 'zenfs' };
+          // Return project-relative path for project files
+          return { path: toRelative(withExtension), namespace: 'zenfs' };
         } catch (error) {
           return {
             errors: [
@@ -407,13 +456,16 @@ function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
       // -----------------------------------------------------------------
       build.onLoad({ filter: /.*/, namespace: 'zenfs' }, async (args) => {
         try {
-          let content = await filesystem.readFile(args.path, 'utf8');
+          // Reconstruct absolute ZenFS path for filesystem I/O
+          const absolutePath = toAbsolute(args.path);
+
+          let content = await filesystem.readFile(absolutePath, 'utf8');
           const loader = getLoader(args.path);
 
           // For the entry file (not node_modules), add CommonJS exports if needed
           // This prevents esbuild from tree-shaking away unexported main/defaultParams
-          const isEntryFile = args.path === entryPath;
-          const isNodeModules = args.path.includes('/node_modules/');
+          const isEntryFile = args.path === relativeEntryPath;
+          const isNodeModules = absolutePath.includes('/node_modules/');
 
           if (isEntryFile && !isNodeModules && (loader === 'js' || loader === 'ts')) {
             content = addCommonJsExports(content, autoExportNames);
@@ -422,7 +474,7 @@ function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
           return {
             contents: content,
             loader,
-            resolveDir: args.path.slice(0, args.path.lastIndexOf('/')),
+            resolveDir: absolutePath.slice(0, absolutePath.lastIndexOf('/')),
           };
         } catch (error) {
           return {
@@ -594,6 +646,10 @@ const module = { exports };
 
   /**
    * Convert an esbuild message to a KernelIssue.
+   *
+   * File paths in esbuild messages use the format `namespace:path`. Since the plugin
+   * stores project-relative paths in the `zenfs` namespace, we strip the `zenfs:` prefix
+   * to produce clean filenames (e.g., `main.ts`) for UI display and FileLink navigation.
    */
   private convertEsbuildMessage(message: Message, severity: 'error' | 'warning'): KernelIssue {
     const issue: KernelIssue = {
@@ -604,7 +660,7 @@ const module = { exports };
 
     if (message.location) {
       issue.location = {
-        fileName: message.location.file,
+        fileName: resolveEsbuildFilePath(message.location.file),
         startLineNumber: message.location.line,
         startColumn: message.location.column,
       };

@@ -997,6 +997,18 @@ module.exports = { main, getParameterDefinitions }
         );
 
         expect(result.success).toBe(false);
+        expect(result.issues).toEqual([
+          {
+            message: 'Expected ")" but found end of file',
+            type: 'compilation',
+            severity: 'error',
+            location: {
+              fileName: 'syntax_error.ts',
+              startLineNumber: 7,
+              startColumn: 12,
+            },
+          },
+        ]);
       });
 
       it('should return error for undefined function calls', async () => {
@@ -1014,6 +1026,17 @@ module.exports = { main, getParameterDefinitions }
         );
 
         expect(result.success).toBe(false);
+        // Internal frames have machine-specific paths; filter to user frames only
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'primitives.nonExistentShape is not a function',
+          type: 'runtime',
+          severity: 'error',
+          stackFrames: [
+            { functionName: 'main', fileName: 'undefined_func.ts', lineNumber: 5, columnNumber: 35, isInternal: false },
+          ],
+        });
       });
 
       it('should return error for runtime errors', async () => {
@@ -1031,6 +1054,16 @@ module.exports = { main, getParameterDefinitions }
         );
 
         expect(result.success).toBe(false);
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => !f.isInternal);
+        expect({ ...issue, stackFrames: userFrames }).toEqual({
+          message: 'Something went wrong',
+          type: 'runtime',
+          severity: 'error',
+          stackFrames: [
+            { functionName: 'main', fileName: 'runtime_error.ts', lineNumber: 5, columnNumber: 23, isInternal: false },
+          ],
+        });
       });
     });
   });
