@@ -153,9 +153,11 @@ function StackTraceSection({
 }): React.JSX.Element {
   const [showInternal, setShowInternal] = useState(false);
 
-  // Split frames into user frames and internal frames
-  const userFrames = stackFrames.filter((frame) => !frame.isInternal);
-  const internalFrames = stackFrames.filter((frame) => frame.isInternal);
+  // Split frames into visible (user + library) and hidden (framework + runtime) frames
+  const userFrames = stackFrames.filter((frame) => frame.context === 'user' || frame.context === 'library');
+  const internalFrames = stackFrames.filter(
+    (frame) => frame.context === 'framework' || frame.context === 'runtime' || !frame.context,
+  );
   const hasInternalFrames = internalFrames.length > 0;
 
   // When collapsed, show only user frames; when expanded, show all in original order
