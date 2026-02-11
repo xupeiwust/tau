@@ -417,7 +417,16 @@ export function finalizeInterruptedToolParts(messages: MyUIMessage[]): MyUIMessa
       // Assertion needed: input-streaming parts have PartialObject<Schema> for `input`,
       // but output-error expects the full Schema. The partial input is acceptable
       // for display purposes since the tool was interrupted.
-      const interruptedPart = { ...part, state: 'output-error' as const, errorText: 'Interrupted by user.' };
+      const errorText = JSON.stringify({
+        errorCode: 'USER_INTERRUPTED',
+        message: 'Interrupted by user.',
+        toolCallId: part.toolCallId,
+      });
+      const interruptedPart = {
+        ...part,
+        state: 'output-error' as const,
+        errorText,
+      };
       return interruptedPart as MyMessagePart;
     }
 

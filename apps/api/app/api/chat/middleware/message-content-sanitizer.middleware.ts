@@ -162,7 +162,7 @@ function insertSyntheticToolResults(messages: BaseMessage[]): BaseMessage[] {
         result.push(
           new ToolMessage({
             content: JSON.stringify({
-              errorCode: 'TOOL_EXECUTION_ERROR',
+              errorCode: 'USER_INTERRUPTED',
               message: 'Tool execution was interrupted.',
               toolName: toolCall.name,
               toolCallId: toolCall.id,

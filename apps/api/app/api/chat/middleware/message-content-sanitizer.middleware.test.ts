@@ -397,7 +397,7 @@ describe('messageContentSanitizerMiddleware', () => {
 
       const toolContent = JSON.parse(syntheticTool.content as string) as Record<string, unknown>;
       expect(toolContent).toEqual({
-        errorCode: 'TOOL_EXECUTION_ERROR',
+        errorCode: 'USER_INTERRUPTED',
         message: 'Tool execution was interrupted.',
         toolName: 'create_file',
         toolCallId: 'call_abc',
@@ -430,7 +430,7 @@ describe('messageContentSanitizerMiddleware', () => {
 
       const toolContent = JSON.parse(syntheticTool.content as string) as Record<string, unknown>;
       expect(toolContent).toMatchObject({
-        errorCode: 'TOOL_EXECUTION_ERROR',
+        errorCode: 'USER_INTERRUPTED',
         toolName: 'read_file',
         toolCallId: 'call_end',
       });
@@ -496,7 +496,7 @@ describe('messageContentSanitizerMiddleware', () => {
 
       const toolContent = JSON.parse(syntheticTool.content as string) as Record<string, unknown>;
       expect(toolContent).toMatchObject({
-        errorCode: 'TOOL_EXECUTION_ERROR',
+        errorCode: 'USER_INTERRUPTED',
         toolName: 'create_file',
         toolCallId: 'call_2',
       });
@@ -551,7 +551,7 @@ describe('messageContentSanitizerMiddleware', () => {
     it('should be idempotent -- synthetic ToolMessages already present should not be duplicated', async () => {
       // Simulate a second turn where synthetic ToolMessages were already inserted previously
       const syntheticContent = JSON.stringify({
-        errorCode: 'TOOL_EXECUTION_ERROR',
+        errorCode: 'USER_INTERRUPTED',
         message: 'Tool execution was interrupted.',
         toolName: 'create_file',
         toolCallId: 'call_existing',
