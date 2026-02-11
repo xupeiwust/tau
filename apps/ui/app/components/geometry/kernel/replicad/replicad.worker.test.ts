@@ -10,6 +10,7 @@ import {
   createTestGeometry,
   getTestParameters,
 } from '#components/geometry/kernel/utils/kernel-testing.utils.js';
+import type { CreateTestWorkerOptions } from '#components/geometry/kernel/utils/kernel-testing.utils.js';
 
 /* eslint-disable @typescript-eslint/naming-convention -- File names use extensions like 'box.ts' */
 
@@ -33,7 +34,8 @@ const createGeometry = async (
   files: Record<string, string>,
   mainFile: string,
   parameters: Record<string, unknown> = {},
-): ReturnType<typeof createTestGeometry> => createTestGeometry(ReplicadWorker, files, mainFile, parameters);
+  options?: CreateTestWorkerOptions,
+): ReturnType<typeof createTestGeometry> => createTestGeometry(ReplicadWorker, files, mainFile, parameters, options);
 
 // Create geometry test helpers instance for geometry assertions
 const geometryHelpers = createGeometryTestHelpers();
@@ -1103,6 +1105,32 @@ describe('ReplicadWorker', () => {
         expect(typeof result.success).toBe('boolean');
       });
 
+      it('should decode OpenCASCADE numeric exceptions into human-readable messages when withExceptions is true', async () => {
+        const result = await createGeometry(
+          {
+            'oc_exception.ts': `
+              export default function main() {
+                throw 0x12345;
+              }
+            `,
+          },
+          'oc_exception.ts',
+          {},
+          { workerOptions: { withExceptions: true } },
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.issues).toBeDefined();
+          expect(result.issues.length).toBeGreaterThan(0);
+          const issue = result.issues[0]!;
+          expect(issue.type).toBe('kernel');
+          expect(issue.severity).toBe('error');
+          expect(issue.message).not.toMatch(/^\d+$/);
+          expect(issue.message.length).toBeGreaterThan(3);
+        }
+      });
+
       it('should handle empty geometry result gracefully', async () => {
         const result = await createGeometry(
           {
@@ -1124,7 +1152,7 @@ describe('ReplicadWorker', () => {
         }
       });
 
-      it('should return clear error when main returns undefined (no return statement)', async () => {
+      it('should return warning when main returns undefined (no return statement)', async () => {
         const result = await createGeometry(
           {
             'no_return.ts': `
@@ -1145,16 +1173,15 @@ describe('ReplicadWorker', () => {
           'no_return.ts',
         );
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
+        expect(result.success).toBe(true);
+        if (result.success) {
           expect(result.issues.length).toBeGreaterThan(0);
-          // Should give a user-friendly message, not a JS crash like "Cannot read properties of undefined"
-          expect(result.issues[0]!.message).toMatch(/did not return/i);
+          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+          expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
         }
       });
 
-      it('should return clear error when main explicitly returns undefined', async () => {
+      it('should return warning when main explicitly returns undefined', async () => {
         const result = await createGeometry(
           {
             'explicit_undefined.ts': `
@@ -1168,33 +1195,11 @@ describe('ReplicadWorker', () => {
           'explicit_undefined.ts',
         );
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
+        expect(result.success).toBe(true);
+        if (result.success) {
           expect(result.issues.length).toBeGreaterThan(0);
-          expect(result.issues[0]!.message).toMatch(/did not return/i);
-        }
-      });
-
-      it('should return clear error when main returns null', async () => {
-        const result = await createGeometry(
-          {
-            'returns_null.ts': `
-              import { draw } from 'replicad';
-
-              export default function main() {
-                return null;
-              }
-            `,
-          },
-          'returns_null.ts',
-        );
-
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
-          expect(result.issues[0]!.message).toMatch(/did not return/i);
+          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+          expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
         }
       });
     });

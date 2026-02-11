@@ -117,6 +117,30 @@ export class ReplicadWorker extends JavaScriptWorker<ReplicadOptions> {
     });
   }
 
+  /**
+   * Decode numeric OpenCASCADE exceptions into human-readable messages.
+   * Only effective when withExceptions is true (OC instance has getStandard_FailureData).
+   */
+  protected override async formatRuntimeError(error: unknown): Promise<KernelIssue> {
+    if (typeof error === 'number') {
+      let message = `Kernel error ${error}`;
+      try {
+        const ocInstance = await this.oc;
+        if (ocInstance && this.ocVersions.current === 'withExceptions') {
+          const errorData = (ocInstance as OpenCascadeInstanceWithExceptions).OCJS.getStandard_FailureData(error);
+          // eslint-disable-next-line new-cap -- this is a C++ method
+          message = errorData.GetMessageString();
+        }
+      } catch {
+        // Fall through to generic "Kernel error N" message
+      }
+
+      return { message, type: 'kernel', severity: 'error' };
+    }
+
+    return super.formatRuntimeError(error);
+  }
+
   protected override async initialize(input: InitializeInput<ReplicadOptions>, runtime: KernelRuntime): Promise<void> {
     const { options } = input;
     const { logger } = runtime;
@@ -271,6 +295,19 @@ export class ReplicadWorker extends JavaScriptWorker<ReplicadOptions> {
         shapes = mainResult.value;
         const runCodeEndTime = performance.now();
         logger.log(`Kernel computation took ${runCodeEndTime - runCodeStartTime}ms`);
+
+        if (shapes === undefined) {
+          return createKernelSuccess(
+            [],
+            [
+              {
+                message: 'The main function did not return a value. Did you forget a return statement?',
+                type: 'runtime',
+                severity: 'warning',
+              },
+            ],
+          );
+        }
 
         const defaultNameResult = await this.extractDefaultNameFromCode(module);
         defaultName = isKernelError(defaultNameResult) ? undefined : defaultNameResult.data;
@@ -453,49 +490,15 @@ export class ReplicadWorker extends JavaScriptWorker<ReplicadOptions> {
     }
   }
 
-  private formatException(
-    oc: OpenCascadeInstanceWithExceptions,
-    error: unknown,
-    logger: KernelLogger,
-  ): { error: boolean; message: string; stack?: string } {
-    let message = 'error';
-
-    if (typeof error === 'number') {
-      const errorData = oc.OCJS.getStandard_FailureData(error);
-      // eslint-disable-next-line new-cap -- this is a C++ method
-      message = errorData.GetMessageString();
-    } else {
-      message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Error in formatException', { data: error });
-    }
-
-    return {
-      error: true,
-      message,
-      stack: error instanceof Error ? error.stack : undefined,
-    };
-  }
-
   private async formatKernelIssue(error: unknown, logger: KernelLogger, fileName?: string): Promise<KernelIssue> {
     logger.debug('Formatting kernel error', { data: error });
 
-    // OpenCascade throws numeric error codes -- handle them specially
+    // Numeric errors (OpenCascade): delegate to formatRuntimeError which decodes via getStandard_FailureData
     if (typeof error === 'number') {
-      let message = `Kernel error ${error}`;
-      try {
-        const ocInstance = await this.oc;
-        if (ocInstance) {
-          const exceptionResult = this.formatException(ocInstance as OpenCascadeInstanceWithExceptions, error, logger);
-          message = exceptionResult.message;
-        }
-      } catch (ocError) {
-        logger.warn('Failed to format OpenCascade exception', { data: ocError });
-      }
-
-      return { message, type: 'kernel', severity: 'error' };
+      return this.formatRuntimeError(error);
     }
 
-    // For Error instances and strings, delegate to the base class method
+    // Error instances and strings: delegate to base class method for location/stack parsing
     const result = this.createKernelIssueFromError(error, 'Unknown error occurred', fileName);
     return result.issues[0]!;
   }
