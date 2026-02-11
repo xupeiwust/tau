@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useSelector } from '@xstate/react';
 import type * as Monaco from 'monaco-editor';
 import type { AnyActorRef } from 'xstate';
-import type { IssueSeverity } from '@taucad/types';
+import type { IssueSeverity, KernelStackFrame } from '@taucad/types';
 import type { MonacoMarkerService } from '#lib/monaco-marker-service.js';
 
 const kernelMarkerOwner = 'kernel';
@@ -39,6 +39,62 @@ function getMarkerSeverity(monaco: typeof Monaco, severity: IssueSeverity | unde
       return monaco.MarkerSeverity.Error;
     }
   }
+}
+
+/**
+ * Build Monaco relatedInformation from kernel stack frames.
+ * Includes user and library frames that have file/line info, skipping
+ * the primary error frame (which is already the marker location).
+ */
+function buildRelatedInformation(
+  monaco: typeof Monaco,
+  stackFrames: KernelStackFrame[] | undefined,
+): Monaco.editor.IRelatedInformation[] | undefined {
+  if (!stackFrames || stackFrames.length === 0) {
+    return undefined;
+  }
+
+  // Build related info from visible frames (user + library), skipping the first user frame
+  // (it's the primary marker location). Include subsequent call sites and library frames.
+  let skippedPrimary = false;
+  const related: Monaco.editor.IRelatedInformation[] = [];
+
+  for (const frame of stackFrames) {
+    if (frame.context !== 'user' && frame.context !== 'library') {
+      continue;
+    }
+
+    if (!frame.fileName || !frame.lineNumber) {
+      continue;
+    }
+
+    // Skip the first user frame (it's already the marker location)
+    if (!skippedPrimary && frame.context === 'user') {
+      skippedPrimary = true;
+      continue;
+    }
+
+    const functionLabel = frame.functionName ?? '<anonymous>';
+    const isLibrary = frame.context === 'library';
+    const message = isLibrary
+      ? `${functionLabel} (${frame.fileName}:${frame.lineNumber})`
+      : `called from ${functionLabel}`;
+
+    // For user frames, resolve against Monaco's file:// URI scheme.
+    // Library frames use their display path directly.
+    const resource = isLibrary ? monaco.Uri.parse(`file:///${frame.fileName}`) : monaco.Uri.file(`/${frame.fileName}`);
+
+    related.push({
+      resource,
+      message,
+      startLineNumber: frame.lineNumber,
+      startColumn: frame.columnNumber ?? 1,
+      endLineNumber: frame.lineNumber,
+      endColumn: frame.columnNumber ?? 1,
+    });
+  }
+
+  return related.length > 0 ? related : undefined;
 }
 
 type UseKernelDiagnosticsOptions = {
@@ -80,6 +136,7 @@ export function useKernelDiagnostics(options: UseKernelDiagnosticsOptions): UseK
             endLineNumber?: number;
             endColumn?: number;
           };
+          stackFrames?: KernelStackFrame[];
           severity: IssueSeverity;
         }>
       >,
@@ -118,6 +175,8 @@ export function useKernelDiagnostics(options: UseKernelDiagnosticsOptions): UseK
           endColumn: issue.location.endColumn ?? issue.location.startColumn + 1,
           message: issue.message,
           severity: getMarkerSeverity(monaco, issue.severity),
+          source: 'kernel',
+          relatedInformation: buildRelatedInformation(monaco, issue.stackFrames),
         });
       }
 
