@@ -8,7 +8,7 @@
  * All functions are pure -- no filesystem or network access.
  */
 
-import { parsePackage } from 'cdn-resolve';
+import { parsePackage, CDN_URLS } from 'cdn-resolve';
 
 // =============================================================================
 // Types
@@ -53,6 +53,158 @@ export function isBareSpecifier(specifier: string): boolean {
     specifier.startsWith('http://') ||
     specifier.startsWith('https://')
   );
+}
+
+// =============================================================================
+// CDN URL Package Extraction
+// =============================================================================
+
+/**
+ * Configuration for a known npm CDN host.
+ *
+ * Each entry describes how to extract a standard npm package specifier
+ * from a CDN URL. The extraction pipeline is:
+ * 1. Match `hostname` against the URL
+ * 2. Strip `prefix` from the pathname
+ * 3. Apply `normalizePath` (if provided) to handle CDN-specific quirks
+ * 4. Pass the result to `parsePackageSpecifier`
+ *
+ * To add a new CDN, simply append a new entry to the `cdnConfigs` array.
+ */
+type CdnConfig = {
+  /** Hostname to match (e.g., 'esm.sh') */
+  host: string;
+  /** Path prefix to strip (e.g., '/npm/') */
+  prefix: string;
+  /**
+   * Optional normalizer for CDN-specific path quirks.
+   * Receives the path after prefix stripping, returns a clean
+   * npm package specifier string.
+   */
+  normalizePath?: (path: string) => string;
+};
+
+/**
+ * Registry of known npm CDN hosts.
+ *
+ * Built from cdn-resolve's CDN_URLS constant plus additional known CDN hosts.
+ * After stripping `https://<host><prefix>` and applying `normalizePath`,
+ * the remainder is a standard npm package specifier
+ * (e.g., `replicad-decorate@1.0.0/dist/index.js`) that can be parsed
+ * by `parsePackageSpecifier`.
+ */
+const cdnConfigs: readonly CdnConfig[] = [
+  // --- cdn-resolve CDN_URLS ---
+  { host: new URL(CDN_URLS.jsdelivr).hostname, prefix: new URL(CDN_URLS.jsdelivr).pathname + '/' },
+  {
+    host: new URL(CDN_URLS.esm).hostname,
+    prefix: '/',
+    normalizePath: (path: string) => path.replace(/^v\d+\//, ''), // Strip version prefix like v135/
+  },
+  { host: new URL(CDN_URLS.unpkg).hostname, prefix: '/' },
+  // --- Additional CDN hosts ---
+  { host: 'esm.run', prefix: '/' },
+  {
+    host: 'cdn.skypack.dev',
+    prefix: '/',
+    normalizePath(path) {
+      if (!path.startsWith('pin/')) {
+        return path;
+      }
+
+      // Pinned URLs: pin/react@v16.13.1-hash/file.js -> react@16.13.1/file.js
+      const unpinned = path.slice(4);
+      return unpinned.replace(/@v([\d.]+)[^/]*/, '@$1');
+    },
+  },
+];
+
+/**
+ * Extract the npm package name from a CDN URL.
+ *
+ * Recognizes known npm CDN URL patterns and extracts the package name
+ * by stripping the CDN host/prefix, applying CDN-specific normalization,
+ * and delegating to `parsePackageSpecifier`.
+ *
+ * Examples:
+ * - 'https://cdn.jsdelivr.net/npm/replicad-decorate/dist/index.js' -> 'replicad-decorate'
+ * - 'https://esm.sh/lodash@4.17.21' -> 'lodash'
+ * - 'https://unpkg.com/@scope/pkg@1.0.0/dist/index.js' -> '@scope/pkg'
+ * - 'https://esm.sh/v135/lodash@4.17.21/index.d.ts' -> 'lodash'
+ * - 'https://cdn.skypack.dev/qrcode-generator@2.0.4' -> 'qrcode-generator'
+ * - 'https://cdn.skypack.dev/pin/react@v16.13.1-hash/react.js' -> 'react'
+ * - 'https://example.com/not-a-cdn' -> undefined
+ *
+ * @param url - A full URL string
+ * @returns The package name, or undefined if the URL is not a recognized CDN URL
+ */
+export function extractPackageFromCdnUrl(url: string): string | undefined {
+  const info = extractPackageInfoFromCdnUrl(url);
+  return info?.name;
+}
+
+/**
+ * Extract full package info (name, version, subpath) from a CDN URL.
+ *
+ * Like `extractPackageFromCdnUrl` but returns the full parsed package info
+ * including version and subpath when available. This is used by the bundler
+ * to construct esm.sh bundle URLs for non-esm.sh CDN imports.
+ *
+ * Examples:
+ * - 'https://cdn.skypack.dev/qrcode-generator@2.0.4'
+ *    -> { name: 'qrcode-generator', version: '2.0.4', path: '' }
+ * - 'https://esm.sh/lodash@4.17.21'
+ *    -> { name: 'lodash', version: '4.17.21', path: '' }
+ *
+ * @param url - A full URL string
+ * @returns Package info, or undefined if the URL is not a recognized CDN URL
+ */
+export function extractPackageInfoFromCdnUrl(url: string): PackageInfo | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+
+  const config = cdnConfigs.find((entry) => parsed.hostname === entry.host);
+  if (!config) {
+    return undefined;
+  }
+
+  const { pathname } = parsed;
+  if (!pathname.startsWith(config.prefix)) {
+    return undefined;
+  }
+
+  let packagePath = pathname.slice(config.prefix.length);
+
+  // Apply CDN-specific normalization (version prefixes, pinned URLs, registry prefixes)
+  if (config.normalizePath) {
+    packagePath = config.normalizePath(packagePath);
+  }
+
+  if (!packagePath) {
+    return undefined;
+  }
+
+  try {
+    const info = parsePackageSpecifier(packagePath);
+    return info.name ? info : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Check whether a URL belongs to the esm.sh CDN.
+ */
+export function isEsmShUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === new URL(CDN_URLS.esm).hostname;
+  } catch {
+    return false;
+  }
 }
 
 // =============================================================================
