@@ -1,7 +1,7 @@
 import type { KernelIssue } from '@taucad/types';
 import { describe, it, expect } from 'vitest';
 import type { GetFileContentsFn } from '#components/geometry/kernel/openscad/parse-output.js';
-import { parseStderrLine } from '#components/geometry/kernel/openscad/parse-output.js';
+import { parseStderrLine, OpenScadStderrParser } from '#components/geometry/kernel/openscad/parse-output.js';
 
 /**
  * Helper to create a GetFileContentsFn from a map of file contents.
@@ -370,6 +370,224 @@ describe('parseStderrLine', () => {
 
       expect(errors).toHaveLength(1);
       expect(errors[0]?.severity).toBe('warning');
+    });
+  });
+
+  describe('TRACE line parsing (OpenScadStderrParser)', () => {
+    it('should accumulate TRACE frames on the preceding error', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // Simulate OpenSCAD stderr output: error followed by TRACE lines
+      parser.parseLine("ERROR: Assertion 'false' failed in file /main.scad, line 6");
+      parser.parseLine("TRACE: called by 'assert' in file /main.scad, line 6");
+      parser.parseLine("TRACE: call of 'inner()' in file /main.scad, line 5");
+      parser.parseLine("TRACE: called by 'inner' in file /main.scad, line 2");
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.stackFrames).toBeDefined();
+      expect(errors[0]!.stackFrames).toHaveLength(3);
+
+      // Assert (built-in) should be internal
+      expect(errors[0]!.stackFrames![0]).toEqual({
+        functionName: 'assert',
+        fileName: 'main.scad',
+        lineNumber: 6,
+        isInternal: true,
+      });
+
+      // Module definition frame
+      expect(errors[0]!.stackFrames![1]).toEqual({
+        functionName: 'inner()',
+        fileName: 'main.scad',
+        lineNumber: 5,
+        isInternal: false,
+      });
+
+      // Call site frame
+      expect(errors[0]!.stackFrames![2]).toEqual({
+        functionName: 'inner',
+        fileName: 'main.scad',
+        lineNumber: 2,
+        isInternal: false,
+      });
+    });
+
+    it('should normalize file paths in TRACE frames', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      parser.parseLine("ERROR: Assertion 'false' failed in file /lib.scad, line 2");
+      parser.parseLine("TRACE: called by 'assert' in file /lib.scad, line 2");
+      parser.parseLine("TRACE: called by 'broken_module' in file /main.scad, line 3");
+
+      expect(errors).toHaveLength(1);
+      // Leading slashes should be stripped
+      expect(errors[0]!.stackFrames![0]!.fileName).toBe('lib.scad');
+      expect(errors[0]!.stackFrames![1]!.fileName).toBe('main.scad');
+    });
+
+    it('should not attach TRACE frames to non-error lines', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // TRACE lines without a preceding error should be silently ignored
+      parser.parseLine("TRACE: called by 'assert' in file /main.scad, line 6");
+      parser.parseLine("TRACE: called by 'inner' in file /main.scad, line 2");
+
+      expect(errors).toHaveLength(0);
+    });
+
+    it('should not attach TRACE frames across non-trace intervening lines', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // Error followed by a non-matching line, then a TRACE line
+      parser.parseLine("ERROR: Assertion 'false' failed in file /main.scad, line 6");
+      parser.parseLine('Compiling design (CSG Tree generation)...');
+      parser.parseLine("TRACE: called by 'inner' in file /main.scad, line 2");
+
+      expect(errors).toHaveLength(1);
+      // TRACE after non-trace line should NOT be attached to the error
+      expect(errors[0]?.stackFrames).toBeUndefined();
+    });
+
+    it('should handle multiple errors with separate TRACE blocks', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // First error with traces
+      parser.parseLine("ERROR: Assertion 'false' failed in file /a.scad, line 1");
+      parser.parseLine("TRACE: called by 'assert' in file /a.scad, line 1");
+      parser.parseLine("TRACE: called by 'mod_a' in file /main.scad, line 5");
+
+      // Second error with traces
+      parser.parseLine("ERROR: Assertion 'false' failed in file /b.scad, line 3");
+      parser.parseLine("TRACE: called by 'assert' in file /b.scad, line 3");
+
+      expect(errors).toHaveLength(2);
+      expect(errors[0]!.stackFrames).toHaveLength(2);
+      expect(errors[1]!.stackFrames).toHaveLength(1);
+
+      // Verify each error has its own stack frames
+      expect(errors[0]!.stackFrames![1]!.fileName).toBe('main.scad');
+      expect(errors[1]!.stackFrames![0]!.fileName).toBe('b.scad');
+    });
+
+    it('should map main file basename in TRACE frames when mainFilePath is provided', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser(
+        (error) => {
+          errors.push(error);
+        },
+        undefined,
+        'site/backyard.scad',
+      );
+
+      parser.parseLine("ERROR: Assertion 'false' failed in file /lib.scad, line 2");
+      parser.parseLine("TRACE: called by 'broken' in file /backyard.scad, line 3");
+
+      expect(errors).toHaveLength(1);
+      // Main file basename should map to full path in trace frame
+      expect(errors[0]!.stackFrames![0]!.fileName).toBe('site/backyard.scad');
+    });
+  });
+
+  describe("Can't parse file include chain (OpenScadStderrParser)", () => {
+    it('should create include stack frame from "Can\'t parse file" line', () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // Simulate: error in lib.scad, "Can't parse file 'main.scad'!"
+      parser.parseLine('ERROR: Parser error: syntax error in file /lib.scad, line 2');
+      parser.parseLine("Can't parse file 'main.scad'!");
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.stackFrames).toBeDefined();
+      expect(errors[0]!.stackFrames).toHaveLength(1);
+      expect(errors[0]!.stackFrames![0]).toEqual({
+        functionName: 'include',
+        fileName: 'main.scad',
+        lineNumber: 1, // Fallback line (no file contents to search)
+        isInternal: false,
+      });
+    });
+
+    it('should find correct include line when file contents are available', () => {
+      const errors: KernelIssue[] = [];
+      const getFileContents = createGetFileContents({
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Test file name
+        'main.scad': '// Header\ninclude <lib.scad>\ncube([10, 10, 10]);',
+      });
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      }, getFileContents);
+
+      parser.parseLine('ERROR: Parser error: syntax error in file /lib.scad, line 5');
+      parser.parseLine("Can't parse file 'main.scad'!");
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.stackFrames).toBeDefined();
+      expect(errors[0]!.stackFrames![0]!.lineNumber).toBe(2); // Include is on line 2
+    });
+
+    it('should reconstruct 3-file include chain from file contents', () => {
+      const errors: KernelIssue[] = [];
+      const getFileContents = createGetFileContents({
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Test file name
+        'main.scad': 'include <middle.scad>\ncube([10, 10, 10]);',
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- Test file name
+        'middle.scad': 'include <bad.scad>\ny = 20;',
+      });
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      }, getFileContents);
+
+      parser.parseLine('ERROR: Parser error: syntax error in file /bad.scad, line 2');
+      parser.parseLine("Can't parse file 'main.scad'!");
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0]!.stackFrames).toHaveLength(2);
+
+      // Deepest first: middle.scad includes bad.scad
+      expect(errors[0]!.stackFrames![0]).toEqual({
+        functionName: 'include',
+        fileName: 'middle.scad',
+        lineNumber: 1,
+        isInternal: false,
+      });
+
+      // Shallowest: main.scad includes middle.scad
+      expect(errors[0]!.stackFrames![1]).toEqual({
+        functionName: 'include',
+        fileName: 'main.scad',
+        lineNumber: 1,
+        isInternal: false,
+      });
+    });
+
+    it("should not create stack frame from 'Can't parse file' without preceding error", () => {
+      const errors: KernelIssue[] = [];
+      const parser = new OpenScadStderrParser((error) => {
+        errors.push(error);
+      });
+
+      // Orphaned "Can't parse file" without a preceding error
+      parser.parseLine("Can't parse file 'main.scad'!");
+
+      expect(errors).toHaveLength(0);
     });
   });
 

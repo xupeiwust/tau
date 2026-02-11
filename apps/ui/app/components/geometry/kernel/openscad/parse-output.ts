@@ -1,4 +1,4 @@
-import type { ErrorLocation, KernelIssue } from '@taucad/types';
+import type { ErrorLocation, KernelIssue, KernelStackFrame } from '@taucad/types';
 
 /**
  * Callback function type for adding parsed errors.
@@ -135,7 +135,455 @@ function createErrorLocation(
 }
 
 /**
+ * Set of OpenSCAD built-in functions/modules that should be marked as internal
+ * in stack traces. These are not user code and should be filterable.
+ */
+const openscadBuiltinFunctions = new Set(['assert', 'echo', 'let', 'assign']);
+
+/**
+ * Parse a TRACE line from OpenSCAD stderr and return a stack frame.
+ *
+ * OpenSCAD emits two types of TRACE lines after errors:
+ * - `TRACE: called by '<name>' in file <path>, line <N>` — indicates the call site of a function
+ * - `TRACE: call of '<name>()' in file <path>, line <N>` — indicates the function definition
+ *
+ * The "called by" lines represent meaningful call sites (where a function was invoked),
+ * while "call of" lines point to function/module definitions. Together they form a
+ * complete call stack from the error site back to the top-level call.
+ *
+ * Built-in OpenSCAD functions (like `assert`) are marked as internal.
+ *
+ * @param message - The stderr line to parse.
+ * @param mainFilePath - Optional main file path for filename normalization.
+ * @returns A KernelStackFrame if the line is a TRACE line, or undefined otherwise.
+ */
+function parseTraceLine(message: string, mainFilePath?: string): KernelStackFrame | undefined {
+  // Pattern: TRACE: called by '<name>' in file <path>, line <N>
+  // These represent call sites — where a function was invoked
+  let match = /^TRACE: called by '([^']+)' in file "?([^",]+)"?, line (\d+)/.exec(message);
+  if (match) {
+    const [, functionName, file, line] = match;
+    const name = functionName ?? '<anonymous>';
+    return {
+      functionName: name,
+      fileName: normalizeFileName(file ?? '', mainFilePath),
+      lineNumber: Number(line),
+      isInternal: openscadBuiltinFunctions.has(name),
+    };
+  }
+
+  // Pattern: TRACE: call of '<name>()' in file <path>, line <N>
+  // These represent function/module definitions — less useful for user-facing traces
+  // but we still capture them for completeness
+  match = /^TRACE: call of '([^']+)' in file "?([^",]+)"?, line (\d+)/.exec(message);
+  if (match) {
+    const [, functionName, file, line] = match;
+    const name = functionName ?? '<anonymous>';
+    return {
+      functionName: name,
+      fileName: normalizeFileName(file ?? '', mainFilePath),
+      lineNumber: Number(line),
+      isInternal: openscadBuiltinFunctions.has(name),
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Stateful parser for OpenSCAD stderr output.
+ *
+ * OpenSCAD emits errors and warnings as single lines, optionally followed
+ * by TRACE lines that form a call stack. This parser accumulates TRACE lines
+ * and attaches them as `stackFrames` to the preceding error.
+ *
+ * Usage:
+ * ```typescript
+ * const parser = new OpenScadStderrParser(addError, getFileContents, mainFilePath);
+ * // Call for each stderr line:
+ * parser.parseLine(message);
+ * ```
+ */
+export class OpenScadStderrParser {
+  /** Reference to the last error added, so TRACE lines can append stack frames to it. */
+  private lastError: KernelIssue | undefined;
+
+  public constructor(
+    private readonly addError: AddErrorFn,
+    private readonly getFileContents?: GetFileContentsFn,
+    private readonly mainFilePath?: string,
+  ) {}
+
+  /**
+   * Parse a single stderr line. If it's an error/warning, create an issue.
+   * If it's a TRACE line, append a stack frame to the last error.
+   * If it's a "Can't parse file" line, create an include-chain stack frame.
+   */
+  public parseLine(message: string): void {
+    // First, check if this is a TRACE line (must come before error patterns to avoid mismatching)
+    const traceFrame = parseTraceLine(message, this.mainFilePath);
+    if (traceFrame) {
+      this.appendFrameToLastError(traceFrame);
+      return;
+    }
+
+    // Check for "Can't parse file 'X'!" lines that follow parser errors.
+    // These indicate the include chain — e.g., bad.scad has a syntax error and
+    // "Can't parse file 'main.scad'!" tells us main.scad included the broken file.
+    if (this.tryCantParseFile(message)) {
+      return;
+    }
+
+    // Not a TRACE or follow-up line — reset lastError so subsequent lines
+    // are not accidentally appended to the wrong error
+    this.lastError = undefined;
+
+    // Try each error pattern
+    if (this.tryParserErrorWithFile(message)) {
+      return;
+    }
+
+    if (this.tryParserErrorInline(message)) {
+      return;
+    }
+
+    if (this.tryWarning(message)) {
+      return;
+    }
+
+    if (this.tryAssertionFailure(message)) {
+      return;
+    }
+
+    if (this.tryGenericError(message)) {
+      return;
+    }
+
+    this.tryEmptyObject(message);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Error patterns
+  // ---------------------------------------------------------------------------
+
+  /** Pattern 1: ERROR: Parser error in file "foo.scad", line 10: syntax error */
+  private tryParserErrorWithFile(message: string): boolean {
+    const match = /^ERROR: Parser error in file "([^"]+)", line (\d+): (.*)$/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, file, line, error] = match;
+    const fileName = normalizeFileName(file ?? '', this.mainFilePath);
+    const lineNumber = Number(line);
+    this.emitError({
+      message: error ?? 'Unknown error',
+      location: createErrorLocation(fileName, lineNumber, this.getFileContents),
+      type: 'compilation',
+      severity: 'error',
+    });
+    return true;
+  }
+
+  /** Pattern 2: ERROR: Parser error: syntax error in file foo.scad, line 10 */
+  private tryParserErrorInline(message: string): boolean {
+    const match = /^ERROR: Parser error: (.*?) in file ([^,]+), line (\d+)$/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, error, file, line] = match;
+    const fileName = normalizeFileName(file ?? '', this.mainFilePath);
+    const lineNumber = Number(line);
+    this.emitError({
+      message: error ?? 'Unknown error',
+      location: createErrorLocation(fileName, lineNumber, this.getFileContents),
+      type: 'compilation',
+      severity: 'error',
+    });
+    return true;
+  }
+
+  /** Pattern 3: WARNING messages */
+  private tryWarning(message: string): boolean {
+    const match = /^WARNING: (.*?),? in file ([^,]+), line (\d+)\.?/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, warning, file, line] = match;
+    const fileName = normalizeFileName(file ?? '', this.mainFilePath);
+    const lineNumber = Number(line);
+    this.emitError({
+      message: warning ?? 'Unknown warning',
+      location: createErrorLocation(fileName, lineNumber, this.getFileContents),
+      type: 'compilation',
+      severity: 'warning',
+    });
+    return true;
+  }
+
+  /** Pattern 4: Assertion failures - ERROR: Assertion 'condition' failed in file "foo.scad", line 10 */
+  private tryAssertionFailure(message: string): boolean {
+    const match = /^ERROR: (Assertion .*?) in file "?([^",]+)"?, line (\d+)/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, error, file, line] = match;
+    const fileName = normalizeFileName(file ?? '', this.mainFilePath);
+    const lineNumber = Number(line);
+    this.emitError({
+      message: error ?? 'Assertion failed',
+      location: createErrorLocation(fileName, lineNumber, this.getFileContents),
+      type: 'runtime',
+      severity: 'error',
+    });
+    return true;
+  }
+
+  /** Pattern 5: Generic ERROR messages with file/line info */
+  private tryGenericError(message: string): boolean {
+    const match = /^ERROR: (.*?) in file "?([^",]+)"?, line (\d+)/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, error, file, line] = match;
+    const fileName = normalizeFileName(file ?? '', this.mainFilePath);
+    const lineNumber = Number(line);
+    this.emitError({
+      message: error ?? 'Unknown error',
+      location: createErrorLocation(fileName, lineNumber, this.getFileContents),
+      type: 'runtime',
+      severity: 'error',
+    });
+    return true;
+  }
+
+  /**
+   * Pattern: Can't parse file 'X'!
+   *
+   * This line follows parser errors when the error occurs in an included file.
+   * For example, if bad.scad has a syntax error and is included by main.scad
+   * through middle.scad:
+   *   ERROR: Parser error: syntax error in file /bad.scad, line 2
+   *   Can't parse file 'main.scad'!
+   *
+   * OpenSCAD only emits the top-level file that failed to parse, not the
+   * intermediate files. We reconstruct the full include chain by walking
+   * the include/use directives in the file contents.
+   */
+  private tryCantParseFile(message: string): boolean {
+    if (!this.lastError) {
+      return false;
+    }
+
+    const match = /^Can't parse file '([^']+)'!$/.exec(message);
+    if (!match) {
+      return false;
+    }
+
+    const [, rawFile] = match;
+    const topLevelFile = normalizeFileName(rawFile ?? '', this.mainFilePath);
+    const errorFile = this.lastError.location?.fileName;
+
+    if (!errorFile) {
+      // No error location to trace from — just add the top-level file
+      this.appendFrameToLastError({
+        functionName: 'include',
+        fileName: topLevelFile,
+        lineNumber: 1,
+        isInternal: false,
+      });
+      return true;
+    }
+
+    // Build the include chain from the top-level file down to the error file.
+    // This reconstructs intermediate files that OpenSCAD doesn't report.
+    const chain = this.buildIncludeChain(topLevelFile, errorFile);
+
+    for (const frame of chain) {
+      this.appendFrameToLastError(frame);
+    }
+
+    return true;
+  }
+
+  /** Pattern 6: Empty top level object (no geometry to render) */
+  private tryEmptyObject(message: string): void {
+    if (message.includes('Current top level object is empty')) {
+      this.emitError({
+        message:
+          'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
+        location: this.mainFilePath ? { fileName: this.mainFilePath, startLineNumber: 1, startColumn: 1 } : undefined,
+        type: 'runtime',
+        severity: 'warning',
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Append a stack frame to the last error's stackFrames array.
+   * Creates the array if it doesn't exist.
+   */
+  private appendFrameToLastError(frame: KernelStackFrame): void {
+    if (!this.lastError) {
+      return;
+    }
+
+    this.lastError.stackFrames ??= [];
+    this.lastError.stackFrames.push(frame);
+  }
+
+  /**
+   * Build a chain of include stack frames from the top-level file down to
+   * the file containing the error. Walks include/use directives in file contents
+   * to reconstruct intermediate files that OpenSCAD doesn't report.
+   *
+   * For example, with main.scad -> middle.scad -> bad.scad:
+   * Returns frames for [middle.scad (include <bad.scad>), main.scad (include <middle.scad>)]
+   * ordered from deepest to shallowest (matching stack trace convention).
+   *
+   * @param topLevelFile - The file reported in "Can't parse file 'X'!".
+   * @param errorFile - The file where the actual error occurred.
+   * @returns Array of stack frames representing the include chain.
+   */
+  private buildIncludeChain(topLevelFile: string, errorFile: string): KernelStackFrame[] {
+    if (!this.getFileContents) {
+      // Without file contents, we can only show the top-level file
+      return [{ functionName: 'include', fileName: topLevelFile, lineNumber: 1, isInternal: false }];
+    }
+
+    // Walk from topLevelFile, following include/use directives toward errorFile.
+    // Use BFS to find the shortest path through the include graph.
+    const chain = this.findIncludePathBfs(topLevelFile, errorFile);
+
+    if (chain.length === 0) {
+      // Couldn't trace the chain — fall back to showing just the top-level file
+      const directLine = this.findIncludeLineInFile(topLevelFile, errorFile);
+      return [{ functionName: 'include', fileName: topLevelFile, lineNumber: directLine ?? 1, isInternal: false }];
+    }
+
+    return chain;
+  }
+
+  /**
+   * BFS through include/use directives to find the path from startFile to targetFile.
+   * Returns stack frames ordered from deepest (closest to error) to shallowest (entry point).
+   */
+  private findIncludePathBfs(startFile: string, targetFile: string): KernelStackFrame[] {
+    if (!this.getFileContents) {
+      return [];
+    }
+
+    const targetBasename = getBasename(targetFile);
+
+    // Each entry: [currentFile, path of (parentFile, lineNumber) pairs leading here]
+    type BfsEntry = { file: string; path: Array<{ file: string; line: number }> };
+    const queue: BfsEntry[] = [{ file: startFile, path: [] }];
+    const visited = new Set<string>([startFile]);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const includes = this.getIncludesFromFile(current.file);
+
+      for (const inc of includes) {
+        if (getBasename(inc.includedFile) === targetBasename || inc.includedFile === targetFile) {
+          // Found the target! Build the chain from deepest to shallowest.
+          // Reverse so the file closest to the error comes first (stack trace convention).
+          const fullPath = [...current.path, { file: current.file, line: inc.lineNumber }];
+          return fullPath.reverse().map((entry) => ({
+            functionName: 'include',
+            fileName: entry.file,
+            lineNumber: entry.line,
+            isInternal: false,
+          }));
+        }
+
+        if (!visited.has(inc.includedFile)) {
+          visited.add(inc.includedFile);
+          queue.push({
+            file: inc.includedFile,
+            path: [...current.path, { file: current.file, line: inc.lineNumber }],
+          });
+        }
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Extract all include/use directives from a file's contents.
+   * Returns an array of { includedFile, lineNumber } entries.
+   */
+  private getIncludesFromFile(fileName: string): Array<{ includedFile: string; lineNumber: number }> {
+    if (!this.getFileContents) {
+      return [];
+    }
+
+    const content = this.getFileContents(fileName);
+    if (content === undefined) {
+      return [];
+    }
+
+    const results: Array<{ includedFile: string; lineNumber: number }> = [];
+    const lines = content.split('\n');
+
+    for (const [index, line] of lines.entries()) {
+      const match = /^\s*(?:include|use)\s+<([^>]+)>/.exec(line);
+      if (match) {
+        results.push({
+          includedFile: match[1] ?? '',
+          lineNumber: index + 1, // 1-based
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Search a file's content for an include/use directive that references
+   * the given included file, and return the 1-based line number.
+   *
+   * @param parentFileName - The file that contains the include/use directive.
+   * @param includedFileName - The file being included (the one with the error).
+   * @returns The 1-based line number of the include directive, or undefined if not found.
+   */
+  private findIncludeLineInFile(parentFileName: string, includedFileName: string): number | undefined {
+    const includes = this.getIncludesFromFile(parentFileName);
+    const targetBasename = getBasename(includedFileName);
+
+    for (const inc of includes) {
+      if (getBasename(inc.includedFile) === targetBasename || inc.includedFile === includedFileName) {
+        return inc.lineNumber;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Emit an error and store its reference so subsequent TRACE lines
+   * can append stack frames to it.
+   */
+  private emitError(error: KernelIssue): void {
+    this.lastError = error;
+    this.addError(error);
+  }
+}
+
+/**
  * Parse a single stderr line from OpenSCAD and call addError if it matches a known error pattern.
+ *
+ * This is the stateless legacy API preserved for backward compatibility.
+ * For full stack trace support, use {@link OpenScadStderrParser} instead.
  *
  * Supports the following OpenSCAD error/warning formats:
  * - `ERROR: Parser error in file "foo.scad", line 10: syntax error`
@@ -157,90 +605,9 @@ export function parseStderrLine(
   getFileContents?: GetFileContentsFn,
   mainFilePath?: string,
 ): void {
-  // Pattern 1: ERROR: Parser error in file "foo.scad", line 10: syntax error
-  let match = /^ERROR: Parser error in file "([^"]+)", line (\d+): (.*)$/.exec(message);
-  if (match) {
-    const [, file, line, error] = match;
-    const fileName = normalizeFileName(file ?? '', mainFilePath);
-    const lineNumber = Number(line);
-    addError({
-      message: error ?? 'Unknown error',
-      location: createErrorLocation(fileName, lineNumber, getFileContents),
-      type: 'compilation',
-      severity: 'error',
-    });
-    return;
-  }
-
-  // Pattern 2: ERROR: Parser error: syntax error in file foo.scad, line 10
-  match = /^ERROR: Parser error: (.*?) in file ([^,]+), line (\d+)$/.exec(message);
-  if (match) {
-    const [, error, file, line] = match;
-    const fileName = normalizeFileName(file ?? '', mainFilePath);
-    const lineNumber = Number(line);
-    addError({
-      message: error ?? 'Unknown error',
-      location: createErrorLocation(fileName, lineNumber, getFileContents),
-      type: 'compilation',
-      severity: 'error',
-    });
-    return;
-  }
-
-  // Pattern 3: WARNING messages
-  match = /^WARNING: (.*?),? in file ([^,]+), line (\d+)\.?/.exec(message);
-  if (match) {
-    const [, warning, file, line] = match;
-    const fileName = normalizeFileName(file ?? '', mainFilePath);
-    const lineNumber = Number(line);
-    addError({
-      message: warning ?? 'Unknown warning',
-      location: createErrorLocation(fileName, lineNumber, getFileContents),
-      type: 'compilation',
-      severity: 'warning',
-    });
-    return;
-  }
-
-  // Pattern 4: Assertion failures - ERROR: Assertion 'condition' failed in file "foo.scad", line 10
-  match = /^ERROR: (Assertion .*?) in file "?([^",]+)"?, line (\d+)/.exec(message);
-  if (match) {
-    const [, error, file, line] = match;
-    const fileName = normalizeFileName(file ?? '', mainFilePath);
-    const lineNumber = Number(line);
-    addError({
-      message: error ?? 'Assertion failed',
-      location: createErrorLocation(fileName, lineNumber, getFileContents),
-      type: 'runtime',
-      severity: 'error',
-    });
-    return;
-  }
-
-  // Pattern 5: Generic ERROR messages with file/line info
-  match = /^ERROR: (.*?) in file "?([^",]+)"?, line (\d+)/.exec(message);
-  if (match) {
-    const [, error, file, line] = match;
-    const fileName = normalizeFileName(file ?? '', mainFilePath);
-    const lineNumber = Number(line);
-    addError({
-      message: error ?? 'Unknown error',
-      location: createErrorLocation(fileName, lineNumber, getFileContents),
-      type: 'runtime',
-      severity: 'error',
-    });
-    return;
-  }
-
-  // Pattern 6: Empty top level object (no geometry to render)
-  // This occurs when a file only defines modules but doesn't call any of them
-  if (message.includes('Current top level object is empty')) {
-    addError({
-      message:
-        'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
-      location: mainFilePath ? { fileName: mainFilePath, startLineNumber: 1, startColumn: 1 } : undefined,
-      type: 'runtime',
-      severity: 'warning',
-    });
-  }
+  // Delegate to the stateful parser for a single line.
+  // Note: TRACE lines will not be captured when using this stateless API since
+  // each call creates a new parser instance with no memory of previous errors.
+  const parser = new OpenScadStderrParser(addError, getFileContents, mainFilePath);
+  parser.parseLine(message);
 }
