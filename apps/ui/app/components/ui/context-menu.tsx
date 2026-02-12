@@ -8,6 +8,8 @@ import {
   menuContentVariants,
   menuLabelVariants,
   menuSeparatorVariants,
+  menuSubTriggerOpenClass,
+  menuShortcutClass,
 } from '#components/ui/menu.variants.js';
 
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>): React.JSX.Element {
@@ -50,15 +52,11 @@ function ContextMenuSubTrigger({
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
       data-inset={inset}
-      className={cn(
-        menuItemVariants({ inset }),
-        'data-[state=open]:text-accent-foreground data-[state=open]:bg-accent',
-        className,
-      )}
+      className={cn(menuItemVariants({ inset }), menuSubTriggerOpenClass, className)}
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto" />
+      <ChevronRightIcon className="ml-auto size-3.5" />
     </ContextMenuPrimitive.SubTrigger>
   );
 }
@@ -194,13 +192,7 @@ function ContextMenuSeparator({
 }
 
 function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span'>): React.JSX.Element {
-  return (
-    <span
-      data-slot="context-menu-shortcut"
-      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
-      {...props}
-    />
-  );
+  return <span data-slot="context-menu-shortcut" className={cn(menuShortcutClass, className)} {...props} />;
 }
 
 export {

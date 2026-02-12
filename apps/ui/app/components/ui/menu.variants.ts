@@ -2,11 +2,10 @@ import { cva } from 'class-variance-authority';
 
 /**
  * Shared item styling for all menu-like components (dropdown-menu, context-menu, command, select).
- * Uses compact py-1 padding for a tighter, more refined appearance.
+ * Compact macOS-inspired design with primary focus highlight.
  */
 export const menuItemVariants = cva(
-  // Base: compact py-1 padding, rounded-sm, standard disabled states
-  "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+  "relative flex cursor-default items-center gap-2 rounded-md px-3 py-1 text-[13px] outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
   {
     variants: {
       variant: {
@@ -19,7 +18,7 @@ export const menuItemVariants = cva(
         false: '',
       },
       focusable: {
-        true: 'focus:bg-accent focus:text-accent-foreground', // Standard focus states for dropdown/context menus
+        true: 'focus:bg-neutral/30 focus:text-foreground focus:[&_svg]:text-foreground',
         false: '', // For cmdk which uses data-[selected=true] instead of focus
       },
     },
@@ -33,9 +32,10 @@ export const menuItemVariants = cva(
 
 /**
  * Content container styling for menu popover/dropdown containers.
+ * Instant open/close (no animation) by default for a snappy feel.
  */
 export const menuContentVariants = cva(
-  'z-50 min-w-32 overflow-hidden rounded-sm border bg-popover p-1 text-popover-foreground shadow-md',
+  'z-50 min-w-32 overflow-hidden rounded-[13px] border border-foreground/10 bg-popover p-0.75 text-popover-foreground shadow-md',
   {
     variants: {
       animated: {
@@ -44,15 +44,26 @@ export const menuContentVariants = cva(
       },
     },
     defaultVariants: {
-      animated: true,
+      animated: false,
     },
   },
 );
 
 /**
+ * Shared open-state styling for sub-menu triggers.
+ */
+export const menuSubTriggerOpenClass =
+  'data-[state=open]:bg-neutral/30 data-[state=open]:text-foreground data-[state=open]:[&_svg]:text-foreground';
+
+/**
+ * Shared shortcut styling for keyboard shortcut hints.
+ */
+export const menuShortcutClass = 'ml-auto text-[11px] tracking-normal text-muted-foreground';
+
+/**
  * Label styling for menu section headers.
  */
-export const menuLabelVariants = cva('px-2 py-1 text-xs font-medium text-muted-foreground', {
+export const menuLabelVariants = cva('px-3 py-1 text-xs font-medium text-muted-foreground', {
   variants: {
     inset: {
       true: 'pl-8',
@@ -67,4 +78,4 @@ export const menuLabelVariants = cva('px-2 py-1 text-xs font-medium text-muted-f
 /**
  * Separator styling for menu dividers.
  */
-export const menuSeparatorVariants = cva('-mx-1 my-1 h-px bg-border');
+export const menuSeparatorVariants = cva('mx-0 my-0.75 h-px bg-border');

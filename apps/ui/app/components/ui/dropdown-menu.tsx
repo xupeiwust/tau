@@ -12,6 +12,8 @@ import {
   menuContentVariants,
   menuLabelVariants,
   menuSeparatorVariants,
+  menuSubTriggerOpenClass,
+  menuShortcutClass,
 } from '#components/ui/menu.variants.js';
 
 function DropdownMenu({ ...properties }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>): React.JSX.Element {
@@ -324,13 +326,7 @@ function DropdownMenuSeparator({
 }
 
 function DropdownMenuShortcut({ className, ...properties }: React.ComponentProps<'span'>): React.JSX.Element {
-  return (
-    <span
-      data-slot="dropdown-menu-shortcut"
-      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
-      {...properties}
-    />
-  );
+  return <span data-slot="dropdown-menu-shortcut" className={cn(menuShortcutClass, className)} {...properties} />;
 }
 
 function DropdownMenuSub({ ...properties }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>): React.JSX.Element {
@@ -349,15 +345,11 @@ function DropdownMenuSubTrigger({
     <DropdownMenuPrimitive.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
       data-inset={isInset}
-      className={cn(
-        menuItemVariants({ inset: isInset }),
-        'data-[state=open]:text-accent-foreground cursor-pointer data-[state=open]:bg-accent',
-        className,
-      )}
+      className={cn(menuItemVariants({ inset: isInset }), menuSubTriggerOpenClass, 'cursor-pointer', className)}
       {...properties}
     >
       {children}
-      <ChevronRightIcon className="ml-auto size-4" />
+      <ChevronRightIcon className="ml-auto size-3.5" />
     </DropdownMenuPrimitive.SubTrigger>
   );
 }
