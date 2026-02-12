@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 import type { DockviewTheme } from 'dockview-react';
 import { DockviewReact } from 'dockview-react';
+import { DockviewSplitAction } from '#components/panes/dockview-split-action.js';
 
 /**
  * Custom Dockview theme that maps CSS variables to the application's design tokens.
@@ -17,9 +18,16 @@ type DockviewProperties = Omit<ComponentProps<typeof DockviewReact>, 'theme'>;
  * Themed Dockview wrapper.
  *
  * Renders `DockviewReact` with the `tauDockviewTheme` applied automatically.
- * All theme CSS lives in the co-located `tau-dockview.css` stylesheet which is
- * loaded via `global.styles.ts` after the base dockview CSS.
+ * Includes a "split right" button in the right side of each group's tab bar
+ * (visible on hover). All theme CSS lives in the co-located `tau-dockview.css`
+ * stylesheet which is loaded via `global.styles.ts` after the base dockview CSS.
  */
 export function Dockview(properties: DockviewProperties): React.JSX.Element {
-  return <DockviewReact {...properties} theme={tauDockviewTheme} />;
+  return (
+    <DockviewReact
+      {...properties}
+      theme={tauDockviewTheme}
+      rightHeaderActionsComponent={properties.rightHeaderActionsComponent ?? DockviewSplitAction}
+    />
+  );
 }

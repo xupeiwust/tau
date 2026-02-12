@@ -88,9 +88,7 @@
 
 /* ── Bottom border on non-tab tab-bar children ──
    The void-container, left/right/pre actions containers all get the border so the
-   line is continuous across the full width except under the active tab.
-   The void-container also gets a left border as the right-side divider after the
-   last tab (tab dividers are ::before on :not(:first-child) only). */
+   line is continuous across the full width except under the active tab. */
 .dockview-theme-tau .dv-void-container,
 .dockview-theme-tau .dv-right-actions-container,
 .dockview-theme-tau .dv-left-actions-container,
@@ -98,8 +96,8 @@
   border-bottom: 1px solid var(--border);
 }
 
-.dockview-theme-tau .dv-void-container {
-  border-left: 1px solid var(--dv-tab-divider-color);
+.dockview-theme-tau .dv-left-actions-container {
+  padding-left: calc(var(--spacing));
 }
 
 /* ── Close button styling ──
@@ -152,6 +150,28 @@
 
 .dockview-theme-tau .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
   border-top-color: transparent;
+}
+
+/* ── Action container content centering ──
+   Dockview's .dv-react-part wrapper uses height/width: 100% but no flex centering,
+   so action buttons sit at the top instead of vertically centered. */
+.dockview-theme-tau .dv-right-actions-container > .dv-react-part,
+.dockview-theme-tau .dv-left-actions-container > .dv-react-part {
+  display: flex;
+  align-items: center;
+  padding-right: calc(var(--spacing));
+}
+
+/* ── Group-hover action buttons ──
+   Hidden by default, shown on group hover to reduce visual noise.
+   All pane action buttons share the `.dv-pane-action` class. */
+.dockview-theme-tau .dv-pane-action {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.dockview-theme-tau .dv-groupview:hover .dv-pane-action {
+  opacity: 1;
 }
 
 /* ── Content container background (matches the code editor bg-background) ── */
