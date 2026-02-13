@@ -178,7 +178,7 @@ export function getBackendConfig(name: FilesystemBackend): FilesystemBackendConf
  * @param backend - The backend type to use ('indexeddb' or 'opfs' for production, 'memory' for tests)
  * @throws Error if the backend is not supported by the browser
  */
-export async function configureFilesystem(backend: FilesystemBackend = 'opfs'): Promise<void> {
+export async function configureFilesystem(backend: FilesystemBackend = 'indexeddb'): Promise<void> {
   // If already configured with the same backend, return the existing promise
   if (currentBackend === backend && configurationPromise) {
     return configurationPromise;
@@ -303,8 +303,9 @@ export async function ensureGitMountConfigured(): Promise<void> {
     // in normal flow, but handle it by reconfiguring)
   }
 
-  // Configure filesystem with default backend which includes git mount
-  await configureFilesystem();
+  // Configure filesystem with IndexedDB backend which includes git mount.
+  // Keep this explicit so git operations never fall back to OPFS.
+  await configureFilesystem('indexeddb');
 }
 
 /**
