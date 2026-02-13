@@ -13,7 +13,7 @@ import { filesystemBackendMeta } from '@taucad/types/constants';
 import { Button } from '#components/ui/button.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
 import { Loader } from '#components/ui/loader.js';
-import { isOpfsSupported, isFileSystemAccessSupported } from '#constants/browser.constants.js';
+import { isFileSystemAccessSupported } from '#constants/browser.constants.js';
 
 /**
  * Backend option for the selector dropdown.
@@ -72,7 +72,14 @@ export function BackendSelector({
   isInternalHidden = false,
 }: BackendSelectorProps): React.JSX.Element {
   const filteredOptions = useMemo(
-    () => (isInternalHidden ? backendOptions.filter((option) => option.value !== 'memory') : backendOptions),
+    () =>
+      backendOptions.filter(
+        (option) =>
+          // OPFS is disabled due to file corruption issues -- hide from all selectors
+          option.value !== 'opfs' &&
+          // Memory is internal-only
+          (!isInternalHidden || option.value !== 'memory'),
+      ),
     [isInternalHidden],
   );
 
@@ -99,9 +106,7 @@ export function BackendSelector({
         </span>
       )}
       popoverProperties={{ className: 'w-[340px]' }}
-      isDisabled={(item) =>
-        (item.value === 'opfs' && !isOpfsSupported) || (item.value === 'webaccess' && !isFileSystemAccessSupported)
-      }
+      isDisabled={(item) => item.value === 'webaccess' && !isFileSystemAccessSupported}
       title="Select Storage Backend"
       description="Choose where to store files"
       isSearchEnabled={false}

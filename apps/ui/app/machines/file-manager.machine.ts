@@ -86,6 +86,11 @@ const initializeWorkerActor = fromPromise<
       backend = buildBackend ?? 'indexeddb';
     }
 
+    // OPFS is disabled due to file corruption issues -- fall back to indexeddb
+    if (backend === 'opfs') {
+      backend = 'indexeddb';
+    }
+
     if (backend === 'webaccess') {
       // Retrieve the workspace handle
       const workspaceHandle = await getStoredDirectoryHandle();

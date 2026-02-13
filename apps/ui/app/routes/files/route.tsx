@@ -1,16 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Link } from 'react-router';
-import {
-  Database,
-  Download,
-  FolderArchive,
-  FolderOpen,
-  HardDrive,
-  MoreHorizontal,
-  RefreshCw,
-  Star,
-  Trash2,
-} from 'lucide-react';
+import { Database, Download, FolderArchive, FolderOpen, MoreHorizontal, RefreshCw, Star, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { FilesystemBackend, Build } from '@taucad/types';
 import { ExternalLink } from '#components/external-link.js';
@@ -23,7 +13,7 @@ import { useCookie } from '#hooks/use-cookie.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { useBuilds } from '#hooks/use-builds.js';
 import { cookieName } from '#constants/cookie.constants.js';
-import { isOpfsSupported, isFileSystemAccessSupported } from '#constants/browser.constants.js';
+import { isFileSystemAccessSupported } from '#constants/browser.constants.js';
 import type { Handle } from '#types/matches.types.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 import { cn } from '#utils/ui.utils.js';
@@ -64,13 +54,7 @@ const backendColumns: BackendColumnMeta[] = [
     description: 'Browser database storage',
     isSupported: true,
   },
-  {
-    key: 'opfs',
-    label: 'Origin Private FS',
-    icon: HardDrive,
-    description: 'Browser private file system',
-    isSupported: isOpfsSupported,
-  },
+  // OPFS column removed -- disabled due to file corruption issues
   {
     key: 'webaccess',
     label: 'File System',
@@ -781,7 +765,7 @@ export default function FilesRoute(): React.JSX.Element {
       </div>
 
       {/* 3-column grid */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[1fr] gap-4 overflow-hidden md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[1fr] gap-4 overflow-hidden md:grid-cols-2">
         {backendColumns.map((column) => (
           <BackendColumn
             key={column.key}
