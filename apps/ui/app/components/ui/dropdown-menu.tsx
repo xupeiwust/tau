@@ -210,7 +210,7 @@ function DropdownMenuSliderItem({
   return (
     <div
       data-slot="dropdown-menu-slider-item"
-      className={cn('px-2 py-2', className)}
+      className={cn('px-3 py-2', className)}
       // Prevent dropdown from closing when interacting with slider
       onPointerDown={(event) => {
         event.stopPropagation();
@@ -263,7 +263,7 @@ function DropdownMenuToggleGroupItem<T extends string>({
   return (
     <div
       data-slot="dropdown-menu-toggle-group-item"
-      className={cn('flex items-center justify-between px-2 py-1.5', className)}
+      className={cn('flex items-center justify-between px-3 py-1.5', className)}
       // Prevent dropdown from closing when interacting with toggle group
       onPointerDown={(event) => {
         event.stopPropagation();
@@ -424,7 +424,7 @@ function DropdownMenuSelectItem<T>({
   return (
     <div
       data-slot="dropdown-menu-select-item"
-      className={cn('flex items-center justify-between px-2 py-1.5', className)}
+      className={cn('flex items-center justify-between px-3 py-1.5', className)}
       // Prevent parent dropdown from closing when interacting with select
       onPointerDown={(event) => {
         event.stopPropagation();
