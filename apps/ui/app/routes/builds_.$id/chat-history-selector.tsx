@@ -180,8 +180,8 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
               </div>
             ) : null}
             {chat.error ? (
-              <div className="flex items-center gap-1 text-xs text-destructive">
-                <AlertCircle className="size-3 shrink-0 text-destructive" />
+              <div className="flex items-center gap-1 text-xs text-warning">
+                <AlertCircle className="size-3 shrink-0 text-warning" />
                 <span className="truncate">{chat.error.title}</span>
               </div>
             ) : null}
@@ -194,7 +194,7 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
             <Button
               variant="ghost"
               size="icon"
-              className="hover:bg-neutral/10 max-md:bg-neutral/10 md:size-6"
+              className="hover:bg-neutral/20! max-md:bg-neutral/20! md:size-6"
               onClick={(event) => {
                 event.stopPropagation();
                 handleRenameChat(chat.id, chatName);
@@ -205,7 +205,7 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
             <Button
               variant="ghost"
               size="icon"
-              className="hover:bg-destructive/10 max-md:bg-destructive/10 md:size-6"
+              className="hover:bg-destructive/20! max-md:bg-destructive/20! md:size-6"
               onClick={(event) => {
                 event.stopPropagation();
                 void handleDeleteChat(chat.id);
@@ -231,8 +231,8 @@ export function ChatHistorySelector({ onNewChat }: { readonly onNewChat?: () => 
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="relative flex size-2 shrink-0">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-destructive" />
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-warning opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-warning" />
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom">
