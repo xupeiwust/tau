@@ -19,54 +19,62 @@ registry.addContribution(kclContribution);
 registry.addContribution(openscadContribution);
 registry.addContribution(jsTsContribution);
 
+// Guard to ensure configureMonaco runs only once. shikiToMonaco monkey-patches
+// monaco.editor.create and monaco.editor.setTheme, creating chained wrappers
+// on repeated calls. This flag prevents that during HMR or multiple call sites.
+let isConfigured = false;
+
 /**
  * Configure the Monaco editor.
  *
  * This custom loader supports Vite bundling and ensures a minimal
- * bundle size.
+ * bundle size. Idempotent -- safe to call from multiple entry points.
  */
 export const configureMonaco = async (): Promise<void> => {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- can be undefined in SSR
-  if (globalThis.self !== undefined) {
-    globalThis.self.MonacoEnvironment = {
-      getWorker(_, label) {
-        if (label === 'json') {
-          return new JsonWorker();
-        }
-
-        if (label === 'typescript' || label === 'javascript') {
-          return new TsWorker();
-        }
-
-        return new EditorWorker();
-      },
-    };
-
-    const monaco = await import('monaco-editor');
-
-    loader.config({
-      monaco,
-    });
-
-    // Core Editor features, like auto-completion.
-    // @ts-expect-error -- no declaration file
-    await import('monaco-editor/esm/vs/editor/edcore.main.js');
-
-    // Languages
-    await import('monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js');
-    await import('monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js');
-    await import('monaco-editor/esm/vs/language/json/monaco.contribution.js');
-    await import('monaco-editor/esm/vs/language/typescript/monaco.contribution.js');
-
-    // Phase 1: Register language metadata for all contributions (idempotent)
-    registry.registerAll(monaco);
-
-    // Register Shiki highlighter ONCE globally. shikiToMonaco monkey-patches
-    // monaco.editor.create and monaco.editor.setTheme, creating chained wrappers
-    // on repeated calls. Calling it once here (instead of per-editor instance)
-    // prevents wrapper multiplication that can interfere with editor creation.
-    shikiToMonaco(highlighter, monaco);
+  if (isConfigured || globalThis.self === undefined) {
+    return;
   }
+
+  isConfigured = true;
+
+  globalThis.self.MonacoEnvironment = {
+    getWorker(_, label) {
+      if (label === 'json') {
+        return new JsonWorker();
+      }
+
+      if (label === 'typescript' || label === 'javascript') {
+        return new TsWorker();
+      }
+
+      return new EditorWorker();
+    },
+  };
+
+  const monaco = await import('monaco-editor');
+
+  loader.config({
+    monaco,
+  });
+
+  // Core Editor features, like auto-completion.
+  // @ts-expect-error -- no declaration file
+  await import('monaco-editor/esm/vs/editor/edcore.main.js');
+
+  // Languages
+  await import('monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js');
+  await import('monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js');
+  await import('monaco-editor/esm/vs/language/json/monaco.contribution.js');
+  await import('monaco-editor/esm/vs/language/typescript/monaco.contribution.js');
+
+  // Phase 1: Register language metadata for all contributions (idempotent)
+  registry.registerAll(monaco);
+
+  // Register Shiki highlighter globally. The idempotency guard above ensures
+  // this only runs once, preventing monkey-patch wrapper multiplication on
+  // monaco.editor.create and monaco.editor.setTheme.
+  shikiToMonaco(highlighter, monaco);
 };
 
 /**
