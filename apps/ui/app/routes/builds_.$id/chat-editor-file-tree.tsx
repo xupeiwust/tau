@@ -1442,7 +1442,7 @@ function TreeItem({
                   <MoreHorizontal className="size-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+              <DropdownMenuContent align="start" side="right">
                 <DropdownMenuItem
                   onSelect={() => {
                     item.startRenaming();
