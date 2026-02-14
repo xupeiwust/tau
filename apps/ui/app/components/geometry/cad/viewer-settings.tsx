@@ -162,7 +162,7 @@ export function ViewerSettings({ className }: ViewerSettingsProps): React.ReactN
       <DropdownMenuContent
         align="end"
         side="right"
-        className="w-64"
+        className="w-72"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
         }}
