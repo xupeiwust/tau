@@ -2,5 +2,5 @@
 export const cadMaterialDefaults = {
   roughnessFactor: 0.35,
   metallicFactor: 0,
-  baseColorFactor: [0.8, 0.8, 0.8, 1] as readonly [number, number, number, number],
+  baseColorFactor: [0.7, 0.7, 0.7, 1] as readonly [number, number, number, number],
 } as const;
