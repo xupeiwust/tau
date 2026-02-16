@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // ============================================================================
 // Panel Constants
 // ============================================================================
@@ -76,6 +78,17 @@ export const allotmentPanelOrder = [
  */
 export type EnvironmentPreset = 'studio' | 'neutral' | 'soft' | 'performance';
 
+/**
+ * A measurement that the user has explicitly pinned for persistence.
+ */
+export type PinnedMeasurement = {
+  id: string;
+  startPoint: [number, number, number];
+  endPoint: [number, number, number];
+  distance: number;
+  name?: string;
+};
+
 export type GraphicsViewSettings = {
   enableSurfaces: boolean;
   enableLines: boolean;
@@ -83,11 +96,57 @@ export type GraphicsViewSettings = {
   enableGrid: boolean;
   enableAxes: boolean;
   enableMatcap: boolean;
+  enablePostProcessing: boolean;
   upDirection: 'x' | 'y' | 'z';
   cameraFovAngle: number;
   renderTimeout: number;
   environmentPreset: EnvironmentPreset;
+  /** Persisted pinned measurements -- optional so legacy data deserializes cleanly */
+  pinnedMeasurements?: PinnedMeasurement[];
 };
+
+// ============================================================================
+// Zod Schemas for Runtime Validation of Persisted State
+// ============================================================================
+
+const vector3Schema = z.tuple([z.number(), z.number(), z.number()]);
+
+const pinnedMeasurementSchema = z.object({
+  id: z.string(),
+  startPoint: vector3Schema,
+  endPoint: vector3Schema,
+  distance: z.number(),
+  name: z.string().optional(),
+});
+
+export const graphicsViewSettingsSchema = z.object({
+  enableSurfaces: z.boolean(),
+  enableLines: z.boolean(),
+  enableGizmo: z.boolean(),
+  enableGrid: z.boolean(),
+  enableAxes: z.boolean(),
+  enableMatcap: z.boolean(),
+  enablePostProcessing: z.boolean(),
+  upDirection: z.enum(['x', 'y', 'z']),
+  cameraFovAngle: z.number(),
+  renderTimeout: z.number(),
+  environmentPreset: z.enum(['studio', 'neutral', 'soft', 'performance']),
+  pinnedMeasurements: z.array(pinnedMeasurementSchema).optional(),
+});
+
+/**
+ * Safely parse persisted graphics view settings.
+ * Returns validated settings on success, or defaults if the data is
+ * missing / corrupt / from an older schema version.
+ */
+export function parseGraphicsViewSettings(raw: unknown): GraphicsViewSettings {
+  const result = graphicsViewSettingsSchema.safeParse(raw);
+  if (result.success) {
+    return result.data;
+  }
+
+  return { ...defaultGraphicsSettings };
+}
 
 /**
  * Default graphics settings for new viewer panels.
@@ -100,6 +159,7 @@ export const defaultGraphicsSettings: GraphicsViewSettings = {
   enableGrid: true,
   enableAxes: true,
   enableMatcap: false,
+  enablePostProcessing: true,
   upDirection: 'z',
   cameraFovAngle: 60,
   renderTimeout: 60,
