@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { GLTFLoader, LineSegments2 } from 'three/addons';
-import type { Group, Object3D, Material, BufferGeometry, Mesh, MeshStandardMaterial, Texture } from 'three';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type { Group, Object3D, Material, BufferGeometry, Mesh, Texture } from 'three';
 import { Vector2 } from 'three';
 import { useThree } from '@react-three/fiber';
 import { applyMatcap } from '#components/geometry/graphics/three/materials/gltf-matcap.js';
@@ -8,16 +9,6 @@ import {
   applyFatLineSegments,
   updateLineMaterialResolution,
 } from '#components/geometry/graphics/three/materials/gltf-edges.js';
-
-/** Environment map reflection multiplier for glossy CAD appearance (PBR path only). */
-const envMapIntensity = 2.5;
-
-/**
- * Runtime roughness override applied to all loaded PBR materials.
- * Lower roughness = sharper, more concentrated specular highlights.
- * This overrides the GLTF-baked roughness to ensure consistent CAD appearance.
- */
-const roughnessOverride = 0.2;
 
 /**
  * Dispose a material and all its texture properties.
@@ -55,6 +46,72 @@ function disposeSceneResources(object: Object3D): void {
       }
     }
   });
+}
+
+/**
+ * Clone and save all mesh materials from a scene so they can be restored
+ * after destructive operations like matcap application.
+ */
+function saveOriginalMaterials(scene: Group): Map<number, Material | Material[]> {
+  const saved = new Map<number, Material | Material[]>();
+  scene.traverse((child) => {
+    if ('isMesh' in child && child.isMesh && !(child instanceof LineSegments2)) {
+      const mesh = child as Mesh;
+      if (Array.isArray(mesh.material)) {
+        saved.set(
+          mesh.id,
+          mesh.material.map((m) => m.clone()),
+        );
+      } else {
+        saved.set(mesh.id, mesh.material.clone());
+      }
+    }
+  });
+  return saved;
+}
+
+/**
+ * Restore saved original materials onto a scene.
+ * Disposes any current materials that differ from the originals (e.g. matcap materials).
+ */
+function restoreOriginalMaterials(scene: Group, saved: Map<number, Material | Material[]>): void {
+  scene.traverse((child) => {
+    if ('isMesh' in child && child.isMesh && !(child instanceof LineSegments2)) {
+      const mesh = child as Mesh;
+      const original = saved.get(mesh.id);
+      if (!original) {
+        return;
+      }
+
+      // Dispose current material if it was replaced (e.g. matcap)
+      if (mesh.material !== original) {
+        const currentMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const mat of currentMats) {
+          disposeMaterialWithTextures(mat);
+        }
+      }
+
+      // Restore cloned originals (scene.environmentIntensity handles IBL scaling globally)
+      mesh.material = Array.isArray(original) ? original.map((m) => m.clone()) : original.clone();
+    }
+  });
+}
+
+/**
+ * Dispose saved material clones stored in the originals map.
+ */
+function disposeSavedMaterials(saved: Map<number, Material | Material[]>): void {
+  for (const mat of saved.values()) {
+    if (Array.isArray(mat)) {
+      for (const m of mat) {
+        disposeMaterialWithTextures(m);
+      }
+    } else {
+      disposeMaterialWithTextures(mat);
+    }
+  }
+
+  saved.clear();
 }
 
 type GltfMeshDisplayProperties = {
@@ -126,11 +183,18 @@ export function GltfMesh({
   enableSurfaces = true,
   enableLines = true,
 }: GltfMeshDisplayProperties): React.JSX.Element | undefined {
+  // The "base scene" is the parsed GLTF with line segments converted but no material overrides.
+  // It serves as the template from which material modes (matcap/original) are derived.
+  const [baseScene, setBaseScene] = useState<Group | undefined>(undefined);
+  // The rendered scene has material mode applied and is what <primitive> displays.
   const [scene, setScene] = useState<Group | undefined>(undefined);
   const { size, invalidate } = useThree();
 
   // Memoize resolution vector to avoid creating new objects on each render
   const resolutionRef = useRef(new Vector2(size.width, size.height));
+
+  // Saved clones of the original materials so we can restore them after matcap is toggled off.
+  const originalMaterialsRef = useRef<Map<number, Material | Material[]>>(new Map());
 
   // Update resolution when size changes
   useEffect(() => {
@@ -143,10 +207,9 @@ export function GltfMesh({
     }
   }, [size, scene, invalidate]);
 
-  // Track previous scene for disposal when replaced
-  const previousSceneRef = useRef<Group | undefined>(undefined);
-
-  // Load GLTF and process scene
+  // ── Effect 1: Parse GLTF binary (expensive, only on gltfFile change) ──────
+  // Parses the GLTF, converts line segments, and saves original materials.
+  // Does not apply matcap or any material overrides -- that is handled by Effect 2.
   useEffect(() => {
     let cancelled = false;
 
@@ -164,7 +227,6 @@ export function GltfMesh({
         );
 
         if (cancelled) {
-          // Dispose the loaded scene immediately since we won't use it
           disposeSceneResources(gltf.scene);
           return;
         }
@@ -172,44 +234,11 @@ export function GltfMesh({
         // Convert LineSegments to LineSegments2 for fat line rendering
         applyFatLineSegments(gltf, resolutionRef.current);
 
-        // Enhance PBR materials for a glossy CAD look
-        if (!enableMatcap) {
-          gltf.scene.traverse((object) => {
-            if ('isMesh' in object && object.isMesh) {
-              const mesh = object as Mesh;
-              const mat = mesh.material as MeshStandardMaterial;
-              if ('envMapIntensity' in mat) {
-                mat.envMapIntensity = envMapIntensity;
-                mat.roughness = roughnessOverride;
-              }
-            }
-          });
-        }
+        // Save clones of the original materials before any overrides
+        disposeSavedMaterials(originalMaterialsRef.current);
+        originalMaterialsRef.current = saveOriginalMaterials(gltf.scene);
 
-        // Apply matcap material if enabled
-        if (enableMatcap) {
-          await applyMatcap(gltf);
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- can be set by cleanup between awaits
-        if (cancelled) {
-          // Dispose the loaded scene immediately since we won't use it
-          disposeSceneResources(gltf.scene);
-          return;
-        }
-
-        // Set initial visibility
-        updateVisibility(gltf.scene, enableSurfaces, enableLines);
-
-        // Dispose the previous scene before replacing it
-        if (previousSceneRef.current) {
-          disposeSceneResources(previousSceneRef.current);
-        }
-
-        previousSceneRef.current = gltf.scene;
-        setScene(gltf.scene);
-
-        // Force R3F to re-render since we loaded the scene asynchronously
+        setBaseScene(gltf.scene);
         invalidate();
       } catch (error) {
         if (!cancelled) {
@@ -218,20 +247,55 @@ export function GltfMesh({
       }
     };
 
+    // Dispose previous base scene and saved materials before loading new one
+    setBaseScene((previous) => {
+      if (previous) {
+        disposeSceneResources(previous);
+      }
+
+      return undefined;
+    });
+    setScene(undefined);
+
     void loadGltf();
 
     return () => {
       cancelled = true;
-
-      // Dispose the current scene on unmount or before replacement
-      if (previousSceneRef.current) {
-        disposeSceneResources(previousSceneRef.current);
-        previousSceneRef.current = undefined;
-      }
     };
-    // Reload GLTF when matcap changes - need fresh materials to toggle matcap
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- visibility handled by separate effect
-  }, [gltfFile, enableMatcap, invalidate]);
+  }, [gltfFile, invalidate]);
+
+  // Cleanup on unmount: dispose base scene and saved materials
+  useEffect(
+    () => () => {
+      disposeSavedMaterials(originalMaterialsRef.current);
+    },
+    [],
+  );
+
+  // Effect 2: Apply materials (lightweight, runs on matcap toggle).
+  // Applies matcap or restores original materials on the base scene.
+  // When enableMatcap changes, only this effect runs (no GLTF re-parse).
+  const applyMaterials = useCallback(
+    (targetScene: Group): void => {
+      if (enableMatcap) {
+        void applyMatcap({ scene: targetScene } as GLTF);
+      } else {
+        restoreOriginalMaterials(targetScene, originalMaterialsRef.current);
+      }
+    },
+    [enableMatcap],
+  );
+
+  useEffect(() => {
+    if (!baseScene) {
+      return;
+    }
+
+    applyMaterials(baseScene);
+    updateVisibility(baseScene, enableSurfaces, enableLines);
+    setScene(baseScene);
+    invalidate();
+  }, [baseScene, applyMaterials, enableSurfaces, enableLines, invalidate]);
 
   // Toggle visibility when enableSurfaces or enableLines change
   useEffect(() => {
