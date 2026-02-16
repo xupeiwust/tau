@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { useMonaco } from '@monaco-editor/react';
 import { useSelector } from '@xstate/react';
-import { FileCode, FileX } from 'lucide-react';
+import { ChevronDown, FileCode, FileX } from 'lucide-react';
 import type * as Monaco from 'monaco-editor';
 import type {
   DockviewApi,
@@ -27,6 +27,7 @@ import { useFileManager } from '#hooks/use-file-manager.js';
 import { useViewContext } from '#routes/builds_.$id/chat-interface-view-context.js';
 import { useMonacoServices } from '#hooks/use-monaco-model-service.js';
 import { useKernelDiagnostics } from '#hooks/use-kernel-diagnostics.js';
+import { Button } from '#components/ui/button.js';
 
 /**
  * Create a root-level Monaco URI for a file path.
@@ -265,13 +266,17 @@ function EditorWatermark(_properties: IWatermarkPanelProps): React.JSX.Element {
         files={files}
         selectedFile={undefined}
         placeholder="Select file to edit..."
-        className="h-8 w-[200px]"
         title="Open File"
         description="Choose a file to open in the editor"
         searchPlaceholder="Search files..."
         emptyMessage="No files found."
         onSelect={handleSelect}
-      />
+      >
+        <Button size="sm" variant="outline" className="justify-between">
+          <span className="truncate text-muted-foreground">Select file to edit...</span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </FileSelector>
     </div>
   );
 }
