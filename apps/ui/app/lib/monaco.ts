@@ -12,11 +12,17 @@ import { registry } from '#lib/monaco-language-registry.js';
 import { monacoLanguages } from '#lib/monaco.constants.js';
 import { kclContribution } from '#lib/kcl-language/kcl-register-language.js';
 import { openscadContribution } from '#lib/openscad-language/openscad-register-language.js';
+import { stepfileContribution } from '#lib/stepfile-language/stepfile-register-language.js';
+import { stlContribution } from '#lib/stl-language/stl-register-language.js';
+import { usdContribution } from '#lib/usd-language/usd-register-language.js';
 import { jsTsContribution } from '#lib/javascript-contribution.js';
 
 // Register contributions at module load (idempotent -- safe under HMR)
 registry.addContribution(kclContribution);
 registry.addContribution(openscadContribution);
+registry.addContribution(stepfileContribution);
+registry.addContribution(stlContribution);
+registry.addContribution(usdContribution);
 registry.addContribution(jsTsContribution);
 
 // Guard to ensure configureMonaco runs only once. shikiToMonaco monkey-patches

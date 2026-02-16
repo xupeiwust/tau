@@ -13,6 +13,9 @@ export const monacoLanguages = {
   json: 'json',
   kcl: 'kcl',
   openscad: 'openscad',
+  stepfile: 'stepfile',
+  stl: 'stl',
+  usd: 'usd',
 } as const;
 
 export type MonacoLanguage = (typeof monacoLanguages)[keyof typeof monacoLanguages];
@@ -27,6 +30,14 @@ export const extensionToMonacoLanguage: Record<string, MonacoLanguage> = {
   json: 'json',
   kcl: 'kcl',
   scad: 'openscad',
+  step: 'stepfile',
+  stp: 'stepfile',
+  p21: 'stepfile',
+  stl: 'stl',
+  usd: 'usd',
+  usda: 'usd',
+  usdc: 'usd',
+  usdz: 'usd',
 };
 
 export const jsLikeExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'] as const;
