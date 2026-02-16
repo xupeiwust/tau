@@ -13,6 +13,7 @@ import { BuildCommandPaletteItems } from '#routes/builds_.$id/build-command-item
 import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { useChatRpcConnection } from '#hooks/use-chat-rpc-socket.js';
 import { MonacoModelServiceProvider } from '#hooks/use-monaco-model-service.js';
+import { useFlushOnClose } from '#hooks/use-flush-on-close.js';
 
 // Define provider component at module level for stable reference across HMR
 function RouteProvider({ children }: { readonly children?: React.ReactNode }): React.JSX.Element {
@@ -79,10 +80,36 @@ function ChatWithProvider(): React.JSX.Element {
       <ChatProvider chatId={activeChatId} resourceId={buildId}>
         {name ? <title>{name}</title> : null}
         {description ? <meta name="description" content={description} /> : null}
+        <FlushOnCloseGuard />
         <Chat />
       </ChatProvider>
     </ViewContextProvider>
   );
+}
+
+/**
+ * Inner component that wires up the flush-on-close handler.
+ * Needs to be a child of both BuildProvider and ChatProvider to access all refs.
+ */
+function FlushOnCloseGuard(): React.JSX.Element {
+  const { buildRef, editorRef } = useBuild();
+  const { persistenceActorRef, draftActorRef } = useChatContext();
+
+  useFlushOnClose(() => {
+    buildRef.send({ type: 'flushNow' });
+  });
+  useFlushOnClose(() => {
+    editorRef.send({ type: 'flushNow' });
+  });
+  useFlushOnClose(() => {
+    persistenceActorRef.send({ type: 'flushNow' });
+  });
+  useFlushOnClose(() => {
+    draftActorRef.send({ type: 'flushNow' });
+  });
+
+  // eslint-disable-next-line react/jsx-no-useless-fragment -- Headless component
+  return <></>;
 }
 
 export default function ChatRoute(): React.JSX.Element {

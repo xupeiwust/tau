@@ -83,7 +83,9 @@ type EditorStateEvent =
   // View settings operations
   | { type: 'setViewSettings'; viewId: string; viewState: ViewState }
   | { type: 'updateViewSettings'; viewId: string; settings: Partial<GraphicsViewSettings> }
-  | { type: 'removeViewSettings'; viewId: string };
+  | { type: 'removeViewSettings'; viewId: string }
+  // Flush pending state immediately (bypasses debounce, used on tab close)
+  | { type: 'flushNow' };
 
 /**
  * Editor state Machine Emitted Events
@@ -617,6 +619,8 @@ export const editorMachine = setup({
                 setViewSettings: { target: 'pending', reenter: true },
                 updateViewSettings: { target: 'pending', reenter: true },
                 removeViewSettings: { target: 'pending', reenter: true },
+                // Immediately bypass debounce and write
+                flushNow: { target: 'writing' },
               },
             },
             writing: {

@@ -29,6 +29,7 @@ import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { AnalyticsProvider } from '#hooks/use-analytics.js';
 import { ChatRpcSocketProvider } from '#hooks/use-chat-rpc-socket.js';
 import { KeyboardProvider } from '#hooks/use-keyboard.js';
+import { UnloadProvider } from '#hooks/use-flush-on-close.js';
 
 export const links: LinksFunction = () => [...globalStylesLinks, ...webManifestLinks];
 
@@ -101,9 +102,11 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
                   <ColorProvider>
                     <TooltipProvider>
                       <KeyboardProvider>
-                        <LayoutDocument env={data?.env ?? {}} ssrTheme={ssrTheme}>
-                          {children}
-                        </LayoutDocument>
+                        <UnloadProvider>
+                          <LayoutDocument env={data?.env ?? {}} ssrTheme={ssrTheme}>
+                            {children}
+                          </LayoutDocument>
+                        </UnloadProvider>
                       </KeyboardProvider>
                     </TooltipProvider>
                   </ColorProvider>

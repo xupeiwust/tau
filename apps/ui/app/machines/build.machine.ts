@@ -87,7 +87,9 @@ type BuildEventInternal =
   | { type: 'createCompilationUnit'; entryFile: string }
   | { type: 'destroyCompilationUnit'; entryFile: string }
   | { type: 'createViewGraphics'; viewId: string; settings?: GraphicsViewSettings }
-  | { type: 'destroyViewGraphics'; viewId: string };
+  | { type: 'destroyViewGraphics'; viewId: string }
+  // Flush pending state immediately (bypasses debounce, used on tab close)
+  | { type: 'flushNow' };
 
 export type BuildEventExternal = OutputFrom<(typeof buildActors)[BuildActorNames]>;
 type BuildEventExternalDone = DoneActorEvent<BuildEventExternal, BuildActorNames>;
@@ -474,7 +476,10 @@ export const buildMachine = setup({
             enableGrid: settings.enableGrid,
             enableAxes: settings.enableAxes,
             enableMatcap: settings.enableMatcap,
+            enablePostProcessing: settings.enablePostProcessing,
             upDirection: settings.upDirection,
+            environmentPreset: settings.environmentPreset,
+            pinnedMeasurements: settings.pinnedMeasurements,
           },
         });
 
@@ -744,6 +749,8 @@ export const buildMachine = setup({
                   target: 'pending',
                   reenter: true,
                 },
+                // Immediately bypass debounce and write
+                flushNow: { target: 'writing' },
               },
             },
             writing: {
