@@ -156,7 +156,7 @@ export class GltfDracoDecoder {
     }
 
     // Create basic material appropriate for the geometry type
-    const material = document.createMaterial();
+    const material = document.createMaterial().setDoubleSided(true);
     if (decodedData.isPointCloud) {
       // Point cloud material
       material.setBaseColorFactor([1, 1, 1, 1]);

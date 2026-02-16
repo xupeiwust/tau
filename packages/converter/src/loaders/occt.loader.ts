@@ -100,6 +100,7 @@ export class OcctLoader extends BaseLoader<OcctImportResult, OcctOptions> {
           .setBaseColorFactor([red, green, blue, 1])
           .setRoughnessFactor(cadMaterialDefaults.roughnessFactor)
           .setMetallicFactor(cadMaterialDefaults.metallicFactor)
+          .setDoubleSided(true)
           .setName(`Material_${meshData.name || 'Default'}`);
         primitive.setMaterial(material);
       } else {
@@ -108,6 +109,7 @@ export class OcctLoader extends BaseLoader<OcctImportResult, OcctOptions> {
           .setBaseColorFactor([...cadMaterialDefaults.baseColorFactor])
           .setRoughnessFactor(cadMaterialDefaults.roughnessFactor)
           .setMetallicFactor(cadMaterialDefaults.metallicFactor)
+          .setDoubleSided(true)
           .setName('Material_Default');
         primitive.setMaterial(material);
       }
