@@ -1,13 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition -- TODO: review these types, some are actually required */
-import { useThree } from '@react-three/fiber';
+import { useThree, useFrame } from '@react-three/fiber';
 import type { GizmoOptions } from 'three-viewport-gizmo';
 import { ViewportGizmo } from 'three-viewport-gizmo';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons';
 import type { ReactNode } from 'react';
 import { useColor } from '#hooks/use-color.js';
 import { useTheme } from '#hooks/use-theme.js';
+import {
+  resolveGizmoContainer,
+  createGizmoCanvas,
+  createGizmoRenderer,
+  disposeGizmoResources,
+} from '#components/geometry/graphics/three/utils/gizmo.utils.js';
 
 type ViewportGizmoAxesProps = {
   readonly size?: number;
@@ -32,20 +38,31 @@ export function ViewportGizmoAxes({
   container,
   dependencies = emptyDependencies,
 }: ViewportGizmoAxesProps): ReactNode {
-  const { camera, gl, controls, scene, invalidate } = useThree((state) => ({
-    camera: state.camera as THREE.PerspectiveCamera,
-    gl: state.gl,
-    controls: state.controls as OrbitControls,
-    scene: state.scene,
-    invalidate: state.invalidate,
-  }));
+  const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
+  const gl = useThree((state) => state.gl);
+  const controls = useThree((state) => state.controls) as OrbitControls;
+  const scene = useThree((state) => state.scene);
+  const invalidate = useThree((state) => state.invalidate);
 
   const { serialized } = useColor();
   const { theme } = useTheme();
 
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref
+  const gizmoRef = useRef<ViewportGizmo | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- React ref
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+
   const handleChange = useCallback((): void => {
     invalidate();
   }, [invalidate]);
+
+  // Demand-based gizmo rendering: only render when the R3F frame loop fires (on invalidation)
+  useFrame(() => {
+    if (rendererRef.current && gizmoRef.current) {
+      rendererRef.current.toneMapping = THREE.NoToneMapping;
+      gizmoRef.current.render();
+    }
+  });
 
   // Create DOM overlay for gizmo
   useEffect(() => {
@@ -54,45 +71,16 @@ export function ViewportGizmoAxes({
       return;
     }
 
-    function animation() {
-      // Render the Gizmo
-      renderer.toneMapping = THREE.NoToneMapping;
-      gizmo.render();
-    }
+    const canvas = createGizmoCanvas(className);
 
-    // Create a separate canvas for the gizmo
-    const canvas = document.createElement('canvas');
-    canvas.className = className;
-    canvas.style.position = 'absolute';
-    canvas.style.bottom = '0';
-    canvas.style.right = '0';
-    canvas.style.zIndex = '10';
-
-    // Find the parent container to append our canvas
-    // Use the dedicated gizmo container if available (to support CSS anchor positioning),
-    // otherwise fallback to the renderer's parent (legacy behavior).
-    const containerToUse =
-      typeof container === 'string'
-        ? document.querySelector<HTMLElement>(container)
-        : (container ?? gl.domElement.parentElement);
+    const containerToUse = resolveGizmoContainer(container, gl.domElement);
     if (!containerToUse) {
       return;
     }
 
-    // Append the canvas to the container
     containerToUse.append(canvas);
 
-    // Create a renderer for the gizmo
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: true,
-    });
-    renderer.setSize(size, size);
-    const dpr = Math.min(globalThis.devicePixelRatio, 2);
-    renderer.setPixelRatio(dpr);
-    renderer.setAnimationLoop(animation);
-    renderer.setClearColor(0x00_00_00, 0);
+    const renderer = createGizmoRenderer(canvas, size);
 
     // Configure the gizmo options
     const gizmoConfig: GizmoOptions = {
@@ -114,6 +102,8 @@ export function ViewportGizmoAxes({
 
     // Create the gizmo
     const gizmo = new ViewportGizmo(camera, renderer, gizmoConfig);
+    gizmoRef.current = gizmo;
+    rendererRef.current = renderer;
 
     // Add event listeners for the gizmo
     gizmo.addEventListener('change', handleChange);
@@ -125,22 +115,11 @@ export function ViewportGizmoAxes({
 
     // Cleanup function
     return () => {
-      // Remove event listeners
-      gizmo.removeEventListener('change', handleChange);
+      // Clear refs so the useFrame callback cannot operate on disposed objects
+      gizmoRef.current = null;
+      rendererRef.current = null;
 
-      // Dispose the gizmo
-      gizmo.dispose();
-
-      // Remove the canvas
-      if (canvas.parentElement) {
-        canvas.remove();
-      }
-
-      // Release WebGL context and dispose the renderer to prevent context exhaustion
-      if (renderer) {
-        renderer.forceContextLoss();
-        renderer.dispose();
-      }
+      disposeGizmoResources(gizmo, renderer, canvas, handleChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dependencies array is user-provided for custom recreation triggers
   }, [camera, gl, controls, scene, serialized.hex, theme, size, handleChange, container, ...dependencies]);
