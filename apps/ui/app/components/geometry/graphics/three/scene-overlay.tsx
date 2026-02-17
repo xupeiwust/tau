@@ -34,18 +34,32 @@ type SceneOverlayProperties = {
 export function SceneOverlay({ children }: SceneOverlayProperties): React.JSX.Element {
   const overlayScene = useMemo(() => new THREE.Scene(), []);
 
+  // Lightweight material for the depth-only pass. MeshBasicMaterial has built-in
+  // logarithmic depth support and skips all PBR/matcap/environment shader work.
+  const depthOnlyMaterial = useMemo(() => {
+    const mat = new THREE.MeshBasicMaterial();
+    mat.colorWrite = false;
+    return mat;
+  }, []);
+
   useFrame((state) => {
+    // Skip entirely when the overlay scene has no children to render
+    if (overlayScene.children.length === 0) {
+      return;
+    }
+
     const { gl, scene, camera } = state;
-    const glContext = gl.getContext() as WebGL2RenderingContext;
     const previousAutoClear = gl.autoClear;
     gl.autoClear = false;
 
     if (state.internal.priority > 1) {
       // Another render-owner (EffectComposer) already wrote colour.
-      // Restore scene depth only, preserving the post-processed image.
-      glContext.colorMask(false, false, false, false);
+      // Restore scene depth only with a lightweight override material,
+      // preserving the post-processed image while avoiding full material shaders.
+      const previousOverrideMaterial = scene.overrideMaterial;
+      scene.overrideMaterial = depthOnlyMaterial;
       gl.render(scene, camera);
-      glContext.colorMask(true, true, true, true);
+      scene.overrideMaterial = previousOverrideMaterial;
     } else {
       // We are the sole render-owner. Render the full scene ourselves.
       gl.autoClear = true;
