@@ -105,6 +105,7 @@ export function resetCamera({
   enableConfiguredAngles,
   cameraFovAngle,
   controls,
+  viewportAspect,
 }: {
   camera: THREE.Camera;
   geometryRadius: number;
@@ -127,6 +128,12 @@ export function resetCamera({
   enableConfiguredAngles?: boolean;
   cameraFovAngle: number;
   controls?: { target: THREE.Vector3; update: () => void } | undefined;
+  /**
+   * The viewport width / height ratio. When the viewport is in portrait
+   * orientation (aspect < 1), the camera distance is increased so the model
+   * is not clipped horizontally.
+   */
+  viewportAspect?: number;
 }): void {
   if (!(camera instanceof THREE.PerspectiveCamera)) {
     console.error('resetCamera requires PerspectiveCamera');
@@ -156,7 +163,18 @@ export function resetCamera({
   // Distance compensation ratio: pass distance=1 to get the pure tan(std/2)/tan(eff/2) ratio
   const adjustedOffsetRatio =
     perspective.offsetRatio * calculateFovDistanceCompensation(standardFov, effectiveFovForAdjustment, 1);
-  const newDistance = adjustedGeometryRadius * adjustedOffsetRatio;
+  let newDistance = adjustedGeometryRadius * adjustedOffsetRatio;
+
+  // Compensate for narrow (portrait) viewports so the model isn't clipped horizontally.
+  // The base distance ensures the model fits vertically. When the viewport is narrower
+  // than it is tall, the horizontal FOV shrinks and the model may exceed the horizontal
+  // frustum. Scale the distance by the ratio of vertical-to-horizontal half-FOV tangents
+  // so both dimensions are covered.
+  if (viewportAspect !== undefined && viewportAspect > 0 && viewportAspect < 1) {
+    const vFovRad = (effectiveFovForAdjustment / 2) * (Math.PI / 180);
+    const hFovHalf = Math.atan(viewportAspect * Math.tan(vFovRad));
+    newDistance *= Math.tan(vFovRad) / Math.tan(hFovHalf);
+  }
 
   if (useConfiguredAngles) {
     // Use configured rotation angles (side and vertical) for positioning
