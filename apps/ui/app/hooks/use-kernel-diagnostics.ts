@@ -99,8 +99,21 @@ function buildRelatedInformation(
 
 type UseKernelDiagnosticsOptions = {
   monaco: typeof Monaco | undefined;
-  cadActor: AnyActorRef;
+  cadActor: AnyActorRef | undefined;
   markerService: MonacoMarkerService | undefined;
+};
+
+type KernelDiagnosticsIssue = {
+  message: string;
+  location?: {
+    fileName: string;
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber?: number;
+    endColumn?: number;
+  };
+  stackFrames?: KernelStackFrame[];
+  severity: IssueSeverity;
 };
 
 type UseKernelDiagnosticsReturn = {
@@ -122,25 +135,10 @@ export function useKernelDiagnostics(options: UseKernelDiagnosticsOptions): UseK
   const previousFilesRef = useRef<Set<string>>(new Set());
 
   // Subscribe to ALL kernel issues (not just active file)
-  const kernelIssues = useSelector(
-    cadActor,
-    (state) =>
-      state.context.kernelIssues as Map<
-        string,
-        Array<{
-          message: string;
-          location?: {
-            fileName: string;
-            startLineNumber: number;
-            startColumn: number;
-            endLineNumber?: number;
-            endColumn?: number;
-          };
-          stackFrames?: KernelStackFrame[];
-          severity: IssueSeverity;
-        }>
-      >,
-  );
+  const kernelIssues = useSelector(cadActor, (state): Map<string, KernelDiagnosticsIssue[]> => {
+    const issues = state?.context.kernelIssues as Map<string, KernelDiagnosticsIssue[]> | undefined;
+    return issues ?? new Map<string, KernelDiagnosticsIssue[]>();
+  });
 
   // Sync kernel issues to Monaco markers via MarkerService
   useEffect(() => {
@@ -202,11 +200,11 @@ export function useKernelDiagnostics(options: UseKernelDiagnosticsOptions): UseK
     }
 
     previousFilesRef.current = currentFiles;
-  }, [monaco, markerService, kernelIssues]);
+  }, [monaco, markerService, kernelIssues, cadActor]);
 
   // Monaco-to-Kernel: forward TS error markers to CAD actor
   const handleValidate = useCallback(() => {
-    if (!monaco) {
+    if (!monaco || !cadActor) {
       return;
     }
 

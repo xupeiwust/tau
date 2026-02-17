@@ -1,3 +1,10 @@
+/* Make Tailwind utilities available for @apply without emitting CSS output.
+   This file is loaded as a standalone stylesheet (see global.styles.ts),
+   so it needs its own reference to the Tailwind definitions.
+   Reference global.css (not just "tailwindcss") to include custom @theme tokens
+   like muted-foreground, accent, etc. */
+@reference "../../styles/global.css";
+
 /* ───────────────────────────────────────────
    DOCKVIEW THEME OVERRIDES
    Map Dockview CSS variables to our design tokens.
@@ -171,27 +178,114 @@
 
 /* ── Action container content centering ──
    Dockview's .dv-react-part wrapper uses height/width: 100% but no flex centering,
-   so action buttons sit at the top instead of vertically centered. */
+   so action buttons sit at the top instead of vertically centered.
+   Only the RIGHT actions container gets padding-right; the left actions container
+   should sit flush against the next element (overflow dropdown / void). */
 .dockview-theme-tau .dv-right-actions-container > .dv-react-part,
 .dockview-theme-tau .dv-left-actions-container > .dv-react-part {
   display: flex;
   align-items: center;
+}
+
+.dockview-theme-tau .dv-right-actions-container > .dv-react-part {
   padding-right: calc(var(--spacing));
 }
 
 /* ── Group-hover action buttons ──
    Hidden by default, shown on group hover to reduce visual noise.
-   All pane action buttons share the `.dv-pane-action` class. */
-.dockview-theme-tau .dv-pane-action {
-  opacity: 0;
-  transition: opacity 0.15s ease;
+   All pane action buttons share the `.dv-pane-action` class.
+   The tab overflow dropdown (`.dv-tabs-overflow-dropdown-root`) participates
+   in the same show-on-hover behaviour.
+
+   Dockview v4.13+ defaults to `'onlyWhenVisible'` rendering, which appends
+   panel content directly into `.dv-content-container` (a child of
+   `.dv-groupview`). This keeps everything inside the groupview DOM tree, so
+   plain CSS `:hover` fires for both the tab bar and the content area of
+   every split pane. */
+.dockview-theme-tau .dv-pane-action,
+.dockview-theme-tau .dv-tabs-overflow-dropdown-root {
+  @apply opacity-0 transition-opacity duration-150 ease-in-out;
 }
 
-.dockview-theme-tau .dv-groupview:hover .dv-pane-action {
-  opacity: 1;
+.dockview-theme-tau .dv-groupview:hover .dv-pane-action,
+.dockview-theme-tau .dv-groupview:hover .dv-tabs-overflow-dropdown-root {
+  @apply opacity-100;
+}
+
+/* ── Always show action buttons when the group has no tabs (empty / watermark state) ──
+   Without this the user must hover the narrow tab bar to discover the "+" and split
+   buttons.  :has() checks whether the tabs container holds any tab elements. */
+.dockview-theme-tau .dv-groupview:not(:has(.dv-tab)) .dv-pane-action,
+.dockview-theme-tau .dv-groupview:not(:has(.dv-tab)) .dv-tabs-overflow-dropdown-root {
+  @apply opacity-100;
+}
+
+/* ── Tab overflow dropdown ──
+   Dockview creates a vanilla DOM button for tab overflow with no React
+   customisation API. Restyle it to match PaneButton (size-6, rounded-sm,
+   muted-foreground hover) using @apply so values track the Tailwind theme. */
+.dockview-theme-tau .dv-tabs-overflow-dropdown-root {
+  @apply m-0 flex shrink-0 items-center p-0;
+}
+
+.dockview-theme-tau .dv-tabs-overflow-dropdown-default {
+  @apply flex size-6 items-center justify-center gap-0 rounded-sm p-0
+    text-muted-foreground transition-colors
+    hover:bg-muted-foreground/15 hover:text-foreground;
+}
+
+.dockview-theme-tau .dv-tabs-overflow-dropdown-default > svg {
+  @apply size-2.5 shrink-0;
+  transform: rotate(90deg);
+}
+
+.dockview-theme-tau .dv-tabs-overflow-dropdown-default > span {
+  @apply hidden;
 }
 
 /* ── Content container background (matches the code editor bg-background) ── */
 .dockview-theme-tau .dv-groupview > .dv-content-container {
   background-color: var(--background);
+}
+
+/* ── Override CSS containment that breaks position:fixed for Monaco widgets ──
+   Dockview's .dv-dockview applies `contain: layout` which per the CSS Containment
+   spec creates a new containing block for position:fixed descendants. This causes
+   Monaco's fixedOverflowWidgets (hover tooltips, suggest widget, parameter hints)
+   to position relative to .dv-dockview instead of the viewport, rendering them
+   off-screen. We remove the containment so position:fixed works correctly.
+
+   Note: overflow:hidden on .dv-groupview does NOT clip position:fixed elements
+   as long as no ancestor creates a containing block — so removing contain:layout
+   is sufficient. The overflow:hidden is set as an inline style by Dockview JS and
+   cannot be overridden without !important, but it's not needed for the fix. */
+
+/* Root: remove layout containment.
+   Dockview's .dv-dockview has `contain: layout` which creates a new containing
+   block for position:fixed descendants (per CSS Containment spec). This causes
+   Monaco's fixedOverflowWidgets (hover tooltips, suggest widget, parameter hints)
+   to be positioned relative to .dv-dockview instead of the viewport, rendering
+   them off-screen. Note: .dockview-theme-tau is a wrapper PARENT of .dv-dockview
+   in the DOM, so a descendant selector (space) is required here. */
+.dockview-theme-tau .dv-dockview {
+  contain: none;
+}
+
+/* Render overlay: remove ALL containing-block and stacking-context properties.
+   This is the innermost wrapper around panel content. */
+.dockview-theme-tau .dv-render-overlay {
+  contain: none;
+  transform: none;
+  will-change: auto;
+  backface-visibility: visible;
+  isolation: auto;
+}
+
+/* Animation: during resize/drag animations Dockview applies transform and
+   will-change on .dv-view which creates a temporary containing block.
+   Override to prevent position:fixed widgets from shifting during animation. */
+.dockview-theme-tau .dv-split-view-container.dv-animation .dv-view {
+  will-change: auto;
+  transform: none;
+  backface-visibility: visible;
 }

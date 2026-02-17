@@ -355,7 +355,7 @@ export abstract class JavaScriptWorker<
             {
               message: 'No main or default export function found',
               type: 'runtime',
-              severity: 'error',
+              severity: 'warning',
             },
           ],
         };
@@ -439,7 +439,7 @@ export abstract class JavaScriptWorker<
     const issue: KernelIssue = {
       message,
       location: fileName
-        ? { fileName, startLineNumber: startLineNumber || 1, startColumn: startColumn || 0 }
+        ? { fileName, startLineNumber: startLineNumber || 1, startColumn: startColumn || 1 }
         : undefined,
       stack,
       stackFrames: stackFrames.length > 0 ? stackFrames : undefined,
@@ -467,7 +467,7 @@ export abstract class JavaScriptWorker<
   protected enrichIssuesWithFallbackLocation(issues: KernelIssue[], fileName: string): KernelIssue[] {
     return issues.map((issue) => ({
       ...issue,
-      location: issue.location ?? { fileName, startLineNumber: 1, startColumn: 0 },
+      location: issue.location ?? { fileName, startLineNumber: 1, startColumn: 1 },
     }));
   }
 

@@ -530,7 +530,7 @@ export class ReplicadWorker extends JavaScriptWorker<ReplicadOptions> {
             [
               {
                 message: 'The main function did not return a value. Did you forget a return statement?',
-                location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 0 },
+                location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 1 },
                 type: 'runtime',
                 severity: 'warning',
               },

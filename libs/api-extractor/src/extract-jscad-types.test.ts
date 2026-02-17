@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { buildNamespaceBundle } from './extract-jscad-types.js';
+import { buildNamespaceBundle } from '#extract-jscad-types.js';
 
 /**
  * Tests for the @jscad/modeling type extractor.
@@ -149,7 +149,7 @@ describe('extract-jscad-types', () => {
   it('subpath modules import foundation types from the main module', () => {
     // The primitives subpath should import types it uses from main module
     const primitivesSection = extractModuleSection(output, '@jscad/modeling/primitives');
-    expect(primitivesSection).toContain("import type {");
+    expect(primitivesSection).toContain('import type {');
     expect(primitivesSection).toContain("} from '@jscad/modeling'");
   });
 

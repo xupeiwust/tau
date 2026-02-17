@@ -23,6 +23,7 @@ import type { Attribute, Decoder, DecoderBuffer, DecoderModule, DracoArray, Mesh
 import draco3d from 'draco3dgltf';
 import type { Accessor, Buffer as GltfBuffer } from '@gltf-transform/core';
 import { Document } from '@gltf-transform/core';
+import { cadMaterialDefaults } from '@taucad/types/constants';
 
 type AttributeTypeConstructor =
   | Float32ArrayConstructor
@@ -155,7 +156,7 @@ export class GltfDracoDecoder {
     }
 
     // Create basic material appropriate for the geometry type
-    const material = document.createMaterial();
+    const material = document.createMaterial().setDoubleSided(true);
     if (decodedData.isPointCloud) {
       // Point cloud material
       material.setBaseColorFactor([1, 1, 1, 1]);
@@ -165,9 +166,9 @@ export class GltfDracoDecoder {
       }
     } else {
       // Mesh material
-      material.setBaseColorFactor([0.8, 0.8, 0.8, 1]);
-      material.setMetallicFactor(0.1);
-      material.setRoughnessFactor(0.9);
+      material.setBaseColorFactor([...cadMaterialDefaults.baseColorFactor]);
+      material.setMetallicFactor(cadMaterialDefaults.metallicFactor);
+      material.setRoughnessFactor(cadMaterialDefaults.roughnessFactor);
     }
 
     primitive.setMaterial(material);

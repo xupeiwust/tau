@@ -8,18 +8,21 @@ import {
   FloatingPanel,
   FloatingPanelClose,
   FloatingPanelContent,
+  FloatingPanelContentHeader,
+  FloatingPanelContentHeaderActions,
+  FloatingPanelContentTitle,
   FloatingPanelTrigger,
 } from '#components/ui/floating-panel.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { useCookie } from '#hooks/use-cookie.js';
-import { useKeydown } from '#hooks/use-keydown.js';
-import { ChatEditor } from '#routes/builds_.$id/chat-editor.js';
+import { useKeybinding } from '#hooks/use-keyboard.js';
+import { EditorDockview } from '#routes/builds_.$id/chat-editor-dockview.js';
 import { ChatConsole, collapsedConsoleSize } from '#routes/builds_.$id/chat-console.js';
 import type { KeyCombination } from '#utils/keys.utils.js';
 import { formatKeyCombination } from '#utils/keys.utils.js';
 import { cn } from '#utils/ui.utils.js';
 
-const keyCombinationEditor = {
+export const keyCombinationEditor = {
   key: 'e',
   ctrlKey: true,
 } as const satisfies KeyCombination;
@@ -85,33 +88,39 @@ export function ChatEditorLayout({
     }
   }, [consolePanelReference]);
 
-  const { formattedKeyCombination: formattedEditorKeyCombination } = useKeydown(keyCombinationEditor, toggleEditor);
-  const { formattedKeyCombination: formattedToggleConsoleKeyCombination } = useKeydown(
+  const { formattedKeyCombination: formattedEditorKeyCombination } = useKeybinding(keyCombinationEditor, toggleEditor);
+  const { formattedKeyCombination: formattedToggleConsoleKeyCombination } = useKeybinding(
     toggleConsoleKeyCombination,
     toggleConsolePanel,
   );
 
   return (
     <FloatingPanel isOpen={isExpanded} side="right" onOpenChange={setIsExpanded}>
-      <FloatingPanelClose
-        icon={XIcon}
-        tooltipContent={(isOpen) => (
-          <div className="flex items-center gap-2">
-            {isOpen ? 'Close' : 'Open'} Editor
-            <KeyShortcut variant="tooltip">{formattedEditorKeyCombination}</KeyShortcut>
-          </div>
-        )}
-      />
       <FloatingPanelContent>
+        {/* Mobile-only header with inline close button */}
+        <FloatingPanelContentHeader className="md:hidden">
+          <FloatingPanelContentTitle>Editor</FloatingPanelContentTitle>
+          <FloatingPanelContentHeaderActions>
+            <FloatingPanelClose
+              icon={XIcon}
+              tooltipContent={(isOpen) => (
+                <div className="flex items-center gap-2">
+                  {isOpen ? 'Close' : 'Open'} Editor
+                  <KeyShortcut variant="tooltip">{formattedEditorKeyCombination}</KeyShortcut>
+                </div>
+              )}
+            />
+          </FloatingPanelContentHeaderActions>
+        </FloatingPanelContentHeader>
         <ResizablePanelGroup
           direction="vertical"
           autoSaveId={cookieName.chatRsEditor}
           className={cn('h-full', className)}
           onLayout={setConsoleSize}
         >
-          {/* Editor Panel */}
+          {/* Editor Panel - DockviewReact handles tabs + splitting */}
           <ResizablePanel order={1} defaultSize={consoleSize[0]} minSize={5} id="chat-editor" className="size-full">
-            <ChatEditor />
+            <EditorDockview />
           </ResizablePanel>
 
           <ResizableHandle />

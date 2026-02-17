@@ -152,7 +152,9 @@ describe('ChatController', () => {
       }),
     };
 
-    const mockChatRpcService = {};
+    const mockChatRpcService = {
+      registerAbortSignal: vi.fn(),
+    };
 
     const mockFileEditService = {};
 
