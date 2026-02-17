@@ -191,7 +191,8 @@ export const ChatEditorFileTree = memo(function ({
   const { buildRef, editorRef, gitRef } = useBuild();
   const buildId = useSelector(buildRef, (state) => state.context.buildId);
   const fileManager = useFileManager();
-  const { fileManagerRef, readFile, writeFile, renameFile, deleteFile, getZippedDirectory } = fileManager;
+  const { fileManagerRef, readFile, writeFile, renameFile, duplicateFile, deleteFile, getZippedDirectory } =
+    fileManager;
 
   useEffect(() => {
     // Editor → FileManager coordination (reading file content for the editor)
@@ -867,10 +868,48 @@ export const ChatEditorFileTree = memo(function ({
     // Focus restoration is handled by DialogContent's onCloseAutoFocus
   }, [editorRef, deleteFile, fileTree, itemsToDelete, tree]);
 
-  const handleDuplicate = useCallback((_items: Array<ItemInstance<TreeItemData>>) => {
-    // Duplication requires file-manager content, which isn't exposed yet
-    toast.info('File duplication is not yet supported');
-  }, []);
+  const handleDuplicate = useCallback(
+    (items: Array<ItemInstance<TreeItemData>>) => {
+      for (const item of items) {
+        const originalPath = item.getId();
+        if (originalPath === rootId || item.isFolder()) {
+          continue;
+        }
+
+        const fileName = originalPath.split('/').pop() ?? originalPath;
+        const directory = originalPath.includes('/') ? originalPath.slice(0, originalPath.lastIndexOf('/')) : '';
+
+        // Generate "name copy.ext", "name copy 2.ext", etc.
+        const lastDotIndex = fileName.lastIndexOf('.');
+        const baseName = lastDotIndex > 0 ? fileName.slice(0, lastDotIndex) : fileName;
+        const extension = lastDotIndex > 0 ? fileName.slice(lastDotIndex) : '';
+
+        let duplicateName = `${baseName} copy${extension}`;
+        let duplicatePath = directory ? `${directory}/${duplicateName}` : duplicateName;
+        let counter = 2;
+
+        while (allPaths.has(duplicatePath)) {
+          duplicateName = `${baseName} copy ${counter}${extension}`;
+          duplicatePath = directory ? `${directory}/${duplicateName}` : duplicateName;
+          counter++;
+        }
+
+        const finalPath = duplicatePath;
+        toast.promise(
+          async () => {
+            await duplicateFile(originalPath, finalPath);
+            editorRef.send({ type: 'openFile', path: finalPath, source: 'user' });
+          },
+          {
+            loading: `Duplicating ${fileName}...`,
+            success: `Created ${duplicateName}`,
+            error: `Failed to duplicate ${fileName}`,
+          },
+        );
+      }
+    },
+    [allPaths, duplicateFile, editorRef],
+  );
 
   const handleOpenInEditor = useCallback(
     (path: string) => {

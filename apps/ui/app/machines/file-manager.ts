@@ -93,6 +93,7 @@ export type FileManager = {
   ensureDirectoryExists(path: string): Promise<void>;
   getDirectoryStat(path: string): Promise<FileStat[]>;
   getDirectoryContents(path: string): Promise<Record<string, Uint8Array<ArrayBuffer>>>;
+  duplicateFile(sourcePath: string, destinationPath: string): Promise<void>;
   copyDirectory(sourcePath: string, destinationPath: string): Promise<void>;
   getZippedDirectory(path: string): Promise<Blob>;
   reconfigure(backend: FilesystemBackend): Promise<void>;
@@ -348,6 +349,23 @@ export const fileManager: FileManager = {
     }
 
     return files;
+  },
+
+  async duplicateFile(sourcePath: string, destinationPath: string): Promise<void> {
+    return serialized(async () => {
+      await ensureReady();
+      const buffer = await fsp.readFile(sourcePath);
+      const content = new Uint8Array(asBuffer(buffer.buffer), buffer.byteOffset, buffer.byteLength);
+
+      // Ensure parent directory exists before writing
+      const lastSlashIndex = destinationPath.lastIndexOf('/');
+      if (lastSlashIndex > 0) {
+        const directoryPath = destinationPath.slice(0, lastSlashIndex);
+        await ensureDirectoryExistsInternal(directoryPath);
+      }
+
+      await fsp.writeFile(destinationPath, content);
+    });
   },
 
   async copyDirectory(sourcePath: string, destinationPath: string): Promise<void> {

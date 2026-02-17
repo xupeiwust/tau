@@ -63,6 +63,7 @@ type FileManagerContextType = {
   writeFiles: (files: Record<string, { content: Uint8Array<ArrayBuffer> }>) => Promise<void>;
   readFile: (path: string) => Promise<Uint8Array<ArrayBuffer>>;
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
+  duplicateFile: (sourcePath: string, destinationPath: string) => Promise<void>;
   deleteFile: (path: string, options: DeleteFileOptions) => Promise<void>;
   exists: (path: string) => Promise<boolean>;
   readdir: (path: string) => Promise<string[]>;
@@ -229,6 +230,29 @@ export function FileManagerProvider({
 
       // Single consolidated event - machine handles optimistic update, emit, and refresh
       actorRef.send({ type: 'fileRenamed', oldPath, newPath });
+    },
+    [actorRef, getReadiedWorker],
+  );
+
+  /**
+   * Duplicate a file within the filesystem.
+   * Read and write happen entirely on the worker thread — content never crosses to main thread.
+   * Machine handles file tree refresh via the fileWritten event.
+   */
+  const duplicateFile = useCallback(
+    async (sourcePath: string, destinationPath: string): Promise<void> => {
+      const worker = await getReadiedWorker();
+      const absoluteSourcePath = joinPath(rootDirectoryRef.current, sourcePath);
+      const absoluteDestinationPath = joinPath(rootDirectoryRef.current, destinationPath);
+
+      // Call worker directly - read + write stay on worker thread
+      await worker.duplicateFile(absoluteSourcePath, absoluteDestinationPath);
+
+      // Read the duplicated file content so the machine can cache it in openFiles
+      const data = await worker.readFile(absoluteDestinationPath);
+
+      // Single consolidated event - machine handles context update, emit, and refresh
+      actorRef.send({ type: 'fileWritten', path: destinationPath, data, source: 'user' });
     },
     [actorRef, getReadiedWorker],
   );
@@ -469,6 +493,7 @@ export function FileManagerProvider({
       writeFiles,
       readFile,
       renameFile,
+      duplicateFile,
       deleteFile,
       exists,
       readdir,
@@ -488,6 +513,7 @@ export function FileManagerProvider({
       writeFiles,
       readFile,
       renameFile,
+      duplicateFile,
       deleteFile,
       exists,
       readdir,
