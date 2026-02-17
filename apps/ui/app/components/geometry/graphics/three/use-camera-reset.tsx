@@ -42,9 +42,16 @@ export function useCameraReset(parameters: ResetCameraParameters): (options?: {
    */
   enableConfiguredAngles?: boolean;
 }) => void {
-  const { camera, controls, invalidate } = useThree();
+  const { camera, controls, invalidate, size } = useThree();
+  const viewportAspect = size.width > 0 && size.height > 0 ? size.width / size.height : 1;
   const cameraCapabilityActor = useCameraCapability();
   const isRegistered = useRef(false);
+
+  // Store viewportAspect in a ref so the resetCamera callback remains stable
+  // during resize. The aspect is read lazily when reset is actually called,
+  // preventing callback recreation on every resize pixel.
+  const viewportAspectRef = useRef(viewportAspect);
+  viewportAspectRef.current = viewportAspect;
 
   const {
     geometryRadius,
@@ -74,6 +81,7 @@ export function useCameraReset(parameters: ResetCameraParameters): (options?: {
         enableConfiguredAngles: options?.enableConfiguredAngles,
         cameraFovAngle,
         controls: (controls ?? undefined) as { target: THREE.Vector3; update: () => void } | undefined,
+        viewportAspect: viewportAspectRef.current,
       });
     },
     [
