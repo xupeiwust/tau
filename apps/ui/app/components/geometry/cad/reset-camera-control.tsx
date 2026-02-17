@@ -21,7 +21,7 @@ export function ResetCameraControl(): React.JSX.Element {
           <Focus className="size-4" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Reset camera zoom</TooltipContent>
+      <TooltipContent>Reset camera</TooltipContent>
     </Tooltip>
   );
 }
