@@ -39,6 +39,9 @@ export const SectionView = React.forwardRef<{ update: () => void }, CutterProper
 
     const [meshList, setMeshList] = React.useState<THREE.Mesh[]>([]);
     const [planeSize, setPlaneSize] = React.useState(10);
+    // Track the previous set of mesh IDs to avoid unnecessary setMeshList calls
+    // when only clipping plane values changed (the mesh list itself is stable).
+    const previousMeshIdsRef = React.useRef<string>('');
 
     const update: () => void = React.useCallback(() => {
       // Early return if cutting is disabled
@@ -123,18 +126,24 @@ export const SectionView = React.forwardRef<{ update: () => void }, CutterProper
           }
         });
 
-        const bbox = new THREE.Box3();
-        bbox.setFromObject(rootGroup);
+        // Only update the mesh list and recompute bounds when the set of meshes
+        // actually changed (not on every plane drag). The mesh list is stable during
+        // plane manipulation -- only clipping plane values on materials change.
+        const meshIdsKey = meshChildren.map((m) => m.id).join(',');
+        if (meshIdsKey !== previousMeshIdsRef.current) {
+          previousMeshIdsRef.current = meshIdsKey;
 
-        const boxSize = new THREE.Vector3();
-        bbox.getSize(boxSize);
+          const bbox = new THREE.Box3();
+          bbox.setFromObject(rootGroup);
 
-        const calculatedPlaneSize = 2 * boxSize.length();
-        setPlaneSize(calculatedPlaneSize);
+          const boxSize = new THREE.Vector3();
+          bbox.getSize(boxSize);
+
+          const calculatedPlaneSize = 2 * boxSize.length();
+          setPlaneSize(calculatedPlaneSize);
+          setMeshList(meshChildren);
+        }
       }
-
-      // Update the list of children that are meshes
-      setMeshList(meshChildren);
       // Depend on primitive values instead of plane object to avoid infinite loop
       // eslint-disable-next-line react-hooks/exhaustive-deps -- plane.normal and plane.constant are extracted below
     }, [
