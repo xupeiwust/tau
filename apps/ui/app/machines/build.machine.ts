@@ -612,6 +612,7 @@ export const buildMachine = setup({
       },
     },
     loading: {
+      entry: 'clearError',
       on: {
         // Accept view graphics lifecycle events during loading.
         // These are safe to process in any state -- they only depend on
