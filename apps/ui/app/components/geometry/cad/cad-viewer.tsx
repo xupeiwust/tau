@@ -4,6 +4,8 @@ import { GltfMesh } from '#components/geometry/graphics/three/react/gltf-mesh.js
 import { ThreeProvider } from '#components/geometry/graphics/three/three-context.js';
 import type { ThreeViewerProperties } from '#components/geometry/graphics/three/three-context.js';
 import { SvgViewer } from '#components/geometry/graphics/svg/svg-viewer.js';
+import { WebglErrorBoundary } from '#components/geometry/cad/webgl-error-boundary.js';
+import { WebglErrorFallback } from '#components/geometry/cad/webgl-fallback.js';
 
 type CadViewerProperties = ThreeViewerProperties & {
   readonly geometries: Geometry[];
@@ -30,36 +32,38 @@ export const CadViewer = memo(
     }
 
     return (
-      <ThreeProvider {...properties}>
-        {geometries.map((geometry) => {
-          switch (geometry.format) {
-            case 'gltf': {
-              return (
-                <GltfMesh
-                  key={geometry.hash}
-                  gltfFile={geometry.content}
-                  enableMatcap={enableMatcap}
-                  enableSurfaces={enableSurfaces}
-                  enableLines={enableLines}
-                />
-              );
-            }
+      <WebglErrorBoundary fallback={(errorProps) => <WebglErrorFallback {...errorProps} />}>
+        <ThreeProvider {...properties}>
+          {geometries.map((geometry) => {
+            switch (geometry.format) {
+              case 'gltf': {
+                return (
+                  <GltfMesh
+                    key={geometry.hash}
+                    gltfFile={geometry.content}
+                    enableMatcap={enableMatcap}
+                    enableSurfaces={enableSurfaces}
+                    enableLines={enableLines}
+                  />
+                );
+              }
 
-            case 'svg': {
-              throw new Error('2D geometries are not supported');
-            }
+              case 'svg': {
+                throw new Error('2D geometries are not supported');
+              }
 
-            case 'webrtc': {
-              throw new Error('WebRTC geometries are not supported');
-            }
+              case 'webrtc': {
+                throw new Error('WebRTC geometries are not supported');
+              }
 
-            default: {
-              const neverGeometry: never = geometry;
-              throw new Error(`Unknown geometry type: ${JSON.stringify(neverGeometry)}`);
+              default: {
+                const neverGeometry: never = geometry;
+                throw new Error(`Unknown geometry type: ${JSON.stringify(neverGeometry)}`);
+              }
             }
-          }
-        })}
-      </ThreeProvider>
+          })}
+        </ThreeProvider>
+      </WebglErrorBoundary>
     );
   },
 );
