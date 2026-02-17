@@ -71,6 +71,15 @@ export function MeasureTool(): React.JSX.Element {
   const [mousePosition, setMousePosition] = useState<THREE.Vector3 | undefined>();
   const lastSnapPointsRef = useRef<SnapPoint[] | undefined>(undefined);
 
+  // Refs for values that change rapidly (every mouse move) so the event-listener
+  // effect doesn't tear down and re-add 4 DOM listeners per mouse event.
+  const activeSnapPointRef = useRef(activeSnapPoint);
+  activeSnapPointRef.current = activeSnapPoint;
+  const mousePositionRef = useRef(mousePosition);
+  mousePositionRef.current = mousePosition;
+  const currentStartRef = useRef(currentStart);
+  currentStartRef.current = currentStart;
+
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
   const pointerDownOnMeshRef = useRef(false);
@@ -88,6 +97,10 @@ export function MeasureTool(): React.JSX.Element {
   const geometryKeyRef = useRef(geometryKey);
   geometryKeyRef.current = geometryKey;
 
+  // Cache detectSnapPoints results keyed by (mesh.id, faceIndex) to avoid
+  // running the expensive geometry pipeline on every mouse move over the same face.
+  const snapCacheRef = useRef(new Map<string, SnapPoint[]>());
+
   const getCachedMeshes = useRef((): THREE.Mesh[] => {
     const currentKey = geometryKeyRef.current;
     if (currentKey === cachedMeshKeyRef.current) {
@@ -102,6 +115,8 @@ export function MeasureTool(): React.JSX.Element {
     });
     cachedMeshesRef.current = meshes;
     cachedMeshKeyRef.current = currentKey;
+    // Invalidate snap point cache when geometry changes
+    snapCacheRef.current.clear();
     return meshes;
   }).current;
 
@@ -131,7 +146,17 @@ export function MeasureTool(): React.JSX.Element {
       let allSnapPoints: SnapPoint[] = [];
       if (firstIntersection?.object) {
         const topMesh = firstIntersection.object as THREE.Mesh;
-        allSnapPoints = detectSnapPoints(topMesh, raycasterRef.current);
+        // Cache by mesh ID + face index to avoid re-running the expensive geometry
+        // pipeline when hovering over the same face on consecutive mouse moves.
+        const cacheKey = `${topMesh.id}:${firstIntersection.faceIndex ?? -1}`;
+        const cached = snapCacheRef.current.get(cacheKey);
+        if (cached) {
+          allSnapPoints = cached;
+        } else {
+          allSnapPoints = detectSnapPoints(topMesh, raycasterRef.current);
+          snapCacheRef.current.set(cacheKey, allSnapPoints);
+        }
+
         lastSnapPointsRef.current = allSnapPoints;
       } else if (lastSnapPointsRef.current?.length) {
         allSnapPoints = lastSnapPointsRef.current;
@@ -178,7 +203,7 @@ export function MeasureTool(): React.JSX.Element {
       const meshes = getCachedMeshes();
       const intersects = raycasterRef.current.intersectObjects(meshes, true);
       // Consider a valid pointerdown when either on a mesh or over a valid snap indicator
-      pointerDownOnMeshRef.current = intersects.length > 0 || Boolean(activeSnapPoint);
+      pointerDownOnMeshRef.current = intersects.length > 0 || Boolean(activeSnapPointRef.current);
     };
 
     const handlePointerUp = (event: MouseEvent): void => {
@@ -192,7 +217,7 @@ export function MeasureTool(): React.JSX.Element {
           const rotated = angle > 0.01; // ~0.57°
           const translated = startCameraPosRef.current.distanceTo(endPos) > 1e-3;
 
-          if (!rotated && !translated && currentStart) {
+          if (!rotated && !translated && currentStartRef.current) {
             // No camera movement: treat as explicit cancel
             graphicsActor.send({ type: 'cancelCurrentMeasurement' });
           }
@@ -228,7 +253,7 @@ export function MeasureTool(): React.JSX.Element {
       }
 
       // Only process if interaction started on mesh OR we still have a valid snap indicator
-      if (!pointerDownOnMeshRef.current && !activeSnapPoint) {
+      if (!pointerDownOnMeshRef.current && !activeSnapPointRef.current) {
         pointerDownOnMeshRef.current = false;
         return;
       }
@@ -238,14 +263,14 @@ export function MeasureTool(): React.JSX.Element {
 
       const meshes = getCachedMeshes();
       const intersects = raycasterRef.current.intersectObjects(meshes, true);
-      if (intersects.length === 0 && !activeSnapPoint) {
+      if (intersects.length === 0 && !activeSnapPointRef.current) {
         // No intersection and no active snap target, ignore
         pointerDownOnMeshRef.current = false;
         return;
       }
 
       // Use snap point if available, otherwise use intersection point
-      const point = activeSnapPoint?.position ?? intersects[0]?.point;
+      const point = activeSnapPointRef.current?.position ?? intersects[0]?.point;
       if (!point) {
         pointerDownOnMeshRef.current = false;
         return;
@@ -253,10 +278,10 @@ export function MeasureTool(): React.JSX.Element {
 
       const pointArray: [number, number, number] = [point.x, point.y, point.z];
 
-      if (currentStart) {
+      if (currentStartRef.current) {
         // Disallow 0-length measurements by ignoring a completion click
         // that lands effectively on the start point (within a small epsilon)
-        const startVec = new THREE.Vector3(...currentStart);
+        const startVec = new THREE.Vector3(...currentStartRef.current);
         const endVec = new THREE.Vector3(...pointArray);
         const zeroLengthEpsilon = 1e-4; // Scene units
         if (startVec.distanceTo(endVec) <= zeroLengthEpsilon) {
@@ -291,18 +316,7 @@ export function MeasureTool(): React.JSX.Element {
       gl.domElement.removeEventListener('pointerup', handlePointerUp);
       gl.domElement.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [
-    camera,
-    gl,
-    scene,
-    snapDistance,
-    currentStart,
-    activeSnapPoint,
-    mousePosition,
-    isMeasureActive,
-    graphicsActor,
-    getCachedMeshes,
-  ]);
+  }, [camera, gl, scene, snapDistance, isMeasureActive, graphicsActor, getCachedMeshes]);
 
   // Choose which measurements to display: all during measure mode, otherwise only pinned
   const visibleMeasurements = isMeasureActive ? measurements : measurements.filter((m) => m.isPinned);
