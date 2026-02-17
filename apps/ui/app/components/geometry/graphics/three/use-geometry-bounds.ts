@@ -63,10 +63,6 @@ export function useGeometryBounds(
   const boundsStableRef = useRef(false);
 
   useFrame(() => {
-    if (outerRef.current) {
-      outerRef.current.updateWorldMatrix(true, true);
-    }
-
     if (!innerRef.current) {
       return;
     }
@@ -77,9 +73,16 @@ export function useGeometryBounds(
       boundsStableRef.current = false;
     }
 
-    // Skip expensive scene traversal once bounds have stabilized
+    // Skip expensive scene traversal and matrix updates once bounds have
+    // stabilized. updateWorldMatrix(true, true) walks the full parent chain
+    // and all descendants, so gating it behind the stability check avoids
+    // unnecessary work during orbit/pan/zoom/resize.
     if (boundsStableRef.current) {
       return;
+    }
+
+    if (outerRef.current) {
+      outerRef.current.updateWorldMatrix(true, true);
     }
 
     _box3.setFromObject(innerRef.current);
