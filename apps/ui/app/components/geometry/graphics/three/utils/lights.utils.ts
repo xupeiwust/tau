@@ -90,9 +90,15 @@ export type LightingConfig = {
  * when tilting up/down — producing natural lighting variation at different
  * viewing elevations instead of a uniformly locked rig.
  *
+ * Uses swing-twist quaternion decomposition to extract yaw. This avoids
+ * the gimbal-lock discontinuity inherent in Euler decomposition, which
+ * causes a 180° lighting hop when the camera crosses the equatorial plane
+ * (polar angle ≈ 90°). The twist component around the up axis is simply
+ * `normalize(0, …, axisComponent, …, w)` — continuous for all orientations.
+ *
  * Three.js internally negates all Euler components of `environmentRotation`
- * (WebGLMaterials.js "accommodate left-handed frame"), so the returned Euler
- * is pre-negated to compensate.
+ * (WebGLMaterials.js "accommodate left-handed frame"), so the returned yaw
+ * angle is provided with the sign that compensates for this negation.
  *
  * @param cameraWorldQuaternion - The camera's world quaternion.
  * @param upDirection - The configured up axis ('x', 'y', or 'z').
@@ -103,22 +109,36 @@ export function computeEnvironmentRotation(
   upDirection: 'x' | 'y' | 'z',
 ): THREE.Euler {
   const order: THREE.EulerOrder = upDirection === 'y' ? 'YXZ' : upDirection === 'z' ? 'ZXY' : 'XZY';
-  const inverted = cameraWorldQuaternion.clone().invert();
-  const euler = new THREE.Euler().setFromQuaternion(inverted, order);
 
-  // Only compensate for azimuthal (yaw) rotation around the up axis.
-  // Polar (pitch) and roll are left un-compensated so the environment
-  // lighting shifts naturally as the camera tilts.
+  // Swing-twist decomposition: extract the twist (yaw) around the up axis.
+  // For quaternion Q = (x, y, z, w), the twist keeps only w and the
+  // component aligned with the up axis, then normalises. The yaw angle
+  // is 2·atan2(axisComponent, w), which is continuous everywhere (the only
+  // degeneracy — both zero — occurs when the camera points exactly along
+  // the up axis, where azimuth is genuinely undefined).
+  const { x, y, z, w } = cameraWorldQuaternion;
+  const axisComponent = upDirection === 'z' ? z : upDirection === 'y' ? y : x;
+
+  // Degenerate: camera aligned exactly with the up axis (azimuth undefined)
+  if (axisComponent * axisComponent + w * w < 1e-10) {
+    return new THREE.Euler(0, 0, 0, order);
+  }
+
+  // Yaw angle from the twist quaternion.
+  // Providing +yaw to environmentRotation means Three.js applies −yaw
+  // (its internal negation), which undoes the camera's azimuthal turn.
+  const yaw = 2 * Math.atan2(axisComponent, w);
+
   if (upDirection === 'z') {
-    return new THREE.Euler(0, 0, -euler.z, order);
+    return new THREE.Euler(0, 0, yaw, order);
   }
 
   if (upDirection === 'y') {
-    return new THREE.Euler(0, -euler.y, 0, order);
+    return new THREE.Euler(0, yaw, 0, order);
   }
 
   // UpDirection === 'x'
-  return new THREE.Euler(-euler.x, 0, 0, order);
+  return new THREE.Euler(yaw, 0, 0, order);
 }
 
 /**

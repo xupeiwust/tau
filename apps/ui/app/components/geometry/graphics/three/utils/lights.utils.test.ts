@@ -45,6 +45,24 @@ function createDefaultLightingConfig(overrides?: Partial<LightingConfig>): Light
 
 // ── computeEnvironmentRotation ──────────────────────────────────────────────
 
+/**
+ * Builds an orbit-camera quaternion: Q_yaw(azimuth) * Q_pitch(polar).
+ *
+ * For Z-up the orbit is: rotate around Z by `azimuth`, then tilt around
+ * the resulting local X by `polar`.
+ */
+function orbitQuaternion(azimuth: number, polar: number, up: 'x' | 'y' | 'z' = 'z'): THREE.Quaternion {
+  const upAxis =
+    up === 'z' ? new THREE.Vector3(0, 0, 1) : up === 'y' ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+
+  const pitchAxis =
+    up === 'z' ? new THREE.Vector3(1, 0, 0) : up === 'y' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+
+  const qYaw = new THREE.Quaternion().setFromAxisAngle(upAxis, azimuth);
+  const qPitch = new THREE.Quaternion().setFromAxisAngle(pitchAxis, polar);
+  return qYaw.multiply(qPitch);
+}
+
 describe('computeEnvironmentRotation', () => {
   describe('identity camera', () => {
     it('should produce a near-zero Euler for an identity quaternion', () => {
@@ -77,29 +95,185 @@ describe('computeEnvironmentRotation', () => {
     });
   });
 
-  describe('90-degree yaw rotation', () => {
+  describe('azimuth-only extraction', () => {
     it('should produce a non-trivial Euler for a 90° rotation around Z', () => {
       const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
       const euler = computeEnvironmentRotation(quat, 'z');
 
-      // The result should not be all zeros (camera is rotated)
-      const magnitude = Math.abs(euler.x) + Math.abs(euler.y) + Math.abs(euler.z);
-      expect(magnitude).toBeGreaterThan(0.01);
+      // Should extract the yaw = π/2 into the z component
+      expect(euler.z).toBeCloseTo(Math.PI / 2, 4);
+      // Other components should be zero (azimuth-only)
+      expect(euler.x).toBeCloseTo(0, 6);
+      expect(euler.y).toBeCloseTo(0, 6);
+    });
+
+    it('should extract correct yaw for each up direction', () => {
+      const angle = Math.PI / 3;
+
+      // Z-up: yaw around Z
+      const qZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle);
+      const eulerZ = computeEnvironmentRotation(qZ, 'z');
+      expect(eulerZ.z).toBeCloseTo(angle, 4);
+      expect(eulerZ.x).toBeCloseTo(0, 6);
+      expect(eulerZ.y).toBeCloseTo(0, 6);
+
+      // Y-up: yaw around Y
+      const qY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+      const eulerY = computeEnvironmentRotation(qY, 'y');
+      expect(eulerY.y).toBeCloseTo(angle, 4);
+      expect(eulerY.x).toBeCloseTo(0, 6);
+      expect(eulerY.z).toBeCloseTo(0, 6);
+
+      // X-up: yaw around X
+      const qX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle);
+      const eulerX = computeEnvironmentRotation(qX, 'x');
+      expect(eulerX.x).toBeCloseTo(angle, 4);
+      expect(eulerX.y).toBeCloseTo(0, 6);
+      expect(eulerX.z).toBeCloseTo(0, 6);
+    });
+
+    it('should only populate the up-axis Euler component (pitch/roll zeroed)', () => {
+      // Combined yaw + pitch rotation — only yaw should survive
+      const quat = orbitQuaternion(Math.PI / 4, Math.PI / 6, 'z');
+      const euler = computeEnvironmentRotation(quat, 'z');
+
+      // Z should reflect the azimuth
+      expect(euler.z).toBeCloseTo(Math.PI / 4, 4);
+      // X and y must be zero (pitch not tracked)
+      expect(euler.x).toBeCloseTo(0, 6);
+      expect(euler.y).toBeCloseTo(0, 6);
     });
   });
 
-  describe('pre-negation', () => {
-    it('should negate all Euler components relative to the raw extraction', () => {
-      const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 4);
-      const result = computeEnvironmentRotation(quat, 'z');
+  describe('polar-angle independence', () => {
+    it('should return the same rotation regardless of polar angle (z-up)', () => {
+      const azimuth = Math.PI / 4;
+      const polarAngles = [
+        0,
+        Math.PI / 6,
+        Math.PI / 4,
+        Math.PI / 3,
+        Math.PI / 2 - 0.01,
+        Math.PI / 2,
+        Math.PI / 2 + 0.01,
+        (2 * Math.PI) / 3,
+        (5 * Math.PI) / 6,
+      ];
 
-      // Manually compute what the raw (un-negated) extraction would be
-      const inverted = quat.clone().invert();
-      const rawEuler = new THREE.Euler().setFromQuaternion(inverted, 'ZXY');
+      const results = polarAngles.map((polar) => {
+        const quat = orbitQuaternion(azimuth, polar, 'z');
+        return computeEnvironmentRotation(quat, 'z');
+      });
 
-      expect(result.x).toBeCloseTo(-rawEuler.x, 6);
-      expect(result.y).toBeCloseTo(-rawEuler.y, 6);
-      expect(result.z).toBeCloseTo(-rawEuler.z, 6);
+      for (const euler of results) {
+        expect(euler.z).toBeCloseTo(azimuth, 4);
+        expect(euler.x).toBeCloseTo(0, 6);
+        expect(euler.y).toBeCloseTo(0, 6);
+      }
+    });
+
+    it('should return the same rotation regardless of polar angle (y-up)', () => {
+      const azimuth = -Math.PI / 3;
+      const polarAngles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4];
+
+      const results = polarAngles.map((polar) => {
+        const quat = orbitQuaternion(azimuth, polar, 'y');
+        return computeEnvironmentRotation(quat, 'y');
+      });
+
+      for (const euler of results) {
+        expect(euler.y).toBeCloseTo(azimuth, 4);
+        expect(euler.x).toBeCloseTo(0, 6);
+        expect(euler.z).toBeCloseTo(0, 6);
+      }
+    });
+  });
+
+  describe('continuity across equatorial plane (no lighting hop)', () => {
+    it('should be continuous when sweeping polar angle through 90° (z-up)', () => {
+      const azimuth = Math.PI / 3;
+      // Dense sweep through the equatorial singularity at polar = π/2
+      const steps = 100;
+      const polarStart = Math.PI / 4;
+      const polarEnd = (3 * Math.PI) / 4;
+
+      let previousZ: number | undefined;
+      for (let index = 0; index <= steps; index++) {
+        const polar = polarStart + (index / steps) * (polarEnd - polarStart);
+        const quat = orbitQuaternion(azimuth, polar, 'z');
+        const euler = computeEnvironmentRotation(quat, 'z');
+
+        if (previousZ !== undefined) {
+          // Step-to-step change must be small — a hop would produce a ~π jump
+          const delta = Math.abs(euler.z - previousZ);
+          expect(delta).toBeLessThan(0.1);
+        }
+
+        previousZ = euler.z;
+      }
+    });
+
+    it('should be continuous when sweeping polar angle through 90° (y-up)', () => {
+      const azimuth = -Math.PI / 6;
+      const steps = 100;
+      const polarStart = Math.PI / 4;
+      const polarEnd = (3 * Math.PI) / 4;
+
+      let previousY: number | undefined;
+      for (let index = 0; index <= steps; index++) {
+        const polar = polarStart + (index / steps) * (polarEnd - polarStart);
+        const quat = orbitQuaternion(azimuth, polar, 'y');
+        const euler = computeEnvironmentRotation(quat, 'y');
+
+        if (previousY !== undefined) {
+          const delta = Math.abs(euler.y - previousY);
+          expect(delta).toBeLessThan(0.1);
+        }
+
+        previousY = euler.y;
+      }
+    });
+  });
+
+  describe('full azimuth sweep is continuous', () => {
+    it('should have no jumps across the full 0→2π azimuth range', () => {
+      const polar = Math.PI / 3;
+      const steps = 360;
+
+      let previousZ: number | undefined;
+      for (let index = 0; index <= steps; index++) {
+        const azimuth = (index / steps) * 2 * Math.PI - Math.PI; // −π → +π
+        const quat = orbitQuaternion(azimuth, polar, 'z');
+        const euler = computeEnvironmentRotation(quat, 'z');
+
+        if (previousZ !== undefined) {
+          // Allow wrapping at ±π (which is visually seamless since
+          // sin/cos are 2π-periodic). The raw angular step is ~0.017 rad;
+          // a true discontinuity would be ≫ 0.1 rad even after unwrap.
+          let delta = Math.abs(euler.z - previousZ);
+          if (delta > Math.PI) {
+            delta = 2 * Math.PI - delta;
+          }
+
+          expect(delta).toBeLessThan(0.1);
+        }
+
+        previousZ = euler.z;
+      }
+    });
+  });
+
+  describe('degenerate case', () => {
+    it('should return identity when camera points exactly along up axis (z-up)', () => {
+      // 180° around Y: q = (0, 1, 0, 0). Both q.z and q.w are 0 so the
+      // twist around Z is degenerate (azimuth undefined). Should fall back
+      // to identity.
+      const degenerate = new THREE.Quaternion(0, 1, 0, 0);
+      const euler = computeEnvironmentRotation(degenerate, 'z');
+
+      expect(euler.x).toBeCloseTo(0, 6);
+      expect(euler.y).toBeCloseTo(0, 6);
+      expect(euler.z).toBeCloseTo(0, 6);
     });
   });
 
@@ -333,26 +507,25 @@ describe('applyLightingForCamera', () => {
   });
 
   describe('consistency across camera angles', () => {
-    it('should produce different environment rotations for different camera orientations', () => {
+    it('should produce different environment rotations for different azimuthal positions', () => {
       const scene1 = createTestScene();
       const scene2 = createTestScene();
+      const config = createDefaultLightingConfig();
 
+      // Camera 1: azimuth 0°, polar 45°
       const camera1 = createTestCamera();
-      camera1.position.set(0, 0, 10);
-      camera1.lookAt(0, 0, 0);
+      camera1.quaternion.copy(orbitQuaternion(0, Math.PI / 4, 'z'));
       camera1.updateMatrixWorld(true);
 
+      // Camera 2: azimuth 90°, polar 45°
       const camera2 = createTestCamera();
-      camera2.position.set(10, 0, 0);
-      camera2.lookAt(0, 0, 0);
+      camera2.quaternion.copy(orbitQuaternion(Math.PI / 2, Math.PI / 4, 'z'));
       camera2.updateMatrixWorld(true);
-
-      const config = createDefaultLightingConfig();
 
       applyLightingForCamera({ scene: scene1, camera: camera1, headlamp: undefined, ambient: undefined, config });
       applyLightingForCamera({ scene: scene2, camera: camera2, headlamp: undefined, ambient: undefined, config });
 
-      // Different camera positions should produce different rotations
+      // Different azimuths should produce different environment rotations
       const rot1 = scene1.environmentRotation;
       const rot2 = scene2.environmentRotation;
       const isIdentical =
