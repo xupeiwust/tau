@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { RefObject } from 'react';
+import type * as THREE from 'three';
 import { resetCamera as resetCameraFn } from '#components/geometry/graphics/three/utils/camera.utils.js';
 import { useCameraCapability } from '#hooks/use-graphics.js';
 
@@ -20,6 +21,7 @@ type ResetPerspective = {
 
 type ResetCameraParameters = {
   geometryRadius: number;
+  geometryCenter: THREE.Vector3;
   rotation: ResetRotation;
   perspective: ResetPerspective;
   setSceneRadius: (radius: number) => void;
@@ -40,12 +42,19 @@ export function useCameraReset(parameters: ResetCameraParameters): (options?: {
    */
   enableConfiguredAngles?: boolean;
 }) => void {
-  const { camera, invalidate } = useThree();
+  const { camera, controls, invalidate } = useThree();
   const cameraCapabilityActor = useCameraCapability();
   const isRegistered = useRef(false);
 
-  const { geometryRadius, rotation, perspective, setSceneRadius, originalDistanceReference, cameraFovAngle } =
-    parameters;
+  const {
+    geometryRadius,
+    geometryCenter,
+    rotation,
+    perspective,
+    setSceneRadius,
+    originalDistanceReference,
+    cameraFovAngle,
+  } = parameters;
 
   const resetCamera = useCallback(
     (options?: { enableConfiguredAngles?: boolean }) => {
@@ -57,18 +66,22 @@ export function useCameraReset(parameters: ResetCameraParameters): (options?: {
       resetCameraFn({
         camera,
         geometryRadius,
+        geometryCenter,
         rotation,
         perspective,
         setSceneRadius,
         invalidate,
         enableConfiguredAngles: options?.enableConfiguredAngles,
         cameraFovAngle,
+        controls: (controls ?? undefined) as { target: THREE.Vector3; update: () => void } | undefined,
       });
     },
     [
       originalDistanceReference,
       camera,
+      controls,
       geometryRadius,
+      geometryCenter,
       rotation,
       perspective,
       setSceneRadius,
