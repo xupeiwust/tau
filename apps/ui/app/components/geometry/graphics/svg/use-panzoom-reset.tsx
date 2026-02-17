@@ -45,8 +45,12 @@ export function usePanzoomReset(parameters: PanzoomResetParameters): () => void 
     // This ensures proper pattern updates during the animation
     panzoomInstance.zoomToPoint(1, { clientX, clientY });
 
-    // Also reset pan to center with animation
-    panzoomInstance.pan(0, 0, { animate: true });
+    // Reset pan without animation to avoid CSS transition race condition.
+    // panzoom defers both setTransform and event dispatch into requestAnimationFrame.
+    // Using animate:true here would re-enable the CSS transition in a second rAF
+    // callback (after zoomToPoint's rAF already set transition:none), causing the
+    // browser to animate the scale change and leaving SVG patterns in a stale state.
+    panzoomInstance.pan(0, 0, { animate: false });
   }, [panzoomRef, containerRef]);
 
   // Register the reset function with the camera capability actor only once
