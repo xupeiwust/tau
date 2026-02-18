@@ -19,7 +19,7 @@ export const CadViewer = memo(
     geometries,
     enableSurfaces = true,
     enableLines = true,
-    enableMatcap = true,
+    enableMatcap = false,
     ...properties
   }: CadViewerProperties): React.JSX.Element => {
     const svgGeometries = geometries.filter((geometry) => geometry.format === 'svg');

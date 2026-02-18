@@ -193,7 +193,7 @@ function updateVisibility(scene: Group, enableSurfaces: boolean, enableLines: bo
  */
 export function GltfMesh({
   gltfFile,
-  enableMatcap = true,
+  enableMatcap = false,
   enableSurfaces = true,
   enableLines = true,
 }: GltfMeshDisplayProperties): React.JSX.Element | undefined {
