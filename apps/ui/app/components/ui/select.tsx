@@ -1,5 +1,5 @@
 import * as React from 'react';
-import * as SelectPrimitive from '@radix-ui/react-select';
+import { Select as SelectPrimitive } from 'radix-ui';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { cn } from '#utils/ui.utils.js';
 import { menuItemVariants, menuLabelVariants, menuSeparatorVariants } from '#components/ui/menu.variants.js';

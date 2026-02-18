@@ -1,6 +1,6 @@
 import * as React from 'react';
-import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { Slot } from '@radix-ui/react-slot';
+import { Popover as PopoverPrimitive, Slot as SlotPrimitive } from 'radix-ui';
+
 import { cn } from '#utils/ui.utils.js';
 
 function Popover({ ...properties }: React.ComponentProps<typeof PopoverPrimitive.Root>): React.JSX.Element {
@@ -30,7 +30,7 @@ function PopoverContent({
    */
   readonly withPortal?: boolean;
 }): React.JSX.Element {
-  const Component = withPortal ? PopoverPrimitive.Portal : Slot;
+  const Component = withPortal ? PopoverPrimitive.Portal : SlotPrimitive.Slot;
 
   return (
     <Component>

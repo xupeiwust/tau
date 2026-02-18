@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Slot } from '@radix-ui/react-slot';
+import { Slot as SlotPrimitive } from 'radix-ui';
 import { cn } from '#utils/ui.utils.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 
@@ -17,7 +17,7 @@ type PaneButtonProps = React.ComponentProps<'button'> & {
  *
  * Renders a small (24 px), centered button with consistent sizing, hover
  * colours, focus ring, and disabled state. Accepts `ref` as a regular prop
- * (React 19) and supports `asChild` via Radix `Slot` for composition with
+ * (React 19) and supports `asChild` via Radix `SlotPrimitive.Slot` for composition with
  * triggers (DropdownMenuTrigger, PopoverTrigger, etc.).
  *
  * An optional `tooltip` prop wraps the button in a Tooltip automatically.
@@ -29,7 +29,7 @@ function PaneButton({
   className,
   ...properties
 }: PaneButtonProps): React.JSX.Element {
-  const Comp = asChild ? Slot : 'button';
+  const Comp = asChild ? SlotPrimitive.Slot : 'button';
 
   const button = (
     <Comp
