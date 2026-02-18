@@ -103,7 +103,7 @@ export function FileManagerProvider({
   const [backendCookie] = useCookie(cookieName.filesystemBackend, 'indexeddb' as FilesystemBackend);
 
   // Use per-build config when buildId is provided; resolved async during machine init
-  const actorRef = useActorRef(fileManagerMachine, {
+  const fileManagerRef = useActorRef(fileManagerMachine, {
     input: {
       rootDirectory,
       shouldInitializeOnStart,
@@ -120,8 +120,8 @@ export function FileManagerProvider({
   // The machine's isRootChanged guard ensures same-value events are no-ops,
   // so this is safe to send unconditionally on every render cycle.
   useEffect(() => {
-    actorRef.send({ type: 'setRoot', path: rootDirectory, buildId });
-  }, [actorRef, rootDirectory, buildId]);
+    fileManagerRef.send({ type: 'setRoot', path: rootDirectory, buildId });
+  }, [fileManagerRef, rootDirectory, buildId]);
 
   /**
    * Wait for the file manager to be ready and return the wrapped worker.
@@ -129,7 +129,7 @@ export function FileManagerProvider({
    */
   const getReadiedWorker = useCallback(async (): Promise<Remote<FileWorker>> => {
     const snapshot = await waitFor(
-      actorRef,
+      fileManagerRef,
       createErrorAwareWaitPredicate((state) => state.matches('ready')),
     );
     assertNotErrorState(snapshot, 'File manager initialization failed');
@@ -140,7 +140,7 @@ export function FileManagerProvider({
     }
 
     return worker;
-  }, [actorRef]);
+  }, [fileManagerRef]);
 
   /**
    * Write a single file to the filesystem.
@@ -156,9 +156,9 @@ export function FileManagerProvider({
       await worker.writeFile(absolutePath, data);
 
       // Single consolidated event - machine handles context update, emit, and refresh
-      actorRef.send({ type: 'fileWritten', path, data, source: options.source });
+      fileManagerRef.send({ type: 'fileWritten', path, data, source: options.source });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -184,9 +184,9 @@ export function FileManagerProvider({
       await worker.writeFiles(absoluteFiles);
 
       // Single consolidated event - machine spawns background refresh
-      actorRef.send({ type: 'filesWritten', paths });
+      fileManagerRef.send({ type: 'filesWritten', paths });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -203,11 +203,11 @@ export function FileManagerProvider({
       const data = await worker.readFile(absolutePath);
 
       // Single consolidated event - machine updates openFiles and emits
-      actorRef.send({ type: 'fileRead', path, data });
+      fileManagerRef.send({ type: 'fileRead', path, data });
 
       return data;
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -229,9 +229,9 @@ export function FileManagerProvider({
       await worker.rename(absoluteOldPath, absoluteNewPath);
 
       // Single consolidated event - machine handles optimistic update, emit, and refresh
-      actorRef.send({ type: 'fileRenamed', oldPath, newPath });
+      fileManagerRef.send({ type: 'fileRenamed', oldPath, newPath });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -252,9 +252,9 @@ export function FileManagerProvider({
       const data = await worker.readFile(absoluteDestinationPath);
 
       // Single consolidated event - machine handles context update, emit, and refresh
-      actorRef.send({ type: 'fileWritten', path: destinationPath, data, source: 'user' });
+      fileManagerRef.send({ type: 'fileWritten', path: destinationPath, data, source: 'user' });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -270,9 +270,9 @@ export function FileManagerProvider({
       await worker.unlink(absolutePath);
 
       // Single consolidated event - machine handles optimistic delete, emit, and refresh
-      actorRef.send({ type: 'fileDeleted', path, source: options.source });
+      fileManagerRef.send({ type: 'fileDeleted', path, source: options.source });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -332,9 +332,9 @@ export function FileManagerProvider({
       await worker.copyDirectory(sourcePath, destinationPath);
 
       // Single consolidated event - machine spawns background refresh
-      actorRef.send({ type: 'filesWritten', paths: [] });
+      fileManagerRef.send({ type: 'filesWritten', paths: [] });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   /**
@@ -347,23 +347,23 @@ export function FileManagerProvider({
 
       // Stop file watching when switching away from webaccess
       if (backend !== 'webaccess') {
-        actorRef.send({ type: 'stopWatching' });
+        fileManagerRef.send({ type: 'stopWatching' });
       }
 
       await worker.reconfigure(backend);
 
       // Track the backend type in the machine context
-      actorRef.send({ type: 'setBackendType', backendType: backend });
+      fileManagerRef.send({ type: 'setBackendType', backendType: backend });
 
       // Start file watching when switching to webaccess
       if (backend === 'webaccess') {
-        actorRef.send({ type: 'startWatching' });
+        fileManagerRef.send({ type: 'startWatching' });
       }
 
       // Trigger file tree refresh after reconfiguration
-      actorRef.send({ type: 'filesWritten', paths: [] });
+      fileManagerRef.send({ type: 'filesWritten', paths: [] });
     },
-    [actorRef, getReadiedWorker],
+    [fileManagerRef, getReadiedWorker],
   );
 
   // ============ WebAccess (File System Access API) ============
@@ -373,8 +373,11 @@ export function FileManagerProvider({
 
   // Derive webAccessStatus from machine context
   // The machine tracks webAccessNeedsPermission (set during init) and backendType
-  const machineWebAccessNeedsPermission = useSelector(actorRef, (state) => state.context.webAccessNeedsPermission);
-  const machineBackendType = useSelector(actorRef, (state) => state.context.backendType);
+  const machineWebAccessNeedsPermission = useSelector(
+    fileManagerRef,
+    (state) => state.context.webAccessNeedsPermission,
+  );
+  const machineBackendType = useSelector(fileManagerRef, (state) => state.context.backendType);
 
   const webAccessStatus: WebAccessStatus = useMemo(() => {
     if (machineWebAccessNeedsPermission) {
@@ -407,14 +410,14 @@ export function FileManagerProvider({
 
     // Update directory name and track backend type
     setConnectedDirectoryName(handle.name);
-    actorRef.send({ type: 'setBackendType', backendType: 'webaccess' });
+    fileManagerRef.send({ type: 'setBackendType', backendType: 'webaccess' });
 
     // Start file watching for external change detection
-    actorRef.send({ type: 'startWatching' });
+    fileManagerRef.send({ type: 'startWatching' });
 
     // Trigger file tree refresh
-    actorRef.send({ type: 'filesWritten', paths: [] });
-  }, [actorRef, getReadiedWorker]);
+    fileManagerRef.send({ type: 'filesWritten', paths: [] });
+  }, [fileManagerRef, getReadiedWorker]);
 
   /**
    * Re-request permission on a previously stored directory handle.
@@ -440,16 +443,16 @@ export function FileManagerProvider({
 
     // Update directory name and track backend type
     setConnectedDirectoryName(handle.name);
-    actorRef.send({ type: 'setBackendType', backendType: 'webaccess' });
+    fileManagerRef.send({ type: 'setBackendType', backendType: 'webaccess' });
 
     // Start file watching
-    actorRef.send({ type: 'startWatching' });
+    fileManagerRef.send({ type: 'startWatching' });
 
     // Trigger file tree refresh
-    actorRef.send({ type: 'filesWritten', paths: [] });
+    fileManagerRef.send({ type: 'filesWritten', paths: [] });
 
     return true;
-  }, [actorRef, getReadiedWorker]);
+  }, [fileManagerRef, getReadiedWorker]);
 
   /**
    * Read the file tree from a specific backend using a standalone FileSystem instance.
@@ -488,7 +491,7 @@ export function FileManagerProvider({
 
   const value = useMemo<FileManagerContextType>(
     () => ({
-      fileManagerRef: actorRef,
+      fileManagerRef,
       writeFile,
       writeFiles,
       readFile,
@@ -508,7 +511,7 @@ export function FileManagerProvider({
       readBackendFileTree,
     }),
     [
-      actorRef,
+      fileManagerRef,
       writeFile,
       writeFiles,
       readFile,
