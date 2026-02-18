@@ -107,4 +107,131 @@ describe('ChatRpcService', () => {
       expect(service.isConnected('chat_123')).toBe(true);
     });
   });
+
+  describe('registerAbortSignal', () => {
+    it('should add chatId to abortedChats when signal is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      service.registerAbortSignal('chat_123', controller.signal);
+
+      // SendRpcRequest should reject immediately for an aborted chat
+      const result = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(result).toMatchObject({
+        errorCode: 'CLIENT_DISCONNECTED',
+        rpcName: 'read_file',
+      });
+    });
+
+    it('should clean up abortedChats entry after delay for early-aborted signal', async () => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      controller.abort();
+
+      service.registerAbortSignal('chat_123', controller.signal);
+
+      // Should be blocked immediately
+      const resultBeforeCleanup = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(resultBeforeCleanup).toMatchObject({
+        errorCode: 'CLIENT_DISCONNECTED',
+      });
+
+      // Advance past the 5s cleanup window
+      vi.advanceTimersByTime(5000);
+
+      // Register a connected socket so we don't get NO_CONNECTION
+      const mockSocket = {
+        id: 'socket_123',
+        connected: true,
+        emit: vi.fn(),
+      } as unknown as Socket;
+      service.registerConnection('chat_123', mockSocket);
+
+      // Should no longer be blocked — sendRpcRequest will proceed (emit to socket)
+      void service.sendRpcRequest('chat_123', 'call_2', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('rpc_request', expect.objectContaining({ rpcName: 'read_file' }));
+
+      vi.useRealTimers();
+    });
+
+    it('should clear stale abort entry when a new signal is registered for the same chat', async () => {
+      const mockSocket = {
+        id: 'socket_123',
+        connected: true,
+        emit: vi.fn(),
+      } as unknown as Socket;
+      service.registerConnection('chat_123', mockSocket);
+
+      // Abort request A
+      const controllerA = new AbortController();
+      service.registerAbortSignal('chat_123', controllerA.signal);
+      controllerA.abort();
+
+      // ChatId should now be in abortedChats — verify RPCs are blocked
+      const blockedResult = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(blockedResult).toMatchObject({
+        errorCode: 'CLIENT_DISCONNECTED',
+      });
+
+      // Register request B (new signal for the same chatId) — should clear stale entry
+      const controllerB = new AbortController();
+      service.registerAbortSignal('chat_123', controllerB.signal);
+
+      // RPCs should now work again
+      void service.sendRpcRequest('chat_123', 'call_2', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('rpc_request', expect.objectContaining({ rpcName: 'read_file' }));
+    });
+
+    it('should reject RPCs after abort and accept them after re-registration', async () => {
+      vi.useFakeTimers();
+      const mockSocket = {
+        id: 'socket_123',
+        connected: true,
+        emit: vi.fn(),
+      } as unknown as Socket;
+      service.registerConnection('chat_123', mockSocket);
+
+      // Start request A and abort it
+      const controllerA = new AbortController();
+      service.registerAbortSignal('chat_123', controllerA.signal);
+      controllerA.abort();
+
+      // RPCs are blocked
+      const blockedResult = await service.sendRpcRequest('chat_123', 'call_1', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(blockedResult).toMatchObject({
+        errorCode: 'CLIENT_DISCONNECTED',
+      });
+
+      // Immediately start request B (within 5s window)
+      const controllerB = new AbortController();
+      service.registerAbortSignal('chat_123', controllerB.signal);
+
+      // RPCs should work now despite being within the 5s cleanup window
+      void service.sendRpcRequest('chat_123', 'call_2', 'read_file', {
+        targetFile: 'test.txt',
+      });
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('rpc_request', expect.objectContaining({ rpcName: 'read_file' }));
+
+      vi.useRealTimers();
+    });
+  });
 });

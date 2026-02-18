@@ -139,8 +139,19 @@ export class ChatRpcService implements OnModuleDestroy {
    * Zero tool changes needed — tools keep calling sendRpcRequest as before.
    */
   public registerAbortSignal(chatId: string, signal: AbortSignal): void {
+    // Clear any stale abort entry from a previous request on this chat.
+    // Without this, a user who aborts request A and immediately sends request B
+    // on the same chatId would have request B's RPCs rejected for up to 5 seconds.
+    this.abortedChats.delete(chatId);
+
     if (signal.aborted) {
+      this.abortedChats.add(chatId);
       this.rejectPendingRequestsForChat(chatId, 'CLIENT_DISCONNECTED');
+
+      // Clean up after a short delay, same as the non-early path
+      setTimeout(() => {
+        this.abortedChats.delete(chatId);
+      }, 5000);
       return;
     }
 
