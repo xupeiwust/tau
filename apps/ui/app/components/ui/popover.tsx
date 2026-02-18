@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Popover as PopoverPrimitive, Slot as SlotPrimitive } from 'radix-ui';
-
 import { cn } from '#utils/ui.utils.js';
 
 function Popover({ ...properties }: React.ComponentProps<typeof PopoverPrimitive.Root>): React.JSX.Element {
