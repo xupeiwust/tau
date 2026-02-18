@@ -117,9 +117,9 @@ export class JscadWorker extends JavaScriptWorker {
   }
 
   protected override async cleanup(): Promise<void> {
-    // Clear all stored shapes to free memory
     this.shapesMemory = {};
     this.geometryAccessOrder = [];
+    await super.cleanup();
   }
 
   protected override async canHandle(

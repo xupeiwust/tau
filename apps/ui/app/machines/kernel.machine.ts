@@ -31,15 +31,8 @@ import type { FileManagerMachine } from '#machines/file-manager.machine.js';
 
 type KernelProvider = CadKernelProvider | 'tau' | 'jscad';
 
-// Module-level cache for worker selection
-const workerSelectionCache = new Map<string, KernelProvider>();
-
 // Worker priority order for canHandle queries
 const workerPriority: KernelProvider[] = ['openscad', 'zoo', 'replicad', 'jscad', 'tau'];
-
-function getCacheKey(file: GeometryFile): string {
-  return file.filename;
-}
 
 const workers = {
   replicad: ReplicadBuilderWorker,
@@ -55,10 +48,10 @@ const determineWorkerActor = fromPromise<
   { context: KernelContext; event: { file: GeometryFile; parameters: Record<string, unknown> } }
 >(async ({ input }) => {
   const { context, event } = input;
-  const cacheKey = getCacheKey(event.file);
+  const cacheKey = event.file.filename;
 
-  // Check cache
-  const cached = workerSelectionCache.get(cacheKey);
+  // Check cache (scoped to this machine instance)
+  const cached = context.workerSelectionCache.get(cacheKey);
   if (cached) {
     return { type: 'workerDetermined', worker: cached, parameters: event.parameters, file: event.file };
   }
@@ -74,7 +67,7 @@ const determineWorkerActor = fromPromise<
       // eslint-disable-next-line no-await-in-loop -- Need to check workers sequentially
       const canHandle = await worker.canHandleEntry(event.file);
       if (canHandle) {
-        workerSelectionCache.set(cacheKey, workerType);
+        context.workerSelectionCache.set(cacheKey, workerType);
         return { type: 'workerDetermined', worker: workerType, parameters: event.parameters, file: event.file };
       }
     } catch (error) {
@@ -103,25 +96,16 @@ const createWorkersActor = fromPromise<
 >(async ({ input }) => {
   const { context } = input;
 
-  // Clean up any existing workers
-  if (context.workers.replicad) {
-    context.workers.replicad.terminate();
-  }
-
-  if (context.workers.openscad) {
-    context.workers.openscad.terminate();
-  }
-
-  if (context.workers.zoo) {
-    context.workers.zoo.terminate();
-  }
-
-  if (context.workers.tau) {
-    context.workers.tau.terminate();
-  }
-
-  if (context.workers.jscad) {
-    context.workers.jscad.terminate();
+  // Clean up any existing workers (cleanup before terminate, mirroring destroyWorkers)
+  for (const workerType of workerPriority) {
+    const rawWorker = context.workers[workerType];
+    if (rawWorker) {
+      // eslint-disable-next-line no-await-in-loop -- Sequential cleanup avoids race conditions
+      await context.wrappedWorkers[workerType]?.cleanupEntry();
+      rawWorker.terminate();
+      context.workers[workerType] = undefined;
+      context.wrappedWorkers[workerType] = undefined;
+    }
   }
 
   try {
@@ -580,6 +564,7 @@ type KernelContext = {
     KernelProvider,
     Remote<ReplicadWorker | OpenScadWorker | ZooWorker | TauWorker | JscadWorker> | undefined
   >;
+  workerSelectionCache: Map<string, KernelProvider>;
   parentRef?: CadActor;
   selectedWorker?: KernelProvider;
   fileManagerRef?: ActorRefFrom<FileManagerMachine>;
@@ -690,6 +675,7 @@ export const kernelMachine = setup({
       tau: undefined,
       jscad: undefined,
     },
+    workerSelectionCache: new Map(),
     parentRef: undefined,
     selectedWorker: undefined,
     fileManagerRef: input.fileManagerRef,
