@@ -14,7 +14,7 @@ import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { useChatRpcConnection } from '#hooks/use-chat-rpc-socket.js';
 import { MonacoModelServiceProvider } from '#hooks/use-monaco-model-service.js';
 import { useFlushOnClose } from '#hooks/use-flush-on-close.js';
-import { debugKernelConfig } from '#constants/kernel.constants.js';
+import { debugKernelConfig } from '#constants/kernel-worker.constants.js';
 
 // Define provider component at module level for stable reference across HMR
 function RouteProvider({ children }: { readonly children?: React.ReactNode }): React.JSX.Element {
