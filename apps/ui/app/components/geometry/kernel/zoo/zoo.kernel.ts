@@ -23,6 +23,7 @@ import type {
   KernelIssue,
   KernelLogger,
   KernelRuntime,
+  KernelSpanTracer,
 } from '@taucad/types';
 import { defineKernel } from '@taucad/types';
 import type { CompilationError } from '@taucad/kcl-wasm-lib/bindings/CompilationError';
@@ -71,11 +72,7 @@ function filterNonWarningErrors(errors: CompilationError[]): CompilationError[] 
   return errors.filter((error) => error.severity === 'Error' || error.severity === 'Fatal');
 }
 
-function mapCompilationErrorsToKernelIssues(
-  errors: CompilationError[],
-  code: string,
-  fileName: string,
-): KernelIssue[] {
+function mapCompilationErrorsToKernelIssues(errors: CompilationError[], code: string, fileName: string): KernelIssue[] {
   return errors.map((error) => {
     const errorPosition = getErrorPosition(error, code);
     return {
@@ -110,11 +107,7 @@ function logKernelIssues(errors: KernelIssue[], logger: KernelLogger): void {
 // KCL Utils management
 // =============================================================================
 
-function ensureFileSystemManager(
-  ctx: ZooContext,
-  basePath: string,
-  filesystem: KernelFilesystem,
-): FileSystemManager {
+function ensureFileSystemManager(ctx: ZooContext, basePath: string, filesystem: KernelFilesystem): FileSystemManager {
   ctx.fileSystemManager = new FileSystemManager(filesystem, basePath);
   return ctx.fileSystemManager;
 }
@@ -135,9 +128,9 @@ function getKclUtilsInstance(ctx: ZooContext): KclUtils {
   return ctx.kclUtils;
 }
 
-async function getKclUtils(ctx: ZooContext): Promise<KclUtils> {
+async function getKclUtils(ctx: ZooContext, tracer?: KernelSpanTracer): Promise<KclUtils> {
   const utils = getKclUtilsInstance(ctx);
-  await utils.initializeWasm();
+  await utils.initializeWasm(tracer);
   return utils;
 }
 
@@ -157,7 +150,7 @@ export default defineKernel<ZooContext, Uint8Array<ArrayBuffer>>({
 
   async initialize(options) {
     return {
-      baseUrl: (options.baseUrl as string) ?? '',
+      baseUrl: (options['baseUrl'] as string | undefined) ?? '',
       kclUtils: undefined,
       fileSystemManager: undefined,
     };
@@ -204,9 +197,7 @@ export default defineKernel<ZooContext, Uint8Array<ArrayBuffer>>({
       const criticalExecutionErrors = filterNonWarningErrors(executionResult.errors);
       if (criticalExecutionErrors.length > 0) {
         logger.warn('KCL execution errors during parameter extraction', { data: criticalExecutionErrors });
-        return createKernelError(
-          mapCompilationErrorsToKernelIssues(criticalExecutionErrors, code, relativeFilePath),
-        );
+        return createKernelError(mapCompilationErrorsToKernelIssues(criticalExecutionErrors, code, relativeFilePath));
       }
 
       const { defaultParameters, jsonSchema } = KclUtils.convertKclVariablesToJsonSchema(executionResult.variables);
@@ -238,9 +229,7 @@ export default defineKernel<ZooContext, Uint8Array<ArrayBuffer>>({
       const criticalParseErrors = filterNonWarningErrors(parseResult.errors);
       if (criticalParseErrors.length > 0) {
         logger.warn('KCL parsing errors', { data: criticalParseErrors });
-        throw new KclBuildError(
-          mapCompilationErrorsToKernelIssues(criticalParseErrors, trimmedCode, relativeFilePath),
-        );
+        throw new KclBuildError(mapCompilationErrorsToKernelIssues(criticalParseErrors, trimmedCode, relativeFilePath));
       }
 
       const modifiedProgram = KclUtils.injectParametersIntoProgram(parseResult.program, parameters);
@@ -276,14 +265,13 @@ export default defineKernel<ZooContext, Uint8Array<ArrayBuffer>>({
     }
   },
 
-  // eslint-disable-next-line complexity -- mirrors the original worker implementation
   async exportGeometry(
     { fileType }: ExportGeometryInput,
     { logger }: KernelRuntime,
     ctx: ZooContext,
     nativeHandle: Uint8Array<ArrayBuffer>,
   ): Promise<ExportGeometryResult> {
-    if (!nativeHandle || nativeHandle.length === 0) {
+    if (nativeHandle.length === 0) {
       return createKernelError([
         { message: 'No geometry available for export. Please build geometries before exporting.', severity: 'error' },
       ]);

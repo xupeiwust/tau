@@ -1,6 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference -- emscripten types are not available as a module
 /// <reference types="emscripten" />
 
+import type { KernelSpanTracer } from '@taucad/types';
 import opencascade from 'replicad-opencascadejs/src/replicad_single.js';
 import type { OpenCascadeInstance } from 'replicad-opencascadejs/src/replicad_single.js';
 import opencascadeWithExceptions from 'replicad-opencascadejs/src/replicad_with_exceptions.js';
@@ -27,6 +28,8 @@ type InitOpenCascadeOptions = {
   print?: (text: string) => void;
   /** Optional callback to handle stderr messages. Defaults to no-op (silences logs). */
   printErr?: (text: string) => void;
+  /** Optional span tracer for hierarchy-aware telemetry */
+  tracer?: KernelSpanTracer;
 };
 
 // Default no-op function to silence verbose OpenCascade logs
@@ -40,13 +43,19 @@ const noop = (): void => {};
  * @see https://github.com/sgenoud/replicad-cli/blob/main/src/initOCSingle.js
  */
 export async function initOpenCascade(options?: InitOpenCascadeOptions): Promise<OpenCascadeInstance> {
-  const compiledModule = await compileWasmStreaming(opencascadeWasmUrl);
+  const compiledModule = await compileWasmStreaming(opencascadeWasmUrl, options?.tracer);
 
   const instance = await (opencascade as OpenCascadeModule)({
     instantiateWasm(imports: WebAssembly.Imports, successCallback: (instance: WebAssembly.Instance) => void) {
-      WebAssembly.instantiate(compiledModule, imports)
-        .then((wasmInstance) => { successCallback(wasmInstance); })
-        .catch((error) => { throw error; });
+      void (async () => {
+        try {
+          const wasmInstance = await WebAssembly.instantiate(compiledModule, imports);
+          successCallback(wasmInstance);
+        } catch (error: unknown) {
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+      })();
+
       return {};
     },
     print: options?.print ?? noop,
@@ -67,13 +76,19 @@ export async function initOpenCascade(options?: InitOpenCascadeOptions): Promise
 export async function initOpenCascadeWithExceptions(
   options?: InitOpenCascadeOptions,
 ): Promise<OpenCascadeInstanceWithExceptions> {
-  const compiledModule = await compileWasmStreaming(opencascadeWithExceptionsWasmUrl);
+  const compiledModule = await compileWasmStreaming(opencascadeWithExceptionsWasmUrl, options?.tracer);
 
   const instance = await (opencascadeWithExceptions as OpenCascadeModuleWithExceptions)({
     instantiateWasm(imports: WebAssembly.Imports, successCallback: (instance: WebAssembly.Instance) => void) {
-      WebAssembly.instantiate(compiledModule, imports)
-        .then((wasmInstance) => { successCallback(wasmInstance); })
-        .catch((error) => { throw error; });
+      void (async () => {
+        try {
+          const wasmInstance = await WebAssembly.instantiate(compiledModule, imports);
+          successCallback(wasmInstance);
+        } catch (error: unknown) {
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+      })();
+
       return {};
     },
     print: options?.print ?? noop,

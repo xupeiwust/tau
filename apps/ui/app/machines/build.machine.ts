@@ -1,7 +1,7 @@
 import { assign, assertEvent, setup, fromPromise, emit, enqueueActions } from 'xstate';
 import type { ActorRefFrom, OutputFrom, DoneActorEvent, AnyStateMachine } from 'xstate';
 import { produce } from 'immer';
-import type { Build, KernelConfig, MiddlewareConfig } from '@taucad/types';
+import type { Build, KernelConfig, MiddlewareConfig, BundlerConfig } from '@taucad/types';
 import { isBrowser } from '#constants/browser.constants.js';
 import type { GraphicsViewSettings } from '#constants/editor.constants.js';
 import { defaultGraphicsSettings } from '#constants/editor.constants.js';
@@ -23,6 +23,7 @@ export type BuildContext = {
   shouldLoadModelOnStart: boolean;
   kernelConfig: KernelConfig;
   middlewareConfig: MiddlewareConfig;
+  bundlerConfig?: BundlerConfig;
   fileManagerRef: ActorRefFrom<typeof fileManagerMachine>;
   gitRef: ActorRefFrom<typeof gitMachine>;
   /** Per-viewer-panel graphics machines, keyed by Dockview panel ID */
@@ -43,6 +44,7 @@ type BuildInput = {
   fileManagerRef: ActorRefFrom<typeof fileManagerMachine>;
   kernelConfig: KernelConfig;
   middlewareConfig: MiddlewareConfig;
+  bundlerConfig?: BundlerConfig;
 };
 
 // Define the actors that the machine can invoke
@@ -344,6 +346,7 @@ export const buildMachine = setup({
               fileManagerRef: ctx.fileManagerRef,
               kernelConfig: ctx.kernelConfig,
               middlewareConfig: ctx.middlewareConfig,
+              bundlerConfig: ctx.bundlerConfig,
             },
           });
 
@@ -396,6 +399,7 @@ export const buildMachine = setup({
               fileManagerRef: ctx.fileManagerRef,
               kernelConfig: ctx.kernelConfig,
               middlewareConfig: ctx.middlewareConfig,
+              bundlerConfig: ctx.bundlerConfig,
             },
           });
 
@@ -434,6 +438,7 @@ export const buildMachine = setup({
             fileManagerRef: ctx.fileManagerRef,
             kernelConfig: ctx.kernelConfig,
             middlewareConfig: ctx.middlewareConfig,
+            bundlerConfig: ctx.bundlerConfig,
           },
         });
 
@@ -554,7 +559,14 @@ export const buildMachine = setup({
 }).createMachine({
   id: 'build',
   context({ input, spawn, self }) {
-    const { buildId, shouldLoadModelOnStart = true, fileManagerRef, kernelConfig, middlewareConfig } = input;
+    const {
+      buildId,
+      shouldLoadModelOnStart = true,
+      fileManagerRef,
+      kernelConfig,
+      middlewareConfig,
+      bundlerConfig,
+    } = input;
 
     const gitRef = spawn('git', {
       id: `git-${buildId}`,
@@ -580,6 +592,7 @@ export const buildMachine = setup({
       shouldLoadModelOnStart,
       kernelConfig,
       middlewareConfig,
+      bundlerConfig,
       fileManagerRef,
       gitRef,
       viewGraphics,

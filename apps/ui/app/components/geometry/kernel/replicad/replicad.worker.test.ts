@@ -210,6 +210,112 @@ describe('ReplicadWorker', () => {
         expect(result).toBe(false);
       });
     });
+
+    describe('Should detect replicad via transitive imports (bundler-assisted detection)', () => {
+      const productionDetectImport = /import.*from\s+['"]replicad['"]/s.source;
+
+      const createWorkerWithDetection = async (files: Record<string, string>): ReturnType<typeof createTestWorker> =>
+        createTestWorker(replicadKernel, files, {
+          detectImport: productionDetectImport,
+          builtinModuleNames: ['replicad'],
+        });
+
+      it('should detect replicad when imported only in sub-modules (cube with cutout assembly)', async () => {
+        const worker = await createWorkerWithDetection({
+          'main.ts': `
+            import { makeCube } from './lib/cube';
+            import { makeCylinderCutout } from './lib/cutout';
+
+            export const defaultParams = {
+              cubeSize: 50,
+              cutoutRadius: 15,
+            };
+
+            export default function main(p = defaultParams) {
+              const cube = makeCube(p.cubeSize);
+              const cutout = makeCylinderCutout(p.cutoutRadius, p.cubeSize * 1.1);
+              return cube.cut(cutout);
+            }
+          `,
+          'lib/cube.ts': `
+            import { makeBaseBox } from 'replicad';
+
+            export function makeCube(size: number) {
+              return makeBaseBox(size, size, size).translate(-size / 2, -size / 2, -size / 2);
+            }
+          `,
+          'lib/cutout.ts': `
+            import { makeCylinder } from 'replicad';
+
+            export function makeCylinderCutout(radius: number, height: number) {
+              return makeCylinder(radius, height, [0, 0, -height / 2], [0, 0, 1]);
+            }
+          `,
+        });
+        const result = await worker[kernelSymbols.canHandleEntry](createGeometryFile('main.ts'));
+        expect(result).toBe(true);
+      });
+
+      it('should detect replicad when only a single sub-module imports it', async () => {
+        const worker = await createWorkerWithDetection({
+          'main.ts': `
+            import { createBox } from './shapes';
+            export default function main() {
+              return createBox(20, 20, 10);
+            }
+          `,
+          'shapes.ts': `
+            import { makeBaseBox } from 'replicad';
+            export function createBox(w: number, h: number, d: number) {
+              return makeBaseBox(w, h, d);
+            }
+          `,
+        });
+        const result = await worker[kernelSymbols.canHandleEntry](createGeometryFile('main.ts'));
+        expect(result).toBe(true);
+      });
+
+      it('should not detect replicad when no sub-modules import it', async () => {
+        const worker = await createWorkerWithDetection({
+          'main.ts': `
+            import { add } from './utils';
+            export default function main() {
+              return add(1, 2);
+            }
+          `,
+          'utils.ts': `
+            export function add(a: number, b: number) { return a + b; }
+          `,
+        });
+        const result = await worker[kernelSymbols.canHandleEntry](createGeometryFile('main.ts'));
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('Should handle parametric models with direct imports', () => {
+      it('should detect drawRoundedRectangle import from replicad', async () => {
+        const worker = await createWorker({
+          'main.ts': `
+            import { drawRoundedRectangle } from 'replicad';
+            export const defaultParams = {
+              width: 100,
+              length: 150,
+              height: 50,
+              thickness: 2,
+              cornerRadius: 5,
+            };
+            export default function main(p = defaultParams) {
+              const outer = drawRoundedRectangle(p.width, p.length, p.cornerRadius)
+                .sketchOnPlane()
+                .extrude(p.height);
+              return outer.shell(p.thickness, (f) => f.inPlane("XY", p.height));
+            }
+          `,
+        });
+        const result = await worker[kernelSymbols.canHandleEntry](createGeometryFile('main.ts'));
+        expect(result).toBe(true);
+      });
+    });
   });
 
   // ===========================================================================
@@ -802,6 +908,48 @@ describe('ReplicadWorker', () => {
     });
 
     describe('Multi-file imports', () => {
+      it('should handle transitive imports without direct replicad import in entry file', async () => {
+        const productionDetectImport = /import.*from\s+['"]replicad['"]/s.source;
+        const result = await createGeometry(
+          {
+            'main.ts': `
+              import { createBox } from './lib/box';
+              import { createCylinder } from './lib/cylinder';
+
+              export default function main() {
+                const box = createBox(40, 40, 20);
+                const cylinder = createCylinder(10, 30).translate([0, 0, 20]);
+                return box.fuse(cylinder);
+              }
+            `,
+            'lib/box.ts': `
+              import { makeBaseBox } from 'replicad';
+
+              export function createBox(width: number, height: number, depth: number) {
+                return makeBaseBox(width, height, depth);
+              }
+            `,
+            'lib/cylinder.ts': `
+              import { makeCylinder } from 'replicad';
+
+              export function createCylinder(radius: number, height: number) {
+                return makeCylinder(radius, height);
+              }
+            `,
+          },
+          'main.ts',
+          {},
+          {
+            detectImport: productionDetectImport,
+            builtinModuleNames: ['replicad'],
+          },
+        );
+
+        expect(result.success).toBe(true);
+        await geometryHelpers.expectValidGltf(result);
+        await geometryHelpers.expectMeshCount(result, 1);
+      });
+
       it('should handle imports from relative paths', async () => {
         const result = await createGeometry(
           {
@@ -2747,6 +2895,57 @@ export function getShape() { return broken(); }
       // Bounding boxes must differ (10mm vs 30mm)
       await geometryHelpers.expectBoundingBoxSize(result1, [0.01, 0.01, 0.01], 0.002);
       await geometryHelpers.expectBoundingBoxSize(result2, [0.03, 0.03, 0.03], 0.002);
+    });
+
+    it('should re-render with different parameters when replicad is imported transitively (production flow)', async () => {
+      const productionDetectImport = /import.*from\s+['"]replicad['"]/s.source;
+
+      const worker = await createTestWorker(
+        replicadKernel,
+        {
+          'main.ts': `
+            import { makeCube } from './lib/cube';
+
+            export const defaultParams = { size: 50 };
+
+            export default function main(p = defaultParams) {
+              return makeCube(p.size);
+            }
+          `,
+          'lib/cube.ts': `
+            import { makeBaseBox } from 'replicad';
+
+            export function makeCube(size: number) {
+              return makeBaseBox(size, size, size);
+            }
+          `,
+        },
+        {
+          detectImport: productionDetectImport,
+          builtinModuleNames: ['replicad'],
+        },
+      );
+
+      const geometryFile = createGeometryFile('main.ts');
+
+      // First render: canHandle + render (matches kernel.machine.ts renderActor flow)
+      const canHandle1 = await worker[kernelSymbols.canHandleEntry](geometryFile);
+      expect(canHandle1).toBe(true);
+
+      const result1 = await worker[kernelSymbols.renderEntry](geometryFile, { size: 30 });
+      expect(result1.success).toBe(true);
+      await geometryHelpers.expectValidGltf(result1);
+
+      // Second render with different parameters (same flow as parameter change in UI)
+      // This is the bug: canHandleEntry fails because selectionCache returns method: 'extension'
+      // instead of preserving the original method: 'bundler', causing the kernel's canHandle
+      // to re-check the entry file for direct replicad imports (which don't exist).
+      const canHandle2 = await worker[kernelSymbols.canHandleEntry](geometryFile);
+      expect(canHandle2).toBe(true);
+
+      const result2 = await worker[kernelSymbols.renderEntry](geometryFile, { size: 60 });
+      expect(result2.success).toBe(true);
+      await geometryHelpers.expectValidGltf(result2);
     });
   });
 });

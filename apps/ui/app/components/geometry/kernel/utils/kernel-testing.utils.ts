@@ -14,6 +14,7 @@ import type {
   KernelLogger,
   KernelRuntime,
   KernelDefinition,
+  BundlerDefinition,
   MiddlewareState,
   KernelFilesystem,
   FileStat,
@@ -29,6 +30,7 @@ import type {
   ExportGeometryInput,
   OnWorkerLog,
   MiddlewareConfig,
+  BundlerConfig,
 } from '@taucad/types';
 import * as kernelSymbols from '@taucad/types/symbols';
 import { dirname } from '@zenfs/core/path';
@@ -38,7 +40,7 @@ import { KernelRuntimeWorker } from '#components/geometry/kernel/kernel-runtime-
 import type { ResolvedMiddleware } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
 import { createFileManagerPort } from '#components/geometry/kernel/utils/kernel-worker-filemanager-bridge.js';
-import { configureFilesystem, resetFilesystem, fs } from '#filesystem/zenfs-config.js';
+import { resetFilesystem, fs } from '#filesystem/zenfs-config.js';
 import { fileManager } from '#machines/file-manager.js';
 import { joinPath } from '#utils/path.utils.js';
 
@@ -48,14 +50,15 @@ import { joinPath } from '#utils/path.utils.js';
 
 /**
  * Seed the test filesystem with files.
- * Configures the in-memory backend and seeds with provided files.
- * Uses the central configureFilesystem for consistency with production code.
+ * Resets to a fresh in-memory backend first (to prevent stale files from
+ * prior tests interfering with import resolution), then seeds with provided files.
  *
  * @param files - Record of absolute paths to file contents
  */
 export async function seedTestFilesystem(files: Record<string, string | Uint8Array<ArrayBuffer>>): Promise<void> {
-  // Use central config with InMemory backend - this sets the "first wins" state
-  await configureFilesystem('memory');
+  // Reset to a clean in-memory filesystem to prevent stale files from prior tests
+  // (e.g., a leftover shapes.ts blocking resolution of shapes/index.ts barrel imports)
+  await resetFilesystem();
 
   // Write files to the filesystem
   for (const [path, content] of Object.entries(files)) {
@@ -259,6 +262,7 @@ export function createMockFilesystem(options?: MockFilesystemOptions): MockFiles
     async readFiles(paths: string[]): Promise<Record<string, Uint8Array<ArrayBuffer>>> {
       const result: Record<string, Uint8Array<ArrayBuffer>> = {};
       for (const path of paths) {
+        // eslint-disable-next-line no-await-in-loop -- sequential reads required as readFileFn may not support concurrent access
         const content = (await readFileFn(path)) as Uint8Array<ArrayBuffer>;
         result[path] = content;
       }
@@ -420,6 +424,14 @@ export type CreateTestWorkerOptions = {
   extensions?: string[];
   /** Import detection regex source (for JS/TS kernel disambiguation) */
   detectImport?: string;
+  /** Builtin module names this kernel provides (e.g., ['replicad']) */
+  builtinModuleNames?: string[];
+  /** Bundler config to load (enables detectImports-based transitive detection in tests) */
+  bundlerConfig?: BundlerConfig;
+  /** Pre-loaded bundler definition (bypasses dynamic import; auto-loaded for JS/TS kernels if not provided) */
+  bundlerDefinition?: BundlerDefinition;
+  /** Skip automatic bundler loading for JS/TS kernels (default: false) */
+  skipBundler?: boolean;
 };
 
 /**
@@ -492,12 +504,33 @@ export async function createTestWorker(
           moduleUrl: 'test://inline',
           extensions,
           detectImport,
+          builtinModuleNames: options?.builtinModuleNames,
           options: options?.workerOptions,
           definition,
         },
       ],
     },
   });
+
+  // Auto-load bundler for JS/TS kernels (needed for bundle/execute/resolveDependencies).
+  // Lazy import avoids pulling esbuild-wasm at module load time, which crashes in
+  // jsdom environments due to a TextEncoder Uint8Array realm mismatch.
+  const needsBundler = !options?.skipBundler && extensions.some((ext) => ['ts', 'js', 'tsx', 'jsx'].includes(ext));
+  if (needsBundler) {
+    const bundlerDef =
+      options?.bundlerDefinition ??
+      ((await import('#components/geometry/kernel/bundlers/esbuild.bundler.js')) as { default: BundlerDefinition })
+        .default;
+    const dummyConfig = { bundlerModuleUrl: 'test://esbuild', extensions: ['ts', 'js', 'tsx', 'jsx'] };
+    await worker.ensureLoadedBundler(dummyConfig, bundlerDef);
+  }
+
+  if (options?.bundlerConfig) {
+    for (const entry of options.bundlerConfig) {
+      // eslint-disable-next-line no-await-in-loop -- Sequential: bundlers must be loaded before use
+      await worker.ensureLoadedBundler(entry);
+    }
+  }
 
   return worker;
 }
@@ -539,6 +572,7 @@ export async function getTestParameters(
  * @param options - Optional worker options
  * @returns Promise resolving to the geometry creation result
  */
+// eslint-disable-next-line max-params -- test utility with closely related parameters
 export async function createTestGeometry(
   definition: KernelDefinition,
   files: Record<string, string>,
@@ -559,10 +593,31 @@ export function createMockKernelRuntime(options?: { filesystemOverrides?: MockFi
   logger: ReturnType<typeof createMockLogger>;
   filesystem: MockFilesystem;
 } {
+  const noopBundler: KernelRuntime['bundler'] = {
+    async bundle(): Promise<{ code: string; issues: never[]; success: false; dependencies: never[] }> {
+      return { code: '', issues: [], success: false, dependencies: [] };
+    },
+    async resolveDependencies(): Promise<string[]> {
+      return [];
+    },
+    registerModule(): void {
+      // No-op for tests
+    },
+  };
+
+  function noopSpanEnd(): void {
+    // Span end no-op for tests
+  }
+
   return {
     logger: createMockLogger(),
     filesystem: createMockFilesystem(options?.filesystemOverrides),
     fileContentCache: new Map(),
+    bundler: noopBundler,
+    async execute(): Promise<{ success: false; issues: Array<{ message: string; severity: 'error' }> }> {
+      return { success: false, issues: [{ message: 'Mock executor', severity: 'error' as const }] };
+    },
+    tracer: { startSpan: () => ({ end: noopSpanEnd }) },
   };
 }
 

@@ -20,11 +20,14 @@ import type {
 } from '@taucad/types';
 import { defineKernel } from '@taucad/types';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
-import { parseStackTrace, resolveSourcePath, deriveLocationFromFrames } from '#components/geometry/kernel/utils/error-enrichment.js';
+import {
+  parseStackTrace,
+  resolveSourcePath,
+  deriveLocationFromFrames,
+} from '#components/geometry/kernel/utils/error-enrichment.js';
 import { jscadToGltf } from '#components/geometry/kernel/jscad/jscad-to-gltf.js';
 import { jsonSchemaFromJson } from '#utils/schema.utils.js';
 import { asBuffer } from '#utils/file.utils.js';
-import { joinPath } from '#utils/path.utils.js';
 import type { JscadParameterDefinition } from '#components/geometry/kernel/jscad/jscad.schema.js';
 import {
   convertParameterDefinitionsToDefaults,
@@ -46,13 +49,13 @@ type JscadModuleExports = {
   main?: (...args: unknown[]) => unknown;
 };
 
-const KERNEL_MODULES_KEY = '__KERNEL_MODULES__';
+const kernelModulesKey = '__KERNEL_MODULES__';
 
 // =============================================================================
 // JSCAD submodule list
 // =============================================================================
 
-const JSCAD_SUBMODULES = [
+const jscadSubmodules = [
   'booleans',
   'colors',
   'curves',
@@ -82,22 +85,17 @@ function resolveToRelative(absolutePath: string, basePath: string): string {
   return absolutePath;
 }
 
-function resolveFromRoot(relativePath: string, basePath: string): string {
-  return joinPath(basePath, relativePath);
-}
-
 // =============================================================================
 // Module registration helpers
 // =============================================================================
 
 function getModuleRegistry(): Map<string, Record<string, unknown>> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- globalThis dynamic key
-  let registry = (globalThis as Record<string, unknown>)[KERNEL_MODULES_KEY] as
+  let registry = (globalThis as Record<string, unknown>)[kernelModulesKey] as
     | Map<string, Record<string, unknown>>
     | undefined;
   if (!registry) {
     registry = new Map();
-    (globalThis as Record<string, unknown>)[KERNEL_MODULES_KEY] = registry;
+    (globalThis as Record<string, unknown>)[kernelModulesKey] = registry;
   }
 
   return registry;
@@ -109,12 +107,12 @@ function generateModuleShim(name: string, exports: Record<string, unknown>): str
 
   const exportNames = Object.keys(exports).filter((key) => /^[a-z_$][\w$]*$/i.test(key) && key !== 'default');
   const namedExports = exportNames.map((key) => `export const ${key} = __mod.${key};`).join('\n');
-  return `const __mod = globalThis.${KERNEL_MODULES_KEY}.get('${name}');\n${namedExports}\nexport default __mod;\n`;
+  return `const __mod = globalThis.${kernelModulesKey}.get('${name}');\n${namedExports}\nexport default __mod;\n`;
 }
 
 function registerJscadModules(runtime: KernelRuntime): void {
   const rawImport = jscadModeling as unknown as Record<string, unknown>;
-  const exports = (rawImport.default ?? rawImport) as Record<string, unknown>;
+  const exports = (rawImport['default'] ?? rawImport) as Record<string, unknown>;
   const registry = getModuleRegistry();
   registry.set('@jscad/modeling', exports);
 
@@ -125,14 +123,14 @@ function registerJscadModules(runtime: KernelRuntime): void {
     globalName: 'jscadModeling',
   });
 
-  for (const subpath of JSCAD_SUBMODULES) {
+  for (const subpath of jscadSubmodules) {
     const submoduleName = `@jscad/modeling/${subpath}`;
     const submoduleExports = exports[subpath];
     if (submoduleExports && typeof submoduleExports === 'object') {
       const subRecord = submoduleExports as Record<string, unknown>;
       const subExportNames = Object.keys(subRecord).filter((key) => /^[a-z_$][\w$]*$/i.test(key));
       const subNamed = subExportNames.map((key) => `export const ${key} = __mod.${key};`).join('\n');
-      const subCode = `const __mod = globalThis.${KERNEL_MODULES_KEY}.get('@jscad/modeling').${subpath};\n${subNamed}\nexport default __mod;\n`;
+      const subCode = `const __mod = globalThis.${kernelModulesKey}.get('@jscad/modeling').${subpath};\n${subNamed}\nexport default __mod;\n`;
       runtime.bundler.registerModule(submoduleName, { code: subCode, version: '2.12.6' });
     }
   }
@@ -146,13 +144,13 @@ function isRecordObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function extractDefaultParams(module: unknown): Record<string, unknown> {
+function extractDefaultParameters(module: unknown): Record<string, unknown> {
   if (!isRecordObject(module)) {
     return {};
   }
 
-  return (module.defaultParams as Record<string, unknown>) ??
-    (module.defaultParameters as Record<string, unknown>) ?? {};
+  const defaults = module['defaultParams'] ?? module['defaultParameters'];
+  return isRecordObject(defaults) ? defaults : {};
 }
 
 async function runMain(module: JscadModuleExports, parameters: Record<string, unknown>): Promise<unknown> {
@@ -170,10 +168,7 @@ async function runMain(module: JscadModuleExports, parameters: Record<string, un
   return mainFunction(parameters);
 }
 
-function enrichIssueLocation(
-  issues: Array<{ message: string; severity: string; location?: unknown }>,
-  fallbackFileName: string,
-): Array<{ message: string; severity: string; location?: { fileName: string; startLineNumber: number; startColumn: number } }> {
+function enrichIssueLocation(issues: KernelIssue[], fallbackFileName: string): KernelIssue[] {
   return issues.map((issue) => ({
     ...issue,
     location: issue.location ?? { fileName: fallbackFileName, startLineNumber: 1, startColumn: 1 },
@@ -220,10 +215,7 @@ export default defineKernel<JscadContext, unknown[]>({
     return hasEsmImport || hasRequire;
   },
 
-  async getDependencies(
-    { filePath }: GetDependenciesInput,
-    runtime: KernelRuntime,
-  ): Promise<string[]> {
+  async getDependencies({ filePath }: GetDependenciesInput, runtime: KernelRuntime): Promise<string[]> {
     return runtime.bundler.resolveDependencies(filePath);
   },
 
@@ -253,10 +245,10 @@ export default defineKernel<JscadContext, unknown[]>({
         defaultParameters = convertParameterDefinitionsToDefaults(definitions);
         jsonSchema = convertParameterDefinitionsToJsonSchema(definitions);
       } else if (isRecordObject(module) && module.defaultParams && isRecordObject(module.defaultParams)) {
-        defaultParameters = module.defaultParams as Record<string, unknown>;
+        defaultParameters = module.defaultParams;
         jsonSchema = await jsonSchemaFromJson(defaultParameters);
       } else {
-        defaultParameters = extractDefaultParams(module);
+        defaultParameters = extractDefaultParameters(module);
         jsonSchema = await jsonSchemaFromJson(defaultParameters);
       }
 
@@ -273,10 +265,7 @@ export default defineKernel<JscadContext, unknown[]>({
     }
   },
 
-  async createGeometry(
-    { filePath, basePath, parameters }: CreateGeometryInput,
-    runtime: KernelRuntime,
-  ) {
+  async createGeometry({ filePath, basePath, parameters }: CreateGeometryInput, runtime: KernelRuntime) {
     const relativeFilePath = resolveToRelative(filePath, basePath);
     const { logger } = runtime;
 
@@ -301,14 +290,18 @@ export default defineKernel<JscadContext, unknown[]>({
         sourceMap: bundleResult.sourceMap,
         resolveSourcePath: (s) => resolveSourcePath(s, basePath),
       });
-      const location = deriveLocationFromFrames(stackFrames, bundleResult.sourceMap, (s) => resolveSourcePath(s, basePath));
-      throw new JscadBuildError([{
-        message: error instanceof Error ? error.message : String(error),
-        type: 'runtime' as const,
-        severity: 'error' as const,
-        stackFrames,
-        location,
-      }]);
+      const location = deriveLocationFromFrames(stackFrames, bundleResult.sourceMap, (s) =>
+        resolveSourcePath(s, basePath),
+      );
+      throw new JscadBuildError([
+        {
+          message: error instanceof Error ? error.message : String(error),
+          type: 'runtime' as const,
+          severity: 'error' as const,
+          stackFrames,
+          location,
+        },
+      ]);
     }
 
     if (shapes === undefined) {
@@ -353,10 +346,8 @@ export default defineKernel<JscadContext, unknown[]>({
     _ctx: JscadContext,
     nativeHandle: unknown[],
   ): Promise<ExportGeometryResult> {
-    if (!nativeHandle?.length) {
-      return createKernelError([
-        { message: 'No geometry available for export.', type: 'runtime', severity: 'error' },
-      ]);
+    if (nativeHandle.length === 0) {
+      return createKernelError([{ message: 'No geometry available for export.', type: 'runtime', severity: 'error' }]);
     }
 
     if (fileType === 'glb' || fileType === 'gltf') {

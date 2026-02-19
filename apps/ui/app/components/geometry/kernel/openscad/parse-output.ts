@@ -205,17 +205,20 @@ function parseTraceLine(message: string, mainFilePath?: string): KernelStackFram
  * ```
  */
 export class OpenScadStderrParser {
+  /* eslint-disable @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids parameter properties */
+  private readonly addError: AddErrorFn;
+  private readonly getFileContents?: GetFileContentsFn;
+  private readonly mainFilePath?: string;
+  /* eslint-enable @typescript-eslint/parameter-properties -- re-enable after constructor fields */
+
   /** Reference to the last error added, so TRACE lines can append stack frames to it. */
   private lastError: KernelIssue | undefined;
 
-  public constructor(
-    // @ts-expect-error -- TypeScript erasableSyntaxOnly doesn't support parameter properties, but ESLint requires them
-    private readonly addError: AddErrorFn,
-    // @ts-expect-error -- TypeScript erasableSyntaxOnly doesn't support parameter properties, but ESLint requires them
-    private readonly getFileContents?: GetFileContentsFn,
-    // @ts-expect-error -- TypeScript erasableSyntaxOnly doesn't support parameter properties, but ESLint requires them
-    private readonly mainFilePath?: string,
-  ) {}
+  public constructor(addError: AddErrorFn, getFileContents?: GetFileContentsFn, mainFilePath?: string) {
+    this.addError = addError;
+    this.getFileContents = getFileContents;
+    this.mainFilePath = mainFilePath;
+  }
 
   /**
    * Parse a single stderr line. If it's an error/warning, create an issue.

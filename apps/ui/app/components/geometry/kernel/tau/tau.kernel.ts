@@ -7,8 +7,11 @@
  * This is the reference implementation of the defineKernel pattern.
  */
 
+import type { KernelIssue } from '@taucad/types';
 import { defineKernel } from '@taucad/types';
+// eslint-disable-next-line import-x/no-extraneous-dependencies -- workspace package
 import { importToGlb, exportFromGlb, supportedImportFormats } from '@taucad/converter';
+// eslint-disable-next-line import-x/no-extraneous-dependencies -- workspace package
 import type { InputFormat, OutputFormat } from '@taucad/converter';
 import { createKernelError, createKernelSuccess } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { asBuffer } from '#utils/file.utils.js';
@@ -83,7 +86,7 @@ export default defineKernel<TauContext, TauNativeHandle>({
     } catch (error) {
       logger.error('Error converting file', { data: error });
       const errorMessage = error instanceof Error ? error.message : 'Failed to convert file';
-      throw createKernelError([
+      throw new TauBuildError([
         {
           message: errorMessage,
           location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 1 },
@@ -96,8 +99,8 @@ export default defineKernel<TauContext, TauNativeHandle>({
 
   async exportGeometry({ fileType }, { logger }, _ctx, nativeHandle) {
     try {
-      if (!nativeHandle) {
-        throw createKernelError([
+      if (nativeHandle.length === 0) {
+        return createKernelError([
           {
             message: 'No geometry available for export. Please build geometries before exporting.',
             type: 'runtime',
@@ -131,3 +134,11 @@ export default defineKernel<TauContext, TauNativeHandle>({
     }
   },
 });
+
+class TauBuildError extends Error {
+  public readonly issues: KernelIssue[];
+  public constructor(issues: KernelIssue[]) {
+    super(issues.map((i) => i.message).join('; '));
+    this.issues = issues;
+  }
+}

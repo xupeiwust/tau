@@ -1,10 +1,14 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useActorRef, useSelector } from '@xstate/react';
-import type { Geometry, GeometryFile } from '@taucad/types';
+import type { Geometry, GeometryFile, KernelConfig, BundlerConfig, MiddlewareConfig } from '@taucad/types';
 import { cadMachine } from '#machines/cad.machine.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { joinPath } from '#utils/path.utils.js';
-import { defaultKernelConfig, defaultMiddlewareConfig } from '#constants/kernel.constants.js';
+import {
+  defaultKernelConfig,
+  defaultMiddlewareConfig,
+  defaultBundlerConfig,
+} from '#constants/kernel-worker.constants.js';
 
 /**
  * Options for the useCadFiles hook.
@@ -20,6 +24,12 @@ export type UseCadFilesOptions = {
   readonly parameters?: Record<string, unknown>;
   /** Whether the build should be triggered (default: true) */
   readonly enabled?: boolean;
+  /** Override kernel config (defaults to all kernels; pass a subset for faster init) */
+  readonly kernelConfig?: KernelConfig;
+  /** Override middleware config (defaults to all middleware including edge detection) */
+  readonly middlewareConfig?: MiddlewareConfig;
+  /** Override bundler config (defaults to esbuild bundler) */
+  readonly bundlerConfig?: BundlerConfig;
 };
 
 /**
@@ -84,7 +94,16 @@ function deriveStatus(cadState: string): CadFilesStatus {
  * ```
  */
 export function useCadFiles(options: UseCadFilesOptions): UseCadFilesResult {
-  const { buildId, mainFile, files, parameters, enabled = true } = options;
+  const {
+    buildId,
+    mainFile,
+    files,
+    parameters,
+    enabled = true,
+    kernelConfig,
+    middlewareConfig,
+    bundlerConfig,
+  } = options;
 
   const { writeFiles, fileManagerRef } = useFileManager();
 
@@ -96,8 +115,9 @@ export function useCadFiles(options: UseCadFilesOptions): UseCadFilesResult {
     input: {
       shouldInitializeKernelOnStart: false,
       fileManagerRef,
-      kernelConfig: defaultKernelConfig,
-      middlewareConfig: defaultMiddlewareConfig,
+      kernelConfig: kernelConfig ?? defaultKernelConfig,
+      middlewareConfig: middlewareConfig ?? defaultMiddlewareConfig,
+      bundlerConfig: bundlerConfig ?? defaultBundlerConfig,
     },
   });
 

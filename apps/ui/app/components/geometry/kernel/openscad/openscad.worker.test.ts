@@ -46,7 +46,7 @@ async function createGeometryAndGetOffData(
   const geometryFile = createGeometryFile(mainFile);
   const result = await worker[kernelSymbols.createGeometryEntry](geometryFile, {});
 
-  // nativeHandle is protected on KernelWorker; for OpenSCAD it holds the raw OFF string
+  // NativeHandle is protected on KernelWorker; for OpenSCAD it holds the raw OFF string
   const offData = (worker as unknown as { nativeHandle: string | undefined }).nativeHandle;
 
   return {

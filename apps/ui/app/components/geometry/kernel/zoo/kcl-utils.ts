@@ -1,3 +1,4 @@
+import type { KernelSpanTracer } from '@taucad/types';
 import type { PartialDeep, SetRequired } from 'type-fest';
 import type { Node } from '@taucad/kcl-wasm-lib/bindings/Node';
 import type { Program } from '@taucad/kcl-wasm-lib/bindings/Program';
@@ -92,11 +93,11 @@ const splitErrors = (input: CompilationError[]): { errors: CompilationError[]; w
 };
 
 // Dynamic import function to load WASM module
-async function loadWasmModule(): Promise<WasmModule> {
+async function loadWasmModule(tracer?: KernelSpanTracer): Promise<WasmModule> {
   try {
     const wasmModule = await import('@taucad/kcl-wasm-lib');
 
-    const compiledModule = await compileWasmStreaming(kclWasmUrl);
+    const compiledModule = await compileWasmStreaming(kclWasmUrl, tracer);
 
     // eslint-disable-next-line @typescript-eslint/naming-convention -- WASM Bindgen API
     await wasmModule.default({ module_or_path: compiledModule });
@@ -255,13 +256,13 @@ export class KclUtils {
    * Initialize only the WASM module for parsing and mock execution.
    * This allows parseKcl and executeMockKcl to work without websocket.
    */
-  public async initializeWasm(): Promise<void> {
+  public async initializeWasm(tracer?: KernelSpanTracer): Promise<void> {
     if (this.isWasmInitialized) {
       return;
     }
 
     // Initialize WASM module for parsing
-    this.wasmModule = await loadWasmModule();
+    this.wasmModule = await loadWasmModule(tracer);
 
     // Create mock context for local operations
     const mockEngine = new MockEngineConnection();

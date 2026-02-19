@@ -350,9 +350,9 @@ describe.skip('Edge Detection Middleware', () => {
       const uniqueZ = new Set<number>();
 
       for (let i = 0; i < positions.length; i += 3) {
-        uniqueX.add(Math.round((positions[i] ?? 0) * 100000) / 100000);
-        uniqueY.add(Math.round((positions[i + 1] ?? 0) * 100000) / 100000);
-        uniqueZ.add(Math.round((positions[i + 2] ?? 0) * 100000) / 100000);
+        uniqueX.add(Math.round((positions[i] ?? 0) * 100_000) / 100_000);
+        uniqueY.add(Math.round((positions[i + 1] ?? 0) * 100_000) / 100_000);
+        uniqueZ.add(Math.round((positions[i + 2] ?? 0) * 100_000) / 100_000);
       }
 
       expect(uniqueX.has(0)).toBe(true);

@@ -63,9 +63,9 @@ export function getWorkerMessagePort(): KernelMessagePort {
         self.postMessage(message, { transfer: transferables ?? [] });
       },
       onMessage(handler) {
-        globalThis.onmessage = (event: MessageEvent<KernelCommand | KernelResponse>) => {
+        globalThis.addEventListener('message', (event: MessageEvent<KernelCommand | KernelResponse>) => {
           handler(event.data);
-        };
+        });
       },
       close() {
         globalThis.close();

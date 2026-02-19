@@ -73,16 +73,18 @@ const retryDelayMs = 60_000;
 // =============================================================================
 
 export class ModuleManager {
+  // eslint-disable-next-line @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids parameter properties
+  private readonly filesystem: KernelFilesystem;
+
   /** Dedup concurrent fetches for the same cache key */
   private readonly pendingFetches = new Map<string, Promise<void>>();
 
   /** Track failed fetches with timestamp for retry backoff */
   private readonly failedPackages = new Map<string, number>();
 
-  public constructor(
-    // @ts-expect-error -- TypeScript erasableSyntaxOnly doesn't support parameter properties, but ESLint requires them
-    private readonly filesystem: KernelFilesystem,
-  ) {}
+  public constructor(filesystem: KernelFilesystem) {
+    this.filesystem = filesystem;
+  }
 
   /**
    * Ensure a CDN module is cached at `/node_modules/`.

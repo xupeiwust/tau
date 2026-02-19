@@ -2,10 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import * as kernelSymbols from '@taucad/types/symbols';
 import zooKernel from '#components/geometry/kernel/zoo/zoo.kernel.js';
-import {
-  createTestWorker,
-  createGeometryFile,
-} from '#components/geometry/kernel/utils/kernel-testing.utils.js';
+import { createTestWorker, createGeometryFile } from '#components/geometry/kernel/utils/kernel-testing.utils.js';
 
 /* eslint-disable @typescript-eslint/naming-convention -- File names use extensions like 'main.kcl' */
 

@@ -33,6 +33,8 @@ import type {
   MiddlewareConfig,
   PerformanceEntryData,
   RenderPhase,
+  BundlerDefinition,
+  BundlerEntry,
 } from '@taucad/types';
 import * as kernelSymbols from '@taucad/types/symbols';
 import { version as TAU_VERSION } from 'package.json';
@@ -44,8 +46,7 @@ import type { KernelMiddleware } from '#components/geometry/kernel/middleware/ke
 import { createMiddlewareRuntime } from '#components/geometry/kernel/middleware/kernel-middleware.js';
 import { createKernelError } from '#components/geometry/kernel/utils/kernel-helpers.js';
 import { WorkerTelemetryCollector } from '#components/geometry/kernel/utils/worker-telemetry.js';
-import type { EsbuildBundler } from '#components/geometry/kernel/utils/esbuild-bundler.js';
-import type { BuiltinModule } from '#components/geometry/kernel/utils/module-manager.js';
+import { KernelTracer } from '#components/geometry/kernel/utils/kernel-tracer.js';
 
 // =============================================================================
 // Module-level utilities (avoid per-call allocations)
@@ -159,12 +160,22 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   protected nativeHandle: unknown;
 
+  /** Fully initialized bundler (definition + context). Populated by ensureBundlerContext(). */
+  protected loadedBundler?: { definition: BundlerDefinition; ctx: unknown };
+
   /**
    * The name of the worker.
    *
    * @example ReplicadWorker, TauWorker, ZooWorker.
    */
   protected abstract readonly name: string;
+
+  /**
+   * Pending bundler definition awaiting context initialization.
+   * The definition is loaded eagerly (during ensureLoadedBundler) but context creation
+   * is deferred until first use, when the project path is known (after setBasePath).
+   */
+  private pendingBundlerInit?: { definition: BundlerDefinition };
 
   /**
    * The options passed to the worker. These are specific to the kernel provider.
@@ -244,26 +255,30 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /** Cached project root path -- invalidated on setBasePath */
   private cachedProjectRoot: string | undefined;
 
+  /** Cached log origin object -- recreated only when activeFilePath changes */
+  private cachedLogOrigin: { component: string; file: string } | undefined;
+  private cachedLogOriginFile = '';
+
   /** Telemetry collector instance -- created on first use when setTelemetrySend is called */
   private telemetryCollector?: WorkerTelemetryCollector;
+
+  /** Span tracer for hierarchical telemetry with explicit parent-child IDs */
+  private readonly tracer = new KernelTracer();
 
   /** Progress callback set during renderEntry, used by entry methods to emit phase transitions */
   private onProgress?: (phase: RenderPhase) => void;
 
   /** Per-render bundle result cache. Cleared at the start of each render cycle. */
-  private bundleResultCache = new Map<string, BundleResult>();
+  private readonly bundleResultCache = new Map<string, BundleResult>();
 
   /** Per-render dependency computation cache. Cleared at the start of each render cycle. */
   private renderDependencyCache?: { hash: string; dependencies: Dependency[] };
 
-  /** Lazily initialised esbuild bundler instance */
-  private _bundler: EsbuildBundler | undefined;
-
   /** Cached KernelBundler facade exposed via KernelRuntime */
   private cachedBundlerFacade: KernelBundler | undefined;
 
-  /** Pending built-in module registrations queued before the bundler is initialised */
-  private readonly pendingBuiltinModules = new Map<string, BuiltinModule>();
+  /** Pending module registrations queued before the bundler is loaded */
+  private readonly pendingModuleRegistrations = new Map<string, BuiltinModuleEntry>();
 
   /**
    * Unified filesystem interface for kernel workers.
@@ -288,7 +303,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    *
    * @throws Error if accessed before initializeEntry() completes
    */
-  private get logger(): KernelLogger {
+  protected get logger(): KernelLogger {
     if (!this._logger) {
       throw new Error('logger not available - initializeEntry must complete first');
     }
@@ -337,14 +352,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       this._filesystem = this.createFilesystem();
     }
 
+    const bootstrapSpan = this.tracer.startSpan('kernel.bootstrap');
     await this.loadMiddleware(middlewareConfig);
 
-    performance.mark('tau:kernel:init:start');
+    const initSpan = this.tracer.startSpan('kernel.init', { kernel: this.constructor.name });
     await this.initialize({ options: this.options }, this.createRuntime());
-    performance.measure('tau:kernel:init', {
-      start: 'tau:kernel:init:start',
-      detail: { kernel: this.constructor.name },
-    });
+    initSpan.end();
+    bootstrapSpan.end();
   }
 
   /**
@@ -372,6 +386,10 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   public setTelemetrySend(send: (entries: PerformanceEntryData[]) => void): void {
     this.telemetryCollector = new WorkerTelemetryCollector(send);
+  }
+
+  public flushTelemetry(): void {
+    this.telemetryCollector?.flush();
   }
 
   public async [kernelSymbols.cleanupEntry](): Promise<void> {
@@ -427,11 +445,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     const resolvedArray = this[kernelSymbols.getMiddleware]();
 
     this.onProgress?.('resolvingDeps');
-    performance.mark('tau:kernel:deps:start');
+    const depsSpan = this.tracer.startSpan('kernel.resolve-deps', { phase: 'resolvingDeps' });
     const basename = KernelWorker.getBasename(file.filename);
     const dependencies = await this.computeDependencies(basename, undefined, resolvedArray);
     const dependencyHash = await this.computeDependencyHash(dependencies);
-    performance.measure('tau:kernel:deps', { start: 'tau:kernel:deps:start' });
+    depsSpan.end();
 
     const runtimes = new Map<string, KernelMiddlewareRuntime>();
     for (const { middleware, config, enabled } of resolvedArray) {
@@ -453,10 +471,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     }
 
     this.onProgress?.('extractingParams');
+    const { tracer } = this;
     let chain: GetParametersHandler = async (handlerInput: GetParametersInput) => {
-      performance.mark('tau:kernel:params:start');
+      const parametersSpan = tracer.startSpan('kernel.extract-params', { phase: 'extractingParams' });
       const result = await this.getParameters(handlerInput, this.createRuntime());
-      performance.measure('tau:kernel:params', { start: 'tau:kernel:params:start' });
+      parametersSpan.end();
       return result;
     };
 
@@ -469,16 +488,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         const wrapHook = middleware.wrapGetParameters;
 
         chain = async (handlerInput: GetParametersInput) => {
-          const markName = `tau:middleware:wrap:${middlewareName}:start`;
+          const span = tracer.startSpan(`middleware.wrap(${middlewareName})`, {
+            middleware: middlewareName,
+          });
           try {
-            performance.mark(markName);
             const result = await wrapHook(handlerInput, inner, runtime);
-            performance.measure('tau:middleware:wrap', {
-              start: markName,
-              detail: { name: middlewareName, phase: 'getParameters' },
-            });
+            span.end();
             return result;
           } catch (error) {
+            span.end();
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger.error('Middleware failed', { data: { name: middlewareName, error: errorMessage } });
             return createKernelError([
@@ -532,11 +550,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
     const resolvedArray = this[kernelSymbols.getMiddleware]();
 
-    performance.mark('tau:kernel:deps:start');
+    const geoDepsSpan = this.tracer.startSpan('kernel.resolve-deps', { phase: 'resolvingDeps' });
     const basename = KernelWorker.getBasename(file.filename);
     const dependencies = await this.computeDependencies(basename, parameters, resolvedArray);
     const dependencyHash = await this.computeDependencyHash(dependencies);
-    performance.measure('tau:kernel:deps', { start: 'tau:kernel:deps:start' });
+    geoDepsSpan.end();
 
     const runtimes = new Map<string, KernelMiddlewareRuntime>();
     for (const { middleware, config, enabled } of resolvedArray) {
@@ -558,10 +576,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     }
 
     this.onProgress?.('computingGeometry');
+    const { tracer } = this;
     let chain: CreateGeometryHandler = async (handlerInput: CreateGeometryInput) => {
-      performance.mark('tau:kernel:compute:start');
+      const computeSpan = tracer.startSpan('kernel.compute');
       const result = await this.createGeometry(handlerInput, this.createRuntime());
-      performance.measure('tau:kernel:compute', { start: 'tau:kernel:compute:start' });
+      computeSpan.end();
       return result;
     };
 
@@ -574,16 +593,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         const wrapHook = middleware.wrapCreateGeometry;
 
         chain = async (handlerInput: CreateGeometryInput) => {
-          const markName = `tau:middleware:wrap:${middlewareName}:start`;
+          const span = tracer.startSpan(`middleware.wrap(${middlewareName})`, {
+            middleware: middlewareName,
+          });
           try {
-            performance.mark(markName);
             const result = await wrapHook(handlerInput, inner, runtime);
-            performance.measure('tau:middleware:wrap', {
-              start: markName,
-              detail: { name: middlewareName, phase: 'createGeometry' },
-            });
+            span.end();
             return result;
           } catch (error) {
+            span.end();
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.logger.error('Middleware failed', { data: { name: middlewareName, error: errorMessage } });
             return createKernelError([
@@ -634,7 +652,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     fileType: ExportFormat,
     meshConfig?: { linearTolerance: number; angularTolerance: number },
   ): Promise<ExportGeometryResult> {
-    performance.mark('tau:kernel:export:start');
+    const exportSpan = this.tracer.startSpan('kernel.export', { format: fileType });
 
     const input: ExportGeometryInput = {
       fileType,
@@ -643,7 +661,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
     const result = await this.exportGeometry(input, this.createRuntime(), this.nativeHandle);
 
-    performance.measure('tau:kernel:export', { start: 'tau:kernel:export:start' });
+    exportSpan.end();
 
     return result;
   }
@@ -691,9 +709,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     onParametersResolved?: (result: GetParametersResult) => void,
     onProgress?: (phase: RenderPhase) => void,
   ): Promise<CreateGeometryResultCompleted> {
-    performance.mark('tau:kernel:render:start');
+    this.tracer.reset();
+    const renderSpan = this.tracer.startSpan('kernel.render', { file: file.filename });
     this.onProgress = onProgress;
-    this.bundleResultCache.clear();
     this.renderDependencyCache = undefined;
     this.setBasePath(file);
 
@@ -710,10 +728,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
     const result = await this[kernelSymbols.createGeometryEntry](file, mergedParameters);
     this.onProgress = undefined;
-    performance.measure('tau:kernel:render', {
-      start: 'tau:kernel:render:start',
-      detail: { file: file.filename, success: result.success },
-    });
+    renderSpan.end();
     return result;
   }
 
@@ -730,7 +745,95 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       this.fileContentCache.delete(`utf8:${path}`);
     }
 
-    this.bundleResultCache.clear();
+    for (const [entryPath, result] of this.bundleResultCache) {
+      if (result.dependencies.some((dep) => changedPaths.includes(dep))) {
+        this.bundleResultCache.delete(entryPath);
+      }
+    }
+
+    this.onFileChanged(changedPaths);
+  }
+
+  /**
+   * Load the bundler definition from its URL (or use a preloaded one).
+   * Context initialization is deferred until first use via ensureBundlerContext(),
+   * because the project path is not known until setBasePath() runs.
+   *
+   * @param bundlerConfig - Bundler registration with module URL and extensions
+   * @param preloadedDefinition - Optional pre-loaded definition (bypasses dynamic import; used in tests)
+   */
+  public async ensureLoadedBundler(
+    bundlerConfig: BundlerEntry,
+    preloadedDefinition?: BundlerDefinition,
+  ): Promise<void> {
+    if (this.loadedBundler ?? this.pendingBundlerInit) {
+      return;
+    }
+
+    const initSpan = this.tracer.startSpan('kernel.bundler-init');
+
+    let definition: BundlerDefinition;
+    if (preloadedDefinition) {
+      definition = preloadedDefinition;
+    } else {
+      const mod: Record<string, unknown> = (await import(/* @vite-ignore */ bundlerConfig.bundlerModuleUrl)) as Record<
+        string,
+        unknown
+      >;
+      definition = (mod['default'] ?? mod) as BundlerDefinition;
+    }
+
+    this.pendingBundlerInit = { definition };
+    initSpan.end();
+  }
+
+  /**
+   * Whether a bundler definition has been loaded (possibly pending context init).
+   * Used by subclasses to decide whether bundler-assisted detection is available.
+   */
+  protected get hasBundlerAvailable(): boolean {
+    return Boolean(this.loadedBundler ?? this.pendingBundlerInit);
+  }
+
+  /**
+   * Ensure the bundler context is fully initialized.
+   * Call this before any operation that needs the bundler (bundle, execute, detectImports).
+   * Must be called after setBasePath() so that getProjectRootPath() returns the correct value.
+   */
+  protected async ensureBundlerContext(): Promise<void> {
+    if (this.loadedBundler) {
+      return;
+    }
+
+    if (!this.pendingBundlerInit) {
+      throw new Error('Bundler not loaded - call ensureLoadedBundler() first');
+    }
+
+    const { definition } = this.pendingBundlerInit;
+    const projectPath = this.getProjectRootPath();
+    const initSpan = this.tracer.startSpan('kernel.bundler-context-init');
+
+    const ctx = await definition.initialize({
+      filesystem: this.filesystem,
+      projectPath,
+    });
+    this.loadedBundler = { definition, ctx };
+    this.pendingBundlerInit = undefined;
+
+    for (const [name, entry] of this.pendingModuleRegistrations) {
+      definition.registerModule(name, entry, ctx);
+    }
+
+    this.pendingModuleRegistrations.clear();
+    initSpan.end();
+  }
+
+  /**
+   * Hook called after file change notification.
+   * Subclasses can override to perform additional invalidation (e.g., selection cache).
+   */
+  protected onFileChanged(_changedPaths: string[]): void {
+    // Default: no-op. KernelRuntimeWorker overrides to clear selectionCache.
   }
 
   /**
@@ -773,23 +876,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   protected getAssetUrls(): string[] {
     return [];
-  }
-
-  /**
-   * Built-in modules for the bundler. Override in subclasses to register
-   * kernel-specific modules (replicad, @jscad/modeling).
-   * The base implementation merges any modules registered via runtime.bundler.registerModule().
-   */
-  protected getBuiltinModules(): Map<string, BuiltinModule> {
-    return new Map(this.pendingBuiltinModules);
-  }
-
-  /**
-   * Auto-export names for the bundler. Override in subclasses to specify
-   * which names should be auto-exported from CommonJS-style entry files.
-   */
-  protected getAutoExportNames(): string[] {
-    return ['main', 'defaultParams', 'getParameterDefinitions'];
   }
 
   /**
@@ -873,6 +959,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param middlewareConfig - Ordered array of middleware entries
    */
   private async loadMiddleware(middlewareConfig: MiddlewareConfig): Promise<void> {
+    const middlewareSpan = this.tracer.startSpan('kernel.load-middleware', { count: middlewareConfig.length });
     const resolved: ResolvedMiddleware[] = [];
 
     for (const entry of middlewareConfig) {
@@ -889,6 +976,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     }
 
     this.resolvedMiddleware = resolved;
+    middlewareSpan.end();
   }
 
   /**
@@ -941,14 +1029,14 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   private createFilesystem(): KernelFilesystem {
     const fileManager = this.fileManager!;
+    const { tracer } = this;
 
     function readFile(path: string, encoding: 'utf8'): Promise<string>;
     function readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
     async function readFile(path: string, encoding?: 'utf8'): Promise<string | Uint8Array<ArrayBuffer>> {
-      const markName = `tau:fs:read:${path}`;
-      performance.mark(markName);
+      const span = tracer.startSpan('fs.read', { path });
       const data = await fileManager.readFile(path, encoding);
-      performance.measure('tau:fs:read', { start: markName, detail: { path, binary: encoding !== 'utf8' } });
+      span.end();
       return data;
     }
 
@@ -956,26 +1044,23 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       readFile,
 
       async readFiles(paths: string[]): Promise<Record<string, Uint8Array<ArrayBuffer>>> {
-        const markName = 'tau:fs:readBatch:start';
-        performance.mark(markName);
+        const span = tracer.startSpan('fs.readBatch', { fileCount: paths.length });
         const result = await fileManager.readFiles(paths);
-        performance.measure('tau:fs:readBatch', { start: markName, detail: { fileCount: paths.length } });
+        span.end();
         return result;
       },
 
       async exists(path: string): Promise<boolean> {
-        const markName = `tau:fs:exists:${path}`;
-        performance.mark(markName);
+        const span = tracer.startSpan('fs.exists', { path });
         const fileExists = await fileManager.exists(path);
-        performance.measure('tau:fs:exists', { start: markName, detail: { path, exists: fileExists } });
+        span.end();
         return fileExists;
       },
 
       async readdir(path: string): Promise<string[]> {
-        const markName = `tau:fs:readdir:${path}`;
-        performance.mark(markName);
+        const span = tracer.startSpan('fs.readdir', { path });
         const entries = await fileManager.readdir(path);
-        performance.measure('tau:fs:readdir', { start: markName, detail: { path, entryCount: entries.length } });
+        span.end();
         return entries;
       },
 
@@ -1028,17 +1113,24 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * getParametersEntry and createGeometryEntry).
    */
   private async computeBaseDependencies(resolvedMiddleware?: ResolvedMiddleware[]): Promise<Dependency[]> {
-    // 1. Gather file dependencies from worker (includes source files)
+    // 1. Discover file dependencies from kernel module
+    const discoverSpan = this.tracer.startSpan('deps.discover');
     const discoverInput: GetDependenciesInput = {
       filePath: this.activeFileAbsolutePath,
       basePath: this.getProjectRootPath(),
     };
     const absolutePaths = await this.getDependencies(discoverInput, this.createRuntime());
+    discoverSpan.end();
 
-    // Determine which files need reading (not in hash cache)
+    // 2. Read uncached files
     const uncachedPaths = absolutePaths.filter((p) => !this.fileHashCache.has(p));
     if (uncachedPaths.length > 0) {
+      const readSpan = this.tracer.startSpan('deps.read', { fileCount: uncachedPaths.length });
       const contentMap = await this.filesystem.readFiles(uncachedPaths);
+      readSpan.end();
+
+      // 3. Hash file contents
+      const hashSpan = this.tracer.startSpan('deps.hash', { fileCount: uncachedPaths.length });
       await mapBounded(
         Object.entries(contentMap),
         async ([path, content]) => {
@@ -1048,6 +1140,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         },
         8,
       );
+      hashSpan.end();
     }
 
     // Contract: getDependencies() must return paths in deterministic order.
@@ -1105,13 +1198,22 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    *
    * @returns KernelLogger instance
    */
+  private getLogOrigin(): { component: string; file: string } {
+    if (!this.cachedLogOrigin || this.cachedLogOriginFile !== this.activeFilePath) {
+      this.cachedLogOriginFile = this.activeFilePath;
+      this.cachedLogOrigin = { component: this.name, file: this.activeFilePath };
+    }
+
+    return this.cachedLogOrigin;
+  }
+
   private createLogger(): KernelLogger {
     return {
       log: (message, options) => {
         this.onLog({
           level: logLevels.info,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1119,7 +1221,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         this.onLog({
           level: logLevels.debug,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1127,7 +1229,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         this.onLog({
           level: logLevels.trace,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1135,7 +1237,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         this.onLog({
           level: logLevels.warn,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1143,7 +1245,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         this.onLog({
           level: logLevels.error,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1151,7 +1253,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         this.onLog({
           level,
           message,
-          origin: { component: this.name },
+          origin: this.getLogOrigin(),
           data: options?.data,
         });
       },
@@ -1159,28 +1261,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
-   * Get or create the lazily initialised esbuild bundler.
-   * The bundler is re-created when the project path changes.
-   */
-  private async ensureBundler(): Promise<EsbuildBundler> {
-    const projectPath = this.getProjectRootPath();
-    if (!this._bundler || this._bundler.getProjectPath() !== projectPath) {
-      this._bundler?.dispose();
-      const mod = await import('#components/geometry/kernel/utils/esbuild-bundler.js');
-      this._bundler = new mod.EsbuildBundler({
-        filesystem: this.filesystem,
-        projectPath,
-        builtinModules: this.getBuiltinModules(),
-        autoExportNames: this.getAutoExportNames(),
-      });
-      await this._bundler.initialize();
-    }
-
-    return this._bundler;
-  }
-
-  /**
-   * Create a lazy KernelBundler facade that initialises esbuild on first call.
+   * Create a KernelBundler facade that delegates to the loaded bundler plugin.
    */
   private createBundlerFacade(): KernelBundler {
     if (this.cachedBundlerFacade) {
@@ -1195,76 +1276,35 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         }
 
         this.onProgress?.('bundling');
-        performance.mark('tau:kernel:bundle:start');
-        const bundler = await this.ensureBundler();
-        const bundleResult = await bundler.bundle(entryPath);
-        performance.measure('tau:kernel:bundle', {
-          start: 'tau:kernel:bundle:start',
-          detail: { entryPath, deps: bundleResult.dependencies.length },
-        });
+        const bundleSpan = this.tracer.startSpan('kernel.bundle', { entryPath, phase: 'bundling' });
+        await this.ensureBundlerContext();
+
+        const bundleResult = await this.loadedBundler!.definition.bundle({ entryPath }, this.loadedBundler!.ctx);
+        bundleSpan.end();
         this.bundleResultCache.set(entryPath, bundleResult);
         return bundleResult;
       },
       resolveDependencies: async (entryPath: string): Promise<string[]> => {
-        const bundler = await this.ensureBundler();
-        const result = await bundler.bundle(entryPath);
+        await this.ensureBundlerContext();
+
+        const { definition, ctx } = this.loadedBundler!;
+        if (definition.resolveDependencies) {
+          return definition.resolveDependencies({ entryPath }, ctx);
+        }
+
+        const result = await this.createBundlerFacade().bundle(entryPath);
         return result.dependencies;
       },
       registerModule: (name: string, entry: BuiltinModuleEntry): void => {
-        this.pendingBuiltinModules.set(name, {
-          code: entry.code,
-          version: entry.version,
-          globalName: entry.globalName,
-        });
+        if (this.loadedBundler) {
+          this.loadedBundler.definition.registerModule(name, entry, this.loadedBundler.ctx);
+        } else {
+          this.pendingModuleRegistrations.set(name, entry);
+        }
       },
     };
 
     return this.cachedBundlerFacade;
-  }
-
-  /**
-   * Execute bundled JS/TS code via dynamic import.
-   * Browser uses Blob URL, Node.js uses data URL.
-   */
-  private async executeCode(code: string): Promise<ExecuteResult> {
-    // eslint-disable-next-line n/prefer-global/process, @typescript-eslint/no-unnecessary-condition -- process may be undefined in browser
-    const isNodejs = typeof process !== 'undefined' && Boolean(process.versions?.node);
-
-    try {
-      let url: string;
-      let shouldRevoke = false;
-
-      if (isNodejs) {
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- class
-        const { Buffer: NodeBuffer } = await import('node:buffer');
-        const base64Code = NodeBuffer.from(code).toString('base64');
-        url = `data:application/javascript;base64,${base64Code}`;
-      } else {
-        const blob = new Blob([code], { type: 'application/javascript' });
-        url = URL.createObjectURL(blob);
-        shouldRevoke = true;
-      }
-
-      try {
-        const module: unknown = await import(/* @vite-ignore */ url);
-        return { success: true, value: module };
-      } finally {
-        if (shouldRevoke) {
-          URL.revokeObjectURL(url);
-        }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        issues: [
-          {
-            message: error instanceof Error ? error.message : String(error),
-            type: 'runtime' as const,
-            severity: 'error' as const,
-          },
-        ],
-      };
-    }
   }
 
   /**
@@ -1280,7 +1320,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       logger: this.logger,
       fileContentCache: this.fileContentCache,
       bundler: this.createBundlerFacade(),
-      execute: async (code: string) => this.executeCode(code),
+      execute: async (code: string): Promise<ExecuteResult> => {
+        await this.ensureBundlerContext();
+
+        const executeSpan = this.tracer.startSpan('kernel.execute', { phase: 'computingGeometry' });
+        const result = await this.loadedBundler!.definition.execute(code, this.loadedBundler!.ctx);
+        executeSpan.end();
+        return result;
+      },
+      tracer: this.tracer,
     };
 
     return this.cachedRuntime;
@@ -1357,22 +1405,19 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param file - The geometry file being processed
    */
   private setBasePath(file: GeometryFile): void {
-    // Store the full relative path for use in error locations
+    if (this.basePath === file.path && this.activeFilePath === file.filename) {
+      return;
+    }
+
     this.activeFilePath = file.filename;
 
-    // Extract directory from filename (e.g., 'public/kcl-samples/axial-fan/main.kcl' -> 'public/kcl-samples/axial-fan')
     const lastSlashIndex = file.filename.lastIndexOf('/');
     const directory = lastSlashIndex === -1 ? '' : file.filename.slice(0, lastSlashIndex);
 
-    // Combine path with directory to get the full base path
     this.basePath = directory ? joinPath(file.path, directory) : file.path;
 
-    // Invalidate caches that depend on basePath
     this.cachedRuntime = undefined;
     this.cachedProjectRoot = undefined;
-
-    const displayPath = directory || file.filename;
-    this.logger.debug('Base path set', { data: { path: displayPath } });
   }
 
   /**
@@ -1383,11 +1428,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @returns A 64-character hex string hash (full SHA-256)
    */
   private async computeDependencyHash(dependencies: readonly Dependency[]): Promise<string> {
-    performance.mark('tau:hash:dep:start');
+    const contentHashSpan = this.tracer.startSpan('deps.content-hash');
     const data = textEncoder.encode(JSON.stringify(dependencies));
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hex = bufferToHex(hashBuffer);
-    performance.measure('tau:hash:dep', { start: 'tau:hash:dep:start' });
+    contentHashSpan.end();
     return hex;
   }
 }

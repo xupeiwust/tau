@@ -54,16 +54,16 @@ type OpenScadContext = {
   fontCache: Map<string, Uint8Array<ArrayBuffer>>;
 };
 
-const MAX_INCLUDE_DEPTH = 50;
-const USE_INCLUDE_REGEX = /^\s*(?:use|include)\s*[<"]([^>"]+)[>"]/gm;
+const maxIncludeDepth = 50;
+const useIncludeRegex = /^\s*(?:use|include)\s*[<"]([^>"]+)[>"]/gm;
 
-const FONTS_CONF = `<?xml version="1.0" encoding="UTF-8"?>
+const fontsConf = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <fontconfig>
 </fontconfig>
 `;
 
-const FONT_FILES = [
+const fontFiles = [
   { url: geistRegularUrl, filename: 'Geist-Regular.ttf' },
   { url: geistBoldUrl, filename: 'Geist-Bold.ttf' },
 ] as const;
@@ -98,8 +98,8 @@ function parseUseIncludeStatements(code: string): string[] {
   const paths: string[] = [];
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- RegExp match returns null
   let match: RegExpExecArray | null;
-  USE_INCLUDE_REGEX.lastIndex = 0;
-  while ((match = USE_INCLUDE_REGEX.exec(code)) !== null) {
+  useIncludeRegex.lastIndex = 0;
+  while ((match = useIncludeRegex.exec(code)) !== null) {
     if (match[1]) {
       paths.push(match[1]);
     }
@@ -136,8 +136,8 @@ async function getReferencedScadFiles(
 
   const resolveFile = async (filePath: string, depth: number): Promise<void> => {
     const normalizedPath = filePath.replace(/^\/+/, '');
-    if (depth >= MAX_INCLUDE_DEPTH) {
-      logger.debug(`Max include depth (${MAX_INCLUDE_DEPTH}) reached for ${normalizedPath}`);
+    if (depth >= maxIncludeDepth) {
+      logger.debug(`Max include depth (${maxIncludeDepth}) reached for ${normalizedPath}`);
       return;
     }
 
@@ -277,15 +277,11 @@ async function mountFilesystem(
   }
 }
 
-async function mountFonts(
-  instance: OpenSCAD,
-  ctx: OpenScadContext,
-  logger: KernelLogger,
-): Promise<void> {
+async function mountFonts(instance: OpenSCAD, ctx: OpenScadContext, logger: KernelLogger): Promise<void> {
   try {
     if (ctx.fontCache.size === 0) {
       logger.debug('Fetching fonts (first time)');
-      const fontPromises = FONT_FILES.map(async ({ url, filename }) => {
+      const fontPromises = fontFiles.map(async ({ url, filename }) => {
         const response = await fetch(url, { cache: 'force-cache' });
         if (!response.ok) {
           throw new Error(`Failed to fetch font ${filename}: ${response.statusText}`);
@@ -311,7 +307,7 @@ async function mountFonts(
       instance.FS.writeFile(`/fonts/${filename}`, data);
     }
 
-    instance.FS.writeFile('/fonts/fonts.conf', FONTS_CONF);
+    instance.FS.writeFile('/fonts/fonts.conf', fontsConf);
   } catch (error) {
     ctx.fontCache.clear();
     logger.warn('Failed to mount fonts - text() may not render correctly', { data: error });
@@ -469,7 +465,7 @@ export default defineKernel<OpenScadContext, string>({
 
   async createGeometry(
     { filePath, basePath, parameters }: CreateGeometryInput,
-    { filesystem, logger, fileContentCache }: KernelRuntime,
+    { filesystem, logger, fileContentCache, tracer }: KernelRuntime,
     ctx: OpenScadContext,
   ) {
     const relativeFilePath = resolveToRelative(filePath, basePath);
@@ -487,7 +483,10 @@ export default defineKernel<OpenScadContext, string>({
         return { geometry: [], nativeHandle: '' };
       }
 
+      const wasmSpan = tracer.startSpan('openscad.wasm-init');
       const instance = await createInstance({ logger, addError, getFileContents, mainFilePath: relativeFilePath });
+      wasmSpan.end();
+
       await mountFilesystem(instance, {
         mainFile: relativeFilePath,
         basePath,
@@ -496,7 +495,10 @@ export default defineKernel<OpenScadContext, string>({
         fileContentCache,
         fileContentsCache,
       });
+
+      const fontSpan = tracer.startSpan('openscad.mount-fonts');
       await mountFonts(instance, ctx, logger);
+      fontSpan.end();
 
       instance.FS.writeFile(relativeFilePath, code);
 
@@ -506,7 +508,9 @@ export default defineKernel<OpenScadContext, string>({
         args.push(`-D${key}=${formatValue(value)}`);
       }
 
+      const callMainSpan = tracer.startSpan('openscad.call-main', { phase: 'computingGeometry' });
       const result = instance.callMain(args);
+      callMainSpan.end();
 
       if (result !== 0) {
         const hasActualErrors = collectedIssues.some((issue) => issue.severity === 'error');
@@ -522,7 +526,11 @@ export default defineKernel<OpenScadContext, string>({
       }
 
       const offData = instance.FS.readFile(`${relativeFilePath}.off`, { encoding: 'utf8' });
+
+      const convertSpan = tracer.startSpan('openscad.convert-geometry', { phase: 'computingGeometry' });
       const gltfBlob = await convertOffToGltf(offData, 'glb');
+      convertSpan.end();
+
       const geometry: GeometryGltf = { format: 'gltf', content: gltfBlob };
       return { geometry: [geometry], nativeHandle: offData, issues: collectedIssues };
     } catch (error) {

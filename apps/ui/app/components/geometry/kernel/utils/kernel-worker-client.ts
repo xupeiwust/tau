@@ -12,6 +12,7 @@ import type {
   KernelIssue,
   LogOrigin,
   MiddlewareConfig,
+  BundlerConfig,
   KernelResponse,
   KernelCommand,
   PerformanceEntryData,
@@ -25,9 +26,14 @@ export type OnTelemetryCallback = (entries: PerformanceEntryData[]) => void;
 export type OnProgressCallback = (phase: RenderPhase, detail?: Record<string, unknown>) => void;
 
 export class KernelWorkerClient {
-  private readonly worker: Worker;
+  /* eslint-disable @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids parameter properties */
+  public readonly worker: Worker;
   private readonly onLog: OnLogCallback;
   private readonly onTelemetry?: OnTelemetryCallback;
+  /* eslint-enable @typescript-eslint/parameter-properties -- re-enable after constructor fields */
+
+  private nextRequestId = 0;
+  private lastRenderRequestId?: string;
 
   private pendingInit?: { resolve: () => void; reject: (error: Error) => void };
   private pendingCanHandle?: { resolve: (result: boolean) => void; reject: (error: Error) => void };
@@ -47,6 +53,7 @@ export class KernelWorkerClient {
     this.worker = worker;
     this.onLog = onLog;
     this.onTelemetry = onTelemetry;
+
     worker.addEventListener('message', (event: MessageEvent<KernelResponse>) => {
       this.handleMessage(event.data);
     });
@@ -56,13 +63,16 @@ export class KernelWorkerClient {
     options: Record<string, unknown>,
     fileManagerPort: MessagePort,
     middlewareConfig: MiddlewareConfig,
+    bundlerConfig?: BundlerConfig,
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.pendingInit = { resolve, reject };
       const command: KernelCommand = {
         type: 'initialize',
+        requestId: String(this.nextRequestId++),
         options,
         middlewareConfig,
+        bundlerConfig,
         fileManagerPort,
       };
       this.worker.postMessage(command, [fileManagerPort]);
@@ -72,7 +82,7 @@ export class KernelWorkerClient {
   public async canHandle(file: GeometryFile): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       this.pendingCanHandle = { resolve, reject };
-      const command: KernelCommand = { type: 'canHandle', file };
+      const command: KernelCommand = { type: 'canHandle', requestId: String(this.nextRequestId++), file };
       this.worker.postMessage(command);
     });
   }
@@ -85,9 +95,26 @@ export class KernelWorkerClient {
   ): Promise<CreateGeometryResultCompleted> {
     return new Promise<CreateGeometryResultCompleted>((resolve, reject) => {
       this.pendingRender = { resolve, reject, onParametersResolved, onProgress };
-      const command: KernelCommand = { type: 'render', file, params: parameters };
+      const requestId = String(this.nextRequestId++);
+      this.lastRenderRequestId = requestId;
+      const command: KernelCommand = {
+        type: 'render',
+        requestId,
+        file,
+        params: parameters,
+      };
       this.worker.postMessage(command);
     });
+  }
+
+  public cancelPendingRender(): void {
+    if (this.pendingRender && this.lastRenderRequestId) {
+      const command: KernelCommand = { type: 'cancel', requestId: this.lastRenderRequestId };
+      this.worker.postMessage(command);
+      this.pendingRender.reject(new Error('Render cancelled'));
+      this.pendingRender = undefined;
+      this.lastRenderRequestId = undefined;
+    }
   }
 
   public notifyFileChanged(paths: string[]): void {
@@ -106,7 +133,12 @@ export class KernelWorkerClient {
   ): Promise<ExportGeometryResult> {
     return new Promise<ExportGeometryResult>((resolve, reject) => {
       this.pendingExport = { resolve, reject };
-      const command: KernelCommand = { type: 'export', format, meshConfig };
+      const command: KernelCommand = {
+        type: 'export',
+        requestId: String(this.nextRequestId++),
+        format,
+        meshConfig,
+      };
       this.worker.postMessage(command);
     });
   }
@@ -161,13 +193,20 @@ export class KernelWorkerClient {
         break;
       }
 
+      case 'logBatch': {
+        for (const entry of response.entries) {
+          this.onLog(entry);
+        }
+
+        break;
+      }
+
       case 'telemetry': {
         this.onTelemetry?.(response.entries);
         break;
       }
 
       case 'progress': {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- detail is Record<string, unknown> from KernelResponse
         this.pendingRender?.onProgress?.(response.phase, response.detail);
         break;
       }

@@ -5,31 +5,38 @@
  * PerformanceObserver, batches them, and flushes periodically via a callback.
  * The main thread aggregates data from all workers with timestamp correlation.
  *
- * Naming convention: tau:<subsystem>:<operation>
- * - tau:fs:read, tau:fs:readBatch, tau:fs:exists, tau:fs:readdir
- * - tau:kernel:bundle, tau:kernel:compute, tau:kernel:deps, tau:kernel:params
- * - tau:hash:file, tau:hash:dep
- * - tau:middleware:wrap
- * - tau:wasm:init, tau:wasm:compile
+ * See docs/kernel-telemetry-policy.md for the full telemetry policy.
+ *
+ * Naming convention: {subsystem}.{operation} (OTel-inspired)
+ *
+ * Root spans:          kernel.bootstrap, kernel.render, kernel.export
+ * Framework lifecycle: kernel.init, kernel.select, kernel.detect-import, kernel.compute, kernel.extract-params
+ * Framework infra:     kernel.bundle, kernel.execute, kernel.bundler-init, kernel.resolve-deps, kernel.load-middleware
+ * Dependency pipeline: deps.discover, deps.read, deps.hash, deps.content-hash
+ * Filesystem:          fs.read, fs.readBatch, fs.exists, fs.readdir
+ * WASM:                wasm.compile
+ * Middleware:           middleware.wrap({name})
+ * Kernel-authored:     {kernelName}.{operation} (e.g., replicad.wasm-init, replicad.run-main, openscad.call-main)
  */
 
 import type { PerformanceEntryData } from '@taucad/types';
 
-const DEFAULT_FLUSH_INTERVAL_MS = 2000;
+const defaultFlushIntervalMs = 100;
 
 /**
  * Collects performance measure entries in a worker and flushes them in batches.
  * Zero overhead when no measures are recorded (observer is passive).
  */
 export class WorkerTelemetryCollector {
+  // eslint-disable-next-line @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids parameter properties
   private readonly send: (entries: PerformanceEntryData[]) => void;
-  private pending: PerformanceEntryData[] = [];
-  private observer: PerformanceObserver;
+  private readonly pending: PerformanceEntryData[] = [];
+  private readonly observer: PerformanceObserver;
   private flushTimer: ReturnType<typeof setInterval> | undefined;
 
-  constructor(
+  public constructor(
     send: (entries: PerformanceEntryData[]) => void,
-    flushIntervalMs: number = DEFAULT_FLUSH_INTERVAL_MS,
+    flushIntervalMs: number = defaultFlushIntervalMs,
   ) {
     this.send = send;
     this.observer = new PerformanceObserver((list) => {
@@ -44,10 +51,12 @@ export class WorkerTelemetryCollector {
       }
     });
     this.observer.observe({ type: 'measure', buffered: true });
-    this.flushTimer = setInterval(() => { this.flush(); }, flushIntervalMs);
+    this.flushTimer = setInterval(() => {
+      this.flush();
+    }, flushIntervalMs);
   }
 
-  flush(): void {
+  public flush(): void {
     if (this.pending.length === 0) {
       return;
     }
@@ -56,7 +65,7 @@ export class WorkerTelemetryCollector {
     this.send(batch);
   }
 
-  dispose(): void {
+  public dispose(): void {
     this.observer.disconnect();
     if (this.flushTimer) {
       clearInterval(this.flushTimer);

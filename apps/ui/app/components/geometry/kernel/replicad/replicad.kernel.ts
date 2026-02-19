@@ -169,7 +169,9 @@ function extractDefaultParameters(module: unknown): Record<string, unknown> {
 
   /* eslint-disable @typescript-eslint/no-unnecessary-condition -- runtime guard for untyped module */
   return (
-    (module.defaultParams as Record<string, unknown>) ?? (module.defaultParameters as Record<string, unknown>) ?? {}
+    (module['defaultParams'] as Record<string, unknown>) ??
+    (module['defaultParameters'] as Record<string, unknown>) ??
+    {}
   );
   /* eslint-enable @typescript-eslint/no-unnecessary-condition -- end of runtime guard */
 }
@@ -179,7 +181,7 @@ function extractDefaultName(module: unknown): string | undefined {
     return undefined;
   }
 
-  return typeof module.defaultName === 'string' ? module.defaultName : undefined;
+  return typeof module['defaultName'] === 'string' ? module['defaultName'] : undefined;
 }
 
 type RunMainResult<T> = { success: true; value: T } | { success: false; issues: KernelIssue[] };
@@ -248,7 +250,7 @@ export default defineKernel<ReplicadContext, InputShape[]>({
   version: '1.0.0',
 
   async initialize(options, runtime) {
-    const { logger } = runtime;
+    const { logger, tracer } = runtime;
     const withExceptions = (options as { withExceptions?: boolean }).withExceptions === true;
 
     logger.debug(`Initializing OpenCASCADE WASM (withExceptions: ${withExceptions})`);
@@ -256,20 +258,25 @@ export default defineKernel<ReplicadContext, InputShape[]>({
     let oc: OpenCascadeInstance;
     let ocWithExceptions: OpenCascadeInstanceWithExceptions | undefined;
 
+    const wasmSpan = tracer.startSpan('replicad.wasm-init', { withExceptions });
     if (withExceptions) {
-      const ocWe = await initOpenCascadeWithExceptions();
+      const ocWe = await initOpenCascadeWithExceptions({ tracer });
       ocWithExceptions = ocWe;
       oc = ocWe as unknown as OpenCascadeInstance;
       const wrappedOc = wrapOcInstance(ocWe);
       replicad.setOC(wrappedOc as unknown as OpenCascadeInstance);
     } else {
-      oc = await initOpenCascade();
+      oc = await initOpenCascade({ tracer });
       replicad.setOC(oc);
     }
 
+    wasmSpan.end();
+
     try {
+      const fontSpan = tracer.startSpan('replicad.font-load');
       logger.debug('Loading default font for text rendering');
       await replicad.loadFont(geistRegularUrl, 'default');
+      fontSpan.end();
     } catch (error) {
       logger.warn('Failed to load default font', { data: error });
     }
@@ -344,6 +351,7 @@ export default defineKernel<ReplicadContext, InputShape[]>({
     runtime: KernelRuntime,
     ctx: ReplicadContext,
   ) {
+    const { tracer } = runtime;
     const relativeFilePath = resolveToRelative(filePath, basePath);
 
     const bundleResult = await runtime.bundler.bundle(filePath);
@@ -357,7 +365,9 @@ export default defineKernel<ReplicadContext, InputShape[]>({
     }
 
     const module = executeResult.value as RuntimeModuleExports;
+    const mainSpan = tracer.startSpan('replicad.run-main', { phase: 'computingGeometry' });
     const mainResult = await runMain<MainResultShapes>(module, parameters, ctx, bundleResult.sourceMap, basePath);
+    mainSpan.end();
 
     if (!mainResult.success) {
       throw new ReplicadBuildError(mainResult.issues);
@@ -401,7 +411,12 @@ export default defineKernel<ReplicadContext, InputShape[]>({
 
     const gltfShapes: GeometryGltf[] = [];
     if (shapes3d.length > 0) {
+      const gltfSpan = tracer.startSpan('replicad.mesh-to-gltf', {
+        shapeCount: shapes3d.length,
+        phase: 'computingGeometry',
+      });
       const gltfBlob = await convertReplicadGeometriesToGltf(shapes3d, 'glb');
+      gltfSpan.end();
       gltfShapes.push({ format: 'gltf', content: gltfBlob });
     }
 

@@ -1,3 +1,4 @@
+import type { KernelSpanTracer } from '@taucad/types';
 import { asBuffer } from '#utils/file.utils.js';
 
 /**
@@ -9,25 +10,24 @@ import { asBuffer } from '#utils/file.utils.js';
  * such as Emscripten's `instantiateWasm` or wasm-bindgen's `default()`.
  *
  * @param url - The URL to load the WASM binary from
+ * @param tracer - Optional span tracer for hierarchy-aware telemetry
  * @returns A promise that resolves to a compiled WebAssembly module
  * @throws Error if the WASM binary cannot be loaded or compiled
  */
-export async function compileWasmStreaming(url: string): Promise<WebAssembly.Module> {
-  performance.mark('tau:wasm:compile:start');
+export async function compileWasmStreaming(url: string, tracer?: KernelSpanTracer): Promise<WebAssembly.Module> {
+  const span = tracer?.startSpan('wasm.compile', { url });
   try {
     const module = await WebAssembly.compileStreaming(fetch(url));
-    performance.measure('tau:wasm:compile', { start: 'tau:wasm:compile:start', detail: { url, streaming: true } });
+    span?.end();
     return module;
   } catch (streamingError) {
-    // Fallback: fetch the binary and compile it
-    // This handles cases where streaming isn't supported or fails
     try {
       const wasmBinary = await loadWasmBinary(url);
       const module = await WebAssembly.compile(wasmBinary);
-      performance.measure('tau:wasm:compile', { start: 'tau:wasm:compile:start', detail: { url, streaming: false } });
+      span?.end();
       return module;
     } catch (compileError) {
-      // Provide a helpful error message combining both attempts
+      span?.end();
       const streamingMessage = streamingError instanceof Error ? streamingError.message : String(streamingError);
       const compileMessage = compileError instanceof Error ? compileError.message : String(compileError);
       throw new Error(

@@ -1,9 +1,10 @@
-import type { KernelConfig, MiddlewareConfig } from '@taucad/types';
+import type { KernelConfig, MiddlewareConfig, BundlerConfig } from '@taucad/types';
 import tauKernelModuleUrl from '#components/geometry/kernel/tau/tau.kernel.js?url';
 import replicadKernelModuleUrl from '#components/geometry/kernel/replicad/replicad.kernel.js?url';
 import jscadKernelModuleUrl from '#components/geometry/kernel/jscad/jscad.kernel.js?url';
 import openscadKernelModuleUrl from '#components/geometry/kernel/openscad/openscad.kernel.js?url';
 import zooKernelModuleUrl from '#components/geometry/kernel/zoo/zoo.kernel.js?url';
+import esbuildBundlerUrl from '#components/geometry/kernel/bundlers/esbuild.bundler.js?url';
 import parameterCacheUrl from '#components/geometry/kernel/middleware/parameter-cache.middleware.js?url';
 import geometryCacheUrl from '#components/geometry/kernel/middleware/geometry-cache.middleware.js?url';
 import gltfCoordinateTransformUrl from '#components/geometry/kernel/middleware/gltf-coordinate-transform.middleware.js?url';
@@ -42,6 +43,7 @@ export const defaultKernelConfig: KernelConfig = [
     id: 'replicad',
     extensions: ['ts', 'js'],
     detectImport: /import.*from\s+['"]replicad['"]/s,
+    builtinModuleNames: ['replicad'],
     options: {
       withExceptions: false,
       meshConfiguration: { linearTolerance: 0.1, angularTolerance: 0.1 },
@@ -52,6 +54,7 @@ export const defaultKernelConfig: KernelConfig = [
     id: 'jscad',
     extensions: ['ts', 'js'],
     detectImport: /import\s+.*from\s+['"]@jscad\/modeling(\/[^'"]*)?['"]/,
+    builtinModuleNames: ['@jscad/modeling'],
     kernelModuleUrl: jscadKernelModuleUrl,
   },
   { id: 'tau', extensions: ['*'], kernelModuleUrl: tauKernelModuleUrl },
@@ -85,4 +88,15 @@ export const defaultMiddlewareConfig: MiddlewareConfig = [
   { url: geometryCacheUrl },
   { url: gltfCoordinateTransformUrl },
   { url: gltfEdgeDetectionUrl },
+];
+
+/**
+ * Default bundler configuration.
+ *
+ * The esbuild bundler handles JS/TS files for kernels that need bundling
+ * (replicad, jscad). Non-JS kernels (OpenSCAD, KCL, Tau) resolve dependencies
+ * internally and never invoke the bundler.
+ */
+export const defaultBundlerConfig: BundlerConfig = [
+  { bundlerModuleUrl: esbuildBundlerUrl, extensions: ['ts', 'js', 'tsx', 'jsx'] },
 ];

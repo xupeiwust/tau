@@ -10,14 +10,29 @@
  * - An `http-url` namespace for HTTP/HTTPS URLs fetched on demand
  * - ModuleManager for CDN module fetching and caching at root `/node_modules/`
  *
- * Project files use project-relative paths (e.g., `main.ts`, `src/utils.ts`) within
- * the `zenfs` namespace. The bundler resolves the `zenfs:` prefix that esbuild adds
- * to error messages, producing clean filenames for UI display and FileLink navigation.
+ * Also provides the `defineBundler` plugin interface for the kernel framework:
+ * - detectImports: lightweight pass that discovers bare-specifier imports
+ *   transitively using esbuild externals mode (no modules need to be registered)
+ * - bundle: full production bundle with all registered modules resolved
+ * - execute: run bundled JS/TS code via dynamic import (Blob URL or data URL)
+ * - registerModule: register/update builtin modules for bundle resolution
+ * - resolveDependencies: fast-path dependency resolution via metafile
  */
 
 import * as esbuild from 'esbuild-wasm';
 import type { Plugin, BuildResult, BuildOptions, Message, Metafile } from 'esbuild-wasm';
-import type { KernelFilesystem, KernelIssue } from '@taucad/types';
+import type {
+  BundlerDefinition,
+  BundleInput,
+  BundlerInitOptions,
+  BundleResult as TypesBundleResult,
+  ExecuteResult,
+  BuiltinModuleEntry,
+  DetectImportsResult,
+  KernelFilesystem,
+  KernelIssue,
+} from '@taucad/types';
+import { defineBundler } from '@taucad/types';
 import { base64ToString } from 'uint8array-extras';
 import type { BuiltinModule } from '#components/geometry/kernel/utils/module-manager.js';
 import { ModuleManager } from '#components/geometry/kernel/utils/module-manager.js';
@@ -75,7 +90,7 @@ export const httpFetchMaxSizeBytes = 10 * 1024 * 1024;
 // WASM URL using universal pattern for browsers and bundlers
 // WASM file is copied from node_modules via copy-files-from-to
 // @see https://web.dev/articles/bundling-non-js-resources#universal_pattern_for_browsers_and_bundlers
-const esbuildWasmUrl = new URL('wasm/esbuild.wasm', import.meta.url).href;
+const esbuildWasmUrl = new URL('../utils/wasm/esbuild.wasm', import.meta.url).href;
 
 // Detect Node.js environment (process.versions.node exists in Node.js)
 // eslint-disable-next-line n/prefer-global/process, @typescript-eslint/no-unnecessary-condition -- process may be undefined in browser
@@ -125,84 +140,14 @@ export async function initializeEsbuild(): Promise<void> {
 }
 
 // =============================================================================
-// Plugins
+// Shared Helpers
 // =============================================================================
+
+/** Namespace prefix that esbuild adds to file paths in error messages for the zenfs namespace. */
+const zenfsPrefix = 'zenfs:';
 
 /** Default names to auto-export from CommonJS-style entry files */
 const defaultAutoExportNames = ['main', 'defaultParams'];
-
-/**
- * Add CommonJS-style exports to source code if needed.
- *
- * When code defines any of the `names` as globals but doesn't export them,
- * this function adds the necessary export statements at the end of the code.
- *
- * This must be done at the source level (before bundling) to prevent esbuild
- * from tree-shaking away the unexported functions.
- *
- * Special handling for `main`: if `export default` already exists, `main` is
- * considered exported and won't be added again.
- *
- * @param code - The source code to transform
- * @param names - List of symbol names to auto-export
- * @returns The transformed code with exports added if needed
- */
-function addCommonJsExports(code: string, names: string[]): string {
-  const exportsToAdd: string[] = [];
-
-  for (const name of names) {
-    // Check if already exported
-    const hasNamedExport =
-      new RegExp(`\\bexport\\s+\\{\\s*[^}]*\\b${name}\\b`).test(code) ||
-      new RegExp(`\\bexport\\s+(const|function|let|var)\\s+${name}\\b`).test(code);
-
-    if (hasNamedExport) {
-      continue;
-    }
-
-    // Special case: `main` is considered exported if `export default` exists
-    if (name === 'main' && /\bexport\s+default\b/.test(code)) {
-      continue;
-    }
-
-    // Check if code defines this symbol (not exported)
-    const defines =
-      new RegExp(`\\bfunction\\s+${name}\\s*\\(`).test(code) ||
-      new RegExp(`\\b(const|let|var)\\s+${name}\\s*=`).test(code);
-
-    if (defines) {
-      exportsToAdd.push(name);
-    }
-  }
-
-  if (exportsToAdd.length > 0) {
-    return code + `\nexport { ${exportsToAdd.join(', ')} };\n`;
-  }
-
-  return code;
-}
-
-/**
- * Extract the inline source map JSON from bundled code.
- *
- * esbuild with `sourcemap: 'inline'` appends a base64-encoded source map
- * as a data URL comment. This extracts and decodes it for programmatic use.
- *
- * @param code - Bundled code potentially containing an inline source map
- * @returns Decoded source map JSON string, or undefined if not found
- */
-function extractInlineSourceMap(code: string): string | undefined {
-  const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m.exec(code);
-  if (!match?.[1]) {
-    return undefined;
-  }
-
-  return base64ToString(match[1]);
-}
-
-// =============================================================================
-// Plugin Helpers
-// =============================================================================
 
 /**
  * Resolve file extension for imports without extension.
@@ -258,11 +203,85 @@ function getLoader(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' | 'json' | 'te
 }
 
 // =============================================================================
-// Path Resolution
+// CommonJS Export Helpers
 // =============================================================================
 
-/** Namespace prefix that esbuild adds to file paths in error messages for the zenfs namespace. */
-const zenfsPrefix = 'zenfs:';
+/**
+ * Add CommonJS-style exports to source code if needed.
+ *
+ * When code defines any of the `names` as globals but doesn't export them,
+ * this function adds the necessary export statements at the end of the code.
+ *
+ * This must be done at the source level (before bundling) to prevent esbuild
+ * from tree-shaking away the unexported functions.
+ *
+ * Special handling for `main`: if `export default` already exists, `main` is
+ * considered exported and won't be added again.
+ *
+ * @param code - The source code to transform
+ * @param names - List of symbol names to auto-export
+ * @returns The transformed code with exports added if needed
+ */
+function addCommonJsExports(code: string, names: string[]): string {
+  const exportsToAdd: string[] = [];
+
+  for (const name of names) {
+    // Check if already exported
+    const hasNamedExport =
+      new RegExp(`\\bexport\\s+\\{\\s*[^}]*\\b${name}\\b`).test(code) ||
+      new RegExp(`\\bexport\\s+(const|function|let|var)\\s+${name}\\b`).test(code);
+
+    if (hasNamedExport) {
+      continue;
+    }
+
+    // Special case: `main` is considered exported if `export default` exists
+    if (name === 'main' && /\bexport\s+default\b/.test(code)) {
+      continue;
+    }
+
+    // Check if code defines this symbol (not exported)
+    const defines =
+      new RegExp(`\\bfunction\\s+${name}\\s*\\(`).test(code) ||
+      new RegExp(`\\b(const|let|var)\\s+${name}\\s*=`).test(code);
+
+    if (defines) {
+      exportsToAdd.push(name);
+    }
+  }
+
+  if (exportsToAdd.length > 0) {
+    return code + `\nexport { ${exportsToAdd.join(', ')} };\n`;
+  }
+
+  return code;
+}
+
+// =============================================================================
+// Source Map Extraction
+// =============================================================================
+
+/**
+ * Extract the inline source map JSON from bundled code.
+ *
+ * esbuild with `sourcemap: 'inline'` appends a base64-encoded source map
+ * as a data URL comment. This extracts and decodes it for programmatic use.
+ *
+ * @param code - Bundled code potentially containing an inline source map
+ * @returns Decoded source map JSON string, or undefined if not found
+ */
+function extractInlineSourceMap(code: string): string | undefined {
+  const match = /\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m.exec(code);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  return base64ToString(match[1]);
+}
+
+// =============================================================================
+// Path Resolution
+// =============================================================================
 
 /**
  * Resolve an esbuild file path to a clean project-relative path.
@@ -276,7 +295,7 @@ function resolveEsbuildFilePath(filePath: string): string {
 }
 
 // =============================================================================
-// ZenFS Plugin
+// Production ZenFS Plugin
 // =============================================================================
 
 export type ZenFsPluginOptions = {
@@ -547,7 +566,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
 }
 
 // =============================================================================
-// Bundler Class
+// EsbuildBundler Class
 // =============================================================================
 
 export class EsbuildBundler {
@@ -580,6 +599,14 @@ export class EsbuildBundler {
    */
   public async initialize(): Promise<void> {
     await initializeEsbuild();
+  }
+
+  /**
+   * Register or update a builtin module on the live bundler instance.
+   * Used to replace detection stubs with real module code after kernel init.
+   */
+  public registerModule(name: string, builtinModule: BuiltinModule): void {
+    this.builtinModules.set(name, builtinModule);
   }
 
   /**
@@ -773,3 +800,286 @@ const module = { exports };
     return issue;
   }
 }
+
+// =============================================================================
+// Detection Plugin
+// =============================================================================
+
+type DetectionPluginOptions = {
+  filesystem: KernelFilesystem;
+  projectPath: string;
+};
+
+/**
+ * Create a detection-only esbuild plugin.
+ *
+ * This is a simplified version of the production zenfs plugin. The key difference:
+ * bare specifiers are marked as `external` instead of being resolved via builtinModules
+ * or CDN. This means esbuild reports what was imported without needing any modules
+ * to be registered, eliminating the chicken-and-egg problem for kernel detection.
+ *
+ * Relative imports are still resolved normally via zenfs so the full import tree
+ * is walked correctly (TypeScript, barrel files, re-exports all handled).
+ */
+function createDetectionPlugin({ filesystem, projectPath }: DetectionPluginOptions): Plugin {
+  const projectPrefix = projectPath.endsWith('/') ? projectPath : projectPath + '/';
+
+  function toRelative(absolutePath: string): string {
+    return absolutePath.startsWith(projectPrefix) ? absolutePath.slice(projectPrefix.length) : absolutePath;
+  }
+
+  function toAbsolute(relativePath: string): string {
+    return relativePath.startsWith('/') ? relativePath : `${projectPrefix}${relativePath}`;
+  }
+
+  return {
+    name: 'zenfs-detection',
+    setup(build) {
+      let relativeEntryPath = '';
+
+      build.onResolve({ filter: /.*/ }, async (args) => {
+        if (args.kind === 'entry-point') {
+          relativeEntryPath = toRelative(args.path);
+          return { path: relativeEntryPath, namespace: 'zenfs' };
+        }
+
+        if (args.namespace === 'http-url' || args.path.startsWith('data:')) {
+          return { external: true };
+        }
+
+        if (args.path.startsWith('http://') || args.path.startsWith('https://')) {
+          return { external: true };
+        }
+
+        if (isBareSpecifier(args.path)) {
+          return { path: args.path, external: true };
+        }
+
+        const importerAbsolute = toAbsolute(args.importer || relativeEntryPath);
+
+        try {
+          const resolvedPath = resolveRelativePath(args.path, importerAbsolute);
+          const withExtension = await resolveFileExtension(filesystem, resolvedPath);
+          return { path: toRelative(withExtension), namespace: 'zenfs' };
+        } catch {
+          return { external: true };
+        }
+      });
+
+      build.onLoad({ filter: /.*/, namespace: 'zenfs' }, async (args) => {
+        try {
+          const absolutePath = toAbsolute(args.path);
+          const content = await filesystem.readFile(absolutePath, 'utf8');
+          const loader = getLoader(args.path);
+          return {
+            contents: content,
+            loader,
+            resolveDir: absolutePath.slice(0, absolutePath.lastIndexOf('/')),
+          };
+        } catch (error) {
+          return {
+            errors: [
+              {
+                text: `Failed to load '${args.path}': ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+          };
+        }
+      });
+    },
+  };
+}
+
+/**
+ * Extract project file dependencies from an esbuild metafile.
+ */
+function extractProjectDependencies(metafile: Metafile | undefined, projectPath: string): string[] {
+  if (!metafile) {
+    return [];
+  }
+
+  const projectPrefix = projectPath.endsWith('/') ? projectPath : projectPath + '/';
+  const dependencies: string[] = [];
+
+  for (const inputKey of Object.keys(metafile.inputs)) {
+    if (!inputKey.startsWith(zenfsPrefix)) {
+      continue;
+    }
+
+    const relativePath = inputKey.slice(zenfsPrefix.length);
+
+    if (relativePath.startsWith('/')) {
+      continue;
+    }
+
+    dependencies.push(`${projectPrefix}${relativePath}`);
+  }
+
+  return dependencies;
+}
+
+/**
+ * Extract external module specifiers from esbuild metafile output imports.
+ */
+function extractExternalImports(metafile: Metafile | undefined): string[] {
+  if (!metafile) {
+    return [];
+  }
+
+  const externals = new Set<string>();
+  for (const output of Object.values(metafile.outputs)) {
+    for (const imp of output.imports) {
+      if (imp.external) {
+        externals.add(imp.path);
+      }
+    }
+  }
+
+  return [...externals];
+}
+
+// =============================================================================
+// Execution
+// =============================================================================
+
+/**
+ * Execute bundled JS/TS code via dynamic import.
+ * Browser uses Blob URL, Node.js uses data URL.
+ */
+async function executeCode(code: string): Promise<ExecuteResult> {
+  // eslint-disable-next-line n/prefer-global/process, @typescript-eslint/no-unnecessary-condition -- process may be undefined in browser
+  const isNodejsRuntime = typeof process !== 'undefined' && Boolean(process.versions?.node);
+
+  try {
+    let url: string;
+    let shouldRevoke = false;
+
+    if (isNodejsRuntime) {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- class
+      const { Buffer: NodeBuffer } = await import('node:buffer');
+      const base64Code = NodeBuffer.from(code).toString('base64');
+      url = `data:application/javascript;base64,${base64Code}`;
+    } else {
+      const blob = new Blob([code], { type: 'application/javascript' });
+      url = URL.createObjectURL(blob);
+      shouldRevoke = true;
+    }
+
+    try {
+      const moduleExports: unknown = await import(/* @vite-ignore */ url);
+      return { success: true, value: moduleExports };
+    } finally {
+      if (shouldRevoke) {
+        URL.revokeObjectURL(url);
+      }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      issues: [
+        {
+          message: error instanceof Error ? error.message : String(error),
+          type: 'runtime' as const,
+          severity: 'error' as const,
+        },
+      ],
+    };
+  }
+}
+
+// =============================================================================
+// Bundler Context
+// =============================================================================
+
+type EsbuildBundlerContext = {
+  bundler: EsbuildBundler;
+  builtinModules: Map<string, BuiltinModule>;
+  filesystem: KernelFilesystem;
+  projectPath: string;
+};
+
+// =============================================================================
+// defineBundler Module
+// =============================================================================
+
+const autoExportNames = ['main', 'defaultParams', 'getParameterDefinitions'];
+
+const esbuildBundlerDefinition: BundlerDefinition<EsbuildBundlerContext> = {
+  name: 'EsbuildBundler',
+  version: '1.0.0',
+
+  async initialize({ filesystem, projectPath }: BundlerInitOptions): Promise<EsbuildBundlerContext> {
+    const builtinModules = new Map<string, BuiltinModule>();
+    await initializeEsbuild();
+    const bundler = new EsbuildBundler({
+      filesystem,
+      projectPath,
+      builtinModules,
+      autoExportNames,
+    });
+    await bundler.initialize();
+    return { bundler, builtinModules, filesystem, projectPath };
+  },
+
+  async detectImports({ entryPath }: BundleInput, ctx: EsbuildBundlerContext): Promise<DetectImportsResult> {
+    const buildOptions: BuildOptions = {
+      entryPoints: [entryPath],
+      bundle: true,
+      write: false,
+      metafile: true,
+      format: 'esm',
+      target: 'es2022',
+      platform: 'browser',
+      plugins: [createDetectionPlugin({ filesystem: ctx.filesystem, projectPath: ctx.projectPath })],
+      external: [],
+      logLevel: 'silent',
+    };
+
+    try {
+      const result = await esbuild.build(buildOptions);
+      return {
+        detectedModules: extractExternalImports(result.metafile),
+        dependencies: extractProjectDependencies(result.metafile, ctx.projectPath),
+      };
+    } catch (error) {
+      const issues: KernelIssue[] = [];
+      if (error && typeof error === 'object' && 'errors' in error) {
+        const buildErrors = error as { errors: Array<{ text: string }> };
+        for (const errorMessage of buildErrors.errors) {
+          issues.push({ message: errorMessage.text, type: 'compilation', severity: 'error' });
+        }
+      }
+
+      return { detectedModules: [], dependencies: [] };
+    }
+  },
+
+  async bundle({ entryPath }: BundleInput, ctx: EsbuildBundlerContext): Promise<TypesBundleResult> {
+    return ctx.bundler.bundle(entryPath);
+  },
+
+  async execute(code: string, _ctx: EsbuildBundlerContext): Promise<ExecuteResult> {
+    return executeCode(code);
+  },
+
+  registerModule(name: string, builtinModule: BuiltinModuleEntry, ctx: EsbuildBundlerContext): void {
+    const entry: BuiltinModule = {
+      code: builtinModule.code,
+      version: builtinModule.version,
+      globalName: builtinModule.globalName,
+    };
+    ctx.builtinModules.set(name, entry);
+    ctx.bundler.registerModule(name, entry);
+  },
+
+  async resolveDependencies({ entryPath }: BundleInput, ctx: EsbuildBundlerContext): Promise<string[]> {
+    const result = await ctx.bundler.bundle(entryPath);
+    return result.dependencies;
+  },
+
+  async cleanup(_ctx: EsbuildBundlerContext): Promise<void> {
+    _ctx.bundler.dispose();
+  },
+};
+
+export default defineBundler(esbuildBundlerDefinition);

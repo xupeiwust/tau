@@ -15,15 +15,19 @@
  * Minimal Emscripten FS types needed for the mount interface.
  * These match the Emscripten FS API without requiring the full Emscripten type definitions.
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API type
 type EmscriptenFSNode = {
   name: string;
   mode: number;
   parent: EmscriptenFSNode;
   mount: { opts: { root?: string } };
+
   node_ops?: EmscriptenNodeOps;
+
   stream_ops?: EmscriptenStreamOps;
 };
 
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API type
 type EmscriptenFSStream = {
   node: EmscriptenFSNode;
   position: number;
@@ -38,25 +42,28 @@ type EmscriptenNodeOps = {
 type EmscriptenStreamOps = {
   read(
     stream: EmscriptenFSStream,
-    buffer: Uint8Array,
+    buffer: Uint8Array<ArrayBuffer>,
     offset: number,
     length: number,
     position: number,
   ): number;
 };
 
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API type
 type EmscriptenFS = {
-  createNode(parent: EmscriptenFSNode, name: string, mode: number): EmscriptenFSNode;
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten constant
   ErrnoError: new (errno: number) => Error;
+
+  FSNode: new (parent: EmscriptenFSNode, name: string, mode: number) => EmscriptenFSNode;
+  createNode(parent: EmscriptenFSNode, name: string, mode: number): EmscriptenFSNode;
   isDir(mode: number): boolean;
   isFile(mode: number): boolean;
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten constant
-  FSNode: new (parent: EmscriptenFSNode, name: string, mode: number) => EmscriptenFSNode;
 };
 
-const S_IFDIR = 0o40000;
-const S_IFREG = 0o100000;
+// eslint-disable-next-line @typescript-eslint/naming-convention -- POSIX constant
+const S_IFDIR = 0o4_0000;
+// eslint-disable-next-line @typescript-eslint/naming-convention -- POSIX constant
+const S_IFREG = 0o10_0000;
+// eslint-disable-next-line @typescript-eslint/naming-convention -- POSIX constant
 const ENOENT = 44;
 
 const textEncoder = new TextEncoder();
@@ -72,11 +79,17 @@ const textEncoder = new TextEncoder();
  * @param emscriptenFS - The Emscripten FS module (instance.FS)
  * @returns An object suitable for FS.mount()
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API function
 export function createContentCacheFS(
   contentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>,
   basePath: string,
   emscriptenFS: EmscriptenFS,
-): { mount(mount: { opts: { root?: string } }): EmscriptenFSNode; node_ops: EmscriptenNodeOps; stream_ops: EmscriptenStreamOps } {
+): {
+  node_ops: EmscriptenNodeOps;
+
+  stream_ops: EmscriptenStreamOps;
+  mount(mount: { opts: { root?: string } }): EmscriptenFSNode;
+} {
   const normalizedBase = basePath.endsWith('/') ? basePath : `${basePath}/`;
 
   function resolveToAbsolute(relativePath: string): string {
@@ -125,6 +138,7 @@ export function createContentCacheFS(
 
   const now = new Date();
 
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API
   const node_ops: EmscriptenNodeOps = {
     getattr(node) {
       const path = realPath(node);
@@ -133,10 +147,12 @@ export function createContentCacheFS(
 
       if (content !== undefined) {
         const size = typeof content === 'string' ? textEncoder.encode(content).length : content.byteLength;
+        // eslint-disable-next-line no-bitwise -- POSIX file mode flags
         return { mode: S_IFREG | 0o644, size, atime: now, mtime: now, ctime: now };
       }
 
       if (isDirectory(path) || path === '') {
+        // eslint-disable-next-line no-bitwise -- POSIX file mode flags
         return { mode: S_IFDIR | 0o755, size: 4096, atime: now, mtime: now, ctime: now };
       }
 
@@ -150,6 +166,7 @@ export function createContentCacheFS(
       const content = contentCache.get(absolutePath);
 
       if (content !== undefined) {
+        // eslint-disable-next-line no-bitwise -- POSIX file mode flags
         const childNode = emscriptenFS.createNode(parent, name, S_IFREG | 0o644);
         childNode.node_ops = node_ops;
         childNode.stream_ops = stream_ops;
@@ -157,6 +174,7 @@ export function createContentCacheFS(
       }
 
       if (isDirectory(childPath)) {
+        // eslint-disable-next-line no-bitwise -- POSIX file mode flags
         const childNode = emscriptenFS.createNode(parent, name, S_IFDIR | 0o755);
         childNode.node_ops = node_ops;
         childNode.stream_ops = stream_ops;
@@ -172,7 +190,9 @@ export function createContentCacheFS(
     },
   };
 
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API
   const stream_ops: EmscriptenStreamOps = {
+    // eslint-disable-next-line max-params -- Emscripten read() signature requires 5 params
     read(stream, buffer, offset, length, position) {
       const path = realPath(stream.node);
       const absolutePath = resolveToAbsolute(path);
@@ -196,19 +216,17 @@ export function createContentCacheFS(
 
   return {
     mount(mount: { opts: { root?: string } }) {
-      const root = new emscriptenFS.FSNode(
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Emscripten FS root node has no real parent
-        undefined as unknown as EmscriptenFSNode,
-        '/',
-        S_IFDIR | 0o755,
-      );
+      // eslint-disable-next-line no-bitwise -- POSIX file mode flags
+      const root = new emscriptenFS.FSNode(undefined as unknown as EmscriptenFSNode, '/', S_IFDIR | 0o755);
       root.parent = root;
       root.mount = mount;
       root.node_ops = node_ops;
       root.stream_ops = stream_ops;
       return root;
     },
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API
     node_ops,
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Emscripten API
     stream_ops,
   };
 }

@@ -8,6 +8,7 @@ import type {
   GeometryFile,
   KernelConfig,
   MiddlewareConfig,
+  BundlerConfig,
   RenderPhase,
   PerformanceEntryData,
 } from '@taucad/types';
@@ -44,8 +45,6 @@ export type CadContext = {
   renderTimeout: number;
   changedPaths: string[];
   renderPhase: RenderPhase | undefined;
-  renderPhaseTimestamps: Map<RenderPhase, number>;
-  renderPhaseDurations: Map<string, number>;
   telemetryEntries: PerformanceEntryData[];
 };
 
@@ -72,6 +71,7 @@ type CadInput = {
   fileManagerRef?: ActorRefFrom<typeof fileManagerMachine>;
   kernelConfig: KernelConfig;
   middlewareConfig: MiddlewareConfig;
+  bundlerConfig?: BundlerConfig;
 };
 
 /**
@@ -148,46 +148,20 @@ export const cadMachine = setup({
         assertEvent(event, 'kernelProgress');
         return event.phase;
       },
-      renderPhaseTimestamps({ context, event }) {
-        assertEvent(event, 'kernelProgress');
-        const timestamps = new Map(context.renderPhaseTimestamps);
-        timestamps.set(event.phase, performance.now());
-        return timestamps;
-      },
-      renderPhaseDurations({ context, event }) {
-        assertEvent(event, 'kernelProgress');
-        if (context.renderPhase && context.renderPhaseTimestamps.has(context.renderPhase)) {
-          const durations = new Map(context.renderPhaseDurations);
-          const startTime = context.renderPhaseTimestamps.get(context.renderPhase)!;
-          durations.set(context.renderPhase, performance.now() - startTime);
-          return durations;
-        }
-
-        return context.renderPhaseDurations;
-      },
     }),
     clearProgress: assign({
       renderPhase: undefined as RenderPhase | undefined,
-      renderPhaseTimestamps: () => new Map<RenderPhase, number>(),
-      renderPhaseDurations: () => new Map<string, number>(),
+      telemetryEntries: () => [] as PerformanceEntryData[],
     }),
     finalizeProgress: assign({
       renderPhase: undefined as RenderPhase | undefined,
-      renderPhaseDurations({ context }) {
-        if (context.renderPhase && context.renderPhaseTimestamps.has(context.renderPhase)) {
-          const durations = new Map(context.renderPhaseDurations);
-          const startTime = context.renderPhaseTimestamps.get(context.renderPhase)!;
-          durations.set(context.renderPhase, performance.now() - startTime);
-          return durations;
-        }
-
-        return context.renderPhaseDurations;
-      },
     }),
     storeTelemetry: assign({
-      telemetryEntries({ event }) {
+      telemetryEntries({ context, event }) {
         assertEvent(event, 'kernelTelemetry');
-        return event.entries;
+        const next = [...context.telemetryEntries];
+        next.push(...event.entries);
+        return next;
       },
     }),
     setFile: assign({
@@ -416,7 +390,8 @@ export const cadMachine = setup({
       input: {
         fileManagerRef: input.fileManagerRef,
         kernelConfig: input.kernelConfig,
-        middlewareConfig: input.middlewareConfig ?? [],
+        middlewareConfig: input.middlewareConfig,
+        bundlerConfig: input.bundlerConfig,
       },
     }),
     exportedBlob: undefined,
@@ -429,8 +404,6 @@ export const cadMachine = setup({
     jsonSchema: undefined,
     renderTimeout: defaultRenderTimeout,
     renderPhase: undefined,
-    renderPhaseTimestamps: new Map(),
-    renderPhaseDurations: new Map(),
     telemetryEntries: [],
   }),
   on: {

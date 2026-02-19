@@ -40,6 +40,7 @@ type KernelModuleConfig = {
   moduleUrl: string;
   extensions?: string[];
   detectImport?: string;
+  builtinModuleNames?: string[];
   options?: Record<string, unknown>;
   /** Pre-loaded definition (bypasses dynamic import, used in tests) */
   definition?: KernelDefinition;
@@ -60,13 +61,22 @@ type RuntimeWorkerOptions = {
  * Generic kernel runtime worker.
  * Loads kernel modules dynamically and delegates to the active kernel.
  */
+/** How a kernel was selected — determines whether to re-check via kernel.canHandle. */
+type SelectionMethod = 'regex' | 'bundler' | 'extension' | 'catchall';
+
+type KernelSelection = {
+  kernel: LoadedKernel;
+  method: SelectionMethod;
+};
+
 class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
   protected override readonly name = 'KernelRuntimeWorker';
 
   private readonly loadedKernels = new Map<string, LoadedKernel>();
   private activeKernelId: string | undefined;
-  private readonly selectionCache = new Map<string, string>();
+  private readonly selectionCache = new Map<string, { id: string; method: SelectionMethod }>();
   private kernelModules: KernelModuleConfig[] = [];
+  private cachedDetectionDeps?: string[];
 
   // =====================================================================
   // Protected overrides (must precede private methods per linter rules)
@@ -77,26 +87,37 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     _runtime: KernelRuntime,
   ): Promise<void> {
     this.kernelModules = options.kernelModules;
-    this.logger.debug(`Runtime worker initialized with ${this.kernelModules.length} kernel modules`);
   }
 
   protected override async canHandle(input: CanHandleInput, runtime: KernelRuntime): Promise<boolean> {
-    const filename = input.filePath.split('/').pop() ?? input.filePath;
-    const kernel = await this.selectKernel(filename, runtime);
-    if (!kernel) {
+    const selection = await this.selectKernel(input.filePath, runtime);
+    if (!selection) {
       return false;
     }
 
-    this.activeKernelId = kernel.config.id;
+    this.activeKernelId = selection.kernel.config.id;
 
-    if (kernel.definition.canHandle) {
-      return kernel.definition.canHandle(input, runtime, kernel.ctx);
+    // When selected via bundler detection (transitive import analysis),
+    // the framework's detection is authoritative — skip kernel-level canHandle
+    // which only checks the entry file and would reject transitive imports.
+    if (selection.method === 'bundler') {
+      return true;
+    }
+
+    if (selection.kernel.definition.canHandle) {
+      return selection.kernel.definition.canHandle(input, runtime, selection.kernel.ctx);
     }
 
     return true;
   }
 
   protected override async getDependencies(input: GetDependenciesInput, runtime: KernelRuntime): Promise<string[]> {
+    if (this.cachedDetectionDeps) {
+      const deps = this.cachedDetectionDeps;
+      this.cachedDetectionDeps = undefined;
+      return deps;
+    }
+
     const kernel = await this.ensureActiveKernel(input.filePath, runtime);
     return kernel.definition.getDependencies(input, runtime, kernel.ctx);
   }
@@ -157,6 +178,12 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     return [];
   }
 
+  protected override onFileChanged(_changedPaths: string[]): void {
+    this.selectionCache.clear();
+    this.cachedDetectionDeps = undefined;
+    this.activeKernelId = undefined;
+  }
+
   // =====================================================================
   // Private methods
   // =====================================================================
@@ -166,14 +193,16 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
       return this.getActiveKernel();
     }
 
-    const filename = filePath.split('/').pop() ?? filePath;
-    const kernel = await this.selectKernel(filename, runtime);
-    if (!kernel) {
+    const span = runtime.tracer.startSpan('kernel.select', { file: filePath });
+    const selection = await this.selectKernel(filePath, runtime);
+    if (!selection) {
+      span.end();
       throw new Error(`No kernel can handle file: ${filePath}`);
     }
 
-    this.activeKernelId = kernel.config.id;
-    return kernel;
+    this.activeKernelId = selection.kernel.config.id;
+    span.end();
+    return selection.kernel;
   }
 
   private async loadKernelModule(config: KernelModuleConfig): Promise<LoadedKernel> {
@@ -217,47 +246,122 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     kernel.initialized = true;
   }
 
-  private async selectKernel(filename: string, runtime: KernelRuntime): Promise<LoadedKernel | undefined> {
-    const cached = this.selectionCache.get(filename);
+  /**
+   * Select the appropriate kernel for a file using three-pass detection:
+   * 1. Extension + regex fast path (entry file only)
+   * 2. Bundler-assisted detection via detectImports (transitive, no stubs)
+   * 3. Catch-all fallback (extensions: ['*'])
+   *
+   * Returns the selected kernel and the method used for selection.
+   * The selection method is used by canHandle to decide whether to
+   * re-check via the kernel's own canHandle (skipped for bundler detection
+   * since it already traced transitive imports).
+   *
+   * @param filePath - Full path to the file (used as cache key for collision safety)
+   */
+  private async selectKernel(filePath: string, runtime: KernelRuntime): Promise<KernelSelection | undefined> {
+    const cached = this.selectionCache.get(filePath);
     if (cached) {
-      return this.loadedKernels.get(cached);
+      const kernel = this.loadedKernels.get(cached.id);
+      if (kernel) {
+        return { kernel, method: cached.method };
+      }
     }
 
-    const extension = filename.split('.').pop()?.toLowerCase() ?? '';
+    const extension = filePath.split('.').pop()?.toLowerCase() ?? '';
+    let catchAllConfig: KernelModuleConfig | undefined;
+    const hasBundlerKernels = this.kernelModules.some((c) => c.builtinModuleNames && c.builtinModuleNames.length > 0);
 
     /* eslint-disable no-await-in-loop -- Sequential kernel selection: try each config in priority order */
+
+    // Pass 1: Extension + regex fast path
     for (const config of this.kernelModules) {
       if (!config.extensions) {
         continue;
       }
 
-      const extensionMatch = config.extensions.includes(extension) || config.extensions.includes('*');
+      const isCatchAll = config.extensions.includes('*');
+      const extensionMatch = config.extensions.includes(extension) || isCatchAll;
       if (!extensionMatch) {
+        continue;
+      }
+
+      if (isCatchAll && hasBundlerKernels) {
+        catchAllConfig = config;
         continue;
       }
 
       if (!config.detectImport) {
         const kernel = await this.loadKernelModule(config);
         await this.ensureKernelInitialized(kernel, runtime);
-        this.selectionCache.set(filename, config.id);
-        return kernel;
+        this.selectionCache.set(filePath, { id: config.id, method: 'extension' });
+        return { kernel, method: 'extension' };
       }
 
-      const filePath = `${this.getProjectRootPath()}/${filename}`;
       try {
+        const detectSpan = runtime.tracer.startSpan('kernel.detect-import', { kernel: config.id });
         const code = await runtime.filesystem.readFile(filePath, 'utf8');
+        detectSpan.end();
         const importRegex = new RegExp(config.detectImport, 's');
         if (importRegex.test(code)) {
           const kernel = await this.loadKernelModule(config);
           await this.ensureKernelInitialized(kernel, runtime);
-          this.selectionCache.set(filename, config.id);
-          return kernel;
+          this.selectionCache.set(filePath, { id: config.id, method: 'regex' });
+          return { kernel, method: 'regex' };
         }
       } catch {
         continue;
       }
     }
+
+    // Pass 2: Bundler-assisted detection via detectImports
+    if (this.hasBundlerAvailable) {
+      const configsWithBuiltins = this.kernelModules.filter(
+        (c) => c.builtinModuleNames && c.builtinModuleNames.length > 0,
+      );
+
+      if (configsWithBuiltins.length > 0) {
+        await this.ensureBundlerContext();
+        const detectSpan = runtime.tracer.startSpan('kernel.detect-bundle', { file: filePath });
+        const { detectedModules, dependencies } = await this.loadedBundler!.definition.detectImports(
+          { entryPath: filePath },
+          this.loadedBundler!.ctx,
+        );
+        detectSpan.end();
+
+        this.cachedDetectionDeps = dependencies;
+
+        const matchingConfigs = configsWithBuiltins.filter((config) =>
+          config.builtinModuleNames!.some((name) =>
+            detectedModules.some((detected) => detected === name || detected.startsWith(name + '/')),
+          ),
+        );
+
+        if (matchingConfigs.length > 0) {
+          const primaryConfig = matchingConfigs[0]!;
+          const primaryKernel = await this.loadKernelModule(primaryConfig);
+          await this.ensureKernelInitialized(primaryKernel, runtime);
+
+          for (const config of matchingConfigs.slice(1)) {
+            const kernel = await this.loadKernelModule(config);
+            await this.ensureKernelInitialized(kernel, runtime);
+          }
+
+          this.selectionCache.set(filePath, { id: primaryConfig.id, method: 'bundler' });
+          return { kernel: primaryKernel, method: 'bundler' };
+        }
+      }
+    }
+
     /* eslint-enable no-await-in-loop -- End sequential kernel selection */
+
+    // Pass 3: Catch-all fallback
+    if (catchAllConfig) {
+      const kernel = await this.loadKernelModule(catchAllConfig);
+      await this.ensureKernelInitialized(kernel, runtime);
+      this.selectionCache.set(filePath, { id: catchAllConfig.id, method: 'catchall' });
+      return { kernel, method: 'catchall' };
+    }
 
     return undefined;
   }

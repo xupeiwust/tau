@@ -12,6 +12,8 @@ import type {
   OnWorkerLog,
   CreateGeometryResultCompleted,
   PerformanceEntryData,
+  LogLevel,
+  LogOrigin,
 } from '@taucad/types';
 import * as kernelSymbols from '@taucad/types/symbols';
 import type { KernelWorker } from '#components/geometry/kernel/utils/kernel-worker.js';
@@ -44,14 +46,21 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
     port.postMessage(response, transferables);
   };
 
+  const pendingLogs: Array<{ level: LogLevel; message: string; origin?: LogOrigin; data?: unknown }> = [];
+  let logFlushTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const flushLogs = (): void => {
+    if (pendingLogs.length === 0) {
+      return;
+    }
+
+    respond({ type: 'logBatch', entries: pendingLogs.splice(0) });
+    logFlushTimer = undefined;
+  };
+
   const onLog: OnWorkerLog = (log) => {
-    respond({
-      type: 'log',
-      level: log.level,
-      message: log.message,
-      origin: log.origin,
-      data: log.data,
-    });
+    pendingLogs.push({ level: log.level, message: log.message, origin: log.origin, data: log.data });
+    logFlushTimer ??= setTimeout(flushLogs, 250);
   };
 
   worker.setTelemetrySend((entries: PerformanceEntryData[]) => {
@@ -60,6 +69,7 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
 
   port.onMessage(async (command: KernelCommand | KernelResponse) => {
     const message = command as KernelCommand;
+    const requestId = 'requestId' in message ? message.requestId : '';
     try {
       switch (message.type) {
         case 'initialize': {
@@ -74,7 +84,15 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
             message.options,
             message.middlewareConfig,
           );
-          respond({ type: 'initialized' });
+
+          if (message.bundlerConfig) {
+            for (const entry of message.bundlerConfig) {
+              // eslint-disable-next-line no-await-in-loop -- Sequential: bundlers must be loaded before use
+              await worker.ensureLoadedBundler(entry);
+            }
+          }
+
+          respond({ type: 'initialized', requestId });
           break;
         }
 
@@ -83,21 +101,23 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
             message.file,
             message.params,
             (parametersResult) => {
-              respond({ type: 'parametersResolved', result: parametersResult });
+              respond({ type: 'parametersResolved', requestId, result: parametersResult });
             },
             (phase) => {
-              respond({ type: 'progress', phase });
+              respond({ type: 'progress', requestId, phase });
             },
           );
           const transferables = extractGltfTransferables(result);
 
-          respond({ type: 'geometryComputed', result }, transferables);
+          flushLogs();
+          worker.flushTelemetry();
+          respond({ type: 'geometryComputed', requestId, result }, transferables);
           break;
         }
 
         case 'canHandle': {
           const canHandle = await worker[kernelSymbols.canHandleEntry](message.file);
-          respond({ type: 'canHandleResult', result: canHandle });
+          respond({ type: 'canHandleResult', requestId, result: canHandle });
           break;
         }
 
@@ -113,7 +133,11 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
 
         case 'export': {
           const exportResult = await worker[kernelSymbols.exportGeometryEntry](message.format, message.meshConfig);
-          respond({ type: 'exported', result: exportResult });
+          respond({ type: 'exported', requestId, result: exportResult });
+          break;
+        }
+
+        case 'cancel': {
           break;
         }
 
@@ -126,6 +150,7 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
       const errorMessage = error instanceof Error ? error.message : String(error);
       respond({
         type: 'error',
+        requestId,
         issues: [{ message: errorMessage, type: 'runtime', severity: 'error' }],
       });
     }
