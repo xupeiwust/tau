@@ -105,6 +105,13 @@ export type KernelWorkerEntry = {
   /** For JS/TS kernels: regex to match against file content to determine if this kernel handles it. */
   detectImport?: RegExp;
   /**
+   * Bare-specifier module names this kernel provides (e.g. ['replicad'], ['@jscad/modeling']).
+   * Used by the framework for bundle-based transitive detection: the bundler's detectImports()
+   * reports which modules are imported, and the framework matches them against these names
+   * to select the correct kernel.
+   */
+  builtinModuleNames?: string[];
+  /**
    * URL of the defineKernel module for this kernel (e.g. replicad.kernel.js).
    * The runtime worker dynamically imports this module to load the kernel.
    */
@@ -171,6 +178,41 @@ export type MiddlewareEntry = {
  * ```
  */
 export type MiddlewareConfig = MiddlewareEntry[];
+
+// =============================================================================
+// Bundler Configuration Types
+// =============================================================================
+
+/**
+ * A single bundler registration.
+ * The worker dynamically imports the module at `bundlerModuleUrl` and resolves it
+ * as a BundlerDefinition. The `extensions` field declares which file types this
+ * bundler handles; the framework routes detectImports/bundle calls accordingly.
+ *
+ * @example
+ * ```ts
+ * { bundlerModuleUrl: esbuildBundlerUrl, extensions: ['ts', 'js', 'tsx', 'jsx'] }
+ * ```
+ */
+export type BundlerEntry = {
+  /** URL of the bundler module (obtained via `?url` import at build time) */
+  bundlerModuleUrl: string;
+  /** File extensions this bundler handles */
+  extensions: string[];
+};
+
+/**
+ * Array of bundler registrations.
+ * The framework selects the appropriate bundler by matching file extension.
+ *
+ * @example
+ * ```ts
+ * const config: BundlerConfig = [
+ *   { bundlerModuleUrl: esbuildBundlerUrl, extensions: ['ts', 'js', 'tsx', 'jsx'] },
+ * ];
+ * ```
+ */
+export type BundlerConfig = BundlerEntry[];
 
 /**
  * Public interface for kernel workers as exposed via Comlink.
