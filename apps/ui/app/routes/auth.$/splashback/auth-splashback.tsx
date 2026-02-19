@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMachine, useSelector } from '@xstate/react';
 import { Check } from 'lucide-react';
+import type { KernelConfig, MiddlewareConfig } from '@taucad/types';
 import { authSplashbackMachine, timing as machineTiming } from '#routes/auth.$/splashback/auth-splashback.machine.js';
 import { UnifiedSplashbackViewer } from '#routes/auth.$/splashback/unified-splashback-viewer.js';
 import type { SplashbackPhase } from '#routes/auth.$/splashback/unified-splashback-viewer.js';
@@ -10,10 +11,30 @@ import { Loader } from '#components/ui/loader.js';
 import { useCadFiles } from '#hooks/use-cad-files.js';
 import { encodeTextFile } from '#utils/filesystem.utils.js';
 import gearJscad from '#routes/auth.$/splashback/gear.jscad.js?raw';
+import jscadKernelModuleUrl from '#components/geometry/kernel/jscad/jscad.kernel.js?url';
+import parameterCacheUrl from '#components/geometry/kernel/middleware/parameter-cache.middleware.js?url';
+import geometryCacheUrl from '#components/geometry/kernel/middleware/geometry-cache.middleware.js?url';
+import gltfCoordinateTransformUrl from '#components/geometry/kernel/middleware/gltf-coordinate-transform.middleware.js?url';
 import {
   morphPointCount,
   assemblySplitRatio as defaultAssemblySplitRatio,
 } from '#routes/auth.$/splashback/auth-splashback.constants.js';
+
+const jscadOnlyKernelConfig: KernelConfig = [
+  {
+    id: 'jscad',
+    extensions: ['ts', 'js'],
+    detectImport: /import\s+.*from\s+['"]@jscad\/modeling(\/[^'"]*)?['"]/,
+    builtinModuleNames: ['@jscad/modeling'],
+    kernelModuleUrl: jscadKernelModuleUrl,
+  },
+];
+
+const splashbackMiddlewareConfig: MiddlewareConfig = [
+  { url: parameterCacheUrl },
+  { url: geometryCacheUrl },
+  { url: gltfCoordinateTransformUrl },
+];
 
 const prompt1Text = 'Create a gear with 12 teeth';
 const prompt2Text = 'Change it to 8 teeth';
@@ -570,6 +591,8 @@ export function AuthSplashback(): React.JSX.Element {
     files: gearFiles,
     parameters: {},
     enabled: showContainer,
+    kernelConfig: jscadOnlyKernelConfig,
+    middlewareConfig: splashbackMiddlewareConfig,
   });
 
   // Extract individual geometries
