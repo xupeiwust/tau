@@ -16,11 +16,10 @@ import type {
 } from '@taucad/types';
 import { isKernelSuccess } from '@taucad/types/guards';
 import type { JSONSchema7 } from 'json-schema';
+import { KernelWorkerClient, createFileManagerPort } from '@taucad/kernels';
+import type { OnLogCallback, OnTelemetryCallback } from '@taucad/kernels';
 import type { FileManagerMachine } from '#machines/file-manager.machine.js';
-import { KernelWorkerClient } from '#components/geometry/kernel/utils/kernel-worker-client.js';
-import type { OnLogCallback, OnTelemetryCallback } from '#components/geometry/kernel/utils/kernel-worker-client.js';
-import { createFileManagerPort } from '#components/geometry/kernel/utils/kernel-worker-filemanager-bridge.js';
-import runtimeWorkerUrl from '#components/geometry/kernel/kernel-runtime-worker.js?url';
+import { runtimeWorkerUrl } from '#constants/kernel-worker.constants.js';
 
 /**
  * Forward worker telemetry entries to the CAD machine for UI display.
@@ -128,6 +127,11 @@ const renderActor = fromCallback<RenderEvent, RenderInput>(({ input, sendBack })
   void (async () => {
     try {
       const client = await ensureRuntimeWorkerClient(context);
+
+      if (context.changedPaths.length > 0) {
+        client.notifyFileChanged(context.changedPaths);
+      }
+
       const canHandle = await client.canHandle(file);
 
       if (!canHandle) {
@@ -143,10 +147,6 @@ const renderActor = fromCallback<RenderEvent, RenderInput>(({ input, sendBack })
           ],
         });
         return;
-      }
-
-      if (context.changedPaths.length > 0) {
-        client.notifyFileChanged(context.changedPaths);
       }
 
       const result = await client.render(

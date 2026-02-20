@@ -1,15 +1,18 @@
 import type { KernelConfig, MiddlewareConfig, BundlerConfig } from '@taucad/types';
-import tauKernelModuleUrl from '#components/geometry/kernel/tau/tau.kernel.js?url';
-import replicadKernelModuleUrl from '#components/geometry/kernel/replicad/replicad.kernel.js?url';
-import jscadKernelModuleUrl from '#components/geometry/kernel/jscad/jscad.kernel.js?url';
-import openscadKernelModuleUrl from '#components/geometry/kernel/openscad/openscad.kernel.js?url';
-import zooKernelModuleUrl from '#components/geometry/kernel/zoo/zoo.kernel.js?url';
-import esbuildBundlerUrl from '#components/geometry/kernel/bundlers/esbuild.bundler.js?url';
-import parameterCacheUrl from '#components/geometry/kernel/middleware/parameter-cache.middleware.js?url';
-import geometryCacheUrl from '#components/geometry/kernel/middleware/geometry-cache.middleware.js?url';
-import gltfCoordinateTransformUrl from '#components/geometry/kernel/middleware/gltf-coordinate-transform.middleware.js?url';
-import gltfEdgeDetectionUrl from '#components/geometry/kernel/middleware/gltf-edge-detection.middleware.js?url';
+import { createDefaultConfig } from '@taucad/kernels';
 import { ENV } from '#environment.config.js';
+
+const baseConfig = createDefaultConfig({
+  kernels: {
+    zoo: { options: { baseUrl: `${ENV.TAU_WEBSOCKET_URL}/v1/kernels/zoo` } },
+    replicad: {
+      options: {
+        withExceptions: false,
+        meshConfiguration: { linearTolerance: 0.1, angularTolerance: 0.1 },
+      },
+    },
+  },
+});
 
 /**
  * Default kernel configuration optimized for fast previews.
@@ -18,47 +21,9 @@ import { ENV } from '#environment.config.js';
  * Use `debugKernelConfig` in the editor for detailed error feedback.
  *
  * Array order defines `canHandle` priority -- the first kernel whose worker
- * reports it can handle a file wins. Append entries to extend with third-party
- * kernels, or spread and filter to customize.
- *
- * @example Adding a third-party kernel
- * ```ts
- * import { defaultKernelConfig } from '#constants/kernel-workers.js';
- *
- * const extendedConfig: KernelConfig = [
- *   ...defaultKernelConfig,
- *   { id: 'manifold', kernelModuleUrl: manifoldKernelUrl },
- * ];
- * ```
+ * reports it can handle a file wins.
  */
-export const defaultKernelConfig: KernelConfig = [
-  { id: 'openscad', extensions: ['scad'], kernelModuleUrl: openscadKernelModuleUrl },
-  {
-    id: 'zoo',
-    extensions: ['kcl'],
-    options: { baseUrl: `${ENV.TAU_WEBSOCKET_URL}/v1/kernels/zoo` },
-    kernelModuleUrl: zooKernelModuleUrl,
-  },
-  {
-    id: 'replicad',
-    extensions: ['ts', 'js'],
-    detectImport: /import.*from\s+['"]replicad['"]/s,
-    builtinModuleNames: ['replicad'],
-    options: {
-      withExceptions: false,
-      meshConfiguration: { linearTolerance: 0.1, angularTolerance: 0.1 },
-    },
-    kernelModuleUrl: replicadKernelModuleUrl,
-  },
-  {
-    id: 'jscad',
-    extensions: ['ts', 'js'],
-    detectImport: /import\s+.*from\s+['"]@jscad\/modeling(\/[^'"]*)?['"]/,
-    builtinModuleNames: ['@jscad/modeling'],
-    kernelModuleUrl: jscadKernelModuleUrl,
-  },
-  { id: 'tau', extensions: ['*'], kernelModuleUrl: tauKernelModuleUrl },
-];
+export const defaultKernelConfig: KernelConfig = baseConfig.kernelConfig;
 
 /**
  * Debug kernel configuration for the editor.
@@ -83,12 +48,7 @@ export const debugKernelConfig: KernelConfig = defaultKernelConfig.map((entry) =
  * Edge detection is innermost so coordinate transform can transform both
  * mesh and edge primitives on the return journey.
  */
-export const defaultMiddlewareConfig: MiddlewareConfig = [
-  { url: parameterCacheUrl },
-  { url: geometryCacheUrl },
-  { url: gltfCoordinateTransformUrl },
-  { url: gltfEdgeDetectionUrl },
-];
+export const defaultMiddlewareConfig: MiddlewareConfig = baseConfig.middlewareConfig;
 
 /**
  * Default bundler configuration.
@@ -97,6 +57,9 @@ export const defaultMiddlewareConfig: MiddlewareConfig = [
  * (replicad, jscad). Non-JS kernels (OpenSCAD, KCL, Tau) resolve dependencies
  * internally and never invoke the bundler.
  */
-export const defaultBundlerConfig: BundlerConfig = [
-  { bundlerModuleUrl: esbuildBundlerUrl, extensions: ['ts', 'js', 'tsx', 'jsx'] },
-];
+export const defaultBundlerConfig: BundlerConfig = baseConfig.bundlerConfig;
+
+/**
+ * Runtime worker URL for creating new Worker instances.
+ */
+export const runtimeWorkerUrl = baseConfig.workerUrl;
