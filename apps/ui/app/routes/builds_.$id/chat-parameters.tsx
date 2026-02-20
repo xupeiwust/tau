@@ -1,6 +1,7 @@
 import { XIcon, SlidersHorizontal, Search, ChevronRight, RefreshCcw } from 'lucide-react';
 import { useCallback, memo, useState } from 'react';
 import { useSelector } from '@xstate/react';
+import { hasJsonSchemaObjectProperties } from '@taucad/utils/schema';
 import { KeyShortcut } from '#components/ui/key-shortcut.js';
 import {
   FloatingPanel,
@@ -15,7 +16,6 @@ import {
   FloatingPanelTrigger,
 } from '#components/ui/floating-panel.js';
 import { cn } from '#utils/ui.utils.js';
-import { hasJsonSchemaObjectProperties } from '#utils/schema.utils.js';
 import { useKeybinding } from '#hooks/use-keyboard.js';
 import type { KeyCombination } from '#utils/keys.utils.js';
 import { formatKeyCombination } from '#utils/keys.utils.js';
