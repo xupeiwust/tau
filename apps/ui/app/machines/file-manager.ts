@@ -41,9 +41,13 @@ let writeQueue: Promise<void> = Promise.resolve();
  * operation failed, the next one still runs (errors don't block the queue).
  */
 async function serialized<T>(operation: () => Promise<T>): Promise<T> {
-  // eslint-disable-next-line promise/prefer-await-to-then -- Intentional promise chaining for queue serialization
-  const result = writeQueue.catch(operation).then(operation);
-  // Update the queue tail, swallowing errors so the chain never rejects
+  const result = writeQueue
+    // eslint-disable-next-line promise/prefer-await-to-then -- Intentional promise chaining for queue serialization
+    .catch(() => {
+      // Swallow previous error so the queue continues
+    })
+    // eslint-disable-next-line promise/prefer-await-to-then -- Intentional promise chaining for queue serialization
+    .then(async () => operation());
 
   writeQueue = result
     // eslint-disable-next-line promise/prefer-await-to-then -- Intentional promise chaining for queue serialization
@@ -231,13 +235,17 @@ export const fileManager: FileManager = {
   async writeFiles(files: Record<string, { content: Uint8Array<ArrayBuffer> }>): Promise<void> {
     return serialized(async () => {
       await ensureReady();
+      const createdDirs = new Set<string>();
+
       for (const [path, file] of Object.entries(files)) {
-        // Ensure parent directory exists before writing
         const lastSlashIndex = path.lastIndexOf('/');
         if (lastSlashIndex > 0) {
           const directoryPath = path.slice(0, lastSlashIndex);
-          // eslint-disable-next-line no-await-in-loop -- Sequential writes required to prevent ZenFS race condition
-          await ensureDirectoryExistsInternal(directoryPath);
+          if (!createdDirs.has(directoryPath)) {
+            // eslint-disable-next-line no-await-in-loop -- Sequential writes required to prevent ZenFS race condition
+            await ensureDirectoryExistsInternal(directoryPath);
+            createdDirs.add(directoryPath);
+          }
         }
 
         // eslint-disable-next-line no-await-in-loop -- Sequential writes required to prevent ZenFS race condition
@@ -303,11 +311,6 @@ export const fileManager: FileManager = {
   // Get all file stats in a directory recursively as an array of file stat objects
   async getDirectoryStat(path: string): Promise<FileStat[]> {
     await ensureReady();
-    // Check if directory exists first - return empty array if it doesn't
-    const directoryExists = await this.exists(path);
-    if (!directoryExists) {
-      return [];
-    }
 
     const fileStats: FileStat[] = [];
 
@@ -341,29 +344,47 @@ export const fileManager: FileManager = {
       }
     };
 
-    await collectStatsRecursive(path, path);
+    try {
+      await collectStatsRecursive(path, path);
+    } catch {
+      return [];
+    }
+
     return fileStats;
   },
 
   // Get all files in a directory recursively as a map of relative paths to file contents
   async getDirectoryContents(path: string): Promise<Record<string, Uint8Array<ArrayBuffer>>> {
     await ensureReady();
-    const fileStats = await this.getDirectoryStat(path);
 
-    const fileContents = await Promise.all(
-      fileStats.map(async (fileStat) => {
-        const fullPath = joinPath(path, fileStat.path);
-        const buffer = await fsp.readFile(fullPath);
-        const content = new Uint8Array(asBuffer(buffer.buffer), buffer.byteOffset, buffer.byteLength);
-        return { path: fileStat.path, content };
-      }),
-    );
-
-    const files: Record<string, Uint8Array<ArrayBuffer>> = {};
-    for (const { path: filePath, content } of fileContents) {
-      files[filePath] = content;
+    const directoryExists = await this.exists(path);
+    if (!directoryExists) {
+      return {};
     }
 
+    const files: Record<string, Uint8Array<ArrayBuffer>> = {};
+
+    const collectRecursive = async (currentPath: string, basePath: string): Promise<void> => {
+      const entries = await fsp.readdir(currentPath);
+
+      for (const entry of entries) {
+        const fullPath = joinPath(currentPath, entry);
+        // eslint-disable-next-line no-await-in-loop -- Need to process directories sequentially
+        const stats = await fsp.stat(fullPath);
+
+        if (stats.isFile()) {
+          const relativePath = basePath === '/' ? fullPath.slice(1) : fullPath.slice(basePath.length + 1);
+          // eslint-disable-next-line no-await-in-loop -- Need to read files sequentially
+          const buffer = await fsp.readFile(fullPath);
+          files[relativePath] = new Uint8Array(asBuffer(buffer.buffer), buffer.byteOffset, buffer.byteLength);
+        } else {
+          // eslint-disable-next-line no-await-in-loop -- Need to process directories sequentially
+          await collectRecursive(fullPath, basePath);
+        }
+      }
+    };
+
+    await collectRecursive(path, path);
     return files;
   },
 

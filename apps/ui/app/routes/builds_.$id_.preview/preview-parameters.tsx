@@ -6,27 +6,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.
 import { Parameters } from '#components/geometry/parameters/parameters.js';
 import { cn } from '#utils/ui.utils.js';
 import { hasJsonSchemaObjectProperties } from '#utils/schema.utils.js';
-import { useBuild, useMainGraphics } from '#hooks/use-build.js';
+import { useCadPreview } from '#hooks/use-cad-preview.js';
 
 export function PreviewParameters(): React.JSX.Element {
-  const { compilationUnits, mainEntryFile } = useBuild();
-  const graphicsActor = useMainGraphics();
-  const cadActor = compilationUnits.get(mainEntryFile);
-  const parameters = useSelector(cadActor, (snapshot) => snapshot?.context.parameters ?? {});
-  const defaultParameters = useSelector(cadActor, (snapshot) => snapshot?.context.defaultParameters ?? {});
-  const jsonSchema = useSelector(cadActor, (snapshot) => snapshot?.context.jsonSchema);
-  const units = useSelector(graphicsActor, (state) => state?.context.units) ?? {
-    length: { symbol: 'mm' as const, factor: 1 },
-  };
+  const { cadRef, graphicsRef, defaultParameters, jsonSchema, setParameters } = useCadPreview();
+  const parameters = useSelector(cadRef, (snapshot) => snapshot.context.parameters);
+  const units = useSelector(graphicsRef, (state) => state.context.units);
 
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isAllExpanded, setIsAllExpanded] = useState(true);
 
   const handleParametersChange = useCallback(
     (newParameters: Record<string, unknown>) => {
-      cadActor?.send({ type: 'setParameters', parameters: newParameters });
+      setParameters(newParameters);
     },
-    [cadActor],
+    [setParameters],
   );
 
   const toggleSearch = useCallback(() => {
@@ -38,8 +32,8 @@ export function PreviewParameters(): React.JSX.Element {
   }, []);
 
   const resetAllParameters = useCallback(() => {
-    cadActor?.send({ type: 'setParameters', parameters: {} });
-  }, [cadActor]);
+    setParameters({});
+  }, [setParameters]);
 
   const hasModifiedParameters = Object.keys(parameters).length > 0;
 
