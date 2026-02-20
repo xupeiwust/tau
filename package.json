@@ -277,7 +277,8 @@
   "pnpm": {
     "patchedDependencies": {
       "@kittycad/lib": "patches/@kittycad__lib.patch",
-      "replicad": "patches/replicad.patch"
+      "replicad": "patches/replicad.patch",
+      "@zenfs/core@2.4.4": "patches/@zenfs__core@2.4.4.patch"
     },
     "onlyBuiltDependencies": [
       "@nestjs/core",
