@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { KernelFilesystem } from '@taucad/types';
 
 import type { PluginBuild } from 'esbuild-wasm';
-import { createZenFsPlugin, httpFetchMaxSizeBytes } from '#bundler/esbuild.bundler.js';
+import { createZenFsPlugin, httpFetchMaxSizeBytes } from '#bundler/esbuild-core.js';
 import { ModuleManager } from '#bundler/module-manager.js';
 
 // Mock esbuild-wasm to prevent its environment invariant check from failing in jsdom
