@@ -13,11 +13,7 @@
 
 import type { ExportFormat, FileStat } from '#types/file.types.js';
 import type { LogLevel } from '#types/logger.types.js';
-import type {
-  ExportGeometryResult,
-  GetParametersResult,
-  KernelIssue,
-} from '#types/kernel.types.js';
+import type { ExportGeometryResult, GetParametersResult, KernelIssue } from '#types/kernel.types.js';
 import type { GeometryResponse } from '#types/cad.types.js';
 import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
 import type { ExecuteResult, KernelBundler } from '#types/kernel-bundler.types.js';

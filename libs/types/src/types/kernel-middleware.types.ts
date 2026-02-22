@@ -6,11 +6,7 @@
  */
 
 import type { PartialDeep } from 'type-fest';
-import type {
-  CreateGeometryResult,
-  ExportGeometryResult,
-  GetParametersResult,
-} from '#types/kernel.types.js';
+import type { CreateGeometryResult, ExportGeometryResult, GetParametersResult } from '#types/kernel.types.js';
 import type { Dependency } from '#types/kernel-dependency.types.js';
 import type {
   KernelLogger,
