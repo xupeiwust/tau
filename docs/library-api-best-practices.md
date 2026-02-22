@@ -47,7 +47,7 @@ replicad({ options: { exceptions: { enabled: true }, mesh: { tolerances: { linea
 
 Organize `package.json` exports by what each audience needs, not by internal file structure.
 
-```
+```text
 @taucad/kernels                -- createKernelClient, presets, types (consumer)
 @taucad/kernels/kernels        -- replicad(), openscad() factories (consumer)
 @taucad/kernels/middleware     -- defineMiddleware(), cache factories (author + consumer)
