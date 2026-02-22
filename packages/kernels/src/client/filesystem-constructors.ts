@@ -155,6 +155,10 @@ export function fromMemoryFS(files?: Record<string, string>): KernelFileSystem {
     },
     async mkdir(dirPath: string): Promise<void> {
       dirs.add(dirPath);
+      const parts = dirPath.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        dirs.add(parts.slice(0, i).join('/'));
+      }
     },
     async readdir(dirPath: string): Promise<string[]> {
       const prefix = dirPath.endsWith('/') ? dirPath : `${dirPath}/`;

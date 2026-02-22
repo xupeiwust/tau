@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { configure, fs } from '@zenfs/core';
 import { InMemory } from '@zenfs/core/backends/memory.js';
-import { fromZenFS } from '#client/filesystem-constructors.js';
+import { fromZenFS, fromMemoryFS } from '#client/filesystem-constructors.js';
 import { fromProxy } from '#filesystem/from-proxy.js';
 
 describe('filesystem constructors', () => {
@@ -102,6 +102,59 @@ describe('filesystem constructors', () => {
 
       const content = await fileSystem.readFile('/scoped.txt', 'utf8');
       expect(content).toBe('scoped data');
+    });
+  });
+
+  describe('fromMemoryFS', () => {
+    it('should mkdir and create all parent directories', async () => {
+      const fileSystem = fromMemoryFS();
+
+      await fileSystem.mkdir('/a/b/c');
+
+      expect(await fileSystem.exists('/a/b/c')).toBe(true);
+      expect(await fileSystem.exists('/a/b')).toBe(true);
+      expect(await fileSystem.exists('/a')).toBe(true);
+    });
+
+    it('should make parent directories visible via stat', async () => {
+      const fileSystem = fromMemoryFS();
+
+      await fileSystem.mkdir('/x/y/z');
+
+      const statX = await fileSystem.stat('/x');
+      expect(statX.type).toBe('dir');
+
+      const statXy = await fileSystem.stat('/x/y');
+      expect(statXy.type).toBe('dir');
+    });
+
+    it('should list children created by mkdir in readdir', async () => {
+      const fileSystem = fromMemoryFS();
+
+      await fileSystem.mkdir('/parent/child');
+
+      const entries = await fileSystem.readdir('/parent');
+      expect(entries).toContain('child');
+    });
+
+    it('should list deeply nested mkdir directories via readdir', async () => {
+      const fileSystem = fromMemoryFS();
+
+      await fileSystem.mkdir('/a/b/c/d');
+
+      expect(await fileSystem.readdir('/a')).toContain('b');
+      expect(await fileSystem.readdir('/a/b')).toContain('c');
+      expect(await fileSystem.readdir('/a/b/c')).toContain('d');
+    });
+
+    it('should read and write files in directories created by mkdir', async () => {
+      const fileSystem = fromMemoryFS();
+
+      await fileSystem.mkdir('/project/src');
+      await fileSystem.writeFile('/project/src/index.ts', 'export {}');
+
+      const content = await fileSystem.readFile('/project/src/index.ts', 'utf8');
+      expect(content).toBe('export {}');
     });
   });
 
