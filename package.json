@@ -125,6 +125,7 @@
     "es-cookie": "^1.5.0",
     "es-module-lexer": "catalog:",
     "esbuild-wasm": "catalog:",
+    "eslint-plugin-jsdoc": "catalog:",
     "fastify": "^5.4.0",
     "fumadocs-core": "^16.0.14",
     "fumadocs-mdx": "^14.0.2",
