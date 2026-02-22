@@ -122,7 +122,7 @@ Previously, all 5 kernels were loaded eagerly (~90 MB per CadMachine).
 
 ## KernelFileSystem
 
-8 required methods matching Node.js `fs.promises.*`. All paths are absolute.
+7 required methods matching Node.js `fs.promises.*`. All paths are absolute.
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
@@ -308,7 +308,7 @@ Kernel modules define geometry computation logic. Each kernel is an ES module lo
 The kernel machine communicates with the worker via typed MessagePort events through the `KernelTransport` interface:
 
 - All request/response commands carry a `requestId` for correlation
-- Fire-and-forget commands (`fileChanged`) have no requestId
+- Fire-and-forget commands (`fileChanged`, `configureMiddleware`, `cleanup`) have no requestId
 - `cancel` command allows in-flight operations to be stopped
 - `progress` events stream render phase transitions to the UI
 - `telemetry` events batch performance entries for the kernel panel
