@@ -54,11 +54,19 @@ export async function getDirectoryContents(
   const names = await fs.readdir(dirPath);
   const entries = await Promise.all(
     names.map(async (name) => {
-      const content = await fs.readFile(`${dirPath}/${name}`);
+      const fullPath = `${dirPath}/${name}`;
+      const fileStat = await fs.stat(fullPath);
+      if (fileStat.type === 'dir') {
+        return undefined;
+      }
+
+      const content = await fs.readFile(fullPath);
       return [name, content] as const;
     }),
   );
-  return Object.fromEntries(entries) as Record<string, Uint8Array<ArrayBuffer>>;
+  return Object.fromEntries(
+    entries.filter((entry): entry is readonly [string, Uint8Array<ArrayBuffer>] => entry !== undefined),
+  ) as Record<string, Uint8Array<ArrayBuffer>>;
 }
 
 /**
