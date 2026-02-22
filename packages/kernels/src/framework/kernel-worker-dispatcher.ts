@@ -66,12 +66,12 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
     try {
       switch (message.type) {
         case 'initialize': {
-          let fileManagerPort: MessagePort | undefined;
-          if ('fileManagerPort' in message && message.fileManagerPort) {
-            fileManagerPort = message.fileManagerPort;
+          let fileSystemPort: MessagePort | undefined;
+          if ('fileSystemPort' in message && message.fileSystemPort) {
+            fileSystemPort = message.fileSystemPort;
           }
 
-          await worker.initializeEntry({ onLog }, { fileManagerPort }, message.options, message.middlewareEntries);
+          await worker.initializeEntry({ onLog }, { fileSystemPort }, message.options, message.middlewareEntries);
 
           if (message.bundlerEntries) {
             for (const entry of message.bundlerEntries) {

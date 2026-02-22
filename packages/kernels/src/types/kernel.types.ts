@@ -254,7 +254,7 @@ export type BundlerEntries = BundlerEntry[];
 export type KernelWorkerInterface = {
   initializeEntry(
     callbacks: { onLog: OnWorkerLog },
-    transferables: { fileManagerPort?: MessagePort },
+    transferables: { fileSystemPort?: MessagePort },
     options: Record<string, unknown>,
     middlewareEntries: MiddlewareEntries,
   ): Promise<void>;

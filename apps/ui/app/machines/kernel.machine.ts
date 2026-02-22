@@ -8,10 +8,10 @@ import type {
   KernelClientOptions,
   KernelIssue,
   GetParametersResult,
-  KernelFileSystem,
   PerformanceEntryData,
   RenderPhase,
 } from '@taucad/kernels';
+import { createFileSystemBridge } from '@taucad/kernels/filesystem';
 import type { FileManagerMachine } from '#machines/file-manager.machine.js';
 
 /**
@@ -29,11 +29,10 @@ async function ensureKernelClient(context: KernelContext): Promise<KernelClient>
   }
 
   const snapshot = await waitFor(context.fileManagerRef, (state) => state.matches('ready'));
-  if (!snapshot.context.wrappedWorker) {
+  if (!snapshot.context.worker) {
     throw new Error('File manager worker not available');
   }
 
-  const fm = snapshot.context.wrappedWorker;
   const client = createKernelClient(context.kernelOptions);
   context.kernelClient = client;
 
@@ -57,21 +56,10 @@ async function ensureKernelClient(context: KernelContext): Promise<KernelClient>
     );
   }
 
-  // Adapt the Comlink Remote<FileManager> to the KernelFileSystem interface.
-  // All methods use arrow functions to avoid Comlink Proxy traps intercepting
-  // .apply/.bind calls when the bridge dispatches via fn(...args).
-  await client.connect({
-    fileSystem: {
-      readFile: (async (path: string, encoding?: 'utf8') =>
-        encoding ? fm.readFile(path, encoding) : fm.readFile(path)) as KernelFileSystem['readFile'],
-      writeFile: async (path, data) => fm.writeFile(path, data),
-      mkdir: async (path, options) => fm.mkdir(path, options),
-      readdir: async (path) => fm.readdir(path),
-      unlink: async (path) => fm.unlink(path),
-      stat: async (path) => fm.stat(path),
-      exists: async (path) => fm.exists(path),
-    },
-  });
+  // Direct worker-to-worker bridge: main thread only creates the channel,
+  // filesystem calls go directly between kernel worker and FM worker.
+  const port = createFileSystemBridge(snapshot.context.worker);
+  await client.connect({ port });
 
   return client;
 }

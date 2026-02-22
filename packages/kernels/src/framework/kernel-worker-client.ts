@@ -66,7 +66,7 @@ export class KernelWorkerClient {
   /** Send an initialize command to the worker with options, file manager port, and plugin configs. */
   public async initialize(
     options: Record<string, unknown>,
-    fileManagerPort: MessagePort,
+    fileSystemPort: MessagePort,
     middlewareEntries: MiddlewareEntries,
     bundlerEntries?: BundlerEntries,
   ): Promise<void> {
@@ -78,9 +78,9 @@ export class KernelWorkerClient {
         options,
         middlewareEntries,
         bundlerEntries,
-        fileManagerPort,
+        fileSystemPort,
       };
-      this.transport.send(command, [fileManagerPort]);
+      this.transport.send(command, [fileSystemPort]);
     });
   }
 

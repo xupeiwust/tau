@@ -1,24 +1,17 @@
 /**
- * FileManager MessagePort Bridge
+ * FileSystem MessagePort Bridge
  *
  * Creates a MessageChannel-based bridge between a KernelFileSystem implementation
  * and a kernel worker. Proxies only the 8 required KernelFileSystem methods.
  *
- * Production: the bridge proxies calls from kernel worker -> main thread FileManager.
- * Tests: the bridge proxies calls from kernel worker -> in-process fileManager directly.
+ * Production: the bridge proxies calls from kernel worker -> file-manager worker.
+ * Tests: the bridge proxies calls from kernel worker -> in-process filesystem directly.
  */
 
 import type { KernelFileSystem } from '#types/kernel-worker.types.js';
 
-/**
- * Portable FileManager interface for kernel worker communication.
- * Self-contained -- does not import the UI app's FileManager class.
- * Any object that implements these methods can be bridged to a kernel worker.
- */
-export type KernelFileManager = KernelFileSystem;
-
-type FileManagerPortable = {
-  [K in keyof KernelFileManager]: (...args: never[]) => Promise<unknown> | void;
+type FileSystemPortable = {
+  [K in keyof KernelFileSystem]: (...args: never[]) => Promise<unknown> | void;
 };
 
 type BridgeRequest = {
@@ -34,39 +27,48 @@ type BridgeResponse = {
 };
 
 /**
- * Create a MessagePort that bridges to a KernelFileSystem implementation.
+ * Serve a KernelFileSystem over a MessagePort.
  *
- * Sets up a MessageChannel. On port1, incoming `{ id, method, args }` messages
- * are dispatched to the fileManager and responded to with `{ id, result }` or `{ id, error }`.
- * Returns port2, which the kernel worker uses via `createFileManagerProxy()`.
+ * Sets up a message handler on the given port. Incoming `{ id, method, args }`
+ * messages are dispatched to the filesystem and responded to with `{ id, result }`
+ * or `{ id, error }`. Can run in any context: main thread, worker, or Node.js.
  *
- * @param fileManager - A KernelFileSystem implementation (all methods are async-compatible)
- * @returns MessagePort to pass to the kernel worker
+ * @param fileSystem - A KernelFileSystem implementation to serve
+ * @param port - MessagePort to listen on
  */
-export function createFileManagerPort(fileManager: FileManagerPortable): MessagePort {
-  const channel = new MessageChannel();
-
+export function createFileSystemServer(fileSystem: FileSystemPortable, port: MessagePort): void {
   // eslint-disable-next-line unicorn/prefer-add-event-listener -- MessagePort requires onmessage (implicitly calls start(); addEventListener does not)
-  channel.port1.onmessage = async (event: MessageEvent<BridgeRequest>): Promise<void> => {
+  port.onmessage = async (event: MessageEvent<BridgeRequest>): Promise<void> => {
     const { id, method, args } = event.data;
 
-    const fn = fileManager[method as keyof KernelFileManager] as
-      | ((...fnArgs: unknown[]) => Promise<unknown>)
-      | undefined;
+    const fn = fileSystem[method as keyof KernelFileSystem] as ((...fnArgs: unknown[]) => Promise<unknown>) | undefined;
     if (!fn) {
-      channel.port1.postMessage({ id, error: `Unknown method: ${method}` } satisfies BridgeResponse);
+      port.postMessage({ id, error: `Unknown method: ${method}` } satisfies BridgeResponse);
       return;
     }
 
     try {
       const result: unknown = await fn(...args);
-      channel.port1.postMessage({ id, result } satisfies BridgeResponse);
+      port.postMessage({ id, result } satisfies BridgeResponse);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      channel.port1.postMessage({ id, error: message } satisfies BridgeResponse);
+      port.postMessage({ id, error: message } satisfies BridgeResponse);
     }
   };
+}
 
+/**
+ * Create a MessagePort that bridges to a KernelFileSystem implementation.
+ *
+ * Convenience wrapper: creates a MessageChannel, serves the filesystem on port1
+ * via `createFileSystemServer`, and returns port2 for the consumer.
+ *
+ * @param fileSystem - A KernelFileSystem implementation (all methods are async-compatible)
+ * @returns MessagePort to pass to the kernel worker
+ */
+export function createFileSystemPort(fileSystem: FileSystemPortable): MessagePort {
+  const channel = new MessageChannel();
+  createFileSystemServer(fileSystem, channel.port1);
   return channel.port2;
 }
 
@@ -76,12 +78,12 @@ export function createFileManagerPort(fileManager: FileManagerPortable): Message
  * Each method call sends a `{ id, method, args }` message and waits for
  * the matching `{ id, result }` or `{ id, error }` response.
  *
- * Used inside the kernel worker to replace `wrap<FileManager>(port)` from Comlink.
+ * Used inside the kernel worker to consume a filesystem served over a MessagePort.
  *
- * @param port - MessagePort connected to a FileManager bridge
+ * @param port - MessagePort connected to a filesystem bridge
  * @returns KernelFileSystem interface backed by the port
  */
-export function createFileManagerProxy(port: MessagePort): KernelFileManager {
+export function createFileSystemProxy(port: MessagePort): KernelFileSystem {
   let nextId = 0;
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 

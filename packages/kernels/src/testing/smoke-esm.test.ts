@@ -11,11 +11,23 @@ describe('ESM import smoke tests', () => {
     expect(mod).toBeDefined();
     expect(mod.createDefaultConfig).toBeTypeOf('function');
     expect(mod.KernelWorkerClient).toBeTypeOf('function');
-    expect(mod.createFileManagerPort).toBeTypeOf('function');
+    expect(mod.createFileSystemPort).toBeTypeOf('function');
+    expect(mod.fromZenFS).toBeTypeOf('function');
     expect(mod.createKernelSuccess).toBeTypeOf('function');
     expect(mod.createKernelError).toBeTypeOf('function');
     expect(mod.defineKernel).toBeTypeOf('function');
     expect(mod.defineBundler).toBeTypeOf('function');
+  });
+
+  it('should resolve the filesystem subpath', async () => {
+    const mod = await import('#filesystem/index.js');
+    expect(mod).toBeDefined();
+    expect(mod.exposeFileSystem).toBeTypeOf('function');
+    expect(mod.createFileSystemBridge).toBeTypeOf('function');
+    expect(mod.createFileSystemServer).toBeTypeOf('function');
+    expect(mod.createFileSystemProxy).toBeTypeOf('function');
+    expect(mod.createFileSystemPort).toBeTypeOf('function');
+    expect(mod.fromProxy).toBeTypeOf('function');
   });
 
   it('should resolve the middleware entry point', async () => {

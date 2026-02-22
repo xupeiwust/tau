@@ -10,7 +10,7 @@ import type { CreateGeometryResultCompleted, ExportGeometryResult, GetParameters
 import type { KernelFileSystem, Tessellation } from '#types/kernel-worker.types.js';
 import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
 import { KernelWorkerClient } from '#framework/kernel-worker-client.js';
-import { createFileManagerPort } from '#framework/kernel-worker-filemanager-bridge.js';
+import { createFileSystemPort } from '#framework/kernel-filesystem-bridge.js';
 import { createWorkerTransport } from '#transport/worker-transport.js';
 import type { KernelTransport } from '#transport/kernel-transport.js';
 import type { KernelPlugin, MiddlewarePlugin, BundlerPlugin } from '#plugins/plugin-types.js';
@@ -28,6 +28,11 @@ export type KernelClientOptions = {
   /** Custom transport. Defaults to a Web Worker transport using the built-in worker URL. */
   transport?: KernelTransport;
   /**
+   * Default KernelFileSystem, used when `connect()` is not called explicitly.
+   * For browser apps that need deferred connection, use `client.connect()` instead.
+   */
+  fileSystem?: KernelFileSystem;
+  /**
    * Tessellation quality defaults for preview and export pipelines.
    * When undefined, each kernel applies its own built-in defaults.
    * Per-call overrides via `callOptions.tessellation` take precedence.
@@ -39,6 +44,16 @@ export type KernelClientOptions = {
     export?: Tessellation;
   };
 };
+
+/**
+ * Connection options for `KernelClient.connect()`.
+ *
+ * - `{ fileSystem }` -- main-thread relay: the client creates a MessagePort bridge internally.
+ * - `{ port }` -- direct bridge: pass a pre-existing MessagePort (e.g., from `createFileSystemBridge`).
+ */
+export type ConnectOptions =
+  //
+  { fileSystem: KernelFileSystem } | { port: MessagePort };
 
 type LogEntry = { level: string; message: string; origin?: LogOrigin; data?: unknown };
 
@@ -57,10 +72,9 @@ export type KernelClient = {
   /**
    * Connect to the kernel worker and initialize with a filesystem.
    *
-   * @param options - Connection options
-   * @param options.fileSystem - KernelFileSystem implementation to bridge into the worker
+   * @param options - Connection options: `{ fileSystem }` for main-thread relay, `{ port }` for direct bridge
    */
-  connect(options: { fileSystem: KernelFileSystem }): Promise<void>;
+  connect(options: ConnectOptions): Promise<void>;
 
   /**
    * Render geometry from a file. Auto-connects if not yet connected.
@@ -162,13 +176,15 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
     return new URL('../framework/kernel-runtime-worker.js', import.meta.url).href;
   }
 
-  async function ensureConnected(fileSystem?: KernelFileSystem): Promise<KernelWorkerClient> {
+  async function ensureConnected(connectOptions?: ConnectOptions): Promise<KernelWorkerClient> {
     if (workerClient && connected) {
       return workerClient;
     }
 
-    if (!fileSystem) {
-      throw new Error('KernelClient.connect() must be called with a fileSystem before rendering');
+    const resolvedOptions = connectOptions ?? (options.fileSystem ? { fileSystem: options.fileSystem } : undefined);
+
+    if (!resolvedOptions) {
+      throw new Error('KernelClient.connect() must be called with a fileSystem or port before rendering');
     }
 
     transport = options.transport ?? createWorkerTransport(getWorkerUrl());
@@ -207,16 +223,18 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
       options: b.options,
     }));
 
-    const port = createFileManagerPort(fileSystem);
-    await workerClient.initialize({ kernelModules, bundlerEntries }, port, middlewareEntries, bundlerEntries);
+    const fileSystemPort =
+      'port' in resolvedOptions ? resolvedOptions.port : createFileSystemPort(resolvedOptions.fileSystem);
+
+    await workerClient.initialize({ kernelModules, bundlerEntries }, fileSystemPort, middlewareEntries, bundlerEntries);
 
     connected = true;
     return workerClient;
   }
 
   return {
-    async connect(connectOptions: { fileSystem: KernelFileSystem }): Promise<void> {
-      await ensureConnected(connectOptions.fileSystem);
+    async connect(connectOptions: ConnectOptions): Promise<void> {
+      await ensureConnected(connectOptions);
     },
 
     async render(

@@ -1,6 +1,6 @@
 // Client
 export { createKernelClient } from '#client/kernel-client.js';
-export type { KernelClient, KernelClientOptions } from '#client/kernel-client.js';
+export type { KernelClient, KernelClientOptions, ConnectOptions } from '#client/kernel-client.js';
 
 // Plugin types
 export type { KernelPlugin, MiddlewarePlugin, BundlerPlugin } from '#plugins/plugin-types.js';
@@ -9,13 +9,12 @@ export type { KernelPlugin, MiddlewarePlugin, BundlerPlugin } from '#plugins/plu
 export { presets } from '#plugins/presets.js';
 
 // Filesystem constructors
-export { fromNodeFS, fromMemoryFS } from '#client/filesystem-constructors.js';
+export { fromNodeFS, fromMemoryFS, fromZenFS } from '#client/filesystem-constructors.js';
 
-// FileManager bridge (for advanced usage / UI consumption)
+// Filesystem bridge (for advanced usage / UI consumption)
 export { KernelWorkerClient } from '#framework/kernel-worker-client.js';
 export type { OnLogCallback, OnTelemetryCallback, OnProgressCallback } from '#framework/kernel-worker-client.js';
-export { createFileManagerPort } from '#framework/kernel-worker-filemanager-bridge.js';
-export type { KernelFileManager } from '#framework/kernel-worker-filemanager-bridge.js';
+export { createFileSystemPort } from '#framework/kernel-filesystem-bridge.js';
 
 // Plugin author APIs
 export { defineKernel } from '#types/kernel-worker.types.js';

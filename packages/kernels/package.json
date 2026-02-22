@@ -35,6 +35,7 @@
     "./middleware": "./src/plugins/middleware-entry.ts",
     "./bundler": "./src/plugins/bundler-entry.ts",
     "./transport": "./src/transport/index.ts",
+    "./filesystem": "./src/filesystem/index.ts",
     "./testing": "./src/testing/index.ts",
     "./worker": "./src/framework/kernel-runtime-worker.ts",
     "./kernels/replicad": "./src/kernels/replicad/replicad.kernel.ts",
@@ -108,6 +109,10 @@
       "./middleware/gltf-edge-detection": {
         "require": { "types": "./dist/cjs/middleware/gltf-edge-detection.middleware.d.cts", "default": "./dist/cjs/middleware/gltf-edge-detection.middleware.cjs" },
         "import": { "types": "./dist/esm/middleware/gltf-edge-detection.middleware.d.ts", "default": "./dist/esm/middleware/gltf-edge-detection.middleware.js" }
+      },
+      "./filesystem": {
+        "require": { "types": "./dist/cjs/filesystem/index.d.cts", "default": "./dist/cjs/filesystem/index.cjs" },
+        "import": { "types": "./dist/esm/filesystem/index.d.ts", "default": "./dist/esm/filesystem/index.js" }
       },
       "./testing": {
         "require": { "types": "./dist/cjs/testing/index.d.cts", "default": "./dist/cjs/testing/index.cjs" },

@@ -44,8 +44,7 @@ import type {
   AssetDependency,
 } from '#types/kernel-dependency.types.js';
 import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
-import type { KernelFileManager } from '#framework/kernel-worker-filemanager-bridge.js';
-import { createFileManagerProxy } from '#framework/kernel-worker-filemanager-bridge.js';
+import { createFileSystemProxy } from '#framework/kernel-filesystem-bridge.js';
 import { createKernelError } from '#framework/kernel-helpers.js';
 import { hashBytes, hashString } from '#utils/hash.utils.js';
 import { readFiles as fsReadFiles } from '#framework/filesystem-helpers.js';
@@ -188,11 +187,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * This is a Remote proxy to the file-manager worker.
    * Private - use the filesystem property for all filesystem operations.
    */
-  private fileManager: KernelFileManager | undefined;
+  private fileManager: KernelFileSystem | undefined;
 
   /**
    * Internal filesystem instance.
-   * Initialized via initializeEntry() when fileManagerPort is provided.
+   * Initialized via initializeEntry() when fileSystemPort is provided.
    */
   private _filesystem: KernelFileSystem | undefined;
 
@@ -267,11 +266,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * - Relative to project root (for dependency resolution)
    * - Absolute paths (for cache/middleware operations)
    *
-   * @throws Error if accessed before initializeEntry() completes with fileManagerPort
+   * @throws Error if accessed before initializeEntry() completes with fileSystemPort
    */
   private get filesystem(): KernelFileSystem {
     if (!this._filesystem) {
-      throw new Error('filesystem not available - initializeEntry must complete first with fileManagerPort');
+      throw new Error('filesystem not available - initializeEntry must complete first with fileSystemPort');
     }
 
     return this._filesystem;
@@ -308,13 +307,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param callbacks - Object containing callback functions (proxied).
    * @param callbacks.onLog - The function to call when a log is emitted.
    * @param transferables - Object containing transferable resources like MessagePorts.
-   * @param transferables.fileManagerPort - Optional MessagePort for direct communication with file-manager worker.
+   * @param transferables.fileSystemPort - Optional MessagePort for direct communication with file-manager worker.
    * @param options - The options passed to the worker. These are specific to the kernel provider.
    * @param middlewareEntries - Ordered array of middleware registrations to load dynamically.
    */
   public async initializeEntry(
     callbacks: { onLog: OnWorkerLog },
-    transferables: { fileManagerPort?: MessagePort },
+    transferables: { fileSystemPort?: MessagePort },
     options: Options,
     middlewareEntries: MiddlewareEntries,
   ): Promise<void> {
@@ -325,8 +324,8 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     this._logger = this.createLogger();
 
     // Register file manager and create filesystem if port is provided
-    if (transferables.fileManagerPort) {
-      this.fileManager = createFileManagerProxy(transferables.fileManagerPort);
+    if (transferables.fileSystemPort) {
+      this.fileManager = createFileSystemProxy(transferables.fileSystemPort);
       this._filesystem = this.createFilesystem();
     }
 

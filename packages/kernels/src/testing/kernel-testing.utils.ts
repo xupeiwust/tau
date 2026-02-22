@@ -40,61 +40,12 @@ import type { KernelMiddleware } from '#middleware/kernel-middleware.js';
 import { KernelRuntimeWorker } from '#framework/kernel-runtime-worker.js';
 import type { ResolvedMiddleware } from '#framework/kernel-worker.js';
 import { KernelWorker } from '#framework/kernel-worker.js';
-import { createFileManagerPort } from '#framework/kernel-worker-filemanager-bridge.js';
-import type { KernelFileManager } from '#framework/kernel-worker-filemanager-bridge.js';
+import { createFileSystemPort } from '#framework/kernel-filesystem-bridge.js';
+import { fromZenFS } from '#client/filesystem-constructors.js';
 
 async function resetFilesystem(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/naming-convention -- filesystem mount point requires '/' as key
   await configure({ mounts: { '/': InMemory } });
-}
-
-function createTestFileManager(): KernelFileManager {
-  function readFile(path: string, encoding: 'utf8'): Promise<string>;
-  function readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
-  async function readFile(path: string, encoding?: 'utf8'): Promise<string | Uint8Array<ArrayBuffer>> {
-    if (encoding) {
-      return fs.promises.readFile(path, encoding);
-    }
-
-    return fs.promises.readFile(path) as Promise<Uint8Array<ArrayBuffer>>;
-  }
-
-  return {
-    readFile,
-    async writeFile(path: string, data: Uint8Array<ArrayBuffer> | string) {
-      const parentDir = path.slice(0, path.lastIndexOf('/'));
-      if (parentDir && parentDir !== '/') {
-        await fs.promises.mkdir(parentDir, { recursive: true });
-      }
-
-      await fs.promises.writeFile(path, data);
-    },
-    async mkdir(path: string, options?: { recursive?: boolean }) {
-      await fs.promises.mkdir(path, { recursive: options?.recursive });
-    },
-    async readdir(path: string) {
-      return fs.promises.readdir(path);
-    },
-    async stat(path: string) {
-      const stats = await fs.promises.stat(path);
-      return {
-        type: stats.isDirectory() ? ('dir' as const) : ('file' as const),
-        size: stats.size,
-        mtimeMs: stats.mtimeMs,
-      };
-    },
-    async unlink(path: string) {
-      await fs.promises.unlink(path);
-    },
-    async exists(path: string) {
-      try {
-        await fs.promises.stat(path);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-  };
 }
 
 // =============================================================================
@@ -168,7 +119,7 @@ export async function initializeWorkerForTesting<T extends KernelWorker>(
   worker: T,
   options?: InitializeWorkerOptions,
 ): Promise<T> {
-  const port = createFileManagerPort(createTestFileManager());
+  const port = createFileSystemPort(fromZenFS(fs));
 
   await worker.initializeEntry(
     {
@@ -178,7 +129,7 @@ export async function initializeWorkerForTesting<T extends KernelWorker>(
           // No-op for testing
         }),
     },
-    { fileManagerPort: port },
+    { fileSystemPort: port },
     options?.workerOptions ?? {},
     options?.middlewareEntries ?? [],
   );

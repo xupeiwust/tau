@@ -5,6 +5,27 @@
 import type { KernelFileSystem } from '#types/kernel-worker.types.js';
 
 /**
+ * Minimal interface for a ZenFS-compatible filesystem object.
+ * Matches the shape of `fs` from `@zenfs/core` without importing it directly.
+ * Uses `ArrayBufferLike` to accept both `ArrayBuffer` and `SharedArrayBuffer`
+ * (ZenFS returns `Buffer<ArrayBufferLike>`).
+ */
+/* eslint-disable @protontech/enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- ZenFS returns Buffer<ArrayBufferLike>, we must accept the wider type */
+// eslint-disable-next-line @typescript-eslint/naming-convention -- ZenFS is a proper noun
+type ZenFSLike = {
+  promises: {
+    readFile(path: string, encoding: 'utf8'): Promise<string>;
+    readFile(path: string): Promise<Uint8Array>;
+    writeFile(path: string, data: Uint8Array | string): Promise<void>;
+    mkdir(path: string, options?: { recursive?: boolean }): Promise<string | undefined | void>;
+    readdir(path: string): Promise<string[]>;
+    unlink(path: string): Promise<void>;
+    stat(path: string): Promise<{ size: number; mtimeMs: number; isDirectory(): boolean }>;
+  };
+};
+/* eslint-enable @protontech/enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- re-enable after ZenFSLike type */
+
+/**
  * Create a KernelFileSystem from Node.js `fs.promises`.
  * Wraps the standard Node.js filesystem API in ~10 lines.
  *
@@ -174,6 +195,77 @@ export function fromMemoryFS(files?: Record<string, string>): KernelFileSystem {
     },
     async exists(filePath: string): Promise<boolean> {
       return store.has(filePath) || dirs.has(filePath);
+    },
+  };
+}
+
+/**
+ * Create a KernelFileSystem from a ZenFS filesystem instance.
+ * Wraps ZenFS `fs.promises` for same-thread usage (testing, Node.js, worker-side serving).
+ *
+ * @param zenfs - A ZenFS-compatible filesystem object (e.g., `fs` from `@zenfs/core`)
+ * @param rootPath - Optional root path prefix for all operations (default: '/')
+ * @returns KernelFileSystem backed by ZenFS
+ *
+ * @example
+ * ```typescript
+ * import { fromZenFS } from '@taucad/kernels';
+ * import { fs } from '@zenfs/core';
+ *
+ * const fileSystem = fromZenFS(fs);
+ * await client.connect({ fileSystem });
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/naming-convention -- public API uses filesystem naming convention
+export function fromZenFS(zenfs: ZenFSLike, rootPath = '/'): KernelFileSystem {
+  const resolve = (p: string): string => {
+    if (rootPath === '/') {
+      return p;
+    }
+
+    return p.startsWith('/') ? `${rootPath}${p}` : `${rootPath}/${p}`;
+  };
+
+  function readFile(path: string, encoding: 'utf8'): Promise<string>;
+  function readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
+  async function readFile(filePath: string, encoding?: 'utf8'): Promise<string | Uint8Array<ArrayBuffer>> {
+    if (encoding) {
+      return zenfs.promises.readFile(resolve(filePath), encoding);
+    }
+
+    const buf = await zenfs.promises.readFile(resolve(filePath));
+    return new Uint8Array(buf);
+  }
+
+  return {
+    readFile,
+    async writeFile(filePath: string, data: Uint8Array<ArrayBuffer> | string): Promise<void> {
+      await zenfs.promises.writeFile(resolve(filePath), data);
+    },
+    async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
+      await zenfs.promises.mkdir(resolve(dirPath), options);
+    },
+    async readdir(dirPath: string): Promise<string[]> {
+      return zenfs.promises.readdir(resolve(dirPath));
+    },
+    async unlink(filePath: string): Promise<void> {
+      await zenfs.promises.unlink(resolve(filePath));
+    },
+    async stat(filePath: string): Promise<{ type: 'file' | 'dir'; size: number; mtimeMs: number }> {
+      const stats = await zenfs.promises.stat(resolve(filePath));
+      return {
+        type: stats.isDirectory() ? 'dir' : 'file',
+        size: stats.size,
+        mtimeMs: stats.mtimeMs,
+      };
+    },
+    async exists(filePath: string): Promise<boolean> {
+      try {
+        await zenfs.promises.stat(resolve(filePath));
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }

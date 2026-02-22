@@ -31,7 +31,7 @@ export type KernelCommand =
       options: Record<string, unknown>;
       middlewareEntries: MiddlewareEntries;
       bundlerEntries?: BundlerEntries;
-      fileManagerPort?: MessagePort;
+      fileSystemPort?: MessagePort;
     }
   | {
       type: 'render';
