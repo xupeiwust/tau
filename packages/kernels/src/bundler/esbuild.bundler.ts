@@ -104,7 +104,7 @@ export default defineBundler<EsbuildBundlerContext>({
     return result.dependencies;
   },
 
-  async cleanup(_ctx) {
-    _ctx.bundler.dispose();
+  async cleanup(ctx) {
+    ctx.bundler.dispose();
   },
 });
