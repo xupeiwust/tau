@@ -62,7 +62,27 @@
         "require": { "types": "./dist/cjs/framework/kernel-runtime-worker.d.cts", "default": "./dist/cjs/framework/kernel-runtime-worker.cjs" },
         "import": { "types": "./dist/esm/framework/kernel-runtime-worker.d.ts", "default": "./dist/esm/framework/kernel-runtime-worker.js" }
       },
+      "./types": {
+        "require": { "types": "./dist/cjs/types/index.d.cts", "default": "./dist/cjs/types/index.cjs" },
+        "import": { "types": "./dist/esm/types/index.d.ts", "default": "./dist/esm/types/index.js" }
+      },
+      "./kernels": {
+        "require": { "types": "./dist/cjs/plugins/kernels-entry.d.cts", "default": "./dist/cjs/plugins/kernels-entry.cjs" },
+        "import": { "types": "./dist/esm/plugins/kernels-entry.d.ts", "default": "./dist/esm/plugins/kernels-entry.js" }
+      },
       "./middleware": {
+        "require": { "types": "./dist/cjs/plugins/middleware-entry.d.cts", "default": "./dist/cjs/plugins/middleware-entry.cjs" },
+        "import": { "types": "./dist/esm/plugins/middleware-entry.d.ts", "default": "./dist/esm/plugins/middleware-entry.js" }
+      },
+      "./bundler": {
+        "require": { "types": "./dist/cjs/plugins/bundler-entry.d.cts", "default": "./dist/cjs/plugins/bundler-entry.cjs" },
+        "import": { "types": "./dist/esm/plugins/bundler-entry.d.ts", "default": "./dist/esm/plugins/bundler-entry.js" }
+      },
+      "./transport": {
+        "require": { "types": "./dist/cjs/transport/index.d.cts", "default": "./dist/cjs/transport/index.cjs" },
+        "import": { "types": "./dist/esm/transport/index.d.ts", "default": "./dist/esm/transport/index.js" }
+      },
+      "./middleware/kernel-middleware": {
         "require": { "types": "./dist/cjs/middleware/kernel-middleware.d.cts", "default": "./dist/cjs/middleware/kernel-middleware.cjs" },
         "import": { "types": "./dist/esm/middleware/kernel-middleware.d.ts", "default": "./dist/esm/middleware/kernel-middleware.js" }
       },
