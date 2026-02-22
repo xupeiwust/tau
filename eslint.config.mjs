@@ -3,6 +3,7 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import nxEslintPlugin from '@nx/eslint-plugin';
 import noBarrelFilesPlugin from 'eslint-plugin-no-barrel-files';
 import pluginEnforceUint8ArrayArrayBuffer from '@protontech/eslint-plugin-enforce-uint8array-arraybuffer';
+import jsdocPlugin from 'eslint-plugin-jsdoc';
 
 /**
  * Boolean property prefixes.
@@ -314,6 +315,45 @@ const config = [
           includeInternal: true,
         },
       ],
+    },
+  },
+  {
+    // Package public API JSDoc enforcement
+    files: ['packages/**/*.{ts,tsx}'],
+    ignores: ['packages/**/*.{spec,test,config,setup}.{ts,tsx}'],
+    plugins: {
+      jsdoc: jsdocPlugin,
+    },
+    settings: {
+      jsdoc: {
+        mode: 'typescript',
+      },
+    },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'warn',
+        {
+          publicOnly: true,
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: true,
+            ClassDeclaration: true,
+          },
+          contexts: ['TSTypeAliasDeclaration', 'TSInterfaceDeclaration'],
+          checkConstructors: false,
+        },
+      ],
+      'jsdoc/require-description': [
+        'warn',
+        {
+          contexts: ['FunctionDeclaration', 'MethodDefinition', 'ClassDeclaration'],
+        },
+      ],
+      'jsdoc/require-param-description': 'warn',
+      'jsdoc/require-returns-description': 'warn',
+      'jsdoc/check-param-names': 'error',
+      'jsdoc/check-tag-names': 'error',
+      'jsdoc/no-types': 'error',
     },
   },
   {
