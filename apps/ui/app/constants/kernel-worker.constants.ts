@@ -34,5 +34,7 @@ export const defaultKernelOptions: KernelClientOptions = {
  */
 export const debugKernelOptions: KernelClientOptions = {
   ...defaultKernelOptions,
-  kernels: defaultKernelOptions.kernels.map((k) => (k.id === 'replicad' ? replicad({ withExceptions: true }) : k)),
+  kernels: defaultKernelOptions.kernels.map((kernel) =>
+    kernel.id === 'replicad' ? replicad({ withExceptions: true }) : kernel,
+  ),
 };
