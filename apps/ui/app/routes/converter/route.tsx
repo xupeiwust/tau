@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { importToGlb, supportedImportFormats, supportedExportFormats, formatConfigurations } from '@taucad/converter';
 import type { InputFormat, OutputFormat } from '@taucad/converter';
@@ -94,13 +94,13 @@ function ConverterContent(): React.JSX.Element {
   );
 }
 
-function ConverterContentInner(): React.JSX.Element {
-  const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | undefined>(undefined);
-  const [glbData, setGlbData] = useState<Uint8Array<ArrayBuffer> | undefined>(undefined);
-  const [selectedFormats, setSelectedFormats] = useCookie<OutputFormat[]>(cookieName.converterOutputFormats, []);
-  const [useZipForMultiple, setUseZipForMultiple] = useCookie<boolean>(cookieName.converterMultifileZip, true);
-  const [isConverting, setIsConverting] = useState(false);
-
+/**
+ * Isolated viewer component that owns all graphics-machine selectors and the
+ * CadViewer.  Memoised so that UI-only state changes in the parent
+ * (format selection, cookie updates, etc.) never cause the WebGL canvas to
+ * re-render.
+ */
+const ConverterViewer = memo(function ({ glbData }: { readonly glbData: Uint8Array<ArrayBuffer> }): React.JSX.Element {
   const enableSurfaces = useGraphicsSelector((state) => state.context.enableSurfaces);
   const enableLines = useGraphicsSelector((state) => state.context.enableLines);
   const enableGizmo = useGraphicsSelector((state) => state.context.enableGizmo);
@@ -109,23 +109,44 @@ function ConverterContentInner(): React.JSX.Element {
   const enableMatcap = useGraphicsSelector((state) => state.context.enableMatcap);
   const upDirection = useGraphicsSelector((state) => state.context.upDirection);
 
+  const geometries = useMemo<Geometry[]>(() => [{ format: 'gltf', content: glbData, hash: 'converter' }], [glbData]);
+
+  return (
+    <CadViewer
+      enableZoom
+      enablePan
+      upDirection={upDirection}
+      enableMatcap={enableMatcap}
+      enableLines={enableLines}
+      enableAxes={enableAxes}
+      enableGrid={enableGrid}
+      enableGizmo={enableGizmo}
+      enableSurfaces={enableSurfaces}
+      geometries={geometries}
+    />
+  );
+});
+
+function ConverterContentInner(): React.JSX.Element {
+  const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | undefined>(undefined);
+  const [glbData, setGlbData] = useState<Uint8Array<ArrayBuffer> | undefined>(undefined);
+  const [selectedFormats, setSelectedFormats] = useCookie<OutputFormat[]>(cookieName.converterOutputFormats, []);
+  const [useZipForMultiple, setUseZipForMultiple] = useCookie<boolean>(cookieName.converterMultifileZip, true);
+  const [isConverting, setIsConverting] = useState(false);
+
   const handleFileSelect = useCallback(async (file: File) => {
     setIsConverting(true);
 
     try {
-      // Get format from filename
       const format = getFormatFromFilename(file.name);
 
-      // Read file data
       const arrayBuffer = await file.arrayBuffer();
       const data = new Uint8Array(arrayBuffer);
 
-      // Convert to GLB
       toast.promise(
         (async () => {
           const glb = await importToGlb([{ name: file.name, data }], format);
 
-          // Update state
           setUploadedFile({
             name: file.name,
             format,
@@ -197,10 +218,6 @@ function ConverterContentInner(): React.JSX.Element {
     [handleFileSelect],
   );
 
-  // Construct geometries array for CadViewer
-  // Use a static hash for the converter (not using kernel worker infrastructure)
-  const geometries: Geometry[] = glbData ? [{ format: 'gltf', content: glbData, hash: 'converter' }] : [];
-
   const hasModel = glbData !== undefined;
 
   return (
@@ -210,27 +227,8 @@ function ConverterContentInner(): React.JSX.Element {
         <>
           {/* Main viewer area */}
           <div className="relative flex-1">
-            {/* Viewer container - centered in the space not obstructed by sidebar and floating panel */}
-            {/* Uses the same centering logic as chat-interface.tsx */}
-            <div
-              className={cn(
-                'absolute inset-0 left-1/2 h-full w-[200dvw]',
-                '-translate-x-[calc((100%-var(--sidebar-width-current)+320px)/2)]',
-                'transition-all duration-200 ease-in-out',
-              )}
-            >
-              <CadViewer
-                enableZoom
-                enablePan
-                upDirection={upDirection}
-                enableMatcap={enableMatcap}
-                enableLines={enableLines}
-                enableAxes={enableAxes}
-                enableGrid={enableGrid}
-                enableGizmo={enableGizmo}
-                enableSurfaces={enableSurfaces}
-                geometries={geometries}
-              />
+            <div className="absolute inset-0">
+              <ConverterViewer glbData={glbData} />
             </div>
 
             {/* Bottom-left viewer controls */}
