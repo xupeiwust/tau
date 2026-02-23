@@ -38,6 +38,7 @@ catalog:
   '@vitest/ui': 3.2.4
   '@zenfs/core': ^2.4.4
   '@zenfs/dom': ^1.2.7
+  assimpjs: https://codeload.github.com/taucad/assimpjs/tar.gz/bc10b475fd4cb632239b226f11222c86e8763fc6
   cdn-resolve: ^2.1.2
   comlink: ^4.4.2
   culori: ^4.0.2
