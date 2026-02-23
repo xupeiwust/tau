@@ -1,4 +1,4 @@
-/* eslint-disable n/prefer-global/process, unicorn/no-process-exit -- CLI tool */
+/* eslint-disable unicorn/no-process-exit -- CLI tool */
 
 /**
  * Package Check Orchestrator
@@ -12,6 +12,7 @@ import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 
 type CheckResult = {
   name: string;
