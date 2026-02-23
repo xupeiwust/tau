@@ -59,7 +59,15 @@ alwaysApply: false
     - 3 params: only for consistent interface contracts with distinct architectural concerns
     - Never: 4+ positional params
     - Smell test: if you write `_unused` params to skip positions, the API is wrong
-    - See docs/library-api-best-practices.md for full rationale
+    - See docs/library-api-best-practices.md section 4 for full rationale
+11. Naming Conventions
+    - Descriptive, full names everywhere (`properties` not `props`, `error` not `e`)
+    - For packages/* (public API): strict prefix conventions apply
+      - `create*` (factory), `define*` (plugin), `is*` (guard), `from*` (conversion), `on*` (hook/callback)
+      - No abbreviations in exported symbols (`tessellation` not `tess`, `context` not `ctx`)
+      - Callbacks always use `on*` prefix
+      - See docs/library-api-best-practices.md section 5
+    - For apps/* and libs/*: follow framework conventions (React hooks, NestJS decorators) with descriptive names
 
 ## Functional Programming:
 - Avoid Mutation

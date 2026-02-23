@@ -175,7 +175,7 @@ type KernelTransport = {
    │  ├─ Lazily creates KernelClient (ensureKernelClient)
    │  ├─ KernelClient creates Worker + Transport on first connect
    │  ├─ Worker selects kernel via three-pass detection
-   │  ├─ renderEntry: unified pipeline (deps → params → geometry)
+   │  ├─ render: unified pipeline (deps → params → geometry)
    │  └─ Streams progress events back via client.on('progress', ...)
    │
 7. CadMachine receives geometryComputed → updates context.geometries
@@ -297,11 +297,11 @@ Key methods:
 
 Kernel modules define geometry computation logic. Each kernel is an ES module loaded via `import(kernelModuleUrl)`:
 
-- `initialize(options, runtime)` — load WASM, register builtin modules. `options` is type-safe via the `Options` generic inferred from `optionsSchema`
-- `getDependencies(input, runtime, ctx)` — return file dependencies
-- `getParameters(input, runtime, ctx)` — extract parameters from code
-- `createGeometry(input, runtime, ctx)` — compute geometry + return nativeHandle. `input.tessellation` provides preview quality when specified
-- `exportGeometry(input, runtime, ctx, nativeHandle)` — export using stored handle. `input.tessellation` provides export quality when specified
+- `onInitialize(options, runtime)` — load WASM, register builtin modules. `options` is type-safe via the `Options` generic inferred from `optionsSchema`
+- `onGetDependencies(input, runtime, ctx)` — return file dependencies
+- `onGetParameters(input, runtime, ctx)` — extract parameters from code
+- `onCreateGeometry(input, runtime, ctx)` — compute geometry + return nativeHandle. `input.tessellation` provides preview quality when specified
+- `onExportGeometry(input, runtime, ctx, nativeHandle)` — export using stored handle. `input.tessellation` provides export quality when specified
 
 ### MessagePort Protocol
 
@@ -399,13 +399,13 @@ KernelClient.render(file, params, callOptions?)
   → resolves: callOptions.tessellation ?? options.tessellation.preview
     → KernelWorkerClient.render(..., tessellation?)
       → KernelCommand { type: 'render', tessellation? }
-        → dispatcher → KernelWorker.renderEntry(..., tessellation?)
-          → KernelWorker.createGeometryEntry(..., tessellation?)
+        → dispatcher → KernelWorker.render(..., tessellation?)
+          → KernelWorker.createGeometry(..., tessellation?)
             → CreateGeometryInput { tessellation? }
-              → KernelDefinition.createGeometry(input, runtime, ctx)
+              → KernelDefinition.onCreateGeometry(input, runtime, ctx)
 ```
 
-Export follows the same pattern via `exportGeometryEntry` → `ExportGeometryInput { tessellation? }`.
+Export follows the same pattern via `exportGeometry` → `ExportGeometryInput { tessellation? }`.
 
 ## Plugin Options & Validation
 

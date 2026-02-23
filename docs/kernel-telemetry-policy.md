@@ -125,7 +125,7 @@ Attributes are `Record<string, string | number | boolean>` only. No objects, no 
 ### Worker Side
 
 - `KernelTracer.startSpan()` is O(1): monotonic ID increment, single `performance.mark()` call, push to active span stack.
-- `KernelTracer.reset()` is called once per render cycle (at the start of `renderEntry`), not per span. It clears all accumulated marks and measures.
+- `KernelTracer.reset()` is called once per render cycle (at the start of `render`), not per span. It clears all accumulated marks and measures.
 - `WorkerTelemetryCollector` batches entries via `PerformanceObserver` and flushes at 100ms intervals during long operations.
 - Telemetry is explicitly flushed on render completion (before the `geometryComputed` response is sent) to ensure spans arrive before geometry results.
 

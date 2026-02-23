@@ -24,8 +24,8 @@ Use `defineX()` functions for plugin implementation contracts. The function vali
 export default defineKernel({
   name: 'MyKernel',
   version: '1.0.0',
-  async initialize(options, runtime) { ... },
-  async createGeometry(input, runtime, ctx) { ... },
+  async onInitialize(options, runtime) { ... },
+  async onCreateGeometry(input, runtime, ctx) { ... },
 });
 ```
 
@@ -87,8 +87,8 @@ wrapCreateGeometry(input, handler, runtime)
 //                  └────────────────── operation data
 
 // Bad: all three are the same concern (operation input data)
-createGeometryEntry(file, parameters, tessellation?)
-// Should be: createGeometryEntry({ file, parameters, tessellation? })
+createGeometry(file, parameters, tessellation?)
+// Should be: createGeometry({ file, parameters, tessellation? })
 ```
 
 **4+ params -- Never.** Refactor to an object pattern.
@@ -113,10 +113,10 @@ async exportGeometry({ fileType, tessellation, nativeHandle }, _runtime, _ctx) {
 
 ```typescript
 // BAD: all three are operation input data
-createGeometryEntry(file, parameters, tessellation?)
+createGeometry(file, parameters, tessellation?)
 
 // GOOD: single input object
-createGeometryEntry({ file, parameters, tessellation? })
+createGeometry({ file, parameters, tessellation? })
 ```
 
 **3. Inconsistent destructuring.** If you destructure the first param but pass others through as-is at the same conceptual level, the grouping is wrong. When params at the same level are split across positions, they should be merged.
@@ -136,7 +136,79 @@ Merging them into a single object would conflate ownership, require making `Kern
 
 **Why**: Parameter conventions are enforced by `max-params: 3` in ESLint. The same-concern smell tests require semantic understanding and are enforced through code review and agentic documentation.
 
-## 5. Subpath Exports by Consumer Role
+## 5. Naming Conventions
+
+Names should describe **what** the code does, not **how** the framework routes it internally. A consumer reading `client.render()` understands the action; `client.renderEntry()` leaks an internal dispatch layer.
+
+### Principles
+
+**Describe the action, not the architecture.** Method names should tell the consumer what happens, not how the framework routes the call.
+
+```typescript
+// Good: describes the action
+client.render({ file, parameters })
+worker.initialize(input)
+
+// Avoid: leaks internal dispatch architecture
+worker.renderEntry(input)
+worker.initializeEntry(input)
+```
+
+**Describe the concept, not the container.** Type names should say what the object *is*, not where it lives in an array.
+
+```typescript
+// Good: says what the object represents
+type KernelRegistration = { id: string; extensions: string[]; moduleUrl: string };
+
+// Avoid: says where it lives (an "entry" in a list)
+type KernelWorkerEntry = { id: string; extensions: string[]; kernelModuleUrl: string };
+```
+
+**No abbreviations in public API.** Use full words for exported symbols and parameters. Internal code follows the same principle for readability, with narrow exceptions for universally understood abbreviations (`id`, `url`, `fs`).
+
+```typescript
+// Good
+tessellation, context, module, buffer, path
+
+// Avoid
+tess, ctx, mod, buf, p
+```
+
+**Avoid overloading terms.** If a word is already used for one concept, don't reuse it for another. For example, "entry" was previously overloaded as both "item in a registration list" (`MiddlewareEntry`) and "method entry point" (`renderEntry`), which motivated the rename to `MiddlewareRegistration` and `render()`.
+
+### Consistent prefixes by role
+
+Each naming prefix signals a specific role:
+
+| Prefix | Role | Examples |
+|---|---|---|
+| `create*` | Factory function | `createKernelClient`, `createFileSystemPort` |
+| `define*` | Plugin definition | `defineKernel`, `defineMiddleware`, `defineBundler` |
+| `is*` | Type guard | `isKernelSuccess`, `isKernelError` |
+| `from*` | Conversion constructor | `fromNodeFS`, `fromMemoryFS`, `fromZenFS` |
+| `on*` | Framework hook / event callback | `onInitialize`, `onLog`, `onProgress` |
+
+### Callback and hook naming
+
+Always use the `on*` prefix for callbacks and framework hooks. Never use `*Callback` suffixes or bare verbs.
+
+```typescript
+// Good: on* prefix for callbacks
+client.on('progress', handler)
+{ onLog: (entry) => console.log(entry) }
+
+// Good: on* prefix for framework hooks (subclass overrides)
+protected abstract onInitialize(input, runtime): Promise<Context>;
+protected abstract onCreateGeometry(input, runtime): Promise<Result>;
+
+// Avoid: bare verbs or *Callback suffix
+{ print: (msg) => console.log(msg) }
+{ logCallback: (entry) => console.log(entry) }
+```
+
+**Why**: Consistent naming prefixes let developers predict API shape without reading docs. When every factory starts with `create*`, every type guard starts with `is*`, and every hook starts with `on*`, the API becomes self-documenting.
+
+## 6. Subpath Exports by Consumer Role
 
 Organize `package.json` exports by what each audience needs, not by internal file structure.
 
@@ -149,7 +221,7 @@ Organize `package.json` exports by what each audience needs, not by internal fil
 @taucad/kernels/testing        -- test utilities (testing)
 ```
 
-## 6. Subscribe-Anytime Events
+## 7. Subscribe-Anytime Events
 
 Use `.on(event, handler)` returning an unsubscribe function. Events should be subscribable at any point in the lifecycle.
 
@@ -161,7 +233,7 @@ off();
 
 **Why**: Works naturally with React's `useEffect` cleanup, avoids config-time binding, and follows the EventEmitter pattern without inheriting `EventEmitter`.
 
-## 7. Plugin Factories Return Plain Objects
+## 8. Plugin Factories Return Plain Objects
 
 Plugin selection functions return plain registration objects, not class instances. The object carries the module URL and configuration.
 
@@ -178,7 +250,7 @@ export function replicad(options?: ReplicadOptions): KernelPlugin {
 
 **Why**: Plain objects are serializable, inspectable, and composable. No prototype chain, no hidden state.
 
-## 8. Lazy Initialization for Expensive Resources
+## 9. Lazy Initialization for Expensive Resources
 
 Defer Worker creation, WASM loading, and network connections until first use. The factory call itself should be instant.
 
@@ -188,7 +260,7 @@ await client.connect({ fileSystem });        // Worker created here
 await client.render({ file, params });        // auto-connects if needed
 ```
 
-## 9. High-Level Wrappers with Low-Level Escape Hatches
+## 10. High-Level Wrappers with Low-Level Escape Hatches
 
 Expose a simple high-level API for 90% of users. Export the lower-level primitives for advanced use cases.
 
@@ -200,7 +272,7 @@ import { createKernelClient } from '@taucad/kernels';
 import { createWorkerTransport } from '@taucad/kernels/transport';
 ```
 
-## 10. No Optional Interface Methods
+## 11. No Optional Interface Methods
 
 All methods on a contract interface should be required. If a method is optional, the framework must handle the missing case, which adds complexity. Instead, require all methods and let the framework build higher-level operations from the primitives.
 
@@ -221,14 +293,14 @@ type KernelFileSystem = {
 };
 ```
 
-## 11. TypeScript-First Design
+## 12. TypeScript-First Design
 
 - Export types separately using `export type`
 - Use comprehensive generics for plugin context types
 - Prefer `type` over `interface` (project convention)
 - Use discriminated unions for message protocols
 
-## 12. JSDoc Standards
+## 13. JSDoc Standards
 
 Every public export must include:
 
@@ -239,7 +311,7 @@ Every public export must include:
 - `@internal` for framework-only APIs
 - `@deprecated` with migration path when deprecating
 
-## 13. Environment-Aware Conditional Exports
+## 14. Environment-Aware Conditional Exports
 
 Use `package.json` export conditions for environment-specific code:
 
@@ -254,7 +326,7 @@ Use `package.json` export conditions for environment-specific code:
 }
 ```
 
-## 14. Presets for Zero-Config
+## 15. Presets for Zero-Config
 
 Provide preset configurations that cover common use cases. Let advanced users compose their own.
 

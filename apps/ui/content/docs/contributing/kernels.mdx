@@ -49,18 +49,16 @@ class MyKernelWorker extends KernelWorker {
 // Expose via Comlink
 const service = new MyKernelWorker();
 expose(service);
-
-export type MyKernelWorkerInterface = typeof service;
 ```
 
 ### Implement Required Methods
 
-#### `canHandle(filename, extension)`
+#### `onCanHandle(filename, extension)`
 
 Quick check to determine if this worker can process the file. **Must be fast** — don't initialize heavy runtimes here.
 
 ```typescript
-protected async canHandle(filename: string, extension: string): Promise<boolean> {
+protected async onCanHandle(filename: string, extension: string): Promise<boolean> {
   // Check file extension
   if (extension !== 'myext') {
     return false;
@@ -72,12 +70,12 @@ protected async canHandle(filename: string, extension: string): Promise<boolean>
 }
 ```
 
-#### `getParameters(path)`
+#### `onGetParameters(path)`
 
 Parse the file and extract parameters with their JSON Schema.
 
 ```typescript
-protected async getParameters(path: string): Promise<GetParametersResult> {
+protected async onGetParameters(path: string): Promise<GetParametersResult> {
   try {
     const code = await this.readFile(path, 'utf8');
     const { defaultParameters, jsonSchema } = parseParameters(code);
@@ -95,12 +93,12 @@ protected async getParameters(path: string): Promise<GetParametersResult> {
 }
 ```
 
-#### `createGeometry(path, parameters, geometryId?)`
+#### `onCreateGeometry(path, parameters, geometryId?)`
 
 Execute the code and generate geometry (typically as glTF).
 
 ```typescript
-protected async createGeometry(
+protected async onCreateGeometry(
   path: string,
   parameters: Record<string, unknown>,
 ): Promise<CreateGeometryResult> {
@@ -125,12 +123,12 @@ protected async createGeometry(
 }
 ```
 
-#### `exportGeometry(fileType, tessellation?)`
+#### `onExportGeometry(fileType, tessellation?)`
 
 Export geometry to the requested format.
 
 ```typescript
-protected async exportGeometry(
+protected async onExportGeometry(
   fileType: ExportFormat,
   tessellation?: Tessellation,
 ): Promise<ExportGeometryResult> {
@@ -359,12 +357,12 @@ Middleware wraps kernel operations (geometry creation, parameter extraction, exp
 
 ### Architecture
 
-Middleware is **dynamically loaded** in the Web Worker via `import(url)`. The main thread injects a `MiddlewareEntries` array — an ordered list of middleware entries — through the same dependency injection pattern used for kernel workers.
+Middleware is **dynamically loaded** in the Web Worker via `import(url)`. The main thread injects a `MiddlewareRegistrations` array — an ordered list of middleware entries — through the same dependency injection pattern used for kernel workers.
 
 ```
 BuildProvider → build.machine → cad.machine → kernel.machine → Worker
                                                     ↓
-                                            MiddlewareEntries[]
+                                            MiddlewareRegistrations[]
                                                     ↓
                                           import(url) per entry
 ```
@@ -409,12 +407,12 @@ export const myMiddleware = defineMiddleware({
 
 #### First-party middleware
 
-Add a `?url` import and entry to `defaultMiddlewareEntries` in `apps/ui/app/constants/kernel.constants.ts`:
+Add a `?url` import and entry to `defaultMiddlewareRegistrations` in `apps/ui/app/constants/kernel.constants.ts`:
 
 ```typescript
 import myMiddlewareUrl from '#components/geometry/kernel/middleware/my.middleware.js?url';
 
-export const defaultMiddlewareEntries: MiddlewareEntries = [
+export const defaultMiddlewareRegistrations: MiddlewareRegistrations = [
   // ... existing entries (order = execution order)
   { url: myMiddlewareUrl },
 ];
@@ -425,11 +423,11 @@ export const defaultMiddlewareEntries: MiddlewareEntries = [
 External consumers extend or replace the default config:
 
 ```typescript
-import { defaultMiddlewareEntries } from '#constants/kernel.constants.js';
-import type { MiddlewareEntries } from '@taucad/kernels';
+import { defaultMiddlewareRegistrations } from '#constants/kernel.constants.js';
+import type { MiddlewareRegistrations } from '@taucad/kernels';
 
-const extendedEntries: MiddlewareEntries = [
-  ...defaultMiddlewareEntries,
+const extendedEntries: MiddlewareRegistrations = [
+  ...defaultMiddlewareRegistrations,
   { url: '/path/to/custom-middleware.js', config: { threshold: 0.8 } },
 ];
 
