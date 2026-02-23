@@ -4,6 +4,7 @@ import nxEslintPlugin from '@nx/eslint-plugin';
 import noBarrelFilesPlugin from 'eslint-plugin-no-barrel-files';
 import pluginEnforceUint8ArrayArrayBuffer from '@protontech/eslint-plugin-enforce-uint8array-arraybuffer';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
+import maxParamsNoConstructorPlugin from 'eslint-plugin-max-params-no-constructor';
 
 /**
  * Boolean property prefixes.
@@ -248,7 +249,31 @@ const config = [
     },
   },
   {
-    // API App
+    // NestJS files -- constructors use dependency injection with many parameters,
+    // but all methods must still follow the max-params rule.
+    // Uses eslint-plugin-max-params-no-constructor to enforce max-params on everything except constructors.
+    files: [
+      '**/*.controller.ts',
+      '**/*.service.ts',
+      '**/*.module.ts',
+      '**/*.guard.ts',
+      '**/*.gateway.ts',
+      '**/*.interceptor.ts',
+      '**/*.filter.ts',
+      '**/*.pipe.ts',
+      '**/*.provider.ts',
+      '**/*.resolver.ts',
+    ],
+    plugins: {
+      'max-params-no-constructor': maxParamsNoConstructorPlugin,
+    },
+    rules: {
+      'max-params': 'off',
+      'max-params-no-constructor/max-params-no-constructor': ['error', 3],
+    },
+  },
+  {
+    // API App -- NestJS decorator support
     files: ['apps/api/**/*.ts', 'apps/api/**/*.tsx'],
     rules: {
       // Support for decorators in NestJS, ensuring that the `new` keyword is not required for decorators.
