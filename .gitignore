@@ -34,6 +34,7 @@ pruned
 # Fumadocs
 .source/**/*
 apps/ui/.source/**/*
+**/.next
 
 # Local Netlify folder
 .netlify
