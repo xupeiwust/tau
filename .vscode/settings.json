@@ -5,6 +5,7 @@
   "javascript.preferences.importModuleSpecifier": "non-relative",
   "nxConsole.generateAiAgentRules": true,
   "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.experimental.useTsgo": true,
   "eslint.validate": [
     "javascript",
     "javascriptreact",
