@@ -5,15 +5,108 @@
  * and plugin configuration. This is the primary API for consumers.
  */
 
-import type { GeometryFile, ExportFormat, LogOrigin } from '@taucad/types';
-import type { HashedGeometryResult, ExportGeometryResult, GetParametersResult } from '#types/kernel.types.js';
+import type { GeometryFile, ExportFormat, ExportFile, LogOrigin } from '@taucad/types';
+import type { HashedGeometryResult, GetParametersResult, KernelResult } from '#types/kernel.types.js';
 import type { KernelFileSystem, Tessellation } from '#types/kernel-worker.types.js';
 import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
 import { KernelWorkerClient } from '#framework/kernel-worker-client.js';
 import { createFileSystemServer } from '#framework/kernel-filesystem-bridge.js';
+import { fromMemoryFS } from '#client/filesystem-constructors.js';
 import { createWorkerTransport } from '#transport/worker-transport.js';
 import type { KernelTransport } from '#transport/kernel-transport.js';
 import type { KernelPlugin, MiddlewarePlugin, BundlerPlugin } from '#plugins/plugin-types.js';
+
+// =============================================================================
+// RenderInput Types
+// =============================================================================
+
+/**
+ * Detects whether a type is a union (more than one member).
+ * Used internally to determine if a code object has multiple keys.
+ */
+type IsUnion<T, U = T> = T extends U ? ([U] extends [T] ? false : true) : never;
+
+/**
+ * Inline code input for `render()`.
+ *
+ * `code` is a filename-to-content map. When only a single key exists,
+ * `file` is optional (the runtime picks the only key). When multiple keys
+ * exist (or when `T` is a wide `Record<string, string>`), `file` is required
+ * to specify the entry point.
+ */
+export type CodeInput<T extends Record<string, string>> = {
+  /** Inline source code as a filename-to-content map. */
+  code: T;
+  /** Parameters for the model's main function. @default \{\} */
+  parameters?: Record<string, unknown>;
+  /** Tessellation quality override. */
+  tessellation?: Tessellation;
+  /** @internal Not applicable in inline mode (client auto-manages). */
+  changedPaths?: never;
+} & (string extends keyof T
+  ? { /** Entry point filename. Required when key count is unknown at compile time. */ file: string }
+  : true extends IsUnion<keyof T>
+    ? { /** Entry point filename. Required for multi-file code. */ file: string }
+    : { /** Entry point filename. Optional for single-file code (inferred from the only key). */ file?: string });
+
+/**
+ * Filesystem-based input for `render()`.
+ *
+ * Renders from a connected filesystem. `file` can be a string shorthand
+ * (e.g., `'/src/main.ts'`) or a `GeometryFile` object.
+ */
+export type FileInput = {
+  /** @internal Prevents mixing code with file-mode rendering. */
+  code?: never;
+  /** File to render from the connected filesystem. */
+  file: string | GeometryFile;
+  /** Parameters for the model's main function. @default \{\} */
+  parameters?: Record<string, unknown>;
+  /** Tessellation quality override. */
+  tessellation?: Tessellation;
+  /** Files that changed since the last render (cache invalidation). */
+  changedPaths?: string[];
+};
+
+/**
+ * Error thrown when a render is superseded by a newer `render()` call.
+ * Used by the auto-cancellation (latest-wins) mechanism.
+ */
+export class RenderSupersededError extends Error {
+  public constructor() {
+    super('Render superseded by a newer render() call');
+    this.name = 'RenderSupersededError';
+  }
+}
+
+/**
+ * Consumer-facing export result with a single `ExportFile` (unwrapped).
+ *
+ * Internally, the kernel pipeline produces `ExportFile[]`, but every current
+ * kernel produces exactly one file. The client unwraps the first element for
+ * a cleaner consumer API: `result.data.bytes` instead of `result.data[0].bytes`.
+ */
+export type ExportResult = KernelResult<ExportFile>;
+
+/**
+ * Resolve a string file path into a `GeometryFile`.
+ *
+ * - `'main.ts'` --> `{ path: '/', filename: 'main.ts' }`
+ * - `'/src/model.ts'` --> `{ path: '/src', filename: 'model.ts' }`
+ * - `'/builds/test/bench.ts'` --> `{ path: '/builds/test', filename: 'bench.ts' }`
+ */
+function resolveFileString(file: string): GeometryFile {
+  const lastSlash = file.lastIndexOf('/');
+  if (lastSlash === -1) {
+    return { path: '/', filename: file };
+  }
+
+  const path = file.slice(0, lastSlash) || '/';
+  return {
+    path: path.startsWith('/') ? path : `/${path}`,
+    filename: file.slice(lastSlash + 1),
+  };
+}
 
 /**
  * Options for creating a KernelClient.
@@ -62,6 +155,7 @@ type EventHandlers = {
   progress: Set<(phase: RenderPhase, detail?: Record<string, unknown>) => void>;
   telemetry: Set<(entries: PerformanceEntryData[]) => void>;
   parametersResolved: Set<(result: GetParametersResult) => void>;
+  geometry: Set<(result: HashedGeometryResult) => void>;
 };
 
 /**
@@ -77,37 +171,59 @@ export type KernelClient = {
   connect(options: ConnectOptions): Promise<void>;
 
   /**
-   * Render geometry from a file. Auto-connects if not yet connected.
-   * If no kernel can handle the file, returns a result with `success: false`.
+   * Render geometry from inline code.
    *
-   * Tessellation resolution: input.tessellation > options.tessellation.preview > undefined (kernel default).
+   * `code` is a filename-to-content map. When only a single key exists,
+   * `file` is optional (inferred from the only key). When multiple keys
+   * exist, `file` is required to specify the entry point.
    *
-   * @param input - Render input containing file, parameters, and optional tessellation quality override
-   * @param input.file - The geometry file to render
-   * @param input.parameters - The parameters for rendering
-   * @param input.tessellation - Optional tessellation quality override
-   * @returns Completed geometry result
+   * Auto-creates an in-memory filesystem, writes code, connects, and renders.
+   * Cannot be used with a port-based connection.
    */
-  render(input: {
-    file: GeometryFile;
-    parameters: Record<string, unknown>;
-    tessellation?: Tessellation;
-  }): Promise<HashedGeometryResult>;
+  render<T extends Record<string, string>>(input: CodeInput<T>): Promise<HashedGeometryResult>;
 
   /**
-   * Export geometry in the specified format.
+   * Render geometry from the connected filesystem.
+   *
+   * `file` can be a string shorthand (e.g., `'/src/main.ts'`) or a `GeometryFile`.
+   * When `changedPaths` is provided, the worker invalidates caches for those files
+   * before rendering (absorbs the old `notifyFileChanged` pattern).
+   *
+   * Tessellation resolution: input.tessellation > options.tessellation.preview > undefined (kernel default).
+   */
+  render(input: FileInput): Promise<HashedGeometryResult>;
+
+  /**
+   * Export geometry from inline code (self-rendering).
+   *
+   * Internally renders the code first, then exports. The render uses the
+   * client-level preview tessellation default; the export uses
+   * `input.tessellation` or the client-level export default.
+   */
+  export<T extends Record<string, string>>(format: ExportFormat, input: CodeInput<T>): Promise<ExportResult>;
+
+  /**
+   * Export geometry from the connected filesystem (self-rendering).
+   *
+   * Internally renders the file first, then exports.
+   */
+  export(format: ExportFormat, input: FileInput): Promise<ExportResult>;
+
+  /**
+   * Export geometry from the last render in the specified format.
    *
    * Tessellation resolution: callOptions.tessellation > options.tessellation.export > undefined (kernel default).
    *
    * @param format - Export format (e.g., 'stl', 'step', '3mf')
    * @param callOptions - Per-call overrides
    * @param callOptions.tessellation - Optional tessellation quality override for this export
-   * @returns Export result with blob data
+   * @returns Export result with a single ExportFile
    */
-  export(format: ExportFormat, callOptions?: { tessellation?: Tessellation }): Promise<ExportGeometryResult>;
+  export(format: ExportFormat, callOptions?: { tessellation?: Tessellation }): Promise<ExportResult>;
 
   /**
-   * Notify the worker that files have changed (for cache invalidation).
+   * Proactive cache invalidation without triggering a render.
+   * Prefer `changedPaths` in `render()` for the common case.
    *
    * @param paths - Changed file paths
    */
@@ -121,6 +237,7 @@ export type KernelClient = {
    * @param handler - Event handler
    * @returns Unsubscribe function
    */
+  on(event: 'geometry', handler: (result: HashedGeometryResult) => void): () => void;
   on(event: 'log', handler: (entry: LogEntry) => void): () => void;
   on(event: 'progress', handler: (phase: RenderPhase, detail?: Record<string, unknown>) => void): () => void;
   on(event: 'telemetry', handler: (entries: PerformanceEntryData[]) => void): () => void;
@@ -165,12 +282,15 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
   let transport: KernelTransport | undefined;
   let fileSystemChannel: MessageChannel | undefined;
   let connected = false;
+  let connectedViaPort = false;
+  let managedFileSystem: KernelFileSystem | undefined;
 
   const handlers: EventHandlers = {
     log: new Set(),
     progress: new Set(),
     telemetry: new Set(),
     parametersResolved: new Set(),
+    geometry: new Set(),
   };
 
   function getWorkerUrl(): string {
@@ -227,6 +347,7 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
     let fileSystemPort: MessagePort;
     if ('port' in resolvedOptions) {
       fileSystemPort = resolvedOptions.port;
+      connectedViaPort = true;
     } else {
       fileSystemChannel = new MessageChannel();
       createFileSystemServer(resolvedOptions.fileSystem, fileSystemChannel.port1);
@@ -244,39 +365,126 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
     return workerClient;
   }
 
+  function emitGeometry(result: HashedGeometryResult): void {
+    for (const handler of handlers.geometry) {
+      handler(result);
+    }
+  }
+
+  async function executeRender(input: {
+    file: GeometryFile;
+    parameters: Record<string, unknown>;
+    tessellation: Tessellation | undefined;
+    client: KernelWorkerClient;
+  }): Promise<HashedGeometryResult> {
+    const result = await input.client.render({
+      file: input.file,
+      parameters: input.parameters,
+      onParametersResolved(parametersResult) {
+        for (const handler of handlers.parametersResolved) {
+          handler(parametersResult);
+        }
+      },
+      onProgress(phase, detail) {
+        for (const handler of handlers.progress) {
+          handler(phase, detail);
+        }
+      },
+      tessellation: input.tessellation,
+    });
+    emitGeometry(result);
+    return result;
+  }
+
   return {
     async connect(connectOptions: ConnectOptions): Promise<void> {
       await ensureConnected(connectOptions);
     },
 
-    async render(input: {
-      file: GeometryFile;
-      parameters: Record<string, unknown>;
-      tessellation?: Tessellation;
-    }): Promise<HashedGeometryResult> {
-      const client = await ensureConnected();
+    async render(input: CodeInput<Record<string, string>> | FileInput): Promise<HashedGeometryResult> {
+      // Auto-cancel any in-flight render (latest-wins semantics)
+      if (workerClient) {
+        try {
+          workerClient.cancelPendingRender();
+        } catch {
+          // Suppressed: the cancelled render's rejection is expected
+        }
+      }
+
       const tessellation = input.tessellation ?? options.tessellation?.preview;
-      return client.render({
-        file: input.file,
-        parameters: input.parameters,
-        onParametersResolved(result) {
-          for (const handler of handlers.parametersResolved) {
-            handler(result);
-          }
-        },
-        onProgress(phase, detail) {
-          for (const handler of handlers.progress) {
-            handler(phase, detail);
-          }
-        },
-        tessellation,
-      });
+      const parameters = input.parameters ?? {};
+
+      if (input.code) {
+        // --- Inline code mode ---
+        if (connectedViaPort) {
+          throw new Error(
+            'Inline code rendering is not supported with port-based connections. Use file-mode rendering with a connected filesystem instead.',
+          );
+        }
+
+        const { code } = input;
+        const keys = Object.keys(code);
+
+        const entryFile = (input as { file?: string }).file ?? keys[0]!;
+
+        managedFileSystem ??= fromMemoryFS();
+
+        const writeOperations = Object.entries(code).map(([filename, content]) => {
+          const absolutePath = filename.startsWith('/') ? filename : `/${filename}`;
+          return { absolutePath, content };
+        });
+
+        const absolutePaths = writeOperations.map(({ absolutePath }) => absolutePath);
+        await Promise.all(
+          writeOperations.map(async ({ absolutePath, content }) => managedFileSystem!.writeFile(absolutePath, content)),
+        );
+
+        const client = await ensureConnected({ fileSystem: managedFileSystem });
+        client.notifyFileChanged(absolutePaths);
+
+        const resolvedFile = resolveFileString(entryFile.startsWith('/') ? entryFile : `/${entryFile}`);
+
+        return executeRender({ file: resolvedFile, parameters, tessellation, client });
+      }
+
+      // --- Filesystem mode ---
+      const fileInput = input;
+      const client = await ensureConnected();
+
+      if (fileInput.changedPaths && fileInput.changedPaths.length > 0) {
+        client.notifyFileChanged(fileInput.changedPaths);
+      }
+
+      const resolvedFile = typeof fileInput.file === 'string' ? resolveFileString(fileInput.file) : fileInput.file;
+
+      return executeRender({ file: resolvedFile, parameters, tessellation, client });
     },
 
-    async export(format: ExportFormat, callOptions?: { tessellation?: Tessellation }): Promise<ExportGeometryResult> {
+    async export(
+      format: ExportFormat,
+      inputOrOptions?: CodeInput<Record<string, string>> | FileInput | { tessellation?: Tessellation },
+    ): Promise<ExportResult> {
+      let selfRendered = false;
+      if (inputOrOptions && 'code' in inputOrOptions && inputOrOptions.code) {
+        await this.render(inputOrOptions);
+        selfRendered = true;
+      } else if (inputOrOptions && 'file' in inputOrOptions && inputOrOptions.file) {
+        await this.render(inputOrOptions);
+        selfRendered = true;
+      }
+
+      const tessellation = selfRendered
+        ? options.tessellation?.export
+        : ((inputOrOptions as { tessellation?: Tessellation } | undefined)?.tessellation ??
+          options.tessellation?.export);
+
       const client = await ensureConnected();
-      const tessellation = callOptions?.tessellation ?? options.tessellation?.export;
-      return client.exportGeometry(format, tessellation);
+      const internalResult = await client.exportGeometry(format, tessellation);
+      if (internalResult.success) {
+        return { success: true, data: internalResult.data[0]!, issues: internalResult.issues };
+      }
+
+      return internalResult;
     },
 
     notifyFileChanged(paths: string[]): void {
@@ -310,7 +518,9 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
 
       workerClient = undefined;
       transport = undefined;
+      managedFileSystem = undefined;
       connected = false;
+      connectedViaPort = false;
     },
   };
 }
