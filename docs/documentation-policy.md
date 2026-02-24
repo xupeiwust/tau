@@ -94,7 +94,7 @@ description: [What you'll achieve, max 160 chars]
 [2-3 links: tutorial for deeper learning, API reference for the functions used, a how-to guide for a common next task]
 ```
 
-**Constraints**: Must be completable in under 5 minutes. No conceptual digressions. Every "why" question links to a concepts page instead of being answered inline.
+**Constraints**: Must be completable in under 4 minutes. No conceptual digressions. Every "why" question links to a concepts page instead of being answered inline.
 
 ### 3.2 Tutorial
 
