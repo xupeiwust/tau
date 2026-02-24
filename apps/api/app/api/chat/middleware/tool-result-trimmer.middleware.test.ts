@@ -93,7 +93,7 @@ async function callWrapModelCall(request: TestRequest, handler: ReturnType<typeo
   }
 
   // Cast to the expected types - in tests we only care about messages
-  await wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler);
+  await wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler as Parameters<typeof wrapModelCall>[1]);
 }
 
 describe('toolResultTrimmerMiddleware', () => {

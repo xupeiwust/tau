@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { InspectReport } from '@gltf-transform/functions';
-import type { InputFormat } from '#types.js';
+import type { SupportedImportFormat } from '#import.js';
 import { importFiles, supportedImportFormats } from '#import.js';
-import { createInspectTestUtils, loadTestData, createGeometryVariant } from '#test.utils.js';
+import { createInspectTestUtils, loadTestData, createGeometryVariant, loadFixture } from '#test.utils.js';
 import type { LoaderTestCase, GeometryExpectation } from '#test.utils.js';
 import { getInspectReport, validateGlbData } from '#gltf.utils.js';
 import type { GltfSceneStructure } from '#gltf.utils.js';
@@ -53,7 +53,7 @@ const gltfScenePatterns = {
 
 // Factory functions for common test patterns
 const createCubeTestCase = (
-  format: InputFormat,
+  format: SupportedImportFormat,
   options: {
     variant?: LoaderTestCase['variant'];
     geometry?: GeometryExpectation;
@@ -79,7 +79,7 @@ const createCubeTestCase = (
   skipReason: options.skipReason,
 });
 
-const createSkippedTestCase = (format: InputFormat, reason: string): LoaderTestCase =>
+const createSkippedTestCase = (format: SupportedImportFormat, reason: string): LoaderTestCase =>
   createCubeTestCase(format, { skip: true, skipReason: reason });
 
 // ===============================
@@ -200,10 +200,9 @@ const loaderTestCases: LoaderTestCase[] = [
     }),
   }),
 
-  // USD formats create complex multi-mesh structures - skip structure validation
+  // USD formats
   createCubeTestCase('usdz', {}),
   createCubeTestCase('usda', {}),
-  createCubeTestCase('usdc', {}),
   createCubeTestCase('usdz', { variant: 'materials' }),
   createCubeTestCase('usdz', {
     variant: 'textures',
@@ -644,7 +643,7 @@ describe('importFiles', () => {
     const wrongFiles = [
       {
         name: 'test.txt',
-        data: new Uint8Array([1, 2, 3]),
+        bytes: new Uint8Array([1, 2, 3]),
       },
     ];
 

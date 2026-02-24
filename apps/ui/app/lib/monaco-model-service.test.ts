@@ -163,7 +163,7 @@ describe('MonacoModelService', () => {
     service.initialize({
       monaco,
       fileManagerRef: fileManagerRef as never,
-      fileManager,
+      fileManager: fileManager as never,
       markerService: markerService as never,
     });
   });

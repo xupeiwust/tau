@@ -36,7 +36,6 @@
       "options": {
         "buildTargetName": "build",
         "previewTargetName": "preview",
-        "testTargetName": "test",
         "devTargetName": "dev",
         "serveTargetName": "serve",
         "serveStaticTargetName": "serve-static",
@@ -68,6 +67,12 @@
       "plugin": "./tools/tsgo.plugin.ts",
       "options": {
         "targetName": "typecheck"
+      }
+    },
+    {
+      "plugin": "@nx/vitest",
+      "options": {
+        "testTargetName": "test"
       }
     }
   ],

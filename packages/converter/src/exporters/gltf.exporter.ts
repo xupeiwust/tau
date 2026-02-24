@@ -67,7 +67,7 @@ export class GltfExporter extends BaseExporter<GltfExporterOptions> {
         if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
           outputFiles.push({
             name: uri,
-            bytes: data instanceof ArrayBuffer ? new Uint8Array(data) : data,
+            bytes: new Uint8Array(data),
             mimeType: mimeTypes.glb,
           });
         }

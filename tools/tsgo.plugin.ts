@@ -16,13 +16,7 @@
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readJsonFile } from '@nx/devkit';
-import type {
-  CreateNodesContext,
-  CreateNodesContextV2,
-  CreateNodesResult,
-  CreateNodesV2,
-  ProjectConfiguration,
-} from '@nx/devkit';
+import type { CreateNodesContextV2, CreateNodesResult, CreateNodesV2, ProjectConfiguration } from '@nx/devkit';
 
 type InputDefinition =
   | { input: string; projects: string | string[] }
@@ -32,7 +26,8 @@ type InputDefinition =
   | { runtime: string }
   | { externalDependencies: string[] }
   | { dependentTasksOutputFiles: string; transitive?: boolean }
-  | { env: string };
+  | { env: string }
+  | { workingDirectory: 'relative' | 'absolute' };
 
 type PackageJson = {
   nx?: {
@@ -58,7 +53,7 @@ const tsConfigCandidates = ['tsconfig.app.json', 'tsconfig.lib.json'];
 
 function getNamedInputs(
   directory: string,
-  context: CreateNodesContext | CreateNodesContextV2,
+  context: CreateNodesContextV2,
 ): Record<string, Array<string | InputDefinition>> {
   const projectJsonPath = join(directory, 'project.json');
   const projectJson: ProjectConfiguration | undefined = existsSync(projectJsonPath)
@@ -66,7 +61,9 @@ function getNamedInputs(
     : undefined;
 
   const packageJsonPath = join(directory, 'package.json');
-  const packageJson: PackageJson | undefined = existsSync(packageJsonPath) ? readJsonFile(packageJsonPath) : undefined;
+  const packageJson: PackageJson | undefined = existsSync(packageJsonPath)
+    ? readJsonFile<PackageJson>(packageJsonPath)
+    : undefined;
 
   return {
     ...context.nxJsonConfiguration.namedInputs,
@@ -203,8 +200,7 @@ const createTsgoTarget = (
   const tsConfigInputs = getTsConfigInputs(workspaceRoot, projectRoot);
   const additionalInputPatterns = getAdditionalInputPatterns(workspaceRoot, projectRoot);
 
-  const commands = tsConfigs.map((config) => `tsgo -p ${config} ${tsGoFlags}`);
-  const command = commands.join(' && ');
+  const command = tsConfigs.map((config) => `tsgo -p ${config} ${tsGoFlags}`).join(' && ');
 
   const inputs: Array<string | InputDefinition> = [
     '{projectRoot}/package.json',
