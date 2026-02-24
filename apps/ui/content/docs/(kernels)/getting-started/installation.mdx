@@ -35,11 +35,6 @@ yarn add @taucad/kernels
 
 ```typescript
 import { createKernelClient } from '@taucad/kernels';
-import { createWorkerTransport } from '@taucad/kernels/transport';
-
-const transport = createWorkerTransport(
-  new URL('@taucad/kernels/worker', import.meta.url),
-);
 ```
 
 ### Node.js
@@ -52,7 +47,7 @@ import fs from 'node:fs';
 
 const client = createKernelClient({
   kernels: [/* ... */],
-  filesystem: fromNodeFS(fs),
+  fileSystem: fromNodeFS(fs),
 });
 ```
 
@@ -72,5 +67,5 @@ The package exposes multiple subpath imports for tree-shaking:
 
 ## What's Next
 
-- [Quick Start](./quick-start) -- Render your first 3D model in under 5 minutes
+- [Quick Start](./quick-start) -- Render your first 3D model in under 4 minutes
 - [API Reference](/docs/api/client) -- Full API documentation for `createKernelClient`

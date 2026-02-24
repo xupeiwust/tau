@@ -17,7 +17,7 @@ Build a parametric box with rounded edges using the Replicad kernel. You will le
 
 ## Prerequisites
 
-- [Install @taucad/kernels](./installation)
+- [Install @taucad/kernels](/docs/getting-started/installation)
 - Completed the [Quick Start](./quick-start)
 
 ## Step 1: Set Up the Client
@@ -28,15 +28,11 @@ Create a kernel client with the Replicad kernel, esbuild bundler, and an in-memo
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 
 client.on('log', ({ message }) => console.log('[kernel]', message));
@@ -76,15 +72,12 @@ Pass the code and optional parameter overrides to `client.render()`:
 
 ```typescript
 const result = await client.render({
-  file: 'main.ts',
-  code: modelCode,
+  code: { 'main.ts': modelCode },
   parameters: { width: 50, depth: 15 },
 });
 
 if (result.success) {
-  const geometry = result.data.geometries[0];
-  console.log(`Rendered: ${geometry.type}`);
-  console.log(`GLB size: ${geometry.blob.byteLength} bytes`);
+  console.log(`Rendered ${result.data.length} geometries`);
 } else {
   for (const issue of result.issues) {
     console.error(`[${issue.severity}] ${issue.message}`);
@@ -102,15 +95,24 @@ Export the rendered geometry to STEP format for use in professional CAD tools:
 const exportResult = await client.export('step');
 
 if (exportResult.success) {
-  const file = exportResult.data.files[0];
-  console.log(`Exported: ${file.name} (${file.blob.byteLength} bytes)`);
+  const { name, bytes, mimeType } = exportResult.data;
+  console.log(`Exported: ${name} (${bytes.byteLength} bytes, ${mimeType})`);
   // Save to disk, upload, or pass to another tool
 } else {
   console.error('Export failed:', exportResult.issues);
 }
 ```
 
-STEP export is available for the Replicad kernel. Other kernels support different export formats -- see [Choosing a Kernel](../guides/choosing-a-kernel) for a comparison.
+You can also export directly from code without a separate `render()` call:
+
+```typescript
+const result = await client.export('step', {
+  code: { 'main.ts': modelCode },
+  parameters: { width: 50, depth: 15 },
+});
+```
+
+STEP export is available for the Replicad kernel. Other kernels support different export formats -- see [Choosing a Kernel](/docs/guides/choosing-a-kernel) for a comparison.
 
 ## Step 5: Clean Up
 
@@ -132,7 +134,7 @@ You built a parametric 3D model using the Replicad kernel:
 
 ## Next Steps
 
-- [Using Middleware](../guides/using-middleware) -- Add caching and post-processing to your pipeline
-- [Filesystem Setup](../guides/filesystem-setup) -- Use Node.js or browser filesystems instead of in-memory
-- [Architecture](../concepts/architecture) -- Understand how client, transport, worker, and kernel layers interact
+- [Using Middleware](/docs/guides/using-middleware) -- Add caching and post-processing to your pipeline
+- [Filesystem Setup](/docs/guides/filesystem-setup) -- Use Node.js or browser filesystems instead of in-memory
+- [Architecture](/docs/concepts/architecture) -- Understand how client, transport, worker, and kernel layers interact
 - [API Reference: Client](/docs/api/client) -- Complete documentation for `KernelClient` methods

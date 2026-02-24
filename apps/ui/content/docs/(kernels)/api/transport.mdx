@@ -31,11 +31,11 @@ const transport = createWorkerTransport(
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
+  fileSystem: fromMemoryFS(),
   transport,
 });
 ```
 
 ## Related
 
-- [Worker Model](../concepts/worker-model)
+- [Worker Model](/docs/concepts/worker-model)

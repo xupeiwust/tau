@@ -9,19 +9,25 @@ icon: lucide:blocks
 A multi-kernel CAD runtime for browser and Node.js. Run multiple CAD engines from a single, unified API with middleware support, automatic kernel selection, and Web Worker isolation.
 
 ```typescript
-import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
+import { createKernelClient } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(new URL('./worker.js', import.meta.url)),
 });
 
-const result = await client.render({ file: 'main.ts' });
+const result = await client.export('step', {
+  code: { 'box.ts': `
+    import { makeBaseBox } from 'replicad';
+    export default function main() {
+      return makeBaseBox(10, 20, 30);
+    }
+  `},
+});
+
+// result.data -> { name: 'box.step', bytes: Uint8Array, mimeType: 'model/step' }
 ```
 
 ## Supported Kernels
@@ -44,7 +50,7 @@ const result = await client.render({ file: 'main.ts' });
 
 ## Part of the Tau Ecosystem
 
-`@taucad/kernels` is the CAD runtime that powers [Tau](https://tau.new), an AI-powered CAD platform. The package is designed for standalone use -- you can integrate it into any JavaScript application without the Tau editor.
+`@taucad/kernels` is the CAD runtime that powers [Tau](https://tau.new), the AI-powered CAD platform. The package is designed for standalone use -- you can integrate it into any JavaScript application without the Tau editor.
 
 The Tau ecosystem also includes:
 
@@ -54,7 +60,7 @@ The Tau ecosystem also includes:
 ## Explore the Documentation
 
 - **[Installation](./getting-started/installation)** -- Set up the package in your project
-- **[Quick Start](./getting-started/quick-start)** -- Render your first 3D model in under 5 minutes
+- **[Quick Start](./getting-started/quick-start)** -- Render your first 3D model in under 4 minutes
 - **[Guides](./guides/choosing-a-kernel)** -- Task-oriented how-to guides for common workflows
 - **[Concepts](./concepts/architecture)** -- Understand the architecture and design decisions
 - **[API Reference](./api/client)** -- Complete type documentation for every public API

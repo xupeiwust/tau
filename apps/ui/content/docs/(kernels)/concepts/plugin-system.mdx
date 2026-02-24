@@ -44,7 +44,7 @@ flowchart LR
 
 ### KernelPlugin
 
-A [KernelPlugin](../api/kernels) describes a CAD engine. Factory functions like `replicad()`, `openscad()`, and `zoo()` return a registration object:
+A [KernelPlugin](/docs/api/kernels) describes a CAD engine. Factory functions like `replicad()`, `openscad()`, and `zoo()` return a registration object:
 
 - `id` — Unique identifier (e.g., `'replicad'`)
 - `moduleUrl` — URL of the `defineKernel` module (resolved via `import.meta.url`)
@@ -57,7 +57,7 @@ The factory accepts options and merges them into the plugin. For example, `repli
 
 ### MiddlewarePlugin
 
-A [MiddlewarePlugin](../api/middleware) describes an interceptor. Factory functions like `geometryCache()` and `parameterCache()` return:
+A [MiddlewarePlugin](/docs/api/middleware) describes an interceptor. Factory functions like `geometryCache()` and `parameterCache()` return:
 
 - `id` — Unique identifier
 - `moduleUrl` — URL of the `defineMiddleware` module
@@ -67,7 +67,7 @@ Middleware order matters: first registered is the outermost layer in the onion m
 
 ### BundlerPlugin
 
-A [BundlerPlugin](../api/bundler) describes a bundler for specific file extensions. The built-in `esbuild()` handles `['ts', 'js', 'tsx', 'jsx']`:
+A [BundlerPlugin](/docs/api/bundler) describes a bundler for specific file extensions. The built-in `esbuild()` handles `['ts', 'js', 'tsx', 'jsx']`:
 
 - `id` — Unique identifier
 - `moduleUrl` — URL of the `defineBundler` module
@@ -124,8 +124,8 @@ The framework calls `optionsSchema.parse(rawOptions)` before passing options to 
 - [Architecture](./architecture) — How layers compose
 - [Middleware Model](./middleware-model) — How middleware wraps kernel operations
 - [Kernel Selection](./kernel-selection) — How plugins influence selection
-- [API: Kernels](../api/kernels) — `defineKernel` and `KernelDefinition`
-- [API: Middleware](../api/middleware) — `defineMiddleware` and `KernelMiddleware`
-- [API: Bundler](../api/bundler) — `defineBundler` and `BundlerDefinition`
-- [Create Custom Kernel](../guides/custom-kernel) — Implement a kernel with `defineKernel`
-- [Create Custom Middleware](../guides/custom-middleware) — Implement middleware with `defineMiddleware`
+- [API: Kernels](/docs/api/kernels) — `defineKernel` and `KernelDefinition`
+- [API: Middleware](/docs/api/middleware) — `defineMiddleware` and `KernelMiddleware`
+- [API: Bundler](/docs/api/bundler) — `defineBundler` and `BundlerDefinition`
+- [Create Custom Kernel](/docs/guides/custom-kernel) — Implement a kernel with `defineKernel`
+- [Create Custom Middleware](/docs/guides/custom-middleware) — Implement middleware with `defineMiddleware`

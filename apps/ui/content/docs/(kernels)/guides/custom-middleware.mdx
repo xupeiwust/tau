@@ -10,10 +10,10 @@ Build middleware with `defineMiddleware` to intercept and transform kernel opera
 
 ## Prerequisites
 
-- [Install @taucad/kernels](../getting-started/installation)
-- Completed the [Quick Start](../getting-started/quick-start)
+- [Install @taucad/kernels](/docs/getting-started/installation)
+- Completed the [Quick Start](/docs/getting-started/quick-start)
 - [Using Middleware](./using-middleware) -- Add built-in middleware to your client
-- [Middleware Model](../concepts/middleware-model) -- Understand the onion model
+- [Middleware Model](/docs/concepts/middleware-model) -- Understand the onion model
 
 ## Goal
 
@@ -191,16 +191,12 @@ Pass the factory to `createKernelClient`:
 import { createKernelClient, fromNodeFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 import { myCache } from './my-cache-plugin.js';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromNodeFS('/path/to/project'),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromNodeFS('/path/to/project'),
   middleware: [myCache()],
 });
 ```
@@ -238,7 +234,7 @@ const fullMiddleware = defineMiddleware({
 
 ## Related
 
-- [Middleware Model](../concepts/middleware-model) -- Onion model and execution order
+- [Middleware Model](/docs/concepts/middleware-model) -- Onion model and execution order
 - [Using Middleware](./using-middleware) -- Add built-in middleware
 - [API Reference: Middleware](/docs/api/middleware) -- defineMiddleware and types
 - [API Reference: defineMiddleware](/docs/api/middleware) -- Full type documentation

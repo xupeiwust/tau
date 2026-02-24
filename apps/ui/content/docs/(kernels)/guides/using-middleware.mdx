@@ -10,8 +10,8 @@ Add caching, coordinate transforms, and edge detection to your kernel pipeline. 
 
 ## Prerequisites
 
-- [Install @taucad/kernels](../getting-started/installation)
-- Completed the [Quick Start](../getting-started/quick-start)
+- [Install @taucad/kernels](/docs/getting-started/installation)
+- Completed the [Quick Start](/docs/getting-started/quick-start)
 
 ## Goal
 
@@ -40,7 +40,6 @@ Pass the middleware array to the `middleware` option. Order matters: middleware 
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 import {
   geometryCache,
   parameterCache,
@@ -51,10 +50,7 @@ import {
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
   middleware: [
     parameterCache(),
     geometryCache(),
@@ -82,16 +78,12 @@ Geometry and parameter caches require a writable filesystem. Use `fromNodeFS` in
 import { createKernelClient, fromNodeFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 import { geometryCache, parameterCache } from '@taucad/kernels/middleware';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromNodeFS('/path/to/project'),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromNodeFS('/path/to/project'),
   middleware: [parameterCache(), geometryCache()],
 });
 ```
@@ -104,17 +96,18 @@ Render as usual. Middleware runs automatically:
 
 ```typescript
 const result = await client.render({
-  file: 'main.ts',
-  code: `
-    import { drawRoundedRectangle } from 'replicad';
-    export default function main() {
-      return drawRoundedRectangle(30, 50, 5).sketchOnPlane('XY').extrude(10);
-    }
-  `,
+  code: {
+    'main.ts': `
+      import { drawRoundedRectangle } from 'replicad';
+      export default function main() {
+        return drawRoundedRectangle(30, 50, 5).sketchOnPlane('XY').extrude(10);
+      }
+    `,
+  },
 });
 
 if (result.success) {
-  console.log(`Rendered ${result.data.geometries.length} geometry`);
+  console.log(`Rendered ${result.data.length} geometry`);
 }
 ```
 
@@ -127,7 +120,7 @@ if (result.success) {
 
 ## Related
 
-- [Middleware Model](../concepts/middleware-model) -- How the onion model works
+- [Middleware Model](/docs/concepts/middleware-model) -- How the onion model works
 - [Create Custom Middleware](./custom-middleware) -- Build your own middleware
 - [API Reference: Middleware](/docs/api/middleware) -- Middleware types and factories
 - [API Reference: Client](/docs/api/client) -- createKernelClient options

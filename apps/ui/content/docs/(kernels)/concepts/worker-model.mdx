@@ -48,7 +48,7 @@ A single worker instance hosts all registered kernels. The `KernelRuntimeWorker`
 
 ### MessagePort-Based Communication Protocol
 
-The [KernelTransport](../api/transport) interface abstracts the channel: `send(message, transferables?)` and `onMessage(handler)`. The default implementation uses `worker.postMessage()` and `worker.addEventListener('message')`. Messages are typed as `KernelCommand` (main → worker) and `KernelResponse` (worker → main). Each request/response pair carries a `requestId` for correlation.
+The [KernelTransport](/docs/api/transport) interface abstracts the channel: `send(message, transferables?)` and `onMessage(handler)`. The default implementation uses `worker.postMessage()` and `worker.addEventListener('message')`. Messages are typed as `KernelCommand` (main → worker) and `KernelResponse` (worker → main). Each request/response pair carries a `requestId` for correlation.
 
 Commands include `initialize`, `render`, `export`, `fileChanged`, `configureMiddleware`, `cleanup`. Responses include `initialized`, `geometryComputed`, `exported`, `parametersResolved`, `progress`, `log`, `logBatch`, `telemetry`, `error`.
 
@@ -84,6 +84,6 @@ The framework extracts transferables from `HashedGeometryResult` when the format
 
 - [Architecture](./architecture) — How the transport fits in the layered design
 - [Kernel Selection](./kernel-selection) — How the runtime worker selects kernels
-- [API: Transport](../api/transport) — `KernelTransport` and `createWorkerTransport`
-- [Bundler Configuration](../guides/bundler-configuration) — Worker and bundler setup
-- [Filesystem Setup](../guides/filesystem-setup) — Connecting a filesystem to the worker
+- [API: Transport](/docs/api/transport) — `KernelTransport` and `createWorkerTransport`
+- [Bundler Configuration](/docs/guides/bundler-configuration) — Worker and bundler setup
+- [Filesystem Setup](/docs/guides/filesystem-setup) — Connecting a filesystem to the worker

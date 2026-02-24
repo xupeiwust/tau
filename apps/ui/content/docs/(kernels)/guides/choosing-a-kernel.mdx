@@ -10,8 +10,8 @@ Compare the four built-in kernels and select the right one for your CAD workflow
 
 ## Prerequisites
 
-- [Install @taucad/kernels](../getting-started/installation)
-- Completed the [Quick Start](../getting-started/quick-start)
+- [Install @taucad/kernels](/docs/getting-started/installation)
+- Completed the [Quick Start](/docs/getting-started/quick-start)
 
 ## Kernel Comparison
 
@@ -56,15 +56,11 @@ Use Replicad when you need:
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
@@ -79,14 +75,10 @@ Use OpenSCAD when you have:
 ```typescript
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { openscad } from '@taucad/kernels/kernels';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [openscad()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
@@ -102,15 +94,11 @@ Use JSCAD when you need:
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { jscad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [jscad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
@@ -125,14 +113,10 @@ Use Zoo when you need:
 ```typescript
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { zoo } from '@taucad/kernels/kernels';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [zoo({ baseUrl: 'wss://your-zoo-server/v1/kernels/zoo' })],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
@@ -144,23 +128,19 @@ You can register multiple kernels in a single client. The framework selects the 
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad, openscad, jscad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad(), openscad(), jscad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 
 // .ts/.js files -> Replicad or JSCAD (based on imports)
 // .scad files -> OpenSCAD
-const result = await client.render({ file: 'model.ts', code: '...' });
+const result = await client.render({ code: { 'model.ts': '...' } });
 ```
 
-Kernel selection order follows the order in the `kernels` array. The first kernel whose `canHandle` returns true is used. See [Kernel Selection](../concepts/kernel-selection) for details.
+Kernel selection order follows the order in the `kernels` array. The first kernel whose `canHandle` returns true is used. See [Kernel Selection](/docs/concepts/kernel-selection) for details.
 
 ## Variations
 
@@ -170,7 +150,7 @@ Kernel selection order follows the order in the `kernels` array. The first kerne
 
 ## Related
 
-- [Kernel Selection](../concepts/kernel-selection) -- How the framework chooses a kernel
-- [Plugin System](../concepts/plugin-system) -- Extend with custom kernels
+- [Kernel Selection](/docs/concepts/kernel-selection) -- How the framework chooses a kernel
+- [Plugin System](/docs/concepts/plugin-system) -- Extend with custom kernels
 - [API Reference: Kernels](/docs/api/kernels) -- Kernel factory functions
 - [Create a Custom Kernel](./custom-kernel) -- Build your own kernel plugin

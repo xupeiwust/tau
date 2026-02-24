@@ -35,7 +35,8 @@ type KernelResult<T> = KernelSuccessResult<T> | KernelErrorResult;
 | `CreateGeometryResult` | `KernelResult<GeometryResponse[]>` |
 | `HashedGeometryResult` | `KernelResult<Geometry[]>` — with content-hash for React keys |
 | `GetParametersResult` | `KernelResult<{ defaultParameters: Record<string, unknown>; jsonSchema: unknown }>` |
-| `ExportGeometryResult` | `KernelResult<Array<{ blob: Blob; name: string }>>` |
+| `ExportResult` | `KernelResult<ExportFile>` — client-facing unwrapped type where `ExportFile = { name: string; bytes: Uint8Array; mimeType: string }` |
+| `ExportGeometryResult` | `KernelResult<ExportFile[]>` — internal pipeline type (middleware and kernel authors) |
 | `RenderPhase` | `string` — framework phases: `'resolvingDeps'`, `'bundling'`, `'extractingParams'`, `'computingGeometry'`, `'postProcessing'` |
 
 ## Narrowing Results
@@ -44,7 +45,7 @@ type KernelResult<T> = KernelSuccessResult<T> | KernelErrorResult;
 const result = await client.render({ file: 'main.ts' });
 
 if (result.success) {
-  console.log(result.data.geometries.length);
+  console.log(result.data.length);
 } else {
   console.error(result.issues);
 }
@@ -52,4 +53,4 @@ if (result.success) {
 
 ## Related
 
-- [Error Handling](../guides/error-handling)
+- [Error Handling](/docs/guides/error-handling)

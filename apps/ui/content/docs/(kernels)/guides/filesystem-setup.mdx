@@ -10,8 +10,8 @@ Configure the filesystem backend that kernels use to read project files. The fra
 
 ## Prerequisites
 
-- [Install @taucad/kernels](../getting-started/installation)
-- Completed the [Quick Start](../getting-started/quick-start)
+- [Install @taucad/kernels](/docs/getting-started/installation)
+- Completed the [Quick Start](/docs/getting-started/quick-start)
 
 ## Goal
 
@@ -35,15 +35,11 @@ Use `fromNodeFS` when your project files live on disk. Pass the base path; all f
 import { createKernelClient, fromNodeFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromNodeFS('/path/to/project'),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromNodeFS('/path/to/project'),
 });
 ```
 
@@ -57,7 +53,6 @@ Use `fromMemoryFS` when file content is passed directly (e.g., from an editor) o
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const filesystem = fromMemoryFS({
   'main.ts': `
@@ -72,10 +67,7 @@ const filesystem = fromMemoryFS({
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem,
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: filesystem,
 });
 ```
 
@@ -94,10 +86,7 @@ const filesystem = fromZenFS(fs, '/');
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem,
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: filesystem,
 });
 ```
 
@@ -136,6 +125,6 @@ All paths are absolute. The framework builds higher-level operations (e.g., `ens
 ## Related
 
 - [Using Middleware](./using-middleware) -- Caching middleware requires a writable filesystem
-- [Worker Model](../concepts/worker-model) -- How the filesystem is bridged to the worker
+- [Worker Model](/docs/concepts/worker-model) -- How the filesystem is bridged to the worker
 - [API Reference: Types](/docs/api/types) -- KernelFileSystem interface
 - [API Reference: Client](/docs/api/client) -- createKernelClient filesystem option

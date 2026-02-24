@@ -28,20 +28,18 @@ Use the client API when you need to create a kernel runtime, configure filesyste
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(new URL('@taucad/kernels/worker', import.meta.url).href),
+  fileSystem: fromMemoryFS(),
 });
 
-const result = await client.render({ file: 'main.ts', code: 'export default () => {}' });
+const result = await client.render({ code: { 'main.ts': 'export default () => {}' } });
 client.terminate();
 ```
 
 ## Related
 
-- [Quick Start](../getting-started/quick-start)
-- [Filesystem Setup](../guides/filesystem-setup)
+- [Quick Start](/docs/getting-started/quick-start)
+- [Filesystem Setup](/docs/guides/filesystem-setup)

@@ -34,16 +34,14 @@ Use the bundler API when configuring how JS/TS kernel inputs are bundled and exe
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(new URL('@taucad/kernels/worker', import.meta.url).href),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
 ## Related
 
-- [Bundler Configuration](../guides/bundler-configuration)
+- [Bundler Configuration](/docs/guides/bundler-configuration)

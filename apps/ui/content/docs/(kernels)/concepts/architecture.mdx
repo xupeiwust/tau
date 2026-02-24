@@ -46,15 +46,15 @@ flowchart TB
 
 ### Client Layer (KernelClient)
 
-The [KernelClient](../api/client) is the primary consumer API. It exposes Promise-based methods (`render()`, `export()`, `connect()`) and event subscription (`on('log')`, `on('progress')`). It does not know about workers or message protocols; it delegates to `KernelWorkerClient`, which wraps the transport. The client lazily initializes the worker and transport on first `connect()` or `render()`.
+The [KernelClient](/docs/api/client) is the primary consumer API. It exposes Promise-based methods (`render()`, `export()`, `connect()`) and event subscription (`on('log')`, `on('progress')`). It does not know about workers or message protocols; it delegates to `KernelWorkerClient`, which wraps the transport. The client lazily initializes the worker and transport on first `connect()` or `render()`.
 
 ### Transport Layer (MessagePort)
 
-The [KernelTransport](../api/transport) is a low-level interface: `send(message, transferables?)` and `onMessage(handler)`. The default implementation uses a Web Worker and `postMessage`. The protocol is defined by `KernelCommand` and `KernelResponse` types. This abstraction allows swapping in WebSocket, HTTP, or native FFI without changing the client or framework.
+The [KernelTransport](/docs/api/transport) is a low-level interface: `send(message, transferables?)` and `onMessage(handler)`. The default implementation uses a Web Worker and `postMessage`. The protocol is defined by `KernelCommand` and `KernelResponse` types. This abstraction allows swapping in WebSocket, HTTP, or native FFI without changing the client or framework.
 
 ### Framework Layer (KernelWorker, Middleware, Bundler)
 
-The framework runs inside the worker. [KernelWorker](../api/kernels) is the base class that orchestrates:
+The framework runs inside the worker. [KernelWorker](/docs/api/kernels) is the base class that orchestrates:
 
 - **Middleware chain** — Onion-model wrappers around `createGeometry`, `getParameters`, and `exportGeometry`. Middleware runs in registration order (first registered = outermost).
 - **Bundler** — Lazy-loaded for JS/TS kernels. Bundles entry files and dependencies, executes code, and supports `detectImports` for kernel selection.
@@ -64,7 +64,7 @@ The framework runs inside the worker. [KernelWorker](../api/kernels) is the base
 
 ### Kernel Layer (defineKernel implementations)
 
-Kernels are plain objects returned by [defineKernel](../api/kernels). They implement `getDependencies`, `getParameters`, `createGeometry`, and `exportGeometry`. No inheritance; state lives in a context returned by `initialize()`. The framework invokes these methods through the middleware chain.
+Kernels are plain objects returned by [defineKernel](/docs/api/kernels). They implement `getDependencies`, `getParameters`, `createGeometry`, and `exportGeometry`. No inheritance; state lives in a context returned by `initialize()`. The framework invokes these methods through the middleware chain.
 
 ## Data Flow for a render() Call
 
@@ -124,6 +124,6 @@ sequenceDiagram
 
 - [Plugin System](./plugin-system) — How `defineKernel`, `defineMiddleware`, and `defineBundler` compose
 - [Worker Model](./worker-model) — Why Web Workers and the MessagePort protocol
-- [API: Client](../api/client) — `createKernelClient` and `KernelClient` types
-- [API: Transport](../api/transport) — `KernelTransport` and `createWorkerTransport`
-- [Quick Start](../getting-started/quick-start) — End-to-end setup
+- [API: Client](/docs/api/client) — `createKernelClient` and `KernelClient` types
+- [API: Transport](/docs/api/transport) — `KernelTransport` and `createWorkerTransport`
+- [Quick Start](/docs/getting-started/quick-start) — End-to-end setup

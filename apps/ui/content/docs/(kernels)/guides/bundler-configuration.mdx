@@ -10,8 +10,8 @@ Configure the esbuild bundler for JS/TS kernels (Replicad, JSCAD). The bundler r
 
 ## Prerequisites
 
-- [Install @taucad/kernels](../getting-started/installation)
-- Completed the [Quick Start](../getting-started/quick-start)
+- [Install @taucad/kernels](/docs/getting-started/installation)
+- Completed the [Quick Start](/docs/getting-started/quick-start)
 - [Choosing a Kernel](./choosing-a-kernel) -- Understand which kernels use bundlers
 
 ## Goal
@@ -36,15 +36,11 @@ Pass the bundler in the `bundlers` array. JS/TS kernels (Replicad, JSCAD) requir
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad } from '@taucad/kernels/kernels';
 import { esbuild } from '@taucad/kernels/bundler';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [replicad()],
   bundlers: [esbuild()],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(
-    new URL('@taucad/kernels/worker', import.meta.url),
-  ),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
@@ -142,6 +138,6 @@ Register your bundler via a `BundlerPlugin` with `moduleUrl` pointing to the bui
 ## Related
 
 - [Create a Custom Kernel](./custom-kernel) -- Implement kernels that use the bundler
-- [Plugin System](../concepts/plugin-system) -- How bundlers are loaded
+- [Plugin System](/docs/concepts/plugin-system) -- How bundlers are loaded
 - [API Reference: Bundler](/docs/api/bundler) -- EsbuildOptions, defineBundler, BundlerDefinition
 - [API Reference: Types](/docs/api/types) -- KernelBundler, BuiltinModule

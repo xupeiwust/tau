@@ -31,7 +31,6 @@ Use kernel factories when registering CAD engines with `createKernelClient`. Eac
 ```typescript
 import { createKernelClient, fromMemoryFS } from '@taucad/kernels';
 import { replicad, openscad, jscad, zoo, tau } from '@taucad/kernels/kernels';
-import { createWorkerTransport } from '@taucad/kernels/transport';
 
 const client = createKernelClient({
   kernels: [
@@ -42,12 +41,11 @@ const client = createKernelClient({
     tau(),
   ],
   bundlers: [],
-  filesystem: fromMemoryFS(),
-  transport: createWorkerTransport(workerUrl),
+  fileSystem: fromMemoryFS(),
 });
 ```
 
 ## Related
 
-- [Choosing a Kernel](../guides/choosing-a-kernel)
-- [Plugin System](../concepts/plugin-system)
+- [Choosing a Kernel](/docs/guides/choosing-a-kernel)
+- [Plugin System](/docs/concepts/plugin-system)
