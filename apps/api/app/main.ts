@@ -2,6 +2,7 @@
  * This is not a production server yet!
  * This is only a minimal backend to get started.
  */
+import process from 'node:process';
 import { Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -19,6 +20,30 @@ import { createCorsOriginValidatorFromList } from '#utils/cors.utils.js';
 import { httpBodyLimit } from '#constants/http-body.constant.js';
 import { RedisService } from '#redis/redis.service.js';
 import { RedisIoAdapter } from '#api/websocket/redis-io.adapter.js';
+import { isTrackedAbortError } from '#api/chat/utils/chat-abort.js';
+
+// ---------------------------------------------------------------------------
+// Chat Abort Error Handling (see docs/api-error-policy.md)
+// ---------------------------------------------------------------------------
+
+// Layer 2: Suppress unhandled AbortError rejections from chat cancellations.
+// LangGraph's internal abort propagation creates fire-and-forget promises in
+// node-fetch that reject with AbortError. The tracker ensures we only suppress
+// errors that correlate with a known chat abort.
+process.on('unhandledRejection', (reason: unknown) => {
+  if (isTrackedAbortError(reason)) {
+    return;
+  }
+
+  // Re-throw non-abort rejections so Node.js treats them as uncaught exceptions,
+  // preserving the default crash-on-unhandled-rejection behavior.
+  if (reason instanceof Error) {
+    throw reason;
+  }
+
+  throw new Error(typeof reason === 'string' ? reason : 'Unhandled promise rejection');
+});
+
 
 async function bootstrap() {
   const fastifyAdapter = new FastifyAdapter({

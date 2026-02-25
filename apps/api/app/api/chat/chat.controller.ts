@@ -2,7 +2,9 @@ import { Body, Controller, Logger, Post, Res, UseFilters, UseGuards } from '@nes
 import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
 import { convertToModelMessages, createUIMessageStreamResponse } from 'ai';
 import type { FastifyReply } from 'fastify';
-import type { ToolSelection } from '@taucad/chat';
+import type { ReactAgent } from 'langchain';
+import type { ToolSelection, ChatSnapshot } from '@taucad/chat';
+import type { KernelProvider } from '@taucad/kernels';
 import { ChatService } from '#api/chat/chat.service.js';
 import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { ModelService } from '#api/models/model.service.js';
@@ -16,6 +18,16 @@ import { createStaticToolTransform } from '#api/chat/utils/static-tool-transform
 import { createErrorTransform } from '#api/chat/utils/error-transform.js';
 import { createToolOutputTransform } from '#api/chat/utils/tool-output-transform.js';
 import { ChatExceptionFilter } from '#api/chat/chat-exception.filter.js';
+import { ChatAbortError, isChatAbortError, registerChatAbort } from '#api/chat/utils/chat-abort.js';
+
+type LangChainMessages = Awaited<ReturnType<typeof toBaseMessages>>;
+
+type ChatRequestConfig = {
+  modelId: string;
+  selectedToolChoice: ToolSelection;
+  selectedKernel: KernelProvider;
+  snapshot: ChatSnapshot | undefined;
+};
 
 @UseFilters(ChatExceptionFilter)
 @UseGuards(AuthGuard)
@@ -35,30 +47,10 @@ export class ChatController {
   public async createChat(@Body() body: CreateChatDto, @Res() response: FastifyReply): Promise<void> {
     this.logger.debug(`Creating chat: ${body.id}`);
 
-    const lastHumanMessage = body.messages.findLast((message) => message.role === 'user');
-    let modelId: string;
-    let selectedToolChoice: ToolSelection = 'auto';
+    const { modelId, selectedToolChoice, selectedKernel, snapshot } = this.extractRequestConfig(body);
 
-    if (lastHumanMessage?.role === 'user') {
-      const messageModel = lastHumanMessage.metadata?.model;
-
-      if (!messageModel) {
-        throw new Error('Message model is required');
-      }
-
-      modelId = messageModel;
-
-      const messageToolChoice = lastHumanMessage.metadata?.toolChoice;
-
-      if (messageToolChoice) {
-        selectedToolChoice = messageToolChoice;
-      }
-    } else {
-      throw new Error('Last message is not a user message');
-    }
-
-    // Handle simple model streams (name generator, commit generator)
-    // These use AI SDK's streamText, so they need ModelMessage[] from convertToModelMessages
+    // Handle simple model streams (name generator, commit generator).
+    // These use AI SDK's streamText, so they need ModelMessage[] from convertToModelMessages.
     if (modelId === 'name-generator') {
       const modelMessages = await convertToModelMessages(body.messages);
       const result = this.chatService.getBuildNameGenerator(modelMessages);
@@ -71,14 +63,50 @@ export class ChatController {
       return sendSimpleModelStream(response, result);
     }
 
-    // Extract kernel from request body (default to openscad if not provided)
-    const selectedKernel = lastHumanMessage.metadata?.kernel ?? 'openscad';
+    const langchainMessages = await this.prepareMessages(body.messages, snapshot);
+    const agent = await this.chatService.createAgent(modelId, selectedToolChoice, selectedKernel);
 
-    // Extract snapshot from metadata and inject into last message content
-    const snapshot = lastHumanMessage.metadata?.snapshot;
+    return this.streamAgentResponse({
+      chatId: body.id,
+      agent,
+      messages: langchainMessages,
+      modelId,
+      response,
+    });
+  }
 
-    // Inject snapshot context into messages if available
-    const messagesWithContext = snapshot ? injectSnapshotContext(body.messages, snapshot) : body.messages;
+  /**
+   * Parses and validates the last user message to extract model configuration.
+   */
+  private extractRequestConfig(body: CreateChatDto): ChatRequestConfig {
+    const lastHumanMessage = body.messages.findLast((message) => message.role === 'user');
+
+    if (lastHumanMessage?.role !== 'user') {
+      throw new Error('Last message is not a user message');
+    }
+
+    const messageModel = lastHumanMessage.metadata?.model;
+
+    if (!messageModel) {
+      throw new Error('Message model is required');
+    }
+
+    return {
+      modelId: messageModel,
+      selectedToolChoice: lastHumanMessage.metadata?.toolChoice ?? 'auto',
+      selectedKernel: lastHumanMessage.metadata?.kernel ?? 'openscad',
+      snapshot: lastHumanMessage.metadata?.snapshot,
+    };
+  }
+
+  /**
+   * Injects snapshot context into messages and converts to LangChain format.
+   */
+  private async prepareMessages(
+    messages: CreateChatDto['messages'],
+    snapshot: ChatSnapshot | undefined,
+  ): Promise<LangChainMessages> {
+    const messagesWithContext = snapshot ? injectSnapshotContext(messages, snapshot) : messages;
 
     if (snapshot) {
       const contextTypes = [
@@ -91,11 +119,21 @@ export class ChatController {
       this.logger.debug(`Injecting snapshot context into last message: ${contextTypes}`);
     }
 
-    // Convert UI messages to LangChain messages using the built-in adapter
-    const langchainMessages = await toBaseMessages(messagesWithContext);
+    return toBaseMessages(messagesWithContext);
+  }
 
-    // Get the agent from the service
-    const agent = await this.chatService.createAgent(modelId, selectedToolChoice, selectedKernel);
+  /**
+   * Sets up client-disconnect abort handling, runs the LangGraph agent stream,
+   * and pipes the result as an SSE response.
+   */
+  private async streamAgentResponse(options: {
+    chatId: string;
+    agent: ReactAgent;
+    messages: LangChainMessages;
+    modelId: string;
+    response: FastifyReply;
+  }): Promise<void> {
+    const { chatId, agent, messages, modelId, response } = options;
 
     // Abort the request if the client disconnects.
     // Listen on response.raw (ServerResponse) — for SSE, the response stream
@@ -105,69 +143,70 @@ export class ChatController {
     const abortController = new AbortController();
 
     response.raw.on('close', () => {
-      // WritableFinished is true when the stream completed normally.
-      // If false, the client disconnected before the stream finished.
       if (!response.raw.writableFinished) {
-        abortController.abort();
+        registerChatAbort(chatId);
+        abortController.abort(new ChatAbortError(chatId));
       }
     });
 
     // Register the abort signal on the RPC service so in-flight RPC calls
     // are rejected immediately when the client aborts, rather than waiting
     // for the 60s timeout
-    this.chatRpcService.registerAbortSignal(body.id, abortController.signal);
+    this.chatRpcService.registerAbortSignal(chatId, abortController.signal);
 
-    this.logger.debug(`Starting execution for thread: ${body.id}`);
-    const stream = await agent.graph.stream(
-      { messages: langchainMessages },
-      {
-        configurable: {
-          // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
-          thread_id: body.id,
-          // Pass services for tools to use
-          chatRpcService: this.chatRpcService,
-          fileEditService: this.fileEditService,
-          analysisService: this.analysisService,
+    this.logger.debug(`Starting execution for thread: ${chatId}`);
+
+    try {
+      const stream = await agent.graph.stream(
+        { messages },
+        {
+          configurable: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
+            thread_id: chatId,
+            chatRpcService: this.chatRpcService,
+            fileEditService: this.fileEditService,
+            analysisService: this.analysisService,
+          },
+          signal: abortController.signal,
+          streamMode: ['values', 'messages', 'custom'],
+          context: {
+            modelId,
+            modelService: this.modelService,
+            logger: this.logger,
+          },
+          recursionLimit: 200,
         },
-        signal: abortController.signal,
-        // Include 'custom' to receive usage data from usageTrackingMiddleware
-        streamMode: ['values', 'messages', 'custom'],
-        // Pass context for middleware (usage tracking, tool error handling)
-        context: {
-          modelId,
-          modelService: this.modelService,
-          logger: this.logger,
-        },
-        recursionLimit: 200,
-      },
-    );
+      );
 
-    // Set SSE headers
-    void response.header('content-type', 'text/event-stream');
-    void response.header('x-vercel-ai-ui-message-stream', 'v1');
-    void response.header('x-accel-buffering', 'no');
+      void response.header('content-type', 'text/event-stream');
+      void response.header('x-vercel-ai-ui-message-stream', 'v1');
+      void response.header('x-accel-buffering', 'no');
 
-    // Convert the LangGraph stream to UI message stream
-    // The toUIMessageStream adapter marks all tools as dynamic and stringifies tool outputs,
-    // so we pipe through transforms to:
-    // 1) mark known tools as static
-    // 2) parse tool output JSON strings into objects
-    // 3) normalize error chunks
-    const uiMessageStream = toUIMessageStream(stream)
-      .pipeThrough(createStaticToolTransform())
-      .pipeThrough(createToolOutputTransform())
-      .pipeThrough(createErrorTransform());
+      const uiMessageStream = toUIMessageStream(stream)
+        .pipeThrough(createStaticToolTransform())
+        .pipeThrough(createToolOutputTransform())
+        .pipeThrough(createErrorTransform());
 
-    const uiMessageStreamResponse = createUIMessageStreamResponse({
-      stream: uiMessageStream,
-    });
+      const uiMessageStreamResponse = createUIMessageStreamResponse({
+        stream: uiMessageStream,
+      });
 
-    // Get the body from the response and pipe it
-    const responseBody = uiMessageStreamResponse.body;
-    if (responseBody) {
-      return response.send(responseBody);
+      const responseBody = uiMessageStreamResponse.body;
+      if (responseBody) {
+        return await response.send(responseBody);
+      }
+
+      throw new Error('Failed to create UI message stream response');
+    } catch (error: unknown) {
+      // When the client disconnects, we abort with a branded ChatAbortError
+      // reason. Check signal.reason for our brand — this is a definitive match
+      // regardless of what error LangGraph/node-fetch actually throws.
+      if (abortController.signal.aborted && isChatAbortError(abortController.signal.reason)) {
+        this.logger.debug(`Chat ${chatId} was cancelled by client`);
+        return;
+      }
+
+      throw error;
     }
-
-    throw new Error('Failed to create UI message stream response');
   }
 }
