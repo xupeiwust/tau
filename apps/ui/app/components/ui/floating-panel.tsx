@@ -20,7 +20,7 @@ type Align = 'start' | 'end';
 const floatingPanelContentHeaderVariants = cva(
   cn(
     'group/floating-panel-content-header',
-    'flex h-7.75 max-md:h-10 items-center justify-between',
+    'flex h-7.75 shrink-0 max-md:h-10 items-center justify-between',
     'border-b bg-sidebar py-0.5',
     'text-sm font-medium text-muted-foreground',
   ),
@@ -408,7 +408,8 @@ function FloatingPanelContentHeaderActions({
     <div
       className={cn(
         'flex items-center pl-1 max-md:gap-1.5',
-        'group-hover/floating-panel:opacity-100 md:opacity-0',
+        'md:opacity-0 md:transition-opacity md:duration-150 md:ease-in-out',
+        'group-hover/floating-panel:opacity-100',
         className,
       )}
       data-slot="floating-panel-content-header-actions"
