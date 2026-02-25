@@ -31,10 +31,10 @@
     "db:drop": "nx run api:db-drop",
     "update-license-deps": "node --import tsx scripts/update-license-deps.mts",
     "pkgcheck": "nx run-many -t pkgcheck",
-    "repos": "tsx scripts/repos.ts",
-    "repos:clone": "tsx scripts/repos.ts clone --all",
-    "repos:sync": "tsx scripts/repos.ts sync --all",
-    "repos:status": "tsx scripts/repos.ts status --all"
+    "repos": "node scripts/repos.ts",
+    "repos:clone": "node scripts/repos.ts clone --all",
+    "repos:sync": "node scripts/repos.ts sync --all",
+    "repos:status": "node scripts/repos.ts status --all"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^2.0.34",

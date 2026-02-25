@@ -280,6 +280,20 @@ export function getLastActivity(
 	}
 }
 
+// ── GitHub Metadata ─────────────────────────────────────────────
+
+export function fetchRepoDescription(upstream: string): string | undefined {
+	try {
+		const raw = execSync(
+			`gh repo view ${upstream} --json description -q .description`,
+			{ encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+		).trim();
+		return raw || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 // ── Clone ───────────────────────────────────────────────────────
 
 export function cloneRepo(
@@ -293,8 +307,16 @@ export function cloneRepo(
 		return { action: 'skipped', message: `${name}: already cloned` };
 	}
 
+	if (!repo.description) {
+		const description = fetchRepoDescription(repo.upstream);
+		if (description) {
+			repo.description = description;
+			writeManifest(manifest, root);
+		}
+	}
+
 	const cloneUrl = repo.fork ? repoUrl(repo.fork) : repoUrl(repo.upstream);
-	const args = ['clone', cloneUrl, dir];
+	const args = ['git', 'clone', cloneUrl, dir];
 	if (repo.shallow) {
 		args.splice(1, 0, '--depth', '1');
 	}

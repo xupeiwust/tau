@@ -2,20 +2,29 @@
 
 import process from 'node:process';
 import { execSync } from 'node:child_process';
-import type { RepoStatus } from './lib.js';
+import type { RepoConfig, RepoStatus } from './lib.ts';
 import {
   cloneRepo,
   forkRepo,
   getRepoStatus,
   isCloned,
+  parseOwnerRepo,
   readManifest,
   repoPath,
   resolveRepos,
   syncRepo,
   unforkRepo,
-} from './lib.js';
+  writeManifest,
+} from './lib.ts';
 
 // ── Arg Parsing ─────────────────────────────────────────────────
+
+const shortFlagMap: Record<string, string> = {
+  g: 'group',
+  b: 'branch',
+  d: 'description',
+  p: 'path',
+};
 
 function parseArgs(argv: string[]): {
   command: string;
@@ -36,11 +45,22 @@ function parseArgs(argv: string[]): {
     if (arg.startsWith('--')) {
       const key = arg.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
+      if (next && !next.startsWith('-')) {
         flags[key] = next;
         i += 2;
       } else {
         flags[key] = true;
+        i += 1;
+      }
+    } else if (arg.startsWith('-') && arg.length === 2) {
+      const short = arg[1]!;
+      const longKey = shortFlagMap[short] ?? short;
+      const next = argv[i + 1];
+      if (next && !next.startsWith('-')) {
+        flags[longKey] = next;
+        i += 2;
+      } else {
+        flags[longKey] = true;
         i += 1;
       }
     } else {
@@ -269,12 +289,105 @@ function cmdUnfork(positional: string[]): void {
   }
 }
 
+function cmdAdd(positional: string[], flags: Record<string, string | boolean>): void {
+  const raw = positional[0];
+  if (!raw) {
+    throw new Error(
+      'Usage: repos add <owner/repo | github-url> [-g group] [-b branch] [-d description] [--shallow] [--clone]',
+    );
+  }
+
+  const slug = raw.includes('://') ? parseOwnerRepo(raw) : raw;
+  if (!slug?.includes('/')) {
+    throw new Error(`Could not parse repo slug from "${raw}". Expected owner/repo or a GitHub URL.`);
+  }
+
+  const repoName = slug.split('/')[1]!;
+  const { manifest, root } = readManifest();
+
+  if (manifest.repos[repoName]) {
+    throw new Error(`Repo "${repoName}" already exists in manifest.`);
+  }
+
+  let description: string | undefined;
+  if (typeof flags['description'] === 'string') {
+    description = flags['description'];
+  } else {
+    try {
+      const raw = execSync(`gh repo view ${slug} --json description -q .description`, {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      description = raw || undefined;
+    } catch {
+      // Gh CLI not available or repo not found
+    }
+  }
+
+  const config: RepoConfig = {
+    upstream: slug,
+    ...(typeof flags['branch'] === 'string' && { branch: flags['branch'] }),
+    ...(description && { description }),
+    ...(typeof flags['path'] === 'string' && { path: flags['path'] }),
+    ...(flags['shallow'] && { shallow: true }),
+  };
+
+  manifest.repos[repoName] = config;
+  const groupName = typeof flags['group'] === 'string' ? flags['group'] : undefined;
+  if (groupName) {
+    manifest.groups[groupName] ??= { repos: [] };
+
+    if (!manifest.groups[groupName].repos.includes(repoName)) {
+      manifest.groups[groupName].repos.push(repoName);
+    }
+  }
+
+  writeManifest(manifest, root);
+  console.log(`✓ Added ${repoName} (${slug})`);
+
+  if (groupName) {
+    console.log(`  → added to group "${groupName}"`);
+  }
+
+  if (flags['clone']) {
+    const result = cloneRepo(repoName, manifest.repos[repoName], manifest, root);
+    console.log(result.message);
+  }
+}
+
+function cmdRemove(positional: string[]): void {
+  const name = positional[0];
+  if (!name) {
+    throw new Error('Usage: repos remove <name>');
+  }
+
+  const { manifest, root } = readManifest();
+  if (!manifest.repos[name]) {
+    throw new Error(`Repo "${name}" not found in manifest.`);
+  }
+
+  const { [name]: _, ...remainingRepos } = manifest.repos;
+  manifest.repos = remainingRepos;
+
+  for (const group of Object.values(manifest.groups)) {
+    const idx = group.repos.indexOf(name);
+    if (idx !== -1) {
+      group.repos.splice(idx, 1);
+    }
+  }
+
+  writeManifest(manifest, root);
+  console.log(`✓ Removed ${name} from manifest`);
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────
 
 const helpText = `
 Usage: repos <command> [options]
 
 Commands:
+  add    <owner/repo> [-g group] [-b branch] [-d desc] [--shallow] [--clone]
+  remove <name>                               Remove repo from manifest
   clone  [name] [--group G] [--all]           Clone repos
   sync   [name] [--group G] [--all]           Pull latest changes
   status [name] [--group G] [--all] [--json]  Show repo status
@@ -283,6 +396,8 @@ Commands:
   fork   <name>                               Fork repo to owner org
   unfork <name>                               Remove fork config
 
+Short flags: -g (group) -b (branch) -d (description) -p (path)
+
 Run without arguments for interactive TUI.
 `.trim();
 
@@ -290,6 +405,17 @@ export function run(argv: string[]): void {
   const { command, positional, flags } = parseArgs(argv);
 
   switch (command) {
+    case 'add': {
+      cmdAdd(positional, flags);
+      break;
+    }
+
+    case 'remove':
+    case 'rm': {
+      cmdRemove(positional);
+      break;
+    }
+
     case 'clone': {
       cmdClone(positional, flags);
       break;

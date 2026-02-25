@@ -4,8 +4,8 @@ import process from 'node:process';
 import React, { useState, useMemo } from 'react';
 import { render, Box, Text, useInput, useApp } from 'ink';
 import { Spinner, ConfirmInput, TextInput } from '@inkjs/ui';
-import type { Manifest, RepoConfig, RepoStatus } from './lib.js';
-import { readManifest, getRepoStatus, getLastActivity, cloneRepo, syncRepo, forkRepo, unforkRepo } from './lib.js';
+import type { Manifest, RepoConfig, RepoStatus } from './lib.ts';
+import { readManifest, getRepoStatus, getLastActivity, cloneRepo, syncRepo, forkRepo, unforkRepo } from './lib.ts';
 
 // ── Types ───────────────────────────────────────────────────────
 

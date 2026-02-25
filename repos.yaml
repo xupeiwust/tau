@@ -15,6 +15,8 @@ groups:
       - openscad-playground
       - jscadui
       - phyz
+      - bitbybit
+      - bitbybit-occt
   slicers:
     description: 3D printer slicer applications
     repos:
@@ -282,3 +284,9 @@ repos:
     branch: main
     description: Emscripten LLVM-to-WASM compiler
     shallow: true
+  bitbybit:
+    upstream: bitbybit-dev/bitbybit
+    description: Monorepo for 3D algorithms of Bitbybit platform, which helps programming geometry on the browser. Use with ThreeJS, BabylonJS, build your own core integration or execute algorithms in NodeJS.
+  bitbybit-occt:
+    upstream: bitbybit-dev/bitbybit-occt
+    description: CAD algorithms that use OpenCascade Technology (OCCT) Kernel
