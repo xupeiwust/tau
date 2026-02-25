@@ -456,3 +456,72 @@ Consumer-facing input uses `options` naming; validated output uses `config` inte
 |-------|---------|
 | `renderDependencyCache` | Reuse dependency computation between getParams and createGeometry |
 | `cachedDetectionDeps` | Reuse deps from detectImports for getDependencies (zero cost) |
+
+## Future Work -- Render Pipeline Cancellation
+
+### Problem: Render Interleaving on the Worker
+
+The worker-side dispatcher (`kernel-worker-dispatcher.ts`) does not serialize render operations. When rapid parameter changes trigger back-to-back renders, the event loop processes the second render's `postMessage` at an `await` yield point of the first render. Both renders share mutable worker state (tracer, caches, `onProgress` callback), causing corruption.
+
+The tracer crash is fixed by epoch-scoped spans (see `KernelTracer`), but the broader interleaving problem remains: stale renders waste compute time running the full geometry pipeline even when superseded. The `cancel` command sent by `KernelWorkerClient.cancelPendingRender()` is currently a no-op on the worker side.
+
+### Proposed Architecture: Dispatcher Serialization with Cooperative Cancellation
+
+The cancellation architecture has three layers, each targeting a different execution context:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Layer 1: Framework AbortSignal (async yield points)         │
+│ AbortController lives in dispatcher, signal passed to       │
+│ KernelWorker.render(). Checked via signal.throwIfAborted()  │
+│ at every await boundary.                                    │
+├─────────────────────────────────────────────────────────────┤
+│ Layer 2: WASM cooperative cancellation (sync compute)       │
+│ OpenCASCADE: Message_ProgressIndicator.UserBreak()          │
+│ Polled during long tessellation/boolean operations.         │
+│ Connected to AbortSignal via progress callback.             │
+├─────────────────────────────────────────────────────────────┤
+│ Layer 3: SharedArrayBuffer flag (cross-thread sync signal)  │
+│ Main thread sets flag → worker reads atomically.            │
+│ Bypasses postMessage latency for time-critical cancellation.│
+│ Optional optimization for sub-millisecond response.         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Dispatcher Serialization
+
+The dispatcher should maintain a render lock and an `AbortController`:
+
+1. On `render` command: abort the previous controller, await the render lock (previous render exits fast via cooperative cancellation), create a new `AbortController`, pass `signal` to `worker.render()`
+2. On `cancel` command: call `currentAbort.abort()` instead of the current no-op
+3. Aborted renders are silently discarded (no response sent to main thread)
+4. Only the latest render's result is sent back as `geometryComputed`
+
+Key constraint: `AbortSignal` cannot be transferred via `postMessage` (not `Transferable`), so the `AbortController` must live on the worker side in the dispatcher. The main thread's `cancel` command triggers the abort.
+
+### Cooperative Cancellation in KernelWorker
+
+Add `signal?: AbortSignal` to `KernelWorker.render()` and insert `signal.throwIfAborted()` at every async yield point:
+
+- `render()`: before `getParameters()`, before `createGeometry()`
+- `getParameters()`: before middleware chain
+- `createGeometry()`: before middleware chain
+- `computeBaseDependencies()`: after `onGetDependencies()`
+
+Use `AbortSignal.any()` to combine the render cancellation signal with any future timeout or user-initiated cancel signals. Use the built-in `signal.throwIfAborted()` (throws `DOMException` with `name === 'AbortError'`) rather than a custom helper.
+
+### WASM Cancellation (OpenCASCADE)
+
+For kernels with long-running synchronous WASM operations (replicad/OpenCASCADE), connect the `AbortSignal` to the OpenCASCADE progress indicator:
+
+- `Message_ProgressIndicator.UserBreak()` is polled by the WASM runtime during tessellation and boolean operations
+- Return `true` from the progress callback when `signal.aborted` to trigger cooperative exit from WASM
+- This is the only way to interrupt synchronous WASM computation without terminating the worker
+
+### References
+
+- [MDN AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) -- standard cooperative cancellation
+- [MDN AbortSignal.any()](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static) -- combining multiple signals
+- [MDN AbortSignal.throwIfAborted()](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/throwIfAborted) -- built-in abort check
+- [Prioritized Task Scheduling API](https://wicg.github.io/scheduling-apis/) -- TaskController/AbortSignal integration pattern
+- [OpenCASCADE.js Progress Indicator](https://ocjs.org/docs/stable/usage/progress) -- WASM cooperative cancellation via `Message_ProgressIndicator`
