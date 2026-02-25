@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCjsDefault } from './resolve-cjs-default.js';
+import { resolveCjsDefault } from '#kernels/replicad/utils/resolve-cjs-default.js';
 
 describe('resolveCjsDefault', () => {
   it('returns a function as-is (static import path)', () => {
@@ -9,7 +9,7 @@ describe('resolveCjsDefault', () => {
 
   it('unwraps a double-wrapped CJS default (dynamic import path)', () => {
     const fn = (): string => 'hello';
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- simulating CJS __esModule pattern
+
     const wrapped = { __esModule: true, default: fn };
     expect(resolveCjsDefault(wrapped)).toBe(fn);
   });

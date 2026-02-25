@@ -19,7 +19,8 @@ import type { TestApp } from '#testing/create-test-app.js';
 
 const modelId = process.env['TEST_MODEL_ID'] ?? 'anthropic-claude-sonnet-4.6';
 
-describe(`Model Integration: ${modelId}`, () => {
+// ENABLE when testing new models, runs models through all integration tests
+describe.skip(`Model Integration: ${modelId}`, () => {
   let testApp: TestApp;
 
   beforeAll(async () => {

@@ -42,7 +42,7 @@ function createSerializedCacheContent(content: Uint8Array<ArrayBuffer>): Uint8Ar
   return msgpackEncode({
     version: 1,
     geometries: [{ format: 'gltf', content }],
-  }) as Uint8Array<ArrayBuffer>;
+  });
 }
 
 /**

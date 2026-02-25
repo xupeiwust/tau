@@ -155,7 +155,6 @@ export function getBetterAuthConfig(options: BetterAuthConfigOptions): BetterAut
         generateId(options) {
           const prefix = prefixFromModel[options.model as Models];
 
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- exhaustive check
           if (!prefix) {
             throw new Error(`Model ID not supported: ${options.model}`);
           }

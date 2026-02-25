@@ -400,7 +400,7 @@ export function serializeTranscript(messages: MyUIMessage[], title: string): str
  */
 export function finalizeInterruptedToolParts(messages: MyUIMessage[]): MyUIMessage[] {
   const lastMessage = messages.at(-1);
-  if (!lastMessage || lastMessage.role !== 'assistant') {
+  if (lastMessage?.role !== 'assistant') {
     return messages;
   }
 

@@ -15,7 +15,7 @@ export function resolveCjsDefault<T>(imported: T): T {
   }
 
   if (imported !== null && typeof imported === 'object' && 'default' in imported) {
-    const nested = (imported as Record<string, unknown>).default;
+    const nested = (imported as Record<string, unknown>)['default'];
     if (typeof nested === 'function') {
       return nested as T;
     }

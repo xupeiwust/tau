@@ -84,13 +84,16 @@ async function registerManifoldModules(runtime: KernelRuntime): Promise<Record<s
   const manifoldCad = manifoldCadImport as unknown as Record<string, unknown>;
   const gltfNodeModule = gltfNodeImport as unknown as Record<string, unknown>;
 
-  // manifoldCAD.js stubs GLTFNode (non-tracked) and getGLTFNodes (returns []).
+  // ManifoldCAD.js stubs GLTFNode (non-tracked) and getGLTFNodes (returns []).
   // These only work in manifold's own bundler which replaces the stubs.
   // Patch with tracked versions from gltf-node.js so side-effect patterns work.
   const patchedManifoldCad = {
     ...manifoldCad,
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Manifold naming convention
     GLTFNode: gltfNodeModule['GLTFNodeTracked'],
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Manifold naming convention
     getGLTFNodes: gltfNodeModule['getGLTFNodes'],
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Manifold naming convention
     resetGLTFNodes: gltfNodeModule['resetGLTFNodes'],
   };
 

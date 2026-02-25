@@ -44,7 +44,6 @@ process.on('unhandledRejection', (reason: unknown) => {
   throw new Error(typeof reason === 'string' ? reason : 'Unhandled promise rejection');
 });
 
-
 async function bootstrap() {
   const fastifyAdapter = new FastifyAdapter({
     bodyLimit: httpBodyLimit,

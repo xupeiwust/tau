@@ -1,4 +1,3 @@
-/* eslint-disable no-barrel-files/no-barrel-files -- allowable for package entry point. */
 export { default as replicadTypesOriginal } from '#generated/replicad/replicad-modeling.bundled.d.ts?raw';
 
 export { default as jscadModelingTypes } from '#generated/jscad/jscad-modeling.bundled.d.ts?raw';

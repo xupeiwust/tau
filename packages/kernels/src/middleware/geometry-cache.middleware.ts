@@ -94,7 +94,7 @@ function serializeGeometries(geometries: readonly GeometryResponse[]): Uint8Arra
     geometries: serialized,
   };
 
-  return msgpackEncode(entry) as Uint8Array<ArrayBuffer>;
+  return msgpackEncode(entry);
 }
 
 /**
