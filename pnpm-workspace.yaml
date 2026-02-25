@@ -9,6 +9,7 @@ catalog:
   '@gltf-transform/core': ^4.3.0
   '@gltf-transform/extensions': ^4.3.0
   '@gltf-transform/functions': ^4.3.0
+  '@inkjs/ui': ^2.0.0
   '@jscad/modeling': ^2.13.0
   '@kittycad/lib': ^2.0.48
   '@langchain/anthropic': ^1.3.20
@@ -43,6 +44,7 @@ catalog:
   '@taucad/kcl-wasm-lib': 0.1.111
   '@testing-library/jest-dom': 6.6.3
   '@testing-library/react': 16.2.0
+  '@types/js-yaml': ^4.0.9
   '@types/json-schema': ^7.0.15
   '@types/madge': ^5.0.3
   '@types/node': ~24.0.15
@@ -64,7 +66,9 @@ catalog:
   eslint-plugin-jsdoc: ^62.7.1
   eslint-plugin-max-params-no-constructor: ^0.0.4
   geist: ^1.7.0
+  ink: ^6.8.0
   isbot: ^5.1.35
+  js-yaml: ^4.1.1
   json-schema-default: ^1.0.2
   langchain: ^1.2.27
   madge: ^8.0.0
