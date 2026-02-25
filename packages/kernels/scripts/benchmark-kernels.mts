@@ -49,7 +49,7 @@ Options:
 }
 
 async function main(): Promise<void> {
-  if (values.compare && values.compare.length === 2) {
+  if (values.compare?.length === 2) {
     runComparison(values.compare[0]!, values.compare[1]!);
     return;
   }
