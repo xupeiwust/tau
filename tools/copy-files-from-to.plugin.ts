@@ -37,6 +37,7 @@ const createCopyTarget = (configFilePath: string): CreateNodesResult | undefined
           },
           build: copyAssetsDependsOn,
           dev: copyAssetsDependsOn,
+          test: copyAssetsDependsOn,
         },
       },
     },
