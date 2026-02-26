@@ -114,8 +114,6 @@ function extractOcSummary(
 // =============================================================================
 
 const basePath = '/builds/test';
-const benchFileName = 'bench.ts';
-const absolutePath = `${basePath}/${benchFileName}`;
 
 /**
  * Run a set of benchmark cases, capturing telemetry and computing statistics.
@@ -137,7 +135,12 @@ export async function runBenchmarks(
     const allTelemetry: PerformanceEntryData[][] = [];
     const telemetryBatches: PerformanceEntryData[][] = [];
 
-    const fileSystem = fromMemoryFS({ [absolutePath]: benchCase.code });
+    const absoluteFiles: Record<string, string> = {};
+    for (const [filename, content] of Object.entries(benchCase.files)) {
+      absoluteFiles[`${basePath}/${filename}`] = content;
+    }
+
+    const fileSystem = fromMemoryFS(absoluteFiles);
     const client = createKernelClient({
       kernels: [replicad({ ocTracing: 'summary' })],
       bundlers: [esbuild()],
@@ -145,26 +148,34 @@ export async function runBenchmarks(
       transport: createInProcessTransport(),
     });
 
-    client.on('telemetry', (entries: PerformanceEntryData[]) => {
+    client.on('telemetry', (entries) => {
       telemetryBatches.push(entries);
     });
 
-    for (let iter = 0; iter < iterations; iter++) {
+    const totalRuns = iterations + 1; // +1 for warmup run (discarded)
+    for (let iter = 0; iter < totalRuns; iter++) {
       performance.clearMeasures();
       performance.clearMarks();
       telemetryBatches.length = 0;
 
       if (iter > 0) {
-        await fileSystem.writeFile(absolutePath, benchCase.code);
-        client.notifyFileChanged([absolutePath]);
+        for (const [filePath, content] of Object.entries(absoluteFiles)) {
+          await fileSystem.writeFile(filePath, content);
+        }
+
+        client.notifyFileChanged(Object.keys(absoluteFiles));
       }
 
       const start = performance.now();
       await client.render({
-        file: { filename: benchFileName, path: basePath },
+        file: { filename: benchCase.mainFile, path: basePath },
         parameters: {},
       });
       const elapsed = performance.now() - start;
+
+      if (iter === 0) {
+        continue; // Discard warmup iteration to avoid cold-start skew
+      }
 
       timings.push(elapsed);
       allTelemetry.push(telemetryBatches.flat());
