@@ -151,6 +151,7 @@
     "jszip": "^3.10.1",
     "langchain": "catalog:",
     "lucide-react": "^0.552.0",
+    "manifold-3d": "catalog:",
     "mermaid": "catalog:",
     "minimatch": "^10.2.3",
     "monaco-editor": "^0.55.1",

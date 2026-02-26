@@ -208,7 +208,7 @@ catalogs:
       specifier: ^8.0.0
       version: 8.0.0
     manifold-3d:
-      specifier: ^3.3.2
+      specifier: 3.3.2
       version: 3.3.2
     mermaid:
       specifier: ^11.12.3
@@ -283,7 +283,7 @@ overrides:
 
 patchedDependencies:
   '@kittycad/lib':
-    hash: 1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0
+    hash: f8eba32a9a9fffe5f056ba8a043de4a9c865c57b7a8bb8eecfb706fa4865ffe8
     path: patches/@kittycad__lib.patch
   '@zenfs/core':
     hash: d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7
@@ -349,7 +349,7 @@ importers:
         version: 2.13.0
       '@kittycad/lib':
         specifier: 'catalog:'
-        version: 2.0.48(patch_hash=1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@24.0.15)(typescript@5.9.3)
+        version: 2.0.48(patch_hash=f8eba32a9a9fffe5f056ba8a043de4a9c865c57b7a8bb8eecfb706fa4865ffe8)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@24.0.15)(typescript@5.9.3)
       '@langchain/anthropic':
         specifier: 'catalog:'
         version: 1.3.20(@langchain/core@1.1.28(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6)))
@@ -638,6 +638,9 @@ importers:
       lucide-react:
         specifier: ^0.552.0
         version: 0.552.0(react@19.2.4)
+      manifold-3d:
+        specifier: 'catalog:'
+        version: 3.3.2
       mermaid:
         specifier: 'catalog:'
         version: 11.12.3
@@ -1197,7 +1200,7 @@ importers:
         version: 2.13.0
       '@kittycad/lib':
         specifier: 'catalog:'
-        version: 2.0.48(patch_hash=1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@25.3.0)(typescript@5.9.3)
+        version: 2.0.48(patch_hash=f8eba32a9a9fffe5f056ba8a043de4a9c865c57b7a8bb8eecfb706fa4865ffe8)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@25.3.0)(typescript@5.9.3)
       '@msgpack/msgpack':
         specifier: 'catalog:'
         version: 3.1.3
@@ -1260,7 +1263,7 @@ importers:
         version: 0.20201231.0
       vitest:
         specifier: '>=2.0.0'
-        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.0.9(vitest@4.0.9))(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.0.9)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
       ws:
         specifier: 'catalog:'
         version: 8.19.0
@@ -1268,6 +1271,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
+      '@taucad/tau-examples':
+        specifier: workspace:*
+        version: link:../../libs/tau-examples
       '@types/json-schema':
         specifier: 'catalog:'
         version: 7.0.15
@@ -19869,7 +19875,7 @@ snapshots:
 
   '@jspm/core@2.1.0': {}
 
-  '@kittycad/lib@2.0.48(patch_hash=1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@24.0.15)(typescript@5.9.3)':
+  '@kittycad/lib@2.0.48(patch_hash=f8eba32a9a9fffe5f056ba8a043de4a9c865c57b7a8bb8eecfb706fa4865ffe8)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@24.0.15)(typescript@5.9.3)':
     dependencies:
       openapi-types: 12.1.3
       ts-node: 10.9.2(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@24.0.15)(typescript@5.9.3)
@@ -19880,7 +19886,7 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@kittycad/lib@2.0.48(patch_hash=1b9189715dfc72da54e8a7cbc9d7e118dd9c52d4504376dc3a2db51ae87954d0)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@25.3.0)(typescript@5.9.3)':
+  '@kittycad/lib@2.0.48(patch_hash=f8eba32a9a9fffe5f056ba8a043de4a9c865c57b7a8bb8eecfb706fa4865ffe8)(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@25.3.0)(typescript@5.9.3)':
     dependencies:
       openapi-types: 12.1.3
       ts-node: 10.9.2(@swc/core@1.15.8(@swc/helpers@0.5.19))(@types/node@25.3.0)(typescript@5.9.3)
@@ -35579,7 +35585,7 @@ snapshots:
       typescript: 5.9.3
       vitest: 4.0.9(@types/debug@4.1.12)(@types/node@24.0.15)(@vitest/ui@4.0.9)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.0.9(vitest@4.0.9))(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
+  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.0.9)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       '@vitest/expect': 4.0.18
       '@vitest/mocker': 4.0.18(vite@7.3.1(@types/node@25.3.0)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
