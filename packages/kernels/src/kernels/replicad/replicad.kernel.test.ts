@@ -5,6 +5,8 @@ import { NodeIO } from '@gltf-transform/core';
 import replicadKernel from '#kernels/replicad/replicad.kernel.js';
 import { createGeometryTestHelpers, extractGltfFromResult } from '#testing/kernel-geometry-testing.utils.js';
 import {
+  assertFailure,
+  assertSuccess,
   createGeometryFile,
   createTestWorker,
   createTestGeometry,
@@ -631,10 +633,8 @@ describe('ReplicadWorker', () => {
         mainFile: 'named.ts',
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.length).toBeGreaterThan(0);
-      }
+      assertSuccess(result);
+      expect(result.data.length).toBeGreaterThan(0);
     });
 
     it('should produce geometry when no defaultName is defined', async () => {
@@ -650,10 +650,8 @@ describe('ReplicadWorker', () => {
         mainFile: 'unnamed.ts',
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.length).toBeGreaterThan(0);
-      }
+      assertSuccess(result);
+      expect(result.data.length).toBeGreaterThan(0);
     });
   });
 
@@ -677,11 +675,9 @@ describe('ReplicadWorker', () => {
           mainFile: 'box.ts',
         });
 
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.data).toBeDefined();
-          expect(Array.isArray(result.data)).toBe(true);
-        }
+        assertSuccess(result);
+        expect(result.data).toBeDefined();
+        expect(Array.isArray(result.data)).toBe(true);
 
         // Geometry quality assertions
         await geometryHelpers.expectValidGltf(result);
@@ -711,7 +707,7 @@ describe('ReplicadWorker', () => {
           parameters: { width: 100, height: 60, depth: 20 },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry should use parameter values (100x60x20)
         await geometryHelpers.expectValidGltf(result);
@@ -739,7 +735,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'profile.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry quality assertions (50x30x10 box)
         await geometryHelpers.expectValidGltf(result);
@@ -763,7 +759,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'multi.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Should produce 2 meshes (box + cylinder)
         await geometryHelpers.expectValidGltf(result);
@@ -792,7 +788,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'box.js',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry quality assertions (50x30x10 box)
         await geometryHelpers.expectValidGltf(result);
@@ -826,7 +822,7 @@ describe('ReplicadWorker', () => {
           parameters: { size: 75 },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry should use parameter value (75x75x75 cube)
         await geometryHelpers.expectValidGltf(result);
@@ -852,7 +848,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'hollow.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Boolean difference produces 1 mesh (hollow cylinder)
         await geometryHelpers.expectValidGltf(result);
@@ -877,7 +873,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'fused.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Boolean union produces 1 mesh (box with cylinder on top)
         await geometryHelpers.expectValidGltf(result);
@@ -904,7 +900,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'transformed.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Transformation produces 1 mesh (rotated and translated box)
         await geometryHelpers.expectValidGltf(result);
@@ -930,7 +926,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'loft.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Loft produces 1 mesh (cone-like shape)
         await geometryHelpers.expectValidGltf(result);
@@ -954,7 +950,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'filleted.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Fillet produces 1 mesh (box with rounded edges)
         await geometryHelpers.expectValidGltf(result);
@@ -978,7 +974,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'shell.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Shell produces 1 mesh (hollow box)
         await geometryHelpers.expectValidGltf(result);
@@ -1026,7 +1022,7 @@ describe('ReplicadWorker', () => {
           },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
       });
@@ -1053,7 +1049,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry: 30x30x30 cube
         await geometryHelpers.expectValidGltf(result);
@@ -1100,7 +1096,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry: 40x40 base with cylinder on top, total height 50
         await geometryHelpers.expectValidGltf(result);
@@ -1135,7 +1131,7 @@ describe('ReplicadWorker', () => {
           parameters: { size: 100 },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry: 100x100x100 cube (using passed parameter)
         await geometryHelpers.expectValidGltf(result);
@@ -1176,7 +1172,7 @@ describe('ReplicadWorker', () => {
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry: box + cylinder, 2 meshes
         await geometryHelpers.expectValidGltf(result);
@@ -1203,12 +1199,10 @@ describe('ReplicadWorker', () => {
           mainFile: 'sketch.ts',
         });
 
-        expect(result.success).toBe(true);
-        if (result.success && Array.isArray(result.data)) {
-          // Should contain SVG format geometry
-          const hasSvg = result.data.some((g: { format: string }) => g.format === 'svg');
-          expect(hasSvg).toBe(true);
-        }
+        assertSuccess(result);
+        // Should contain SVG format geometry
+        const hasSvg = result.data.some((g: { format: string }) => g.format === 'svg');
+        expect(hasSvg).toBe(true);
       });
     });
 
@@ -1231,11 +1225,8 @@ describe('ReplicadWorker', () => {
           mainFile: 'syntax_error.ts',
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
-        }
+        assertFailure(result);
+        expect(result.issues.length).toBeGreaterThan(0);
       });
 
       it('should return error for undefined function calls', async () => {
@@ -1252,11 +1243,8 @@ describe('ReplicadWorker', () => {
           mainFile: 'undefined_func.ts',
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
-        }
+        assertFailure(result);
+        expect(result.issues.length).toBeGreaterThan(0);
       });
 
       it('should return error for runtime errors', async () => {
@@ -1274,11 +1262,8 @@ describe('ReplicadWorker', () => {
           mainFile: 'runtime_error.ts',
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
-        }
+        assertFailure(result);
+        expect(result.issues.length).toBeGreaterThan(0);
       });
 
       it('should return error with properly classified stack frames for undefined variable', async () => {
@@ -1297,43 +1282,41 @@ describe('ReplicadWorker', () => {
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
+        assertFailure(result);
+        expect(result.issues).toBeDefined();
+        expect(result.issues.length).toBeGreaterThan(0);
 
-          const issue = result.issues[0]!;
+        const issue = result.issues[0]!;
 
-          // Error message should clearly indicate the problem
-          expect(issue.message).toMatch(/bla is not defined/i);
+        // Error message should clearly indicate the problem
+        expect(issue.message).toMatch(/bla is not defined/i);
 
-          // Stack frames should be present
-          expect(issue.stackFrames).toBeDefined();
-          expect(issue.stackFrames!.length).toBeGreaterThan(0);
+        // Stack frames should be present
+        expect(issue.stackFrames).toBeDefined();
+        expect(issue.stackFrames!.length).toBeGreaterThan(0);
 
-          // Framework/runtime frames should be classified correctly
-          // Platform frames (kernel/, node:, node_modules) should be framework or runtime
-          const hiddenFrames = issue.stackFrames!.filter(
-            (frame) => frame.context === 'framework' || frame.context === 'runtime',
-          );
-          expect(hiddenFrames.length).toBeGreaterThan(0);
+        // Framework/runtime frames should be classified correctly
+        // Platform frames (kernel/, node:, node_modules) should be framework or runtime
+        const hiddenFrames = issue.stackFrames!.filter(
+          (frame) => frame.context === 'framework' || frame.context === 'runtime',
+        );
+        expect(hiddenFrames.length).toBeGreaterThan(0);
 
-          for (const frame of hiddenFrames) {
-            // Each hidden frame should match at least one known platform pattern
-            const fileName = frame.fileName ?? '';
-            const isKnownPlatform =
-              fileName.includes('/kernel/') ||
-              fileName.includes('/kernels/') ||
-              fileName.startsWith('node:') ||
-              fileName.includes('/node_modules/') ||
-              fileName.startsWith('data:');
-            expect(isKnownPlatform).toBe(true);
-          }
-
-          // At least one frame should have the 'main' function (user code entry point)
-          const mainFrame = issue.stackFrames!.find((frame) => frame.functionName?.includes('main'));
-          expect(mainFrame).toBeDefined();
+        for (const frame of hiddenFrames) {
+          // Each hidden frame should match at least one known platform pattern
+          const fileName = frame.fileName ?? '';
+          const isKnownPlatform =
+            fileName.includes('/kernel/') ||
+            fileName.includes('/kernels/') ||
+            fileName.startsWith('node:') ||
+            fileName.includes('/node_modules/') ||
+            fileName.startsWith('data:');
+          expect(isKnownPlatform).toBe(true);
         }
+
+        // At least one frame should have the 'main' function (user code entry point)
+        const mainFrame = issue.stackFrames!.find((frame) => frame.functionName?.includes('main'));
+        expect(mainFrame).toBeDefined();
       });
 
       it('should return error for invalid geometry operations', async () => {
@@ -1370,16 +1353,14 @@ describe('ReplicadWorker', () => {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues).toBeDefined();
-          expect(result.issues.length).toBeGreaterThan(0);
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          expect(issue.message).not.toMatch(/^\d+$/);
-          expect(issue.message.length).toBeGreaterThan(3);
-        }
+        assertFailure(result);
+        expect(result.issues).toBeDefined();
+        expect(result.issues.length).toBeGreaterThan(0);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        expect(issue.message).not.toMatch(/^\d+$/);
+        expect(issue.message.length).toBeGreaterThan(3);
       });
 
       it('should return decoded OC error with type info for zero-height extrusion', async () => {
@@ -1404,15 +1385,13 @@ describe('ReplicadWorker', () => {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          // Message should contain the OC error, not a raw number
-          expect(issue.message).not.toMatch(/^\d+$/);
-          expect(issue.message.length).toBeGreaterThan(3);
-        }
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        // Message should contain the OC error, not a raw number
+        expect(issue.message).not.toMatch(/^\d+$/);
+        expect(issue.message.length).toBeGreaterThan(3);
       });
 
       it('should include user code stack frames for OC exceptions with helper function', async () => {
@@ -1442,50 +1421,48 @@ export default function main() {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          expect(issue.message).toBe(
-            'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
-          );
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        expect(issue.message).toBe(
+          'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
+        );
 
-          // User frames should include both buildShape and main
-          const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
-          expect(userFrames).toBeDefined();
-          expect(userFrames!.length).toBeGreaterThanOrEqual(2);
-          expect(userFrames![0]).toEqual(
-            expect.objectContaining({
-              functionName: 'buildShape',
-              fileName: 'extrude_stack.ts',
-              lineNumber: 10,
-              context: 'user',
-            }),
-          );
-          expect(userFrames![1]).toEqual(
-            expect.objectContaining({
-              functionName: 'main',
-              fileName: 'extrude_stack.ts',
-              lineNumber: 14,
-              context: 'user',
-            }),
-          );
+        // User frames should include both buildShape and main
+        const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
+        expect(userFrames).toBeDefined();
+        expect(userFrames!.length).toBeGreaterThanOrEqual(2);
+        expect(userFrames![0]).toEqual(
+          expect.objectContaining({
+            functionName: 'buildShape',
+            fileName: 'extrude_stack.ts',
+            lineNumber: 10,
+            context: 'user',
+          }),
+        );
+        expect(userFrames![1]).toEqual(
+          expect.objectContaining({
+            functionName: 'main',
+            fileName: 'extrude_stack.ts',
+            lineNumber: 14,
+            context: 'user',
+          }),
+        );
 
-          // Library frames should be present with source-mapped positions
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toBeDefined();
-          expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
+        // Library frames should be present with source-mapped positions
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toBeDefined();
+        expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
 
-          // Location should point to the first user frame (error origin)
-          expect(issue.location).toBeDefined();
-          expect(issue.location).toEqual(
-            expect.objectContaining({
-              fileName: 'extrude_stack.ts',
-              startLineNumber: 10,
-            }),
-          );
-        }
+        // Location should point to the first user frame (error origin)
+        expect(issue.location).toBeDefined();
+        expect(issue.location).toEqual(
+          expect.objectContaining({
+            fileName: 'extrude_stack.ts',
+            startLineNumber: 10,
+          }),
+        );
       });
 
       it('should include stack frames for nested helpers in same file', async () => {
@@ -1519,52 +1496,50 @@ export default function main() {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          expect(issue.message).toBe(
-            'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
-          );
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        expect(issue.message).toBe(
+          'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
+        );
 
-          const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
-          expect(userFrames).toBeDefined();
-          expect(userFrames!.length).toBeGreaterThanOrEqual(2);
+        const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
+        expect(userFrames).toBeDefined();
+        expect(userFrames!.length).toBeGreaterThanOrEqual(2);
 
-          // First user frame: extrudeProfile at the extrude call
-          expect(userFrames![0]).toEqual(
-            expect.objectContaining({
-              functionName: 'extrudeProfile',
-              fileName: 'nested_helpers.ts',
-              lineNumber: 14,
-              context: 'user',
-            }),
-          );
+        // First user frame: extrudeProfile at the extrude call
+        expect(userFrames![0]).toEqual(
+          expect.objectContaining({
+            functionName: 'extrudeProfile',
+            fileName: 'nested_helpers.ts',
+            lineNumber: 14,
+            context: 'user',
+          }),
+        );
 
-          // Second user frame: main at the call site
-          expect(userFrames![1]).toEqual(
-            expect.objectContaining({
-              functionName: 'main',
-              fileName: 'nested_helpers.ts',
-              lineNumber: 18,
-              context: 'user',
-            }),
-          );
+        // Second user frame: main at the call site
+        expect(userFrames![1]).toEqual(
+          expect.objectContaining({
+            functionName: 'main',
+            fileName: 'nested_helpers.ts',
+            lineNumber: 18,
+            context: 'user',
+          }),
+        );
 
-          // Library frames should be present
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toBeDefined();
-          expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
+        // Library frames should be present
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toBeDefined();
+        expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
 
-          // Location should point to the error origin (extrudeProfile)
-          expect(issue.location).toEqual(
-            expect.objectContaining({
-              fileName: 'nested_helpers.ts',
-              startLineNumber: 14,
-            }),
-          );
-        }
+        // Location should point to the error origin (extrudeProfile)
+        expect(issue.location).toEqual(
+          expect.objectContaining({
+            fileName: 'nested_helpers.ts',
+            startLineNumber: 14,
+          }),
+        );
       });
 
       it('should include stack frames for cross-file OC exceptions', async () => {
@@ -1594,50 +1569,48 @@ export function buildGeometry() {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          expect(issue.message).toBe(
-            'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
-          );
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        expect(issue.message).toBe(
+          'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
+        );
 
-          const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
-          expect(userFrames).toBeDefined();
-          expect(userFrames!.length).toBeGreaterThanOrEqual(2);
+        const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
+        expect(userFrames).toBeDefined();
+        expect(userFrames!.length).toBeGreaterThanOrEqual(2);
 
-          // First user frame: buildGeometry in helpers.ts
-          expect(userFrames![0]).toEqual(
-            expect.objectContaining({
-              functionName: 'buildGeometry',
-              fileName: 'helpers.ts',
-              context: 'user',
-            }),
-          );
+        // First user frame: buildGeometry in helpers.ts
+        expect(userFrames![0]).toEqual(
+          expect.objectContaining({
+            functionName: 'buildGeometry',
+            fileName: 'helpers.ts',
+            context: 'user',
+          }),
+        );
 
-          // Second user frame: main in main.ts
-          expect(userFrames![1]).toEqual(
-            expect.objectContaining({
-              functionName: 'main',
-              fileName: 'main.ts',
-              context: 'user',
-            }),
-          );
+        // Second user frame: main in main.ts
+        expect(userFrames![1]).toEqual(
+          expect.objectContaining({
+            functionName: 'main',
+            fileName: 'main.ts',
+            context: 'user',
+          }),
+        );
 
-          // Library frames should be present
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toBeDefined();
-          expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
+        // Library frames should be present
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toBeDefined();
+        expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
 
-          // Location should point to the error origin (helpers.ts)
-          expect(issue.location).toEqual(
-            expect.objectContaining({
-              fileName: 'helpers.ts',
-              startLineNumber: 10,
-            }),
-          );
-        }
+        // Location should point to the error origin (helpers.ts)
+        expect(issue.location).toEqual(
+          expect.objectContaining({
+            fileName: 'helpers.ts',
+            startLineNumber: 10,
+          }),
+        );
       });
 
       it('should produce exact stack frames and location for fluent-chain OC exception', async () => {
@@ -1669,68 +1642,66 @@ export default function main() {
           options: { workerOptions: { withExceptions: true, withSourceMapping: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          expect(issue.type).toBe('kernel');
-          expect(issue.severity).toBe('error');
-          expect(issue.message).toBe(
-            'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
-          );
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        expect(issue.type).toBe('kernel');
+        expect(issue.severity).toBe('error');
+        expect(issue.message).toBe(
+          'KernelError: Sweep/extrusion failed \u2014 the sweep distance may be zero or the profile is invalid (BRepSweep_Translation::Constructor)',
+        );
 
-          // --- Location should cover the full .extrude(0) expression ---
-          // Derived from the first 'user' context frame only (not library frames).
-          expect(issue.location).toEqual({
+        // --- Location should cover the full .extrude(0) expression ---
+        // Derived from the first 'user' context frame only (not library frames).
+        expect(issue.location).toEqual({
+          fileName: 'fluent.ts',
+          startLineNumber: 10,
+          startColumn: 5, // The '.' before extrude
+          endLineNumber: 10,
+          endColumn: 16, // One past the closing ')'
+        });
+
+        // --- User frames: only main at the extrude call site ---
+        // Note: stack frame columnNumber stays at the source-mapped position (6 = 'e' of extrude),
+        // while location.startColumn is extended backward to include the '.' (column 5).
+        const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
+        expect(userFrames).toEqual([
+          {
+            functionName: 'main',
             fileName: 'fluent.ts',
-            startLineNumber: 10,
-            startColumn: 5, // The '.' before extrude
-            endLineNumber: 10,
-            endColumn: 16, // One past the closing ')'
-          });
+            lineNumber: 10,
+            columnNumber: 6,
+            context: 'user',
+          },
+        ]);
 
-          // --- User frames: only main at the extrude call site ---
-          // Note: stack frame columnNumber stays at the source-mapped position (6 = 'e' of extrude),
-          // while location.startColumn is extended backward to include the '.' (column 5).
-          const userFrames = issue.stackFrames?.filter((frame) => frame.context === 'user');
-          expect(userFrames).toEqual([
-            {
-              functionName: 'main',
-              fileName: 'fluent.ts',
-              lineNumber: 10,
-              columnNumber: 6,
-              context: 'user',
-            },
-          ]);
+        // --- Library frames: replicad call chain with source-mapped TS positions ---
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              functionName: 'Sketch.extrude',
+              fileName: 'replicad/src/sketches/Sketch.ts',
+              context: 'library',
+            }),
+            expect.objectContaining({
+              functionName: 'basicFaceExtrusion',
+              fileName: 'replicad/src/addThickness.ts',
+              context: 'library',
+            }),
+          ]),
+        );
 
-          // --- Library frames: replicad call chain with source-mapped TS positions ---
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                functionName: 'Sketch.extrude',
-                fileName: 'replicad/src/sketches/Sketch.ts',
-                context: 'library',
-              }),
-              expect.objectContaining({
-                functionName: 'basicFaceExtrusion',
-                fileName: 'replicad/src/addThickness.ts',
-                context: 'library',
-              }),
-            ]),
-          );
+        // --- Framework frames: proxy infrastructure ---
+        const frameworkNames = issue.stackFrames
+          ?.filter((frame) => frame.context === 'framework')
+          .map((frame) => frame.functionName);
+        expect(frameworkNames).toEqual(expect.arrayContaining(['rethrowIfNumeric']));
 
-          // --- Framework frames: proxy infrastructure ---
-          const frameworkNames = issue.stackFrames
-            ?.filter((frame) => frame.context === 'framework')
-            .map((frame) => frame.functionName);
-          expect(frameworkNames).toEqual(expect.arrayContaining(['rethrowIfNumeric']));
-
-          // --- Fluent API calls before extrude are NOT in the stack ---
-          // This is a JavaScript limitation: completed calls are not on the stack.
-          const allFunctionNames = issue.stackFrames?.map((frame) => frame.functionName) ?? [];
-          for (const completedCall of ['draw', 'hLine', 'vLine', 'close', 'sketchOnPlane']) {
-            expect(allFunctionNames).not.toContain(completedCall);
-          }
+        // --- Fluent API calls before extrude are NOT in the stack ---
+        // This is a JavaScript limitation: completed calls are not on the stack.
+        const allFunctionNames = issue.stackFrames?.map((frame) => frame.functionName) ?? [];
+        for (const completedCall of ['draw', 'hLine', 'vLine', 'close', 'sketchOnPlane']) {
+          expect(allFunctionNames).not.toContain(completedCall);
         }
       });
 
@@ -1748,11 +1719,9 @@ export default function main() {
           mainFile: 'empty.ts',
         });
 
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(Array.isArray(result.data)).toBe(true);
-          expect(result.data).toHaveLength(0);
-        }
+        assertSuccess(result);
+        expect(Array.isArray(result.data)).toBe(true);
+        expect(result.data).toHaveLength(0);
       });
 
       it('should return warning when main returns undefined (no return statement)', async () => {
@@ -1776,14 +1745,12 @@ export default function main() {
           mainFile: 'no_return.ts',
         });
 
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.issues.length).toBeGreaterThan(0);
-          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
-          expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
-          // Warning should point to line 1 of the file for navigation
-          expect(result.issues[0]?.location).toEqual({ fileName: 'no_return.ts', startLineNumber: 1, startColumn: 1 });
-        }
+        assertSuccess(result);
+        expect(result.issues.length).toBeGreaterThan(0);
+        expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+        expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
+        // Warning should point to line 1 of the file for navigation
+        expect(result.issues[0]?.location).toEqual({ fileName: 'no_return.ts', startLineNumber: 1, startColumn: 1 });
       });
 
       it('should return warning when main explicitly returns undefined', async () => {
@@ -1800,18 +1767,16 @@ export default function main() {
           mainFile: 'explicit_undefined.ts',
         });
 
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.issues.length).toBeGreaterThan(0);
-          expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
-          expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
-          // Warning should point to line 1 of the file for navigation
-          expect(result.issues[0]?.location).toEqual({
-            fileName: 'explicit_undefined.ts',
-            startLineNumber: 1,
-            startColumn: 1,
-          });
-        }
+        assertSuccess(result);
+        expect(result.issues.length).toBeGreaterThan(0);
+        expect(result.issues.some((i) => i.severity === 'warning')).toBe(true);
+        expect(result.issues.some((i) => i.message.includes('did not return'))).toBe(true);
+        // Warning should point to line 1 of the file for navigation
+        expect(result.issues[0]?.location).toEqual({
+          fileName: 'explicit_undefined.ts',
+          startLineNumber: 1,
+          startColumn: 1,
+        });
       });
     });
 
@@ -1827,7 +1792,7 @@ export default function main() {
 `;
 
         const result = await createGeometry({ files: { 'main.ts': code }, mainFile: 'main.ts' });
-        expect(result.success).toBe(false);
+        assertFailure(result);
 
         // Framework/runtime frames have machine-specific paths; filter to user frames only
         const issue = result.issues[0]!;
@@ -1860,7 +1825,7 @@ export default function main() { return broken(); }
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(false);
+        assertFailure(result);
 
         const issue = result.issues[0]!;
         const userFrames = issue.stackFrames?.filter((f) => f.context === 'user');
@@ -1894,7 +1859,7 @@ export default function main() {
 `;
 
         const result = await createGeometry({ files: { 'main.ts': code }, mainFile: 'main.ts' });
-        expect(result.success).toBe(false);
+        assertFailure(result);
 
         const issue = result.issues[0]!;
         const userFrames = issue.stackFrames?.filter((f) => f.context === 'user');
@@ -1930,7 +1895,7 @@ export function getShape() { return broken(); }
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(false);
+        assertFailure(result);
 
         const issue = result.issues[0]!;
         const userFrames = issue.stackFrames?.filter((f) => f.context === 'user');
@@ -1973,31 +1938,29 @@ export default function main() {
           options: { workerOptions: { withExceptions: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toBeDefined();
-          expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toBeDefined();
+        expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
 
-          expect(libraryFrames).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                functionName: 'Sketch.extrude',
-                fileName: expect.stringMatching(/replicad\/dist\/replicad\.js$/) as string,
-                context: 'library',
-              }),
-              expect.objectContaining({
-                functionName: 'basicFaceExtrusion',
-                fileName: expect.stringMatching(/replicad\/dist\/replicad\.js$/) as string,
-                context: 'library',
-              }),
-            ]),
-          );
+        expect(libraryFrames).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              functionName: 'Sketch.extrude',
+              fileName: expect.stringMatching(/replicad\/dist\/replicad\.js$/) as string,
+              context: 'library',
+            }),
+            expect.objectContaining({
+              functionName: 'basicFaceExtrusion',
+              fileName: expect.stringMatching(/replicad\/dist\/replicad\.js$/) as string,
+              context: 'library',
+            }),
+          ]),
+        );
 
-          for (const frame of libraryFrames!) {
-            expect(frame.fileName).not.toMatch(/replicad\/src\//);
-          }
+        for (const frame of libraryFrames!) {
+          expect(frame.fileName).not.toMatch(/replicad\/src\//);
         }
       });
 
@@ -2009,26 +1972,24 @@ export default function main() {
           options: { workerOptions: { withExceptions: true, withSourceMapping: true } },
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const issue = result.issues[0]!;
-          const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
-          expect(libraryFrames).toBeDefined();
-          expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
+        assertFailure(result);
+        const issue = result.issues[0]!;
+        const libraryFrames = issue.stackFrames?.filter((frame) => frame.context === 'library');
+        expect(libraryFrames).toBeDefined();
+        expect(libraryFrames!.length).toBeGreaterThanOrEqual(1);
 
-          expect(libraryFrames).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                functionName: 'Sketch.extrude',
-                fileName: 'replicad/src/sketches/Sketch.ts',
-                context: 'library',
-              }),
-            ]),
-          );
+        expect(libraryFrames).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              functionName: 'Sketch.extrude',
+              fileName: 'replicad/src/sketches/Sketch.ts',
+              context: 'library',
+            }),
+          ]),
+        );
 
-          for (const frame of libraryFrames!) {
-            expect(frame.fileName).toMatch(/replicad\/src\//);
-          }
+        for (const frame of libraryFrames!) {
+          expect(frame.fileName).toMatch(/replicad\/src\//);
         }
       });
     });
@@ -2081,7 +2042,7 @@ export default function main() {
           mainFile: 'decorated.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
 
         // Geometry quality assertions (50x30x10 box)
         await geometryHelpers.expectValidGltf(result);
@@ -2106,26 +2067,24 @@ export default function main() {
           parameters: {},
         });
 
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          expect(result.issues.length).toBeGreaterThan(0);
+        assertFailure(result);
+        expect(result.issues.length).toBeGreaterThan(0);
 
-          const issue = result.issues[0]!;
-          const userFrames = issue.stackFrames?.filter((f) => f.context === 'user');
-          expect({ ...issue, stackFrames: userFrames }).toEqual(
-            expect.objectContaining({
-              message: 'undefinedFunction is not defined',
-              type: 'runtime',
-              severity: 'error',
-              // Source map should resolve to full relative path including subdirectory
-              stackFrames: [
-                { functionName: 'main', fileName: 'project/main.ts', lineNumber: 5, columnNumber: 15, context: 'user' },
-              ],
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining returns any
-              location: expect.objectContaining({ fileName: 'project/main.ts', startLineNumber: 5 }),
-            }),
-          );
-        }
+        const issue = result.issues[0]!;
+        const userFrames = issue.stackFrames?.filter((f) => f.context === 'user');
+        expect({ ...issue, stackFrames: userFrames }).toEqual(
+          expect.objectContaining({
+            message: 'undefinedFunction is not defined',
+            type: 'runtime',
+            severity: 'error',
+            // Source map should resolve to full relative path including subdirectory
+            stackFrames: [
+              { functionName: 'main', fileName: 'project/main.ts', lineNumber: 5, columnNumber: 15, context: 'user' },
+            ],
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining returns any
+            location: expect.objectContaining({ fileName: 'project/main.ts', startLineNumber: 5 }),
+          }),
+        );
       });
     });
   });
@@ -2149,17 +2108,14 @@ export default function main() {
       // First create geometry
       const geometryFile = createGeometryFile('box.ts');
       const createResult = await worker.createGeometry({ file: geometryFile, parameters: {} });
-      expect(createResult.success).toBe(true);
+      assertSuccess(createResult);
 
       // Then export
       const exportResult = await worker.exportGeometry('step');
-      expect(exportResult.success).toBe(true);
-      if (exportResult.success) {
-        expect(exportResult.data).toBeDefined();
-        expect(exportResult.data.length).toBeGreaterThan(0);
-        expect(exportResult.data[0]?.bytes).toBeInstanceOf(Uint8Array);
-        expect(exportResult.data[0]?.mimeType).toBe('application/step');
-      }
+      assertSuccess(exportResult);
+      expect(exportResult.data.length).toBeGreaterThan(0);
+      expect(exportResult.data[0]?.bytes).toBeInstanceOf(Uint8Array);
+      expect(exportResult.data[0]?.mimeType).toBe('application/step');
     });
 
     it('should export to STL format', async () => {
@@ -2177,10 +2133,8 @@ export default function main() {
       await worker.createGeometry({ file: geometryFile, parameters: {} });
 
       const exportResult = await worker.exportGeometry('stl');
-      expect(exportResult.success).toBe(true);
-      if (exportResult.success) {
-        expect(exportResult.data.length).toBeGreaterThan(0);
-      }
+      assertSuccess(exportResult);
+      expect(exportResult.data.length).toBeGreaterThan(0);
     });
 
     it('should export to binary STL format', async () => {
@@ -2198,7 +2152,7 @@ export default function main() {
       await worker.createGeometry({ file: geometryFile, parameters: {} });
 
       const exportResult = await worker.exportGeometry('stl-binary');
-      expect(exportResult.success).toBe(true);
+      assertSuccess(exportResult);
     });
 
     it('should export to GLTF format', async () => {
@@ -2216,10 +2170,8 @@ export default function main() {
       await worker.createGeometry({ file: geometryFile, parameters: {} });
 
       const exportResult = await worker.exportGeometry('gltf');
-      expect(exportResult.success).toBe(true);
-      if (exportResult.success) {
-        expect(exportResult.data[0]?.name).toContain('gltf');
-      }
+      assertSuccess(exportResult);
+      expect(exportResult.data[0]?.name).toContain('gltf');
     });
 
     it('should export to GLB format', async () => {
@@ -2237,10 +2189,8 @@ export default function main() {
       await worker.createGeometry({ file: geometryFile, parameters: {} });
 
       const exportResult = await worker.exportGeometry('glb');
-      expect(exportResult.success).toBe(true);
-      if (exportResult.success) {
-        expect(exportResult.data[0]?.name).toContain('glb');
-      }
+      assertSuccess(exportResult);
+      expect(exportResult.data[0]?.name).toContain('glb');
     });
 
     it('should export STEP assembly', async () => {
@@ -2261,7 +2211,7 @@ export default function main() {
       await worker.createGeometry({ file: geometryFile, parameters: {} });
 
       const exportResult = await worker.exportGeometry('step-assembly');
-      expect(exportResult.success).toBe(true);
+      assertSuccess(exportResult);
     });
 
     it('should return error when no geometry computed', async () => {
@@ -2274,10 +2224,8 @@ export default function main() {
 
       // Don't compute geometry first
       const exportResult = await worker.exportGeometry('step');
-      expect(exportResult.success).toBe(false);
-      if (!exportResult.success) {
-        expect(exportResult.issues[0]?.message).toContain('No geometry available for export');
-      }
+      assertFailure(exportResult);
+      expect(exportResult.issues[0]?.message).toContain('No geometry available for export');
     });
 
     it('should respect mesh configuration for export', async () => {
@@ -2301,7 +2249,7 @@ export default function main() {
         angularTolerance: 5,
       });
 
-      expect(exportResult.success).toBe(true);
+      assertSuccess(exportResult);
     });
   });
 
@@ -2327,7 +2275,7 @@ export default function main() {
         mainFile: 'named.ts',
       });
 
-      expect(result.success).toBe(true);
+      assertSuccess(result);
     });
 
     it('should handle colored shapes', async () => {
@@ -2347,7 +2295,7 @@ export default function main() {
         mainFile: 'colored.ts',
       });
 
-      expect(result.success).toBe(true);
+      assertSuccess(result);
     });
 
     it('should handle shapes with opacity', async () => {
@@ -2367,7 +2315,7 @@ export default function main() {
         mainFile: 'transparent.ts',
       });
 
-      expect(result.success).toBe(true);
+      assertSuccess(result);
     });
   });
 
@@ -2401,7 +2349,7 @@ export default function main() {
           parameters: { width: 50, height: 30, depth: 10 },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.01, 0.03], 0.0005);
@@ -2423,7 +2371,7 @@ export default function main() {
           mainFile: 'assertions.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
       });
@@ -2450,7 +2398,7 @@ export default function main() {
           mainFile: 'const-assertion.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.04, 0.015, 0.02], 0.0005);
@@ -2474,7 +2422,7 @@ export default function main() {
           mainFile: 'type-import.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.01, 0.03], 0.0005);
@@ -2500,7 +2448,7 @@ export default function main() {
           mainFile: 'inline-type.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.01, 0.03], 0.0005);
@@ -2547,7 +2495,7 @@ export default function main() {
           mainFile: 'interfaces.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 2);
       });
@@ -2584,7 +2532,7 @@ export default function main() {
           mainFile: 'type-aliases.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 2);
       });
@@ -2617,7 +2565,7 @@ export default function main() {
           mainFile: 'generics.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.02, 0.03], 0.0005);
@@ -2646,7 +2594,7 @@ export default function main() {
           mainFile: 'enums.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.01, 0.03], 0.0005);
@@ -2679,7 +2627,7 @@ export default function main() {
           mainFile: 'modern-ts.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.05, 0.01, 0.02], 0.0005);
@@ -2739,7 +2687,7 @@ export default function main() {
           mainFile: 'main.ts',
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 2);
       });
@@ -2782,7 +2730,7 @@ export default function main() {
           parameters: { width: 60, height: 40, depth: 15 },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.06, 0.015, 0.04], 0.0005);
@@ -2849,7 +2797,7 @@ export default function main() {
           },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
       });
@@ -2919,7 +2867,7 @@ export default function main() {
           },
         });
 
-        expect(result.success).toBe(true);
+        assertSuccess(result);
         await geometryHelpers.expectValidGltf(result);
         await geometryHelpers.expectMeshCount(result, 1);
         await geometryHelpers.expectBoundingBoxSize(result, [0.06, 0.035, 0.04], 0.001);
@@ -2979,12 +2927,10 @@ export default function main() {
       // Override only base.width -- base.depth and base.cornerRadius should be preserved
       const result = await worker.render({ file: geometryFile, parameters: { base: { width: 50 } } });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // If shallow merge: base = { width: 50 } (missing depth, cornerRadius → runtime error)
-        // If deep merge: base = { width: 50, depth: 20, cornerRadius: 5 } → success
-        expect(result.data.length).toBeGreaterThan(0);
-      }
+      assertSuccess(result);
+      // If shallow merge: base = { width: 50 } (missing depth, cornerRadius → runtime error)
+      // If deep merge: base = { width: 50, depth: 20, cornerRadius: 5 } → success
+      expect(result.data.length).toBeGreaterThan(0);
     });
 
     it('should detect code changes between sequential renders', async () => {
@@ -3001,7 +2947,7 @@ export default function main() {
 
       // First render: 10x10x10 box
       const result1 = await worker.createGeometry({ file: geometryFile, parameters: {} });
-      expect(result1.success).toBe(true);
+      assertSuccess(result1);
       await geometryHelpers.expectValidGltf(result1);
 
       // Modify file content: change to 20x20x20 box
@@ -3019,7 +2965,7 @@ export default function main() {
 
       // Second render should use updated code
       const result2 = await worker.createGeometry({ file: geometryFile, parameters: {} });
-      expect(result2.success).toBe(true);
+      assertSuccess(result2);
       await geometryHelpers.expectValidGltf(result2);
 
       // Bounding boxes must differ (10mm vs 20mm)
@@ -3041,7 +2987,7 @@ export default function main() {
 
       // First render
       const result1 = await worker.createGeometry({ file: geometryFile, parameters: {} });
-      expect(result1.success).toBe(true);
+      assertSuccess(result1);
 
       // Modify file content
       await seedTestFilesystem({
@@ -3058,7 +3004,7 @@ export default function main() {
 
       // Second render should use updated code
       const result2 = await worker.createGeometry({ file: geometryFile, parameters: {} });
-      expect(result2.success).toBe(true);
+      assertSuccess(result2);
 
       // Bounding boxes must differ (10mm vs 30mm)
       await geometryHelpers.expectBoundingBoxSize(result1, [0.01, 0.01, 0.01], 0.002);
@@ -3101,7 +3047,7 @@ export default function main() {
       expect(canHandle1).toBe(true);
 
       const result1 = await worker.render({ file: geometryFile, parameters: { size: 30 } });
-      expect(result1.success).toBe(true);
+      assertSuccess(result1);
       await geometryHelpers.expectValidGltf(result1);
 
       // Second render with different parameters (same flow as parameter change in UI)
@@ -3112,7 +3058,7 @@ export default function main() {
       expect(canHandle2).toBe(true);
 
       const result2 = await worker.render({ file: geometryFile, parameters: { size: 60 } });
-      expect(result2.success).toBe(true);
+      assertSuccess(result2);
       await geometryHelpers.expectValidGltf(result2);
     });
   });
@@ -3160,7 +3106,7 @@ describe('OC API Call Tracing', () => {
     });
     await collectTelemetry(worker);
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
 
     const allEntries = telemetryBatches.flat();
     const summarySpan = allEntries.find((entry) => entry.name === 'oc.summary');
@@ -3189,7 +3135,7 @@ describe('OC API Call Tracing', () => {
     });
     await collectTelemetry(worker);
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
 
     const allEntries = telemetryBatches.flat();
     const ocSpans = allEntries.filter((entry) => entry.name.startsWith('oc.') && entry.name !== 'oc.summary');
@@ -3217,7 +3163,7 @@ describe('OC API Call Tracing', () => {
     });
     await collectTelemetry(worker);
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
 
     const allEntries = telemetryBatches.flat();
     const ocSpans = allEntries.filter((entry) => entry.name.startsWith('oc.'));
@@ -3241,7 +3187,7 @@ describe('OC API Call Tracing', () => {
     });
     await collectTelemetry(worker);
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
 
     const allEntries = telemetryBatches.flat();
     const summarySpan = allEntries.find((entry) => entry.name === 'oc.summary');
@@ -3294,7 +3240,7 @@ describe('withBrepEdges option', () => {
       parameters: {},
     });
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
     const lineCount = await countLinePrimitives(result);
     expect(lineCount).toBe(0);
   });
@@ -3308,7 +3254,7 @@ describe('withBrepEdges option', () => {
       options: { workerOptions: { withBrepEdges: true } },
     });
 
-    expect(result.success).toBe(true);
+    assertSuccess(result);
     const lineCount = await countLinePrimitives(result);
     expect(lineCount).toBeGreaterThan(0);
   });
@@ -3329,8 +3275,8 @@ describe('withBrepEdges option', () => {
       options: { workerOptions: { withBrepEdges: true } },
     });
 
-    expect(withoutEdges.success).toBe(true);
-    expect(withEdges.success).toBe(true);
+    assertSuccess(withoutEdges);
+    assertSuccess(withEdges);
 
     const glbWithout = extractGltfFromResult(withoutEdges)!;
     const glbWith = extractGltfFromResult(withEdges)!;
@@ -3371,10 +3317,8 @@ describe('No kernel matched', () => {
       },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toEqual([]);
-    }
+    assertSuccess(result);
+    expect(result.data).toEqual([]);
   });
 });
 

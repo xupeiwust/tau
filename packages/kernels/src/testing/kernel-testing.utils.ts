@@ -10,7 +10,7 @@ import type { PartialDeep } from 'type-fest';
 import type { ExportFormat, GeometryResponse, GeometryFile, OnWorkerLog } from '@taucad/types';
 import { dirname } from '@zenfs/core/path';
 import type { Mock } from 'vitest';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { configure, fs } from '@zenfs/core';
 import { InMemory } from '@zenfs/core/backends/memory.js';
 import { joinPath } from '@taucad/utils/path';
@@ -18,6 +18,9 @@ import type {
   CreateGeometryResult,
   HashedGeometryResult,
   KernelIssue,
+  KernelResult,
+  KernelSuccessResult,
+  KernelErrorResult,
   GetParametersResult,
   ExportGeometryResult,
   MiddlewareRegistrations,
@@ -371,6 +374,39 @@ export function createErrorResult(issues?: KernelIssue[]): CreateGeometryResult 
  */
 export function createEmptySuccessResult(): CreateGeometryResult {
   return createSuccessResult([]);
+}
+
+// =============================================================================
+// Type-Narrowing Assertion Helpers
+// =============================================================================
+
+/**
+ * Asserts that a kernel result is successful. Acts as a type guard narrowing
+ * the result to KernelSuccessResult<T> for subsequent assertions.
+ * Logs detailed error information when the assertion fails.
+ */
+export function assertSuccess<T>(result: KernelResult<T>, context?: string): asserts result is KernelSuccessResult<T> {
+  if (!result.success) {
+    const prefix = context ? `[${context}] ` : '';
+    const issuesSummary = result.issues.map((issue) => `  [${issue.severity}] ${issue.message}`).join('\n');
+    console.error(`${prefix}Expected success but got failure:\n${issuesSummary}`);
+  }
+
+  expect(result.success).toBe(true);
+}
+
+/**
+ * Asserts that a kernel result is a failure. Acts as a type guard narrowing
+ * the result to KernelErrorResult for subsequent assertions.
+ * Logs the unexpected success data when the assertion fails.
+ */
+export function assertFailure<T>(result: KernelResult<T>, context?: string): asserts result is KernelErrorResult {
+  if (result.success) {
+    const prefix = context ? `[${context}] ` : '';
+    console.error(`${prefix}Expected failure but got success with data:`, JSON.stringify(result.data).slice(0, 500));
+  }
+
+  expect(result.success).toBe(false);
 }
 
 /**
