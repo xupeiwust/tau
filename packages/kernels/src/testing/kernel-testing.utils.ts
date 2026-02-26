@@ -605,7 +605,20 @@ export async function createTestGeometry(input: {
 }): Promise<CreateGeometryResult> {
   const worker = await createTestWorker(input.definition, input.files, input.options);
   const geometryFile = createGeometryFile(input.mainFile);
-  return worker.createGeometry({ file: geometryFile, parameters: input.parameters ?? {} });
+
+  let parameters = input.parameters ?? {};
+
+  if (!input.parameters) {
+    const parametersResult = await worker.getParameters(geometryFile);
+    if (parametersResult.success) {
+      const extracted = parametersResult.data as { defaultParameters?: Record<string, unknown> };
+      if (extracted.defaultParameters) {
+        parameters = deepmerge(extracted.defaultParameters, parameters);
+      }
+    }
+  }
+
+  return worker.createGeometry({ file: geometryFile, parameters });
 }
 
 /**
