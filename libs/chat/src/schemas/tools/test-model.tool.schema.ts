@@ -44,14 +44,29 @@ export const visualTestRequirementSchema = baseTestRequirementSchema.extend({
 export type VisualTestRequirement = z.infer<typeof visualTestRequirementSchema>;
 
 /**
- * Measurement test requirement - verified by deterministic measurements (future).
- * Extensible schema for bounding box, volume, surface area, etc.
+ * Expected value schema for bounding box checks.
+ */
+export const boundingBoxExpectedSchema = z.object({
+  size: z
+    .object({ x: z.number(), y: z.number(), z: z.number() })
+    .optional()
+    .describe('Expected bounding box dimensions in mm'),
+  center: z
+    .object({ x: z.number(), y: z.number(), z: z.number() })
+    .optional()
+    .describe('Expected bounding box center position'),
+});
+export type BoundingBoxExpected = z.infer<typeof boundingBoxExpectedSchema>;
+
+/**
+ * Measurement test requirement - verified by deterministic geometry analysis.
+ * Currently supports: boundingBox, meshCount, vertexCount.
  */
 export const measurementTestRequirementSchema = baseTestRequirementSchema.extend({
   type: z.literal('measurement'),
-  check: z.enum(['boundingBox', 'volume', 'surfaceArea', 'manifold', 'centerOfMass']),
+  check: z.enum(['boundingBox', 'meshCount', 'vertexCount']),
   expected: z.record(z.string(), z.unknown()).optional().describe('Expected values for the measurement'),
-  tolerance: z.number().optional().describe('Acceptable tolerance for the measurement'),
+  tolerance: z.number().optional().describe('Acceptable tolerance for the measurement (default: 0.1)'),
 });
 export type MeasurementTestRequirement = z.infer<typeof measurementTestRequirementSchema>;
 
@@ -112,6 +127,7 @@ export const testModelOutputSchema = z.object({
   passes: z.array(testPassSchema).describe('Array of passed tests'),
   passed: z.number().describe('Number of tests that passed'),
   total: z.number().describe('Total number of tests run'),
+  geometryArtifactPath: z.string().optional().describe('Filesystem path to the captured GLB artifact'),
 });
 export type TestModelOutput = z.infer<typeof testModelOutputSchema>;
 

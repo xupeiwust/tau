@@ -45,7 +45,6 @@ describe('ChatService', () => {
   const mockToolService = {
     getTools: vi.fn(() => ({
       tools: {
-        reasoning: { name: 'reasoning' },
         // eslint-disable-next-line @typescript-eslint/naming-convention -- Tool name uses snake_case
         test_model: { name: 'test_model' },
       },

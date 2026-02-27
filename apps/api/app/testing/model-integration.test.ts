@@ -164,7 +164,7 @@ describe.skip(`Model Integration: ${modelId}`, () => {
                 type: 'text',
                 text: [
                   'Create a simple cube in main.ts using Replicad.',
-                  'Think through the approach first using the reasoning tool, then create the file.',
+                  'Think through the approach first, then create the file.',
                   'The file should contain:',
                   '',
                   'import { makeBaseBox } from "replicad";',
@@ -195,7 +195,7 @@ describe.skip(`Model Integration: ${modelId}`, () => {
     // No error chunks should be present (catches 400s on second model invocation)
     expectNoErrors(chunks);
 
-    // The agent should complete multiple steps: reasoning → create_file → text response
+    // The agent should complete multiple steps: create_file → text response
     expectMultipleSteps(chunks, 2);
 
     // Should have completed the tool call
@@ -217,8 +217,7 @@ describe.skip(`Model Integration: ${modelId}`, () => {
                 type: 'text',
                 text: [
                   'I need you to do two things at once:',
-                  '1. Think through your approach using the reasoning tool',
-                  '2. Create a file called main.ts with this content:',
+                  '1. Create a file called main.ts with this content:',
                   '',
                   'import { makeBaseBox } from "replicad";',
                   '',
@@ -227,6 +226,8 @@ describe.skip(`Model Integration: ${modelId}`, () => {
                   'export default function main(p = defaultParams) {',
                   '  return makeBaseBox(p.size, p.size, p.size);',
                   '}',
+                  '',
+                  '2. Read the file package.json',
                   '',
                   'Use both tools in the same response.',
                 ].join('\n'),

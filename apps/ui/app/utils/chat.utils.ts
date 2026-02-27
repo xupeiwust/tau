@@ -203,9 +203,9 @@ const toolSerializers = {
       return joinLines(...lines);
     },
   },
-  [toolName.reasoning]: {
-    input: (input) => `thinking: <${input.thinking?.length ?? 0} chars>`,
-    output: (output) => output,
+  [toolName.screenshot]: {
+    input: (input) => `mode: ${input.mode}`,
+    output: (output) => `Captured ${output.images.length} image(s)`,
   },
 } satisfies { [K in keyof MyTools]: ToolSerializer<K> };
 

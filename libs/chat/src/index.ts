@@ -10,7 +10,7 @@ export * from '#schemas/tools/delete-file.tool.schema.js';
 export * from '#schemas/tools/grep.tool.schema.js';
 export * from '#schemas/tools/glob-search.tool.schema.js';
 export * from '#schemas/tools/get-kernel-result.tool.schema.js';
-export * from '#schemas/tools/reasoning.tool.schema.js';
+export * from '#schemas/tools/screenshot.tool.schema.js';
 export * from '#schemas/tools/transfer-tool.schema.js';
 export * from '#schemas/tools/transfer-to-cad-expert.tool.schema.js';
 export * from '#schemas/tools/transfer-to-research-expert.tool.schema.js';

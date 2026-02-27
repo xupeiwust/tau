@@ -2,6 +2,7 @@ import z from 'zod';
 import { kernelProviders, manufacturingMethods, engineeringDisciplines } from '@taucad/types/constants';
 import { toolNames, toolModes } from '#constants/tool.constants.js';
 import { messageStatuses } from '#constants/message.constants.js';
+import { chatModes } from '#constants/chat-mode.constants.js';
 
 /**
  * Schema for a file entry in the project filesystem.
@@ -58,4 +59,8 @@ export const messageMetadataSchema = z.object({
    * Provides the LLM with awareness of what the user is currently working on.
    */
   snapshot: snapshotSchema.optional(),
+  /** Chat mode: agent (default) or plan */
+  mode: z.enum(chatModes).optional(),
+  /** Whether testing tools (test_model, edit_tests) are enabled */
+  testingEnabled: z.boolean().optional(),
 });

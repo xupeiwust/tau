@@ -9,7 +9,7 @@ import { ChatService } from '#api/chat/chat.service.js';
 import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { ModelService } from '#api/models/model.service.js';
 import { FileEditService } from '#api/file-edit/file-edit.service.js';
-import { AnalysisService } from '#api/analysis/analysis.service.js';
+import { GeometryAnalysisService } from '#api/analysis/geometry-analysis.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
 import { CreateChatDto } from '#api/chat/chat.dto.js';
 import { sendSimpleModelStream } from '#api/chat/utils/simple-model-stream.js';
@@ -27,6 +27,8 @@ type ChatRequestConfig = {
   selectedToolChoice: ToolSelection;
   selectedKernel: KernelProvider;
   snapshot: ChatSnapshot | undefined;
+  mode: 'agent' | 'plan';
+  testingEnabled: boolean;
 };
 
 @UseFilters(ChatExceptionFilter)
@@ -40,14 +42,15 @@ export class ChatController {
     private readonly chatRpcService: ChatRpcService,
     private readonly modelService: ModelService,
     private readonly fileEditService: FileEditService,
-    private readonly analysisService: AnalysisService,
+    private readonly geometryAnalysisService: GeometryAnalysisService,
   ) {}
 
   @Post()
   public async createChat(@Body() body: CreateChatDto, @Res() response: FastifyReply): Promise<void> {
     this.logger.debug(`Creating chat: ${body.id}`);
 
-    const { modelId, selectedToolChoice, selectedKernel, snapshot } = this.extractRequestConfig(body);
+    const { modelId, selectedToolChoice, selectedKernel, snapshot, mode, testingEnabled } =
+      this.extractRequestConfig(body);
 
     // Handle simple model streams (name generator, commit generator).
     // These use AI SDK's streamText, so they need ModelMessage[] from convertToModelMessages.
@@ -64,7 +67,7 @@ export class ChatController {
     }
 
     const langchainMessages = await this.prepareMessages(body.messages, snapshot);
-    const agent = await this.chatService.createAgent(modelId, selectedToolChoice, selectedKernel);
+    const agent = await this.chatService.createAgent(modelId, selectedToolChoice, selectedKernel, mode, testingEnabled);
 
     return this.streamAgentResponse({
       chatId: body.id,
@@ -96,6 +99,8 @@ export class ChatController {
       selectedToolChoice: lastHumanMessage.metadata?.toolChoice ?? 'auto',
       selectedKernel: lastHumanMessage.metadata?.kernel ?? 'openscad',
       snapshot: lastHumanMessage.metadata?.snapshot,
+      mode: lastHumanMessage.metadata?.mode ?? 'agent',
+      testingEnabled: lastHumanMessage.metadata?.testingEnabled ?? true,
     };
   }
 
@@ -165,7 +170,7 @@ export class ChatController {
             thread_id: chatId,
             chatRpcService: this.chatRpcService,
             fileEditService: this.fileEditService,
-            analysisService: this.analysisService,
+            geometryAnalysisService: this.geometryAnalysisService,
           },
           signal: abortController.signal,
           streamMode: ['values', 'messages', 'custom'],

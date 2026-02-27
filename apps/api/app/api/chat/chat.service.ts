@@ -6,6 +6,7 @@ import { streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 import type { KernelProvider } from '@taucad/kernels';
 import type { ToolSelection } from '@taucad/chat';
+import type { ChatMode } from '@taucad/chat/constants';
 import { ModelService } from '#api/models/model.service.js';
 import { usageTrackingMiddleware } from '#api/chat/middleware/usage-tracking.middleware.js';
 import { messageLoggingMiddleware } from '#api/chat/middleware/message-logging.middleware.js';
@@ -48,6 +49,8 @@ export class ChatService {
     modelId: string,
     selectedToolChoice: ToolSelection,
     selectedKernel: KernelProvider,
+    mode: ChatMode = 'agent',
+    testingEnabled = true,
   ): Promise<ReactAgent> {
     const { tools } = this.toolService.getTools(selectedToolChoice);
 
@@ -57,11 +60,10 @@ export class ChatService {
 
     // Combine all tools into a single array for the unified agent
     const allTools = [
-      // CAD tools
-      tools.reasoning,
-      tools.test_model,
-      tools.edit_tests,
+      // CAD tools (testing tools conditionally included)
+      ...(testingEnabled ? [tools.test_model, tools.edit_tests] : []),
       tools.get_kernel_result,
+      tools.screenshot,
       // Filesystem tools
       tools.edit_file,
       tools.read_file,
@@ -95,7 +97,7 @@ export class ChatService {
     // strategy ensures the stable system prompt is cached separately from
     // the dynamic conversation, maximizing cache hits.
     // ==========================================================================
-    const systemPromptText = await getCadSystemPrompt(selectedKernel);
+    const systemPromptText = await getCadSystemPrompt(selectedKernel, mode);
     const systemPrompt = createCachedSystemMessage(systemPromptText);
 
     const agent = createAgent({
