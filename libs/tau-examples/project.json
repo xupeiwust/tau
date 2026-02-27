@@ -6,7 +6,7 @@
   "tags": ["scope:shared", "type:examples"],
   "targets": {
     "generate-manifest": {
-      "command": "tsx scripts/generate-manifest.ts",
+      "command": "tsx scripts/generate-manifest.mts",
       "options": {
         "cwd": "{projectRoot}"
       }
