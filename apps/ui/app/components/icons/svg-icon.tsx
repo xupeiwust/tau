@@ -16,7 +16,11 @@ export function SvgIcon({
 }: React.SVGProps<SVGSVGElement> & { readonly id: string }): React.JSX.Element {
   const pngSrc = pngIcons[id];
   if (pngSrc) {
-    return <img src={pngSrc} alt={id} className={className} />;
+    return (
+      <svg {...properties} className={className} viewBox="0 0 56 56" role="img" aria-label={id}>
+        <image href={pngSrc} width="56" height="56" />
+      </svg>
+    );
   }
 
   const resolvedIconId = iconAliases[id] ?? (id as SvgIcons);
