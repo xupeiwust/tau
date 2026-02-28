@@ -79,10 +79,12 @@ function loadExperiment(dir: string): ExperimentData | undefined {
 
   const unpackedDir = join(dir, 'unpacked');
   if (existsSync(unpackedDir)) {
+    const { exceptions } = data.provenance?.compilation ?? {};
+    const variantPrefix = exceptions === 'wasm-native' ? 'replicad_with_exceptions' : 'replicad_single';
+
     for (const f of readdirSync(unpackedDir)) {
-      if (f.endsWith('.wasm')) {
-        const { size } = statSync(join(unpackedDir, f));
-        data.wasmSizeBytes += size;
+      if (f.endsWith('.wasm') && f.startsWith(variantPrefix)) {
+        data.wasmSizeBytes += statSync(join(unpackedDir, f)).size;
       }
     }
   }
@@ -125,10 +127,6 @@ function formatMb(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function formatMs(ms: number): string {
-  return ms < 1 ? `${(ms * 1000).toFixed(0)}µs` : `${ms.toFixed(2)}ms`;
-}
-
 function geometricMean(input: number[]): number {
   if (input.length === 0) {
     return 0;
@@ -140,6 +138,33 @@ function geometricMean(input: number[]): number {
 
 function stripTimestampPrefix(name: string): string {
   return name.replace(/^\d+T\d+_/, '');
+}
+
+type DataPoint = { name: string; sizeMb: number; medianMs: number };
+
+function isDominated(candidate: DataPoint, points: DataPoint[]): boolean {
+  for (const other of points) {
+    if (
+      other.sizeMb <= candidate.sizeMb &&
+      other.medianMs <= candidate.medianMs &&
+      (other.sizeMb < candidate.sizeMb || other.medianMs < candidate.medianMs)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function computeParetoFrontier(points: DataPoint[]): Set<string> {
+  const paretoNames = new Set<string>();
+  for (const candidate of points) {
+    if (!isDominated(candidate, points)) {
+      paretoNames.add(candidate.name);
+    }
+  }
+
+  return paretoNames;
 }
 
 function generateSizeSpeedChart(experiments: ExperimentData[]): string {
@@ -173,6 +198,27 @@ function generateSizeSpeedChart(experiments: ExperimentData[]): string {
   const scaleY = (v: number): number => padT + plotH - ((v - minTime) / (maxTime - minTime)) * plotH;
 
   const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+  const paretoSet = computeParetoFrontier(dataPoints);
+
+  const paretoPoints = dataPoints.filter((dp) => paretoSet.has(dp.name)).sort((a, b) => a.sizeMb - b.sizeMb);
+
+  let frontierLine = '';
+  if (paretoPoints.length > 1) {
+    const segments: string[] = [];
+    for (let i = 0; i < paretoPoints.length; i++) {
+      const current = paretoPoints[i]!;
+      const cx = scaleX(current.sizeMb);
+      const cy = scaleY(current.medianMs);
+      if (i === 0) {
+        segments.push(`M ${cx} ${cy}`);
+      } else {
+        const previousY = scaleY(paretoPoints[i - 1]!.medianMs);
+        segments.push(`L ${cx} ${previousY}`, `L ${cx} ${cy}`);
+      }
+    }
+
+    frontierLine = `<path d="${segments.join(' ')}" fill="none" stroke="#F59E0B" stroke-width="2" stroke-dasharray="6 3" opacity="0.6"/>`;
+  }
 
   let dots = '';
   let idx = 0;
@@ -180,8 +226,13 @@ function generateSizeSpeedChart(experiments: ExperimentData[]): string {
     const x = scaleX(dp.sizeMb);
     const y = scaleY(dp.medianMs);
     const color = colors[idx % colors.length]!;
+    const isPareto = paretoSet.has(dp.name);
     dots += `<circle cx="${x}" cy="${y}" r="6" fill="${color}" stroke="white" stroke-width="2"/>`;
-    dots += `<text x="${x + 10}" y="${y + 4}" font-size="10" fill="#374151">${escapeHtml(stripTimestampPrefix(dp.name))}</text>`;
+    if (isPareto) {
+      dots += `<polygon points="${x},${y - 10} ${x - 6},${y - 2} ${x - 4},${y + 8} ${x + 4},${y + 8} ${x + 6},${y - 2}" class="pareto-star"/>`;
+    }
+
+    dots += `<text x="${x + 10}" y="${y + 4}" font-size="10" fill="#374151">${escapeHtml(stripTimestampPrefix(dp.name))}${isPareto ? ' ★' : ''}</text>`;
     idx++;
   }
 
@@ -217,145 +268,92 @@ function generateSizeSpeedChart(experiments: ExperimentData[]): string {
     <rect width="${chartW}" height="${chartH}" fill="white" rx="8"/>
     ${gridLines.join('\n')}
     ${axes}
+    ${frontierLine}
     ${dots}
   </svg>`;
 }
 
-type CompilationInfo = {
-  optimization?: string;
-  lto?: boolean;
-  exceptions?: string;
-  threading?: string;
+type EmbeddedExperiment = {
+  name: string;
+  shortName: string;
+  wasmSizeBytes: number;
+  optimization: string;
+  lto: boolean;
+  exceptions: string;
+  threading: string;
+  wasmOptLevel: string;
+  emccCompileFlags: string[];
+  boundSymbols: number | undefined;
+  emscripten: string;
+  medians: Record<string, number>;
+  categories: Record<string, string>;
 };
 
-function computeDeltaHtml(experiment: ExperimentData, geoMean: number, baseline?: ExperimentData): string {
-  if (!baseline?.benchmark || !experiment.benchmark) {
-    return '<td>—</td><td>—</td>';
-  }
+type ReportData = {
+  experiments: EmbeddedExperiment[];
+  baseline: EmbeddedExperiment | undefined;
+  benchmarks: string[];
+  categories: string[];
+};
 
-  const baselineMedians = baseline.benchmark.results.map((r) => r.median);
-  const baselineGeo = geometricMean(baselineMedians);
-  const sizeDelta =
-    baseline.wasmSizeBytes > 0
-      ? ((experiment.wasmSizeBytes - baseline.wasmSizeBytes) / baseline.wasmSizeBytes) * 100
-      : 0;
-  const speedDelta = baselineGeo > 0 ? ((geoMean - baselineGeo) / baselineGeo) * 100 : 0;
-
-  const sizeColor = sizeDelta > 2 ? '#EF4444' : sizeDelta < -2 ? '#10B981' : '#6B7280';
-  const speedColor = speedDelta > 2 ? '#EF4444' : speedDelta < -2 ? '#10B981' : '#6B7280';
-  return `<td style="color:${sizeColor}">${sizeDelta > 0 ? '+' : ''}${sizeDelta.toFixed(1)}% size</td>
-    <td style="color:${speedColor}">${speedDelta > 0 ? '+' : ''}${speedDelta.toFixed(1)}% speed</td>`;
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
 }
 
-function generateConfigMatrix(experiments: ExperimentData[], baseline?: ExperimentData): string {
-  let rows = '';
+function buildExperimentRecord(experiment: ExperimentData): EmbeddedExperiment {
+  const compilation = experiment.provenance?.compilation ?? {};
+  const linking = experiment.provenance?.linking ?? {};
+  const toolchain = experiment.provenance?.toolchain ?? {};
 
-  for (const experiment of experiments) {
-    const compilation = (experiment.provenance?.compilation ?? {}) as CompilationInfo;
-    const sizeMb = experiment.wasmSizeBytes > 0 ? formatMb(experiment.wasmSizeBytes) : '—';
-
-    const medians = experiment.benchmark?.results.map((r) => r.median) ?? [];
-    const geoMean = medians.length > 0 ? geometricMean(medians) : 0;
-    const deltaHtml = computeDeltaHtml(experiment, geoMean, baseline);
-
-    const shortName = stripTimestampPrefix(experiment.name);
-    rows += `<tr>
-      <td><strong>${escapeHtml(shortName)}</strong></td>
-      <td><code>${escapeHtml(compilation.optimization ?? '')}</code></td>
-      <td>${compilation.lto ? 'Yes' : 'No'}</td>
-      <td>${escapeHtml(compilation.exceptions ?? 'none')}</td>
-      <td>${escapeHtml(compilation.threading ?? '')}</td>
-      <td>${sizeMb}</td>
-      <td>${geoMean > 0 ? formatMs(geoMean) : '—'}</td>
-      ${deltaHtml}
-    </tr>`;
+  const medians: Record<string, number> = {};
+  const categories: Record<string, string> = {};
+  if (experiment.benchmark) {
+    for (const r of experiment.benchmark.results) {
+      medians[r.name] = r.median;
+      categories[r.name] = r.category;
+    }
   }
 
-  return `<table>
-    <thead>
-      <tr>
-        <th>Experiment</th>
-        <th>Compile</th>
-        <th>LTO</th>
-        <th>Exceptions</th>
-        <th>Threading</th>
-        <th>WASM Size</th>
-        <th>Geo-Mean</th>
-        <th>vs Baseline (Size)</th>
-        <th>vs Baseline (Speed)</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+  const flags = compilation['emccCompileFlags'];
+  const symbols = linking['boundSymbols'];
+
+  return {
+    name: experiment.name,
+    shortName: stripTimestampPrefix(experiment.name),
+    wasmSizeBytes: experiment.wasmSizeBytes,
+    optimization: asString(compilation['optimization']),
+    lto: Boolean(compilation['lto']),
+    exceptions: asString(compilation['exceptions'], 'none'),
+    threading: asString(compilation['threading']),
+    wasmOptLevel: asString(compilation['wasmOptLevel']),
+    emccCompileFlags: Array.isArray(flags) ? (flags as string[]) : [],
+    boundSymbols: typeof symbols === 'number' ? symbols : undefined,
+    emscripten: asString(toolchain['emscripten']),
+    medians,
+    categories,
+  };
 }
 
-function deltaColor(delta: number): string {
-  if (Math.abs(delta) < 2) {
-    return '#F9FAFB';
-  }
+function buildReportData(experiments: ExperimentData[], baseline?: ExperimentData): ReportData {
+  const benchmarks = new Set<string>();
+  const categories = new Set<string>();
 
-  if (delta < -10) {
-    return '#D1FAE5';
-  }
-
-  if (delta < 0) {
-    return '#ECFDF5';
-  }
-
-  return delta > 10 ? '#FEE2E2' : '#FEF2F2';
-}
-
-function generateHeatmapCell(experiment: ExperimentData, benchName: string, refMedian: number): string {
-  const result = experiment.benchmark?.results.find((r) => r.name === benchName);
-  if (!result || refMedian === 0) {
-    return '<td style="text-align:center;color:#9CA3AF">—</td>';
-  }
-
-  const delta = ((result.median - refMedian) / refMedian) * 100;
-  const bgColor = deltaColor(delta);
-  const sign = delta > 0 ? '+' : '';
-  return `<td style="text-align:center;background:${bgColor};font-size:0.8rem">${sign}${delta.toFixed(1)}%</td>`;
-}
-
-function generateHeatmap(experiments: ExperimentData[], baseline?: ExperimentData): string {
-  const benchmarkNames = new Set<string>();
-  for (const experiment of experiments) {
+  const allExperiments = baseline ? [...experiments, baseline] : experiments;
+  for (const experiment of allExperiments) {
     if (experiment.benchmark) {
       for (const r of experiment.benchmark.results) {
-        benchmarkNames.add(r.name);
+        benchmarks.add(r.name);
+        categories.add(r.category);
       }
     }
   }
 
-  const names = [...benchmarkNames].sort();
-  if (names.length === 0) {
-    return '<p>No benchmark data available for heatmap.</p>';
-  }
-
-  const ref = baseline ?? experiments[0];
-
-  let header = '<th>Benchmark</th>';
-  for (const experiment of experiments) {
-    header += `<th>${escapeHtml(stripTimestampPrefix(experiment.name))}</th>`;
-  }
-
-  let rows = '';
-  for (const benchName of names) {
-    const refResult = ref?.benchmark?.results.find((r) => r.name === benchName);
-    const refMedian = refResult?.median ?? 0;
-
-    let cells = `<td><strong>${escapeHtml(benchName)}</strong></td>`;
-    for (const experiment of experiments) {
-      cells += generateHeatmapCell(experiment, benchName, refMedian);
-    }
-
-    rows += `<tr>${cells}</tr>`;
-  }
-
-  return `<div style="overflow-x:auto"><table>
-    <thead><tr>${header}</tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+  return {
+    experiments: experiments.map((experiment) => buildExperimentRecord(experiment)),
+    baseline: baseline ? buildExperimentRecord(baseline) : undefined,
+    benchmarks: [...benchmarks].sort(),
+    categories: [...categories].sort(),
+  };
 }
 
 function generateSizeBreakdown(experiments: ExperimentData[]): string {
@@ -421,8 +419,160 @@ function generateSizeBreakdown(experiments: ExperimentData[]): string {
   </svg>`;
 }
 
+function generateAlpineScript(): string {
+  return `<script>
+document.addEventListener('alpine:init', function() {
+  var D = window.__DATA__;
+  Alpine.store('data', D);
+  Alpine.store('filter', { category: 'all' });
+
+  window._fmt = {
+    mb: function(bytes) { return (bytes / (1024 * 1024)).toFixed(2) + ' MB'; },
+    ms: function(v) { return v < 1 ? (v * 1000).toFixed(0) + 'µs' : v.toFixed(2) + 'ms'; },
+    pct: function(v) { return (v > 0 ? '+' : '') + v.toFixed(1) + '%'; },
+    deltaColor: function(d) {
+      if (d === null) return '';
+      var a = Math.abs(d);
+      if (a < 2) return '#F9FAFB';
+      if (d < -10) return '#D1FAE5';
+      if (d < 0) return '#ECFDF5';
+      return d > 10 ? '#FEE2E2' : '#FEF2F2';
+    },
+    deltaTextColor: function(d) {
+      if (d === null) return '#6B7280';
+      if (Math.abs(d) < 2) return '#6B7280';
+      return d < 0 ? '#10B981' : '#EF4444';
+    },
+    geoMean: function(exp, category) {
+      var vals = Object.keys(exp.medians)
+        .filter(function(b) { return category === 'all' || exp.categories[b] === category; })
+        .map(function(b) { return exp.medians[b]; })
+        .filter(function(v) { return v > 0; });
+      if (vals.length === 0) return 0;
+      return Math.pow(vals.reduce(function(a, b) { return a * b; }, 1), 1 / vals.length);
+    }
+  };
+
+  Alpine.data('configMatrix', function() {
+    return {
+      sortCol: null,
+      sortAsc: true,
+
+      toggleSort: function(col) {
+        if (this.sortCol === col) { this.sortAsc = !this.sortAsc; }
+        else { this.sortCol = col; this.sortAsc = true; }
+      },
+
+      sortArrow: function(col) {
+        if (this.sortCol !== col) return '▲▼';
+        return this.sortAsc ? '▲' : '▼';
+      },
+
+      gm: function(exp) {
+        return _fmt.geoMean(exp, this.$store.filter.category);
+      },
+
+      getValue: function(exp, col) {
+        switch (col) {
+          case 'name': return exp.shortName;
+          case 'optimization': return exp.optimization;
+          case 'lto': return exp.lto ? 'Yes' : 'No';
+          case 'exceptions': return exp.exceptions;
+          case 'threading': return exp.threading;
+          case 'wasmOptLevel': return exp.wasmOptLevel;
+          case 'flags': return exp.emccCompileFlags.join(' ');
+          case 'symbols': return exp.boundSymbols || 0;
+          case 'emscripten': return exp.emscripten;
+          case 'wasmSize': return exp.wasmSizeBytes;
+          case 'geoMean': return this.gm(exp);
+          case 'sizeDelta': { var d = this.sizeDelta(exp); return d !== null ? d : 0; }
+          case 'speedDelta': { var d = this.speedDelta(exp); return d !== null ? d : 0; }
+          default: return '';
+        }
+      },
+
+      sorted: function() {
+        var exps = this.$store.data.experiments.slice();
+        if (!this.sortCol) return exps;
+        var col = this.sortCol;
+        var dir = this.sortAsc ? 1 : -1;
+        var self = this;
+        return exps.sort(function(a, b) {
+          var va = self.getValue(a, col);
+          var vb = self.getValue(b, col);
+          if (typeof va === 'string') return dir * va.localeCompare(vb);
+          return dir * ((va || 0) - (vb || 0));
+        });
+      },
+
+      sizeDelta: function(exp) {
+        var bl = this.$store.data.baseline;
+        if (!bl || bl.wasmSizeBytes === 0) return null;
+        return ((exp.wasmSizeBytes - bl.wasmSizeBytes) / bl.wasmSizeBytes) * 100;
+      },
+
+      speedDelta: function(exp) {
+        var bl = this.$store.data.baseline;
+        if (!bl) return null;
+        var blGm = _fmt.geoMean(bl, this.$store.filter.category);
+        if (blGm === 0) return null;
+        return ((this.gm(exp) - blGm) / blGm) * 100;
+      }
+    };
+  });
+
+  Alpine.data('heatmap', function() {
+    return {
+      refIndex: -1,
+
+      setRef: function(idx) {
+        this.refIndex = (this.refIndex === idx) ? -1 : idx;
+      },
+
+      ref: function() {
+        if (this.refIndex >= 0) return this.$store.data.experiments[this.refIndex];
+        return this.$store.data.baseline || this.$store.data.experiments[0];
+      },
+
+      refLabel: function() {
+        var r = this.ref();
+        return r ? r.shortName : '';
+      },
+
+      isRef: function(idx) {
+        if (this.refIndex >= 0) return idx === this.refIndex;
+        return false;
+      },
+
+      delta: function(exp, bench) {
+        var r = this.ref();
+        if (!r || !r.medians[bench]) return null;
+        var refVal = r.medians[bench];
+        var expVal = exp.medians[bench];
+        if (expVal === undefined || refVal === 0) return null;
+        return ((expVal - refVal) / refVal) * 100;
+      },
+
+      benchmarks: function() {
+        var cat = this.$store.filter.category;
+        var exps = this.$store.data.experiments;
+        return this.$store.data.benchmarks.filter(function(b) {
+          if (cat === 'all') return true;
+          for (var i = 0; i < exps.length; i++) {
+            if (exps[i].categories[b] === cat) return true;
+          }
+          return false;
+        });
+      }
+    };
+  });
+});
+${'</'}script>`;
+}
+
 function generateMatrixReport(experiments: ExperimentData[], baseline?: ExperimentData): string {
   const now = new Date().toISOString();
+  const reportData = buildReportData(experiments, baseline);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -430,6 +580,7 @@ function generateMatrixReport(experiments: ExperimentData[], baseline?: Experime
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WASM Build Matrix Report</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js">${'</'}script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1F2937; background: #F9FAFB; padding: 2rem; max-width: 1400px; margin: 0 auto; }
@@ -447,15 +598,31 @@ function generateMatrixReport(experiments: ExperimentData[], baseline?: Experime
   .legend-item { display: flex; align-items: center; gap: 4px; }
   .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
   .footer { margin-top: 3rem; color: #9CA3AF; font-size: 0.75rem; border-top: 1px solid #E5E7EB; padding-top: 1rem; }
+  .explanation { color: #6B7280; font-size: 0.8rem; margin: 0.5rem 0 1rem; line-height: 1.5; max-width: 80ch; }
+  .sortable-th { cursor: pointer; user-select: none; }
+  .sortable-th:hover { background: #E5E7EB; }
+  .sort-arrow { font-size: 0.65rem; margin-left: 3px; opacity: 0.5; }
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1rem; }
+  .filter-btn { padding: 0.3rem 0.7rem; border: 1px solid #D1D5DB; border-radius: 6px; background: white; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .filter-btn:hover { border-color: #9CA3AF; }
+  .filter-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; }
+  .compile-flags { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; display: inline-block; }
+  .compile-flags:hover { white-space: normal; overflow: visible; }
+  .pareto-star { fill: #F59E0B; stroke: #D97706; stroke-width: 1; }
+  .ref-th { background: #DBEAFE !important; }
+  .heatmap-th { cursor: pointer; user-select: none; transition: background 0.15s; }
+  .heatmap-th:hover { background: #E5E7EB; }
 </style>
+<script>window.__DATA__=${JSON.stringify(reportData)};${'</'}script>
+${generateAlpineScript()}
 </head>
 <body>
   <h1>WASM Build Matrix Report</h1>
-  <p class="meta">Generated ${escapeHtml(now)} &bull; ${experiments.length} experiments${baseline ? ` &bull; Baseline: ${escapeHtml(baseline.name)}` : ''}</p>
+  <p class="meta">Generated ${escapeHtml(now)} &bull; ${experiments.length} experiments${baseline ? ` &bull; Baseline: <strong>${escapeHtml(stripTimestampPrefix(baseline.name))}</strong>` : ''}</p>
 
   <div class="section">
     <h2>Size vs Speed</h2>
-    <p class="meta">Each point represents an experiment. Lower-left is the Pareto-optimal zone (smaller AND faster).</p>
+    <p class="explanation">Each point represents a build experiment. The ideal position is the <strong>lower-left corner</strong> (smaller binary AND faster execution). Experiments marked with a ★ star lie on the <strong>Pareto frontier</strong> &mdash; no other experiment is both smaller AND faster. The dashed gold line connects these optimal points. Any experiment above or to the right of the frontier is &ldquo;dominated&rdquo; by at least one frontier experiment.</p>
     <div class="chart-container">
       ${generateSizeSpeedChart(experiments)}
     </div>
@@ -463,20 +630,92 @@ function generateMatrixReport(experiments: ExperimentData[], baseline?: Experime
 
   <div class="section">
     <h2>Configuration Matrix</h2>
-    ${generateConfigMatrix(experiments, baseline)}
+    <p class="explanation">Click any column header to sort. <strong>WASM Size</strong> is the post-optimization binary size. <strong>Geo-Mean</strong> is the geometric mean of all benchmark median times &mdash; it is used instead of the arithmetic mean because benchmark times span different orders of magnitude (microseconds to milliseconds). The geometric mean gives equal weight to proportional changes: a 2&times; speedup on a 10ms test counts the same as a 2&times; speedup on a 100ms test. Use the category filter below to recalculate the Geo-Mean for a subset of benchmarks.</p>
+    <div x-data="configMatrix()">
+      <div class="filter-bar">
+        <button class="filter-btn" :class="{ 'active': $store.filter.category === 'all' }" @click="$store.filter.category = 'all'">All</button>
+        <template x-for="cat in $store.data.categories" :key="cat">
+          <button class="filter-btn" :class="{ 'active': $store.filter.category === cat }" @click="$store.filter.category = cat" x-text="cat"></button>
+        </template>
+      </div>
+      <table id="config-matrix">
+        <thead>
+          <tr>
+            <th class="sortable-th" @click="toggleSort('name')">Experiment <span class="sort-arrow" x-text="sortArrow('name')"></span></th>
+            <th class="sortable-th" @click="toggleSort('optimization')">Compile <span class="sort-arrow" x-text="sortArrow('optimization')"></span></th>
+            <th class="sortable-th" @click="toggleSort('lto')">LTO <span class="sort-arrow" x-text="sortArrow('lto')"></span></th>
+            <th class="sortable-th" @click="toggleSort('exceptions')">Exceptions <span class="sort-arrow" x-text="sortArrow('exceptions')"></span></th>
+            <th class="sortable-th" @click="toggleSort('threading')">Threading <span class="sort-arrow" x-text="sortArrow('threading')"></span></th>
+            <th class="sortable-th" @click="toggleSort('wasmOptLevel')">wasm-opt <span class="sort-arrow" x-text="sortArrow('wasmOptLevel')"></span></th>
+            <th class="sortable-th" @click="toggleSort('flags')">Compile Flags <span class="sort-arrow" x-text="sortArrow('flags')"></span></th>
+            <th class="sortable-th" @click="toggleSort('symbols')">Symbols <span class="sort-arrow" x-text="sortArrow('symbols')"></span></th>
+            <th class="sortable-th" @click="toggleSort('emscripten')">Emscripten <span class="sort-arrow" x-text="sortArrow('emscripten')"></span></th>
+            <th class="sortable-th" @click="toggleSort('wasmSize')">WASM Size <span class="sort-arrow" x-text="sortArrow('wasmSize')"></span></th>
+            <th class="sortable-th" @click="toggleSort('geoMean')">Geo-Mean <span class="sort-arrow" x-text="sortArrow('geoMean')"></span></th>
+            <th class="sortable-th" @click="toggleSort('sizeDelta')">vs Baseline (Size) <span class="sort-arrow" x-text="sortArrow('sizeDelta')"></span></th>
+            <th class="sortable-th" @click="toggleSort('speedDelta')">vs Baseline (Speed) <span class="sort-arrow" x-text="sortArrow('speedDelta')"></span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="exp in sorted()" :key="exp.name">
+            <tr>
+              <td><strong x-text="exp.shortName"></strong></td>
+              <td><code x-text="exp.optimization"></code></td>
+              <td x-text="exp.lto ? 'Yes' : 'No'"></td>
+              <td x-text="exp.exceptions"></td>
+              <td x-text="exp.threading"></td>
+              <td><code x-text="exp.wasmOptLevel || '—'"></code></td>
+              <td :title="exp.emccCompileFlags.join(' ')"><span class="compile-flags" x-text="exp.emccCompileFlags.length > 0 ? exp.emccCompileFlags.join(' ') : '—'"></span></td>
+              <td x-text="exp.boundSymbols !== null ? exp.boundSymbols : '—'"></td>
+              <td x-text="exp.emscripten || '—'"></td>
+              <td x-text="exp.wasmSizeBytes > 0 ? _fmt.mb(exp.wasmSizeBytes) : '—'"></td>
+              <td x-text="gm(exp) > 0 ? _fmt.ms(gm(exp)) : '—'"></td>
+              <td :style="'color:' + _fmt.deltaTextColor(sizeDelta(exp))" x-text="sizeDelta(exp) !== null ? _fmt.pct(sizeDelta(exp)) + ' size' : '—'"></td>
+              <td :style="'color:' + _fmt.deltaTextColor(speedDelta(exp))" x-text="speedDelta(exp) !== null ? _fmt.pct(speedDelta(exp)) + ' speed' : '—'"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+    <p class="explanation"><strong>Delta columns:</strong> Size delta compares WASM binary size against the baseline. Speed delta compares geometric mean of median benchmark times. <span style="color:#10B981">Green = improvement</span>, <span style="color:#EF4444">red = regression</span>. Deltas within &plusmn;2% are shown in gray.</p>
   </div>
 
   <div class="section">
     <h2>Per-Benchmark Heatmap</h2>
-    <p class="meta">Median time delta relative to ${baseline ? 'baseline' : 'first experiment'}. Green = faster, red = slower.</p>
-    <div class="legend">
-      <span class="legend-item"><span class="legend-swatch" style="background:#D1FAE5"></span> &gt;10% faster</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#ECFDF5"></span> 2-10% faster</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#F9FAFB"></span> Within 2%</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#FEF2F2"></span> 2-10% slower</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#FEE2E2"></span> &gt;10% slower</span>
+    <div x-data="heatmap()">
+      <p class="explanation">Each cell shows the percentage change in median time relative to the reference experiment. <span style="color:#10B981">Green = faster</span>, <span style="color:#EF4444">red = slower</span>. <strong>Click any column header</strong> to set it as the reference for delta computation. Click the active reference again to reset to the ${baseline ? 'baseline' : 'first experiment'}. Currently comparing against: <strong x-text="refLabel()"></strong></p>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:#D1FAE5"></span> &gt;10% faster</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#ECFDF5"></span> 2-10% faster</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#F9FAFB"></span> Within 2%</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#FEF2F2"></span> 2-10% slower</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#FEE2E2"></span> &gt;10% slower</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="heatmap-table">
+          <thead>
+            <tr>
+              <th>Benchmark</th>
+              <template x-for="(exp, idx) in $store.data.experiments" :key="exp.name">
+                <th class="heatmap-th" :class="{ 'ref-th': isRef(idx) }" @click="setRef(idx)" x-text="exp.shortName"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="bench in benchmarks()" :key="bench">
+              <tr>
+                <td><strong x-text="bench"></strong></td>
+                <template x-for="(exp, idx) in $store.data.experiments" :key="exp.name + '-' + bench">
+                  <td style="text-align:center;font-size:0.8rem"
+                      :style="'background:' + _fmt.deltaColor(delta(exp, bench))"
+                      x-text="delta(exp, bench) !== null ? _fmt.pct(delta(exp, bench)) : '—'"></td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
     </div>
-    ${generateHeatmap(experiments, baseline)}
   </div>
 
   <div class="section">
@@ -524,6 +763,14 @@ function main(): void {
       console.log(`Using baseline: ${baseline.name}`);
     } else {
       console.warn(`Baseline not found: ${values.baseline}`);
+    }
+  }
+
+  if (!baseline) {
+    const baselineIdx = experiments.findIndex((experiment) => experiment.name.includes('baseline'));
+    if (baselineIdx !== -1) {
+      baseline = experiments.splice(baselineIdx, 1)[0];
+      console.log(`Auto-detected baseline: ${baseline!.name}`);
     }
   }
 
