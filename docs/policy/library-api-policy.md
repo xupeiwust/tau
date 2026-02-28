@@ -37,7 +37,7 @@ Prefer flat option objects over deeply nested configuration. Use optional fields
 
 ```typescript
 // Good: flat, obvious defaults
-replicad({ withExceptions: true, linearTolerance: 0.1 })
+replicad({ wasm: 'single-exceptions', linearTolerance: 0.1 })
 
 // Avoid: deeply nested, hard to read
 replicad({ options: { exceptions: { enabled: true }, mesh: { tolerances: { linear: 0.1 } } } })
@@ -335,3 +335,17 @@ import { createKernelClient, presets } from '@taucad/kernels';
 
 const client = createKernelClient(presets.all());
 ```
+
+## 16. ES Module Asset Injection
+
+When a factory option selects between heavy asset variants (e.g., WASM builds, large modules), use the **two-tier dynamic import pattern** to enable code-splitting and tree-shaking.
+
+**Design the option as a discriminated union** of preset strings and a custom config object:
+
+```typescript
+type WasmOption = 'single' | 'single-exceptions' | { wasmUrl: string; wasmBindingsUrl: string };
+```
+
+This allows zero-config consumers to benefit from code-split presets, while advanced consumers can inject custom builds at runtime.
+
+See [ES Module Policy](es-module-policy.md) for the full pattern, bundler compatibility matrix, serialization constraints, and anti-patterns.
