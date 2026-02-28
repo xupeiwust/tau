@@ -14,7 +14,8 @@ import { parseArgs } from 'node:util';
 
 const { values } = parseArgs({
   options: {
-    experiments: { type: 'string', short: 'e', default: '../../tarballs/experiments' },
+    experiments: { type: 'string', short: 'e' },
+    compare: { type: 'string', short: 'c', multiple: true },
   },
   strict: true,
   allowPositionals: false,
@@ -120,30 +121,46 @@ function formatDelta(current: number, baseline: number): string {
 }
 
 function main(): void {
-  const expDir = resolve(values.experiments);
-  if (!existsSync(expDir)) {
-    console.error(`Experiments directory not found: ${expDir}`);
-    process.exit(1);
-  }
-
   const experiments: Experiment[] = [];
   let baseline: Experiment | undefined;
 
-  for (const entry of readdirSync(expDir).sort()) {
-    const fullPath = join(expDir, entry);
-    if (!statSync(fullPath).isDirectory()) {
-      continue;
+  if (values.compare && values.compare.length > 0) {
+    for (const dir of values.compare) {
+      const fullPath = resolve(dir);
+      const exp = loadExperiment(fullPath);
+      if (exp) {
+        if (basename(fullPath).includes('baseline')) {
+          baseline = exp;
+        } else {
+          experiments.push(exp);
+        }
+      } else {
+        console.warn(`Could not load experiment: ${dir}`);
+      }
+    }
+  } else {
+    const expDir = resolve(values.experiments ?? '../../tarballs/experiments');
+    if (!existsSync(expDir)) {
+      console.error(`Experiments directory not found: ${expDir}`);
+      process.exit(1);
     }
 
-    const exp = loadExperiment(fullPath);
-    if (!exp) {
-      continue;
-    }
+    for (const entry of readdirSync(expDir).sort()) {
+      const fullPath = join(expDir, entry);
+      if (!statSync(fullPath).isDirectory()) {
+        continue;
+      }
 
-    if (entry.includes('baseline')) {
-      baseline = exp;
-    } else {
-      experiments.push(exp);
+      const exp = loadExperiment(fullPath);
+      if (!exp) {
+        continue;
+      }
+
+      if (entry.includes('baseline')) {
+        baseline = exp;
+      } else {
+        experiments.push(exp);
+      }
     }
   }
 
