@@ -242,7 +242,7 @@ Published with `--tag next` so `npm install @taucad/kernels` still resolves to s
 
 ## Additional Resources
 
-- [Release policy and rationale](../../docs/release-policy.md)
+- [Release policy and rationale](../../docs/policy/release-policy.md)
 - [Nx Release docs](https://nx.dev/features/manage-releases)
 - [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers)
 - [npm Provenance](https://docs.npmjs.com/generating-provenance-statements)

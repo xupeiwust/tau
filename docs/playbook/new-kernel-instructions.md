@@ -158,7 +158,7 @@ Use existing configs (replicad/jscad/zoo/openscad) as templates.
 
 At minimum update:
 
-- `docs/kernel-architecture-policy.md`
+- `docs/policy/kernel-architecture-policy.md`
 - `docs/new-kernel-instructions.md` (this file, when improving process)
 - Kernel docs site pages under `apps/ui/content/docs/(kernels)/...`:
   - index
