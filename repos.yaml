@@ -50,6 +50,7 @@ groups:
       - dockview
       - headless-tree
       - fumadocs
+      - zod
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -290,3 +291,6 @@ repos:
   bitbybit-occt:
     upstream: bitbybit-dev/bitbybit-occt
     description: CAD algorithms that use OpenCascade Technology (OCCT) Kernel
+  zod:
+    upstream: colinhacks/zod
+    description: TypeScript-first schema validation with static type inference
