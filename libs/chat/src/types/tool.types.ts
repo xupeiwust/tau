@@ -119,6 +119,18 @@ export type ToolUserInterruptedError = {
 };
 
 /**
+ * Structured error for when a tool completes successfully but returns no results.
+ * Common with web extraction (blocked pages, JS-rendered content, auth-gated sites).
+ * Treated as a recoverable, expected case rather than a failure.
+ */
+export type ToolNoResultsError = {
+  errorCode: 'TOOL_NO_RESULTS';
+  message: string;
+  toolName: string;
+  toolCallId: string;
+};
+
+/**
  * All possible structured tool errors including validation errors.
  * These are returned to the LLM so it can reason about errors.
  */
@@ -128,7 +140,8 @@ export type ToolExecutionError =
   | ToolNoConnectionError
   | ToolValidationError
   | ToolGenericExecutionError
-  | ToolUserInterruptedError;
+  | ToolUserInterruptedError
+  | ToolNoResultsError;
 
 // =============================================================================
 // Tool Name Types
