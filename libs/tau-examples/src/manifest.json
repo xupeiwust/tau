@@ -129,6 +129,14 @@
   },
   {
     "kernel": "replicad",
+    "name": "projection-test",
+    "mainFile": "main.ts",
+    "files": [
+      "main.ts"
+    ]
+  },
+  {
+    "kernel": "replicad",
     "name": "simple-tray",
     "mainFile": "main.ts",
     "files": [
