@@ -216,8 +216,8 @@ function writeResults(result: BenchmarkRunResult): void {
   const htmlPath = join(outputDir, `benchmark-${timestamp}.html`);
   const jsonPath = join(outputDir, `benchmark-${timestamp}.json`);
 
-  writeFileSync(htmlPath, generateHtmlReport(result));
   writeFileSync(jsonPath, serializeRunResult(result));
+  writeFileSync(htmlPath, generateHtmlReport(result));
 
   heading('Output');
   label('HTML', htmlPath);
