@@ -2,8 +2,19 @@ import * as React from 'react';
 import { Drawer as DrawerPrimitive } from 'vaul';
 import { cn } from '#utils/ui.utils.js';
 
+const DrawerContext = React.createContext(false);
+
+function useIsInsideDrawer(): boolean {
+  return React.useContext(DrawerContext);
+}
+
 function Drawer({ ...properties }: React.ComponentProps<typeof DrawerPrimitive.Root>): React.JSX.Element {
-  return <DrawerPrimitive.Root data-slot="drawer" {...properties} />;
+  return (
+    // eslint-disable-next-line react/jsx-boolean-value -- we want to explicitly set the value to true
+    <DrawerContext.Provider value={true}>
+      <DrawerPrimitive.Root data-slot="drawer" {...properties} />
+    </DrawerContext.Provider>
+  );
 }
 
 function DrawerNestedRoot({
@@ -135,4 +146,5 @@ export {
   DrawerFooter,
   DrawerTitle,
   DrawerDescription,
+  useIsInsideDrawer,
 };

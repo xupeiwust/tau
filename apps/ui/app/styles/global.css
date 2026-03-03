@@ -1,12 +1,12 @@
 @import 'tailwindcss';
 
-/* Fumadocs minimal configuration */
-@import 'fumadocs-ui/css/lib/shiki.css';
+/* Fumadocs preset: base styles, animations, layout, typography, and Tailwind source directives */
+@import 'fumadocs-ui/css/preset.css';
 
 @import 'tw-animate-css';
 @source "../../../../node_modules/@daveyplate/better-auth-ui";
 
-@plugin '@tailwindcss/typography';
+/* Typography is provided by fumadocs-ui/css/preset.css (forked @tailwindcss/typography with fd-* color support) */
 
 :root {
   /* Radius */
@@ -202,7 +202,7 @@
   --diagram-note-border: oklch(0.38 0.05 calc(var(--hue-primary) + 60deg));
 }
 
-@custom-variant dark (&:is(.dark *));
+/* Dark variant is provided by fumadocs-ui/css/preset.css: @variant dark (&:where(.dark, .dark *)) */
 
 @utility rounded-* {
   /* 
@@ -312,14 +312,14 @@
   --color-fd-card: var(--card);
   --color-fd-card-foreground: var(--card-foreground);
   --color-fd-accent: var(--accent);
-  --color-fd-accent-foreground: var(--accent-foreground);
+  --color-fd-accent-foreground: var(--foreground);
   --color-fd-ring: var(--ring);
   --color-fd-popover: var(--popover);
   --color-fd-popover-foreground: var(--popover-foreground);
   
   --color-fd-info: var(--color-information);
   --color-fd-warning: var(--color-warning);
-  --color-fd-error: var(--color-error);
+  --color-fd-error: var(--color-destructive);
   --color-fd-success: var(--color-success);
   --color-fd-diff-remove: rgba(200, 10, 100, 0.12);
   --color-fd-diff-remove-symbol: rgb(230, 10, 100);

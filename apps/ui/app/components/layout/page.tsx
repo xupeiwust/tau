@@ -64,7 +64,7 @@ function SectionContent({
   if (enablePageFooter) {
     return (
       <div
-        className={cn('flex min-h-full flex-col overflow-hidden', shouldApplyPositioning && sidebarPositioningClasses)}
+        className={cn('flex min-h-full flex-col overflow-clip', shouldApplyPositioning && sidebarPositioningClasses)}
       >
         <div className="flex flex-1 flex-col">{content}</div>
         {enableFloatingSidebar ? (

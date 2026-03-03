@@ -106,17 +106,12 @@ const clientLoader = browserCollections.docs.createClientLoader({
       <DocsPage
         toc={toc}
         full={false}
+        className="max-w-[770px] gap-4 max-sm:pb-16"
         tableOfContent={{
           enabled: true,
           single: false,
           style: 'clerk',
           footer: <DocsPageActions />,
-        }}
-        article={{
-          className: 'max-sm:pb-16 max-w-[770px]',
-        }}
-        container={{
-          className: '[&>article]:gap-4',
         }}
         breadcrumb={{
           enabled: true,
@@ -152,14 +147,13 @@ const clientLoader = browserCollections.docs.createClientLoader({
 
 export default function Page(props: Route.ComponentProps): React.ReactNode {
   const { tree, path } = props.loaderData;
-  const Content = clientLoader.getComponent(path);
 
   return (
     <DocsSidebarProvider>
       <ReactRouterProvider>
         <RootProvider theme={{ enabled: false }}>
           <DocsLayout {...baseOptions()} tree={tree as PageTree.Root}>
-            <Content />
+            {clientLoader.useContent(path)}
           </DocsLayout>
         </RootProvider>
       </ReactRouterProvider>

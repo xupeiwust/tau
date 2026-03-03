@@ -7,7 +7,7 @@ import { cn } from '#utils/ui.utils.js';
 import { Button } from '#components/ui/button.js';
 import { PaneButton } from '#components/ui/pane-button.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
-import { DrawerClose, DrawerHandle } from '#components/ui/drawer.js';
+import { DrawerClose, DrawerHandle, useIsInsideDrawer } from '#components/ui/drawer.js';
 import { useIsMobile } from '#hooks/use-mobile.js';
 import { CollapsibleCodeBlock } from '#components/ui/collapsible-code-block.js';
 import { useAnalytics } from '#hooks/use-analytics.js';
@@ -150,9 +150,7 @@ function FloatingPanelTriggerButton({
   const context = React.useContext(FloatingPanelContext);
   const side = context?.side ?? 'right';
 
-  const defaultTooltipSide = React.useMemo(() => {
-    return tooltipSide ?? side;
-  }, [tooltipSide, side]);
+  const defaultTooltipSide = React.useMemo(() => tooltipSide ?? side, [tooltipSide, side]);
 
   // Render icon based on whether it's a ReactNode or a LucideIcon component
   const renderIcon = (): React.ReactNode => {
@@ -193,8 +191,8 @@ type FloatingPanelCloseProps = {
 
 function FloatingPanelClose({ icon, className, children, tooltipContent }: FloatingPanelCloseProps): React.JSX.Element {
   const { isOpen, close } = useFloatingPanel();
-
   const isMobile = useIsMobile();
+  const isInsideDrawer = useIsInsideDrawer();
 
   const renderIcon = (): React.ReactNode => {
     if (React.isValidElement(icon)) {
@@ -205,8 +203,6 @@ function FloatingPanelClose({ icon, className, children, tooltipContent }: Float
     return <IconComponent />;
   };
 
-  // Inline close button -- rendered directly on desktop, wrapped with
-  // DrawerClose on mobile so the drawer dismiss gesture works.
   const button = (
     <FloatingPanelMenuButton
       tooltip={tooltipContent(isOpen)}
@@ -224,7 +220,7 @@ function FloatingPanelClose({ icon, className, children, tooltipContent }: Float
     </FloatingPanelMenuButton>
   );
 
-  if (isMobile) {
+  if (isMobile && isInsideDrawer) {
     return <DrawerClose asChild>{button}</DrawerClose>;
   }
 
@@ -374,18 +370,17 @@ const drawerHandleOverrides = cn(
 function FloatingPanelContentHeader({ children, className }: FloatingPanelContentHeaderProps): React.JSX.Element {
   const { side } = useFloatingPanel();
   const isMobile = useIsMobile();
+  const isInsideDrawer = useIsInsideDrawer();
 
-  // On mobile the header is a DrawerHandle so the entire bar responds to
-  // drag-to-close gestures (the parent Drawer uses `handleOnly`).
-  // Button taps still work because vaul distinguishes taps from drags.
-  const Comp = isMobile ? DrawerHandle : 'div';
+  const useDrawerHandle = isMobile && isInsideDrawer;
+  const Comp = useDrawerHandle ? DrawerHandle : 'div';
 
   return (
     <Comp
       className={cn(
         'relative',
         floatingPanelContentHeaderVariants({ side }),
-        isMobile && drawerHandleOverrides,
+        useDrawerHandle && drawerHandleOverrides,
         className,
       )}
       data-slot="floating-panel-content-header"
