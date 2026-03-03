@@ -7,6 +7,7 @@
  * Together they form an expose/wrap pair for the KernelFileSystem MessagePort bridge protocol.
  */
 
+import { safeDispose } from '@taucad/utils/dispose';
 import type { BridgeHandle } from '#framework/kernel-filesystem-bridge.js';
 import { createBridgeServer, catchMessages } from '#framework/kernel-filesystem-bridge.js';
 
@@ -59,6 +60,11 @@ export function exposeFileSystem<T extends Record<string, unknown>>(
     }
   };
 
+  // Use addEventListener (not self.onmessage) so multiple listeners can coexist
+  // on the DedicatedWorkerGlobalScope. Unlike MessagePort, the worker global
+  // scope does not require onmessage for implicit start() — addEventListener
+  // works identically. Using onmessage would be overwritten by other code
+  // (e.g. Vite HMR client) and silently break bridge connections.
   self.addEventListener('message', handler);
   return () => {
     self.removeEventListener('message', handler);
@@ -95,7 +101,9 @@ export function createFileSystemBridge(worker: Worker, options?: FileSystemBridg
   return {
     port: channel.port2,
     dispose() {
-      channel.port2.close();
+      safeDispose(() => {
+        channel.port2.close();
+      });
     },
   };
 }

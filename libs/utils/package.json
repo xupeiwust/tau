@@ -29,6 +29,11 @@
       "types": "./src/schema.utils.ts",
       "import": "./src/schema.utils.ts",
       "default": "./src/schema.utils.ts"
+    },
+    "./dispose": {
+      "types": "./src/dispose.utils.ts",
+      "import": "./src/dispose.utils.ts",
+      "default": "./src/dispose.utils.ts"
     }
   },
   "dependencies": {

@@ -340,39 +340,25 @@ describe('kernel-filesystem-bridge', () => {
       channel.port1.close();
     });
 
-    it('should reject new calls after disposing with no pending calls', async () => {
-      vi.useFakeTimers();
-      try {
-        const channel = new MessageChannel();
-        const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
+    it('should throw synchronously when calling methods after dispose', () => {
+      const channel = new MessageChannel();
+      const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
 
-        proxy.dispose();
+      proxy.dispose();
 
-        const pendingCall = proxy.readFile('/test.txt', 'utf8');
-        const expectation = expect(pendingCall).rejects.toThrow('timed out');
-        await vi.advanceTimersByTimeAsync(30_000);
-        await expectation;
-      } finally {
-        vi.useRealTimers();
-      }
+      // The disposed guard throws in the Proxy get trap (before the async
+      // function is constructed), so we test property access, not invocation.
+      expect(() => Reflect.get(proxy, 'readFile')).toThrow('Bridge proxy has been disposed');
     });
 
-    it('should remain in a closed state after disposing twice', async () => {
-      vi.useFakeTimers();
-      try {
-        const channel = new MessageChannel();
-        const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
+    it('should remain in a closed state after disposing twice', () => {
+      const channel = new MessageChannel();
+      const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
 
-        proxy.dispose();
-        proxy.dispose();
+      proxy.dispose();
+      proxy.dispose();
 
-        const pendingCall = proxy.readFile('/test.txt', 'utf8');
-        const expectation = expect(pendingCall).rejects.toThrow('timed out');
-        await vi.advanceTimersByTimeAsync(30_000);
-        await expectation;
-      } finally {
-        vi.useRealTimers();
-      }
+      expect(() => Reflect.get(proxy, 'readFile')).toThrow('Bridge proxy has been disposed');
     });
   });
 

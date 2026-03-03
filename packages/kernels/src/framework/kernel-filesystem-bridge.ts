@@ -10,6 +10,7 @@
  * Tests: the bridge proxies calls from kernel worker -> in-process filesystem directly.
  */
 
+import { safeDispose } from '@taucad/utils/dispose';
 import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
 
 /**
@@ -102,7 +103,18 @@ export function createBridgeServer<T extends Record<string, unknown>>(handlers: 
       const result: unknown = await fn(...args);
       const response = { id, result } satisfies BridgeResponse;
       const transferables = extractTransferables(result);
-      port.postMessage(response, transferables);
+      try {
+        port.postMessage(response, transferables);
+      } catch (postError) {
+        console.error(`[BridgeServer] postMessage failed for method '${method}':`, postError);
+        port.postMessage({
+          id,
+          error: {
+            message: `Return value for '${method}' could not be cloned`,
+            name: 'TypeError',
+          },
+        } satisfies BridgeResponse);
+      }
     } catch (error) {
       const bridgeError: BridgeError = {
         message: error instanceof Error ? error.message : String(error),
@@ -111,7 +123,15 @@ export function createBridgeServer<T extends Record<string, unknown>>(handlers: 
         code: (error as NodeJS.ErrnoException).code,
         metadata: (error as Record<string, unknown>)['metadata'] as Record<string, unknown> | undefined,
       };
-      port.postMessage({ id, error: bridgeError } satisfies BridgeResponse);
+      try {
+        port.postMessage({ id, error: bridgeError } satisfies BridgeResponse);
+      } catch {
+        // Last resort: send a minimal error response
+        port.postMessage({
+          id,
+          error: { message: bridgeError.message, name: bridgeError.name },
+        } satisfies BridgeResponse);
+      }
     }
   };
 }
@@ -143,8 +163,12 @@ export function createBridgePort<T extends Record<string, unknown>>(handlers: T)
   return {
     port: channel.port2,
     dispose() {
-      channel.port1.close();
-      channel.port2.close();
+      safeDispose(() => {
+        channel.port1.close();
+      });
+      safeDispose(() => {
+        channel.port2.close();
+      });
     },
   };
 }
@@ -206,8 +230,14 @@ export function createBridgeCall(port: MessagePort): {
   call: (method: string, args: unknown[]) => Promise<unknown>;
   dispose: () => void;
 } {
+  type PendingEntry = {
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  };
+
   let nextId = 0;
-  const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+  const pending = new Map<number, PendingEntry>();
 
   // eslint-disable-next-line unicorn/prefer-add-event-listener -- MessagePort requires onmessage (implicitly calls start(); addEventListener does not)
   port.onmessage = (event: MessageEvent<BridgeResponse>): void => {
@@ -218,6 +248,7 @@ export function createBridgeCall(port: MessagePort): {
     }
 
     pending.delete(id);
+    clearTimeout(entry.timer);
     if (error === undefined) {
       entry.resolve(result);
     } else {
@@ -238,16 +269,7 @@ export function createBridgeCall(port: MessagePort): {
             reject(new Error(`Bridge call '${method}' timed out`));
           }
         }, messagePortCallTimeoutMs);
-        pending.set(id, {
-          resolve(value) {
-            clearTimeout(timer);
-            resolve(value);
-          },
-          reject(error) {
-            clearTimeout(timer);
-            reject(error);
-          },
-        });
+        pending.set(id, { resolve, reject, timer });
         const request = { id, method, args } satisfies BridgeRequest;
         const transferables = extractTransferables(args);
         port.postMessage(request, transferables);
@@ -257,11 +279,16 @@ export function createBridgeCall(port: MessagePort): {
       // eslint-disable-next-line unicorn/prefer-add-event-listener -- we set onmessage during setup, so we need to remove it here.
       port.onmessage = null;
       for (const [, entry] of pending) {
-        entry.reject(new Error('Bridge proxy closed'));
+        clearTimeout(entry.timer);
+        safeDispose(() => {
+          entry.reject(new Error('Bridge proxy closed'));
+        });
       }
 
       pending.clear();
-      port.close();
+      safeDispose(() => {
+        port.close();
+      });
     },
   };
 }
@@ -289,11 +316,31 @@ export function createBridgeCall(port: MessagePort): {
 export function createBridgeProxy<T extends Record<string, (...args: any[]) => any>>(
   port: MessagePort,
 ): T & { dispose(): void } {
-  const { call, dispose } = createBridgeCall(port);
+  const { call, dispose: rawDispose } = createBridgeCall(port);
+  let isDisposed = false;
+
+  const dispose = (): void => {
+    isDisposed = true;
+    rawDispose();
+  };
+
   return new Proxy({} as T & { dispose(): void }, {
-    get(_, method: string) {
+    get(_, method: string | symbol) {
       if (method === 'dispose') {
         return dispose;
+      }
+
+      // Guard: properties that must NOT trigger bridge calls.
+      // - `then`: prevents thenable coercion (Promise.resolve(proxy) would call
+      //   proxy.then(resolve, reject), sending functions over postMessage → DataCloneError)
+      // - `toJSON`: prevents accidental serialization (JSON.stringify(proxy))
+      // - Symbols: prevents coercion, iteration, and toString traps
+      if (method === 'then' || method === 'toJSON' || typeof method === 'symbol') {
+        return undefined;
+      }
+
+      if (isDisposed) {
+        throw new Error(`Bridge proxy has been disposed — cannot call '${method}'`);
       }
 
       return async (...args: unknown[]) => call(method, args);
