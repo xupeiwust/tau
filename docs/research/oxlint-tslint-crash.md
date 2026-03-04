@@ -218,3 +218,29 @@ Current local sample confirms:
   - https://github.com/oxc-project/oxc/issues/10575
   - https://github.com/oxc-project/oxc/issues/14565
   - https://github.com/oxc-project/oxc/issues/8594
+
+## Latest crash cycle after patching (`2026-03-05 12:32`) - new smoking gun
+
+The original `oxlint` panic class appears fixed for this cycle; the new crash is a renderer-side failure.
+
+Evidence:
+
+- `main.log` shows `CodeWindow: renderer process gone (reason: crashed, code: 5)` at `12:32:13`.
+- `/tmp/oxlint-runtime.log` shows only `--lsp` mode entries, including a clean `lint_impl_exit_lsp` near the same timestamp.
+- No `/tmp/oxlint-panic.log` file was produced for this cycle.
+- No new `node-*.ips` crash report appears at `12:32` (the previous `tokio-runtime-worker` abort signature is absent).
+- `window1/fileWatcher.log` reports repeated:
+  - `Events were dropped by the FSEvents client. File system must be re-scanned. (path: /Users/rifont/git/tau)`
+- Tailwind extension output (`Tailwind CSS IntelliSense.log`) shows a large startup storm of tsconfig resolution failures across `repos/**` (thousands of lines), e.g. `failed to resolve "extends"` in `repos/ai`, `repos/langgraphjs`, `repos/bitbybit`, etc.
+
+Interpretation:
+
+- This crash is not the previous `oxlint` CLI flush panic.
+- Current strongest trigger is workspace watcher/scan overload in a very large monorepo (especially with cloned dependency repos under `repos/`), with renderer process eventually crashing.
+
+Containment applied locally in workspace settings:
+
+- Strengthened excludes in `.vscode/settings.json` for `files.watcherExclude`, `search.exclude`, and `files.exclude` using both:
+  - `repos/**`, `tarballs/**`, `experiments/**`
+  - `**/repos/**`, `**/tarballs/**`, `**/experiments/**`
+- Strengthened `tailwindCSS.files.exclude` with the same patterns.

@@ -1,15 +1,10 @@
 {
-  // Exclude repos/ (cloned upstream repos) from all file watching, search, and extension processing.
-  // Without this, extensions (oxfmt, Tailwind, Git, TypeScript) try to process 65k+ files and OOM.
+  // Keep repos/ visible in Explorer but reduce watcher/search load for this large workspace.
   "files.watcherExclude": {
-    "repos/**": true,
-    "tarballs/**": true,
-    "experiments/**": true
+    "**/repos/**": true
   },
   "search.exclude": {
-    "repos/**": true,
-    "tarballs/**": true,
-    "experiments/**": true
+    "**/repos/**": true
   },
   "javascript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.importModuleSpecifierEnding": "js",
@@ -42,8 +37,17 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.oxc": "explicit"
   },
+  // Tailwind v4: explicitly scope IntelliSense to UI CSS entrypoint + sources.
   "tailwindCSS.experimental.configFile": {
-    "apps/ui/app/styles/global.css": "apps/ui/**"
+    "apps/ui/app/styles/global.css": ["apps/ui/**"]
   },
-  "tailwindCSS.files.exclude": ["repos/**", "**/node_modules/**", "**/.git/**", "**/dist/**"]
+  // Keep repos visible in Explorer; exclude them only from Tailwind IntelliSense.
+  "tailwindCSS.files.exclude": [
+    "**/repos/**",
+    "**/tarballs/**",
+    "**/experiments/**",
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**"
+  ]
 }
