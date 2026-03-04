@@ -13,18 +13,21 @@ Tau is the AI-native CAD platform for the web (`tau.new`), built as an Nx monore
 - **Build System**: Nx monorepo, pnpm workspaces, Vite
 
 ### Applications
+
 - `apps/ui` - React Router v7 web app (CAD editor, file manager, AI chat, docs site)
 - `apps/api` - NestJS API (auth, database, chat WebSocket, LangGraph agent)
 - `apps/ui-e2e` - Playwright E2E tests for UI
 - `apps/api-e2e` - API E2E tests
 
 ### Published Packages (`@taucad/*`)
+
 - `packages/kernels` - Multi-kernel CAD runtime (Replicad/JSCAD/Manifold/OpenSCAD/Zoo), worker client, middleware
 - `packages/converter` - CAD file conversion (STL, STEP, IGES, DXF, glTF, USDZ)
 - `packages/json-schema` - JSON to JSON Schema inference
 - `packages/js` - Tau JavaScript API (early stage)
 
 ### Internal Libraries
+
 - `libs/chat` - AI chat tool schemas, message schemas, RPC definitions
 - `libs/types` - Shared TypeScript types (API, build, CAD, file, graphics, manufacturing)
 - `libs/utils` - Shared utilities (ID generation, path, file, schema, dispose)
@@ -33,13 +36,22 @@ Tau is the AI-native CAD platform for the web (`tau.new`), built as an Nx monore
 - `libs/tau-examples` - Example CAD projects and templates
 
 ### Documentation Site
+
 Docs live in `apps/ui/content/docs/` using Fumadocs, organized into two sections:
+
 - **Kernels** (`(kernels)/`) - Full docs for `@taucad/kernels`: getting started, guides, concepts, API reference
 - **Editor** (`(editor)/`) - Editor documentation (early stage)
 
 ## Development Commands
 
 ```bash
+# Nx workspace commands (pattern: pnpm nx <command> <project>)
+pnpm nx lint <project>              # Lint (runs oxlint then eslint)
+pnpm nx lint <project> --files=<path>  # Lint specific file(s) or glob
+pnpm nx test <project> --watch=false # Test
+pnpm nx typecheck <project>         # Typecheck
+pnpm nx build <project>             # Build
+
 # Infrastructure (PostgreSQL + Redis via Docker)
 pnpm infra:up               # Start all infrastructure
 pnpm infra:down             # Stop all infrastructure
@@ -55,7 +67,12 @@ pnpm ci:affected            # Run affected tests, builds, lint, typecheck
 pnpm ci:all                 # Run all tests, builds, lint, typecheck
 ```
 
+## Linting & Formatting
+
+Hybrid oxlint + ESLint setup. `pnpm nx lint <project>` chains `oxlint . && eslint .`. Oxlint handles the bulk of rules natively (unicorn, typescript, react, import, jsdoc) plus gap rules via `jsPlugins` (eslint-plugin-unicorn, eslint-plugin-n, eslint-plugin-jsdoc, eslint-comments, no-barrel-files). ESLint handles residual rules only (naming-convention, @nx/enforce-module-boundaries, import-x/extensions). Formatting is handled by **oxfmt** (`.oxfmtrc.json`), not ESLint. See `docs/policy/lint-policy.md` for full architecture.
+
 ## Code Preferences
+
 - Early returns to reduce nesting
 - Composition over inheritance
 - Const declarations over function declarations

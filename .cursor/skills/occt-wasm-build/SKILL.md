@@ -3,6 +3,7 @@
 ## When to Use
 
 Use this skill when the user wants to:
+
 - Build or optimize WASM binaries (especially OpenCASCADE/opencascade.js)
 - Run WASM build experiments with different configurations
 - Compare WASM build sizes and benchmark performance
@@ -69,32 +70,32 @@ pnpm nx build-matrix kernels -- --experiments ../../tarballs/experiments/ --base
 Experiment configs live in `scripts/experiments/*.yml`:
 
 ```yaml
-name: "O2-noLTO-single"
-description: "Default production build"
+name: 'O2-noLTO-single'
+description: 'Default production build'
 
 compilation:
-  optimization: "-O2"    # -O0, -O1, -O2, -O3, -Os, -Oz
-  lto: false             # true = -flto at compile time
-  exceptions: "none"     # "none" or "wasm-native"
-  threading: "single-threaded"  # or "multi-threaded"
+  optimization: '-O2' # -O0, -O1, -O2, -O3, -Os, -Oz
+  lto: false # true = -flto at compile time
+  exceptions: 'none' # "none" or "wasm-native"
+  threading: 'single-threaded' # or "multi-threaded"
 
 linking:
-  yaml: "custom_build_single_v8.yml"  # Build YAML config
-  wasmOptLevel: "-O3"    # wasm-opt optimization level
+  yaml: 'custom_build_single_v8.yml' # Build YAML config
+  wasmOptLevel: '-O3' # wasm-opt optimization level
 
 benchmark:
   iterations: 10
-  filter: ["primitives", "booleans", "fillets", "complex"]
+  filter: ['primitives', 'booleans', 'fillets', 'complex']
 ```
 
 ### Available Presets
 
-| Preset | Compile | LTO | Exceptions | Expected Size |
-|--------|---------|-----|------------|---------------|
-| `O2-noLTO-single.yml` | -O2 | No | none | ~17.7 MB |
-| `O3-noLTO-single.yml` | -O3 | No | none | ~19.0 MB |
-| `Os-noLTO-single.yml` | -Os | No | none | ~16.1 MB |
-| `O2-noLTO-wasmExc-single.yml` | -O2 | No | wasm-native | ~20.0 MB |
+| Preset                        | Compile | LTO | Exceptions  | Expected Size |
+| ----------------------------- | ------- | --- | ----------- | ------------- |
+| `O2-noLTO-single.yml`         | -O2     | No  | none        | ~17.7 MB      |
+| `O3-noLTO-single.yml`         | -O3     | No  | none        | ~19.0 MB      |
+| `Os-noLTO-single.yml`         | -Os     | No  | none        | ~16.1 MB      |
+| `O2-noLTO-wasmExc-single.yml` | -O2     | No  | wasm-native | ~20.0 MB      |
 
 ## Cache Management
 
@@ -134,6 +135,7 @@ repos/opencascade.js/cache/
 ### Cache Invalidation
 
 The cache key changes when any of these change:
+
 - `OCJS_OPT` (optimization level)
 - `OCJS_LTO` (LTO flag)
 - `OCJS_EXCEPTIONS` (exception mode)
@@ -174,6 +176,7 @@ Each build produces a `provenance.json` sidecar:
 ```
 
 Key fields for size analysis:
+
 - `compilation.sourceFiles` — total .o files compiled
 - `linking.boundSymbols` — number of symbols bound via embind
 - `postProcessing.preOptSize` vs `postOptSize` — wasm-opt impact
@@ -269,6 +272,7 @@ The v7.6.2 packages can be downloaded from npm: `npm pack replicad@0.20.5` and `
 ### Experiment Directory Requirements for Reporting
 
 Each experiment directory must contain:
+
 - `provenance.json` — build metadata (used for WASM size, variant detection)
 - `benchmarks/` subdirectory — containing `benchmark-*.json` files from benchmark runs
 
@@ -314,27 +318,35 @@ npx copy-files-from-to --config copy-files-from-to.cjson
 ## Troubleshooting
 
 ### Stale cache after modifying OCCT source
+
 The cache key includes the OCCT HEAD commit. If you make uncommitted changes, the cache won't invalidate. Either commit your changes or manually delete the relevant cache entry.
 
 ### pnpm integrity errors after swapping tarballs
+
 Run `pnpm install --no-frozen-lockfile` to refresh the lockfile. The experiment orchestrator does this automatically.
 
 ### copy-files-from-to not overwriting WASM
+
 Delete the target WASM files first, then re-run the copy. The experiment orchestrator handles this.
 
 ### Build takes too long
+
 Check the cache: `./build-wasm.sh cache-list`. If compilation is cached, the `full` command will skip directly to linking (~1-2 min instead of ~30 min).
 
 ### wasm-opt not found
+
 Ensure `EMSDK` is set and activated: `source "$EMSDK/emsdk_env.sh"`. The build script does this automatically.
 
 ### Switching optimization levels produces wrong binaries
+
 Fixed: `build-wasm.sh` now purges `build/sources/` and `build/bindings/` on cache miss before recompiling. Previously, `compileSources.py` and `compileBindings.py` would skip files with existing `.o` output, silently reusing object files from a prior optimization level. If you suspect a stale build, manually `rm -rf repos/opencascade.js/build/sources repos/opencascade.js/build/bindings` and rebuild.
 
 ### Interrupted build left corrupted cache
+
 Cache store/restore operations are now atomic (copy to staging dir, then rename). If you see `*.storing` or `*.restoring` directories in `cache/`, they are incomplete artifacts from interrupted builds — `cache-gc` will clean them automatically.
 
 ### Orphan cache directories consuming disk space
+
 `cache-gc` now detects and removes directories in `cache/` that are not tracked in `index.json`.
 
 ## Symbol Management
@@ -357,14 +369,14 @@ Full audit results: [Replicad OCCT Symbol Usage Audit](docs/research/replicad-oc
 
 ### Known Gaps (as of 2026-03-03)
 
-| Missing Symbol | Impact | Status |
-|---------------|--------|--------|
-| `HLRBRep_Algo` | 2D projection broken | Fixed 2026-03-03 |
-| `HLRBRep_InternalAlgo` | 2D projection (base class) | Fixed 2026-03-03 |
-| `HLRAlgo_Projector` | 2D projection broken | Fixed 2026-03-03 |
-| `HLRBRep_HLRToShape` | 2D projection broken | Fixed 2026-03-03 |
-| `Handle_HLRBRep_Algo` | 2D projection broken | Fixed 2026-03-03 |
-| `Handle_Law_Function` | Wavy vase / sweep profiles | Fixed 2026-03-03 |
+| Missing Symbol               | Impact                             | Status           |
+| ---------------------------- | ---------------------------------- | ---------------- |
+| `HLRBRep_Algo`               | 2D projection broken               | Fixed 2026-03-03 |
+| `HLRBRep_InternalAlgo`       | 2D projection (base class)         | Fixed 2026-03-03 |
+| `HLRAlgo_Projector`          | 2D projection broken               | Fixed 2026-03-03 |
+| `HLRBRep_HLRToShape`         | 2D projection broken               | Fixed 2026-03-03 |
+| `Handle_HLRBRep_Algo`        | 2D projection broken               | Fixed 2026-03-03 |
+| `Handle_Law_Function`        | Wavy vase / sweep profiles         | Fixed 2026-03-03 |
 | `Handle_Geom2d_BSplineCurve` | Cycloidal gear / parametric curves | Fixed 2026-03-03 |
 
 **Note**: HLR also required un-excluding `TKHLR`, `HLRTopoBRep`, `HLRBRep`, `HLRAlgo`, `HLRAppli`, `Intrv`, and `Contap` from `filterPackages.py` (previously excluded as "not used").
@@ -385,13 +397,13 @@ Both `custom_build_single_v8.yml` and `custom_build_with_exceptions_v8.yml` must
 
 ### Symbol Categories
 
-| Category | Count | Notes |
-|----------|-------|-------|
-| Directly used by replicad | ~120 | Core API surface |
-| Required base classes | ~40 | Embind type hierarchy |
-| Return/param type deps | ~33 | Needed for method signatures |
-| Unused (removal candidates) | ~29 | See audit doc for details |
-| **Total bound** | ~231 | In `custom_build_single_v8.yml` |
+| Category                    | Count | Notes                           |
+| --------------------------- | ----- | ------------------------------- |
+| Directly used by replicad   | ~120  | Core API surface                |
+| Required base classes       | ~40   | Embind type hierarchy           |
+| Return/param type deps      | ~33   | Needed for method signatures    |
+| Unused (removal candidates) | ~29   | See audit doc for details       |
+| **Total bound**             | ~231  | In `custom_build_single_v8.yml` |
 
 ### Adding Symbols for New Features
 
@@ -412,11 +424,11 @@ When replicad adds new OCCT API usage:
 
 ## Key Build Variables and Their Impact
 
-| Variable | Default | Impact |
-|----------|---------|--------|
-| `OCJS_OPT` | `-O2` | Compile optimization. `-O3` adds ~1.5 MB via inlining. `-Os` saves ~1.5 MB. |
-| `OCJS_LTO` | `1` | Link-time optimization. Dramatically reduces function count but increases build time. |
-| `OCJS_EXCEPTIONS` | `0` | `1` enables `-fwasm-exceptions`, adding ~2-4 MB but enabling proper error handling. |
-| `THREADING` | `single-threaded` | `multi-threaded` adds pthread support, increases size. |
-| `filterPackages.py` | — | Package-level exclusion. Removing Draw+Visualization saves significant size. |
-| wasm-opt level | `-O3` | Post-link optimization. `-Oz` prioritizes size over speed. |
+| Variable            | Default           | Impact                                                                                |
+| ------------------- | ----------------- | ------------------------------------------------------------------------------------- |
+| `OCJS_OPT`          | `-O2`             | Compile optimization. `-O3` adds ~1.5 MB via inlining. `-Os` saves ~1.5 MB.           |
+| `OCJS_LTO`          | `1`               | Link-time optimization. Dramatically reduces function count but increases build time. |
+| `OCJS_EXCEPTIONS`   | `0`               | `1` enables `-fwasm-exceptions`, adding ~2-4 MB but enabling proper error handling.   |
+| `THREADING`         | `single-threaded` | `multi-threaded` adds pthread support, increases size.                                |
+| `filterPackages.py` | —                 | Package-level exclusion. Removing Draw+Visualization saves significant size.          |
+| wasm-opt level      | `-O3`             | Post-link optimization. `-Oz` prioritizes size over speed.                            |

@@ -37,7 +37,12 @@ The script outputs JSON with this structure:
       "startLine": null,
       "diffSide": "RIGHT",
       "comments": [
-        { "author": "reviewer", "body": "...", "createdAt": "...", "url": "..." }
+        {
+          "author": "reviewer",
+          "body": "...",
+          "createdAt": "...",
+          "url": "..."
+        }
       ]
     }
   ]
@@ -50,15 +55,16 @@ If `threadCount` is 0, report "No unresolved review comments found" and stop.
 
 Transform each thread from the JSON into an issue:
 
-| Field | Source |
-|-------|--------|
-| File | `thread.file` |
-| Lines | `thread.line` (+ `thread.startLine` for ranges) |
-| Problem | First comment's `body` (the original review) |
+| Field      | Source                                                          |
+| ---------- | --------------------------------------------------------------- |
+| File       | `thread.file`                                                   |
+| Lines      | `thread.line` (+ `thread.startLine` for ranges)                 |
+| Problem    | First comment's `body` (the original review)                    |
 | Suggestion | Actionable fix extracted from comment body or follow-up replies |
-| Context | Full comment thread conversation |
+| Context    | Full comment thread conversation                                |
 
 **Infer priority from content:**
+
 - **Critical**: security, data loss, crash, vulnerability
 - **High**: bug, incorrect behavior, missing error handling, race condition
 - **Medium**: performance, missing validation, code quality, memory leak
@@ -90,11 +96,12 @@ Use Task tool:
     - Problem: [description]
     - Suggestion: [fix with code snippets]
     - Context: [full thread conversation]
-    
+
     After fixing, run verification and report status.
 ```
 
 **Parallelization:**
+
 - PARALLEL: Issues in different files (max 4 concurrent)
 - SEQUENTIAL: Issues in the same file
 
@@ -109,18 +116,20 @@ After all fixers complete:
 
 ### Processed: X/Y unresolved threads
 
-| Status | File | Issue | Thread |
-|--------|------|-------|--------|
-| ✅ | path/file.ts | Brief description | [link] |
-| ⚠️ | path/other.ts | Partial - [what remains] | [link] |
-| ❌ | path/broken.ts | [reason] | [link] |
-| 👤 | path/arch.ts | Needs human review | [link] |
+| Status | File           | Issue                    | Thread |
+| ------ | -------------- | ------------------------ | ------ |
+| ✅     | path/file.ts   | Brief description        | [link] |
+| ⚠️     | path/other.ts  | Partial - [what remains] | [link] |
+| ❌     | path/broken.ts | [reason]                 | [link] |
+| 👤     | path/arch.ts   | Needs human review       | [link] |
 
 ### Verification
+
 - Typecheck: ✅/❌
 - Tests: N passed, M failed
 
 ### Follow-up
+
 - [ ] Items needing human review
 - [ ] Threads to resolve on GitHub
 ```

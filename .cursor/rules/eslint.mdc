@@ -1,5 +1,5 @@
 ---
-description: eslint rules
+description: Lint rules enforced by oxlint + ESLint hybrid (see docs/policy/lint-policy.md)
 globs: *.ts, *.tsx
 alwaysApply: false
 ---

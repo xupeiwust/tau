@@ -9,12 +9,12 @@ Release workflow for the `@taucad/*` npm packages using Nx Release with Version 
 
 ## Packages
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `@taucad/kernels` | `packages/kernels` | Multi-kernel CAD runtime |
-| `@taucad/converter` | `packages/converter` | CAD file format conversion |
-| `@taucad/json-schema` | `packages/json-schema` | JSON to JSON Schema |
-| `@taucad/js` | `packages/js` | Tau JavaScript API |
+| Package               | Path                   | Description                |
+| --------------------- | ---------------------- | -------------------------- |
+| `@taucad/kernels`     | `packages/kernels`     | Multi-kernel CAD runtime   |
+| `@taucad/converter`   | `packages/converter`   | CAD file format conversion |
+| `@taucad/json-schema` | `packages/json-schema` | JSON to JSON Schema        |
+| `@taucad/js`          | `packages/js`          | Tau JavaScript API         |
 
 All packages use fixed versioning (same version across all packages).
 
@@ -93,6 +93,7 @@ pnpm nx release --skip-publish
 ```
 
 This will:
+
 - Apply version plans to bump `package.json` versions
 - Update inter-package `workspace:*` dependencies
 - Generate/update `CHANGELOG.md` files
@@ -102,6 +103,7 @@ This will:
 ### 3. Publish from CI
 
 Push the release tag. The CI workflow triggers `nx release publish` with:
+
 - npm Trusted Publishing (OIDC) -- no tokens stored
 - Build provenance generated automatically via Sigstore
 - Packages built via `preVersionCommand` before publish
@@ -115,11 +117,11 @@ The release config in `nx.json`:
   "release": {
     "projects": ["packages/*"],
     "versionPlans": {
-      "ignorePatternsForPlanCheck": ["**/*.spec.ts", "**/*.test.ts", "**/*.md"]
+      "ignorePatternsForPlanCheck": ["**/*.spec.ts", "**/*.test.ts", "**/*.md"],
     },
     "version": {
       "preVersionCommand": "pnpm nx run-many -t build --projects=packages/*",
-      "conventionalCommits": true
+      "conventionalCommits": true,
     },
     "changelog": {
       "workspaceChangelog": {
@@ -127,25 +129,25 @@ The release config in `nx.json`:
         "renderOptions": {
           "authors": true,
           "commitReferences": true,
-          "versionTitleDate": true
-        }
+          "versionTitleDate": true,
+        },
       },
       "projectChangelogs": {
         "file": "CHANGELOG.md",
         "renderOptions": {
           "authors": false,
           "commitReferences": true,
-          "versionTitleDate": true
-        }
-      }
+          "versionTitleDate": true,
+        },
+      },
     },
     "releaseTag": {
-      "pattern": "v{version}"
+      "pattern": "v{version}",
     },
     "git": {
-      "commitMessage": "chore(release): v{version}"
-    }
-  }
+      "commitMessage": "chore(release): v{version}",
+    },
+  },
 }
 ```
 
@@ -164,7 +166,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    # Required for OIDC / Trusted Publishing
+      id-token: write # Required for OIDC / Trusted Publishing
     steps:
       - uses: actions/checkout@v6
         with:
@@ -184,6 +186,7 @@ jobs:
 ### Trusted Publishing Setup
 
 For each `@taucad/*` package on npmjs.com:
+
 1. Go to Settings -> Trusted Publisher
 2. Add GitHub Actions publisher:
    - Repository: `taucad/tau`
@@ -209,6 +212,7 @@ cd packages/kernels && pnpm pack --pack-destination /tmp && tar -tzf /tmp/taucad
 ```
 
 Ensure each `package.json` has:
+
 - `"private": false`
 - `"repository"` field matching `github.com/taucad/tau`
 - `"publishConfig.access": "public"`
@@ -232,13 +236,13 @@ Published with `--tag next` so `npm install @taucad/kernels` still resolves to s
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `npm ERR! 403` on publish | Trusted Publisher not configured for this package, or workflow filename mismatch (case-sensitive) |
-| Version plan check fails in CI | Run `pnpm nx release plan` locally and commit the file |
-| Build fails before version | Check `pnpm nx run-many -t build --projects=packages/*` locally |
-| Provenance not generated | Ensure `id-token: write` permission and `NPM_CONFIG_PROVENANCE=true` |
-| Stale lockfile after version | Run `pnpm install --no-frozen-lockfile` then commit |
+| Problem                        | Solution                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `npm ERR! 403` on publish      | Trusted Publisher not configured for this package, or workflow filename mismatch (case-sensitive) |
+| Version plan check fails in CI | Run `pnpm nx release plan` locally and commit the file                                            |
+| Build fails before version     | Check `pnpm nx run-many -t build --projects=packages/*` locally                                   |
+| Provenance not generated       | Ensure `id-token: write` permission and `NPM_CONFIG_PROVENANCE=true`                              |
+| Stale lockfile after version   | Run `pnpm install --no-frozen-lockfile` then commit                                               |
 
 ## Additional Resources
 

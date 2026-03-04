@@ -54,15 +54,15 @@ When adding or cloning a repo without a description, the CLI automatically fetch
 Read `repos.yaml` directly for project landscape context without cloning:
 
 ```yaml
-owner: taucad          # Org used for automated forking
+owner: taucad # Org used for automated forking
 repos:
   langchainjs:
     upstream: langchain-ai/langchainjs
-    fork: taucad/langchainjs       # fork field = writable
+    fork: taucad/langchainjs # fork field = writable
     branch: feat/...
     description: LangChain.js - LLM framework
   three.js:
-    upstream: mrdoob/three.js      # no fork = read-only
+    upstream: mrdoob/three.js # no fork = read-only
     branch: dev
 ```
 
@@ -92,15 +92,15 @@ Run `pnpm repos` with no arguments to launch the interactive terminal UI:
 
 ## Groups
 
-| Group | Purpose |
-|---|---|
-| `cad` | Core CAD/geometry: replicad, opencascade.js, manifold, OCCT, lib3mf, bitbybit |
-| `slicers` | 3D printer slicers: BambuStudio, OrcaSlicer, PrusaSlicer |
-| `ai` | AI/LLM frameworks: langchainjs, langgraphjs, ai |
-| `3d` | 3D rendering: three.js, react-three-fiber, model-viewer, glTF-Transform |
-| `dev-tools` | Dev tools: nx, pnpm, vscode, typescript-go, xstate |
-| `tscircuit` | tscircuit EDA ecosystem |
-| `zenfs` | ZenFS filesystem abstractions |
+| Group       | Purpose                                                                       |
+| ----------- | ----------------------------------------------------------------------------- |
+| `cad`       | Core CAD/geometry: replicad, opencascade.js, manifold, OCCT, lib3mf, bitbybit |
+| `slicers`   | 3D printer slicers: BambuStudio, OrcaSlicer, PrusaSlicer                      |
+| `ai`        | AI/LLM frameworks: langchainjs, langgraphjs, ai                               |
+| `3d`        | 3D rendering: three.js, react-three-fiber, model-viewer, glTF-Transform       |
+| `dev-tools` | Dev tools: nx, pnpm, vscode, typescript-go, xstate                            |
+| `tscircuit` | tscircuit EDA ecosystem                                                       |
+| `zenfs`     | ZenFS filesystem abstractions                                                 |
 
 ## For Agents
 
