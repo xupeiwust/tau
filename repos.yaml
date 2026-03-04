@@ -54,6 +54,7 @@ groups:
       - v8
       - motion
       - oxc
+      - oxc-vscode
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -306,3 +307,5 @@ repos:
   oxc:
     upstream: oxc-project/oxc
     description: ⚓ A collection of high-performance JavaScript tools.
+  oxc-vscode:
+    upstream: oxc-project/oxc-vscode
