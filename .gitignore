@@ -39,5 +39,8 @@ apps/ui/.source/**/*
 # Local Netlify folder
 .netlify
 
+# Linter caches
+.oxlintcache
+
 # Repos - for integration context
 repos/**/*

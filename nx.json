@@ -77,6 +77,23 @@
     }
   ],
   "targetDefaults": {
+    "lint": {
+      "options": {
+        "command": "oxlint -c $NX_WORKSPACE_ROOT/.oxlintrc.json {args.files} && eslint {args.files}",
+        "forwardAllArgs": false
+      },
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{workspaceRoot}/.oxlintrc.json",
+        "{workspaceRoot}/tools/eslint-rules/**/*",
+        "{workspaceRoot}/tools/oxlint-plugins/**/*",
+        {
+          "externalDependencies": ["eslint", "oxlint"]
+        }
+      ]
+    },
     "e2e-ci--**/*": {
       "dependsOn": ["^build"]
     },
@@ -114,11 +131,7 @@
   "release": {
     "projects": ["packages/*"],
     "versionPlans": {
-      "ignorePatternsForPlanCheck": [
-        "**/*.spec.ts",
-        "**/*.test.ts",
-        "**/*.md"
-      ]
+      "ignorePatternsForPlanCheck": ["**/*.spec.ts", "**/*.test.ts", "**/*.md"]
     },
     "version": {
       "preVersionCommand": "pnpm nx run-many -t build --projects=packages/*",

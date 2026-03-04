@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "jsxSingleQuote": true,
+  "trailingComma": "all",
+  "semi": true,
+  "printWidth": 120,
+  "tabWidth": 2,
+  "sortTailwindcss": {
+    "stylesheet": "./apps/ui/app/styles/global.css"
+  },
+  "sortPackageJson": false,
+  "ignorePatterns": ["/dist", "/coverage", "/.nx/cache", "/.nx/workspace-data", ".cursor/plans/**", "/tarballs/**", "/experiments/**"],
+  "overrides": [
+    {
+      "files": ["libs/tau-examples/src/kernels/**"],
+      "options": { "printWidth": 40 }
+    }
+  ]
+}
