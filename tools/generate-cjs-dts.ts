@@ -1,4 +1,4 @@
-/* eslint-disable n/prefer-global/process, unicorn/no-process-exit -- CLI tool */
+/* oxlint-disable n/prefer-global/process, unicorn/no-process-exit -- CLI tool */
 
 /**
  * Generate CJS type declarations (.d.cts) from ESM declarations (.d.ts).

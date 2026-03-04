@@ -1,5 +1,4 @@
-/* eslint-disable unicorn/no-process-exit -- CLI tool */
-
+// oxlint-disable unicorn/no-process-exit -- CLI tool
 /**
  * Package Check Orchestrator
  *
@@ -40,8 +39,7 @@ if (!existsSync(packageJsonPath)) {
   process.exit(1);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- JSON.parse returns any
-const packageJson: PackageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as PackageJson;
 const packageName = packageJson.name ?? projectRoot;
 
 console.log(`\n${packageName} package check`);
@@ -61,7 +59,11 @@ async function runPublint(): Promise<CheckResult> {
     });
 
     if (messages.length === 0) {
-      return { name: 'publint', status: 'pass', details: ['package structure valid'] };
+      return {
+        name: 'publint',
+        status: 'pass',
+        details: ['package structure valid'],
+      };
     }
 
     const formatted = messages
@@ -111,38 +113,46 @@ function applyPublishConfig(pkg: PackageJson): PackageJson {
  * pnpm pack does NOT apply publishConfig.exports, so we must do it manually.
  */
 async function runAttw(): Promise<CheckResult> {
-  const stagingDir = join(tmpdir(), `pkgcheck-attw-${Date.now()}`);
+  const stagingDirectory = join(tmpdir(), `pkgcheck-attw-${Date.now()}`);
 
   try {
-    mkdirSync(stagingDir, { recursive: true });
+    mkdirSync(stagingDirectory, { recursive: true });
 
-    const publishPkg = applyPublishConfig(packageJson);
-    writeFileSync(join(stagingDir, 'package.json'), JSON.stringify(publishPkg, undefined, 2));
+    const publishPackage = applyPublishConfig(packageJson);
+    writeFileSync(join(stagingDirectory, 'package.json'), JSON.stringify(publishPackage, undefined, 2));
 
-    const distSrc = join(absoluteRoot, 'dist');
-    if (existsSync(distSrc)) {
-      cpSync(distSrc, join(stagingDir, 'dist'), { recursive: true });
+    const distributionSource = join(absoluteRoot, 'dist');
+    if (existsSync(distributionSource)) {
+      cpSync(distributionSource, join(stagingDirectory, 'dist'), { recursive: true });
     }
 
-    const readmeSrc = join(absoluteRoot, 'README.md');
-    if (existsSync(readmeSrc)) {
-      cpSync(readmeSrc, join(stagingDir, 'README.md'));
+    const readmeSource = join(absoluteRoot, 'README.md');
+    if (existsSync(readmeSource)) {
+      cpSync(readmeSource, join(stagingDirectory, 'README.md'));
     }
 
-    const attwConfigSrc = join(absoluteRoot, '.attw.json');
-    if (existsSync(attwConfigSrc)) {
-      cpSync(attwConfigSrc, join(stagingDir, '.attw.json'));
+    const attwConfigSource = join(absoluteRoot, '.attw.json');
+    if (existsSync(attwConfigSource)) {
+      cpSync(attwConfigSource, join(stagingDirectory, '.attw.json'));
     }
 
     const output = execSync('pnpm attw --pack . --format table', {
-      cwd: stagingDir,
+      cwd: stagingDirectory,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    return { name: 'attw', status: 'pass', details: ['types resolve correctly', output.trim()] };
+    return {
+      name: 'attw',
+      status: 'pass',
+      details: ['types resolve correctly', output.trim()],
+    };
   } catch (error) {
-    const execError = error as { stdout?: string; stderr?: string; status?: number };
+    const execError = error as {
+      stdout?: string;
+      stderr?: string;
+      status?: number;
+    };
     const output = (execError.stdout ?? '') + (execError.stderr ?? '');
     const lines = output.split('\n').filter((line) => line.trim().length > 0);
 
@@ -152,7 +162,7 @@ async function runAttw(): Promise<CheckResult> {
       details: ['type resolution issues found', ...lines],
     };
   } finally {
-    rmSync(stagingDir, { recursive: true, force: true });
+    rmSync(stagingDirectory, { recursive: true, force: true });
   }
 }
 
@@ -174,7 +184,11 @@ async function runMadge(): Promise<CheckResult> {
     const circular = result.circular();
 
     if (circular.length === 0) {
-      return { name: 'madge', status: 'pass', details: ['no circular dependencies'] };
+      return {
+        name: 'madge',
+        status: 'pass',
+        details: ['no circular dependencies'],
+      };
     }
 
     const cycles = circular.map((cycle) => cycle.join(' → '));
@@ -194,7 +208,11 @@ async function runMadge(): Promise<CheckResult> {
 
 async function runSizeLimit(): Promise<CheckResult> {
   if (!packageJson['size-limit']) {
-    return { name: 'size-limit', status: 'skip', details: ['no config found in package.json'] };
+    return {
+      name: 'size-limit',
+      status: 'skip',
+      details: ['no config found in package.json'],
+    };
   }
 
   try {
@@ -230,16 +248,16 @@ function formatBytes(bytes: number): string {
   return `${mb.toFixed(2)} MB`;
 }
 
-function walkDir(dir: string): string[] {
+function walkDirectory(directory: string): string[] {
   const paths: string[] = [];
-  if (!existsSync(dir)) {
+  if (!existsSync(directory)) {
     return paths;
   }
 
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = join(dir, entry.name);
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = join(directory, entry.name);
     if (entry.isDirectory()) {
-      paths.push(...walkDir(fullPath));
+      paths.push(...walkDirectory(fullPath));
     } else {
       paths.push(fullPath);
     }
@@ -269,21 +287,21 @@ function fileSize(relativePath: string | undefined): number {
   return existsSync(fullPath) ? statSync(fullPath).size : 0;
 }
 
-function collectAssets(dir: string): Map<string, { count: number; bytes: number }> {
-  const byExt = new Map<string, { count: number; bytes: number }>();
-  for (const f of walkDir(dir)) {
+function collectAssets(directory: string): Map<string, { count: number; bytes: number }> {
+  const byExtension = new Map<string, { count: number; bytes: number }>();
+  for (const f of walkDirectory(directory)) {
     if (/\.(js|cjs|mjs|d\.ts|d\.cts|d\.mts)$/.test(basename(f))) {
       continue;
     }
 
-    const ext = basename(f).split('.').pop() ?? '?';
-    const entry = byExt.get(ext) ?? { count: 0, bytes: 0 };
+    const extension = basename(f).split('.').pop() ?? '?';
+    const entry = byExtension.get(extension) ?? { count: 0, bytes: 0 };
     entry.count += 1;
     entry.bytes += statSync(f).size;
-    byExt.set(ext, entry);
+    byExtension.set(extension, entry);
   }
 
-  return byExt;
+  return byExtension;
 }
 
 type ExportRow = {
@@ -295,8 +313,8 @@ type ExportRow = {
 };
 
 function buildExportRows(): ExportRow[] {
-  const publishPkg = applyPublishConfig(packageJson);
-  const exports = publishPkg['exports'] as ExportsMap | undefined;
+  const publishPackage = applyPublishConfig(packageJson);
+  const exports = publishPackage['exports'] as ExportsMap | undefined;
   if (!exports) {
     return [];
   }
@@ -305,21 +323,33 @@ function buildExportRows(): ExportRow[] {
   for (const [specifier, value] of Object.entries(exports)) {
     if (typeof value === 'string') {
       const size = fileSize(value);
-      rows.push({ specifier, jsBytes: size, dtsBytes: 0, assets: new Map(), total: size });
+      rows.push({
+        specifier,
+        jsBytes: size,
+        dtsBytes: 0,
+        assets: new Map(),
+        total: size,
+      });
       continue;
     }
 
     const jsBytes = fileSize(value.import?.default);
     const dtsBytes = fileSize(value.import?.types);
-    const esmDir = value.import?.default ? dirname(join(absoluteRoot, value.import.default)) : undefined;
-    const isRootExport = esmDir === join(absoluteRoot, 'dist', 'esm');
+    const esmDirectory = value.import?.default ? dirname(join(absoluteRoot, value.import.default)) : undefined;
+    const isRootExport = esmDirectory === join(absoluteRoot, 'dist', 'esm');
     const assets =
-      esmDir && !isRootExport && existsSync(esmDir)
-        ? collectAssets(esmDir)
+      esmDirectory && !isRootExport && existsSync(esmDirectory)
+        ? collectAssets(esmDirectory)
         : new Map<string, { count: number; bytes: number }>();
     const assetBytes = [...assets.values()].reduce((sum, { bytes }) => sum + bytes, 0);
 
-    rows.push({ specifier, jsBytes, dtsBytes, assets, total: jsBytes + dtsBytes + assetBytes });
+    rows.push({
+      specifier,
+      jsBytes,
+      dtsBytes,
+      assets,
+      total: jsBytes + dtsBytes + assetBytes,
+    });
   }
 
   return rows;
@@ -341,7 +371,7 @@ function printExportsSummary(): void {
   const specCol = Math.max(...rows.map((r) => r.specifier.length), 10);
   const assetColWidth = 15;
 
-  const assetHeaders = allAssetTypes.map((ext) => `.${ext}`.padStart(assetColWidth)).join('');
+  const assetHeaders = allAssetTypes.map((extension) => `.${extension}`.padStart(assetColWidth)).join('');
   const header = `  ${'Specifier'.padEnd(specCol)}${'JS'.padStart(sizeCol)}${'Types'.padStart(sizeCol)}${assetHeaders}${'Total'.padStart(sizeCol)}`;
   const divider = '─'.repeat(header.length - 2);
 
@@ -352,8 +382,8 @@ function printExportsSummary(): void {
 
   for (const row of rows) {
     const assetCells = allAssetTypes
-      .map((ext) => {
-        const entry = row.assets.get(ext);
+      .map((extension) => {
+        const entry = row.assets.get(extension);
         return entry ? formatAssetCell(entry.bytes, entry.count, assetColWidth) : '—'.padStart(assetColWidth);
       })
       .join('');
@@ -374,11 +404,11 @@ function printExportsSummary(): void {
   }
 
   const totalAssetCells = allAssetTypes
-    .map((ext) => {
+    .map((extension) => {
       let bytes = 0;
       let count = 0;
       for (const row of rows) {
-        const entry = row.assets.get(ext);
+        const entry = row.assets.get(extension);
         if (entry) {
           bytes += entry.bytes;
           count += entry.count;
@@ -396,7 +426,7 @@ function printExportsSummary(): void {
   );
 }
 
-type DistRow = {
+type DistributionRow = {
   label: string;
   fileCount: number;
   jsBytes: number;
@@ -405,20 +435,20 @@ type DistRow = {
   total: number;
 };
 
-function buildDistRows(): DistRow[] {
-  const distDir = join(absoluteRoot, 'dist');
-  if (!existsSync(distDir)) {
+function buildDistributionRows(): DistributionRow[] {
+  const distributionDirectory = join(absoluteRoot, 'dist');
+  if (!existsSync(distributionDirectory)) {
     return [];
   }
 
-  const rows: DistRow[] = [];
-  const subdirs = readdirSync(distDir, { withFileTypes: true })
+  const rows: DistributionRow[] = [];
+  const subdirs = readdirSync(distributionDirectory, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort();
 
   for (const sub of subdirs) {
-    const files = walkDir(join(distDir, sub));
+    const files = walkDirectory(join(distributionDirectory, sub));
     let jsBytes = 0;
     let dtsBytes = 0;
     let total = 0;
@@ -434,20 +464,27 @@ function buildDistRows(): DistRow[] {
       } else if (/\.(d\.ts|d\.cts|d\.mts)$/.test(name)) {
         dtsBytes += size;
       } else {
-        const ext = name.split('.').pop() ?? '?';
-        const entry = assets.get(ext) ?? { count: 0, bytes: 0 };
+        const extension = name.split('.').pop() ?? '?';
+        const entry = assets.get(extension) ?? { count: 0, bytes: 0 };
         entry.count += 1;
         entry.bytes += size;
-        assets.set(ext, entry);
+        assets.set(extension, entry);
       }
     }
 
-    rows.push({ label: `dist/${sub}`, fileCount: files.length, jsBytes, dtsBytes, assets, total });
+    rows.push({
+      label: `dist/${sub}`,
+      fileCount: files.length,
+      jsBytes,
+      dtsBytes,
+      assets,
+      total,
+    });
   }
 
-  const topLevelFiles = readdirSync(distDir, { withFileTypes: true }).filter((d) => d.isFile());
+  const topLevelFiles = readdirSync(distributionDirectory, { withFileTypes: true }).filter((d) => d.isFile());
   for (const file of topLevelFiles) {
-    const { size } = statSync(join(distDir, file.name));
+    const { size } = statSync(join(distributionDirectory, file.name));
     rows.push({
       label: `dist/${file.name}`,
       fileCount: 1,
@@ -462,7 +499,7 @@ function buildDistRows(): DistRow[] {
 }
 
 function printSizeSummary(): void {
-  const rows = buildDistRows();
+  const rows = buildDistributionRows();
   if (rows.length === 0) {
     return;
   }
@@ -473,7 +510,7 @@ function printSizeSummary(): void {
   const filesCol = 8;
   const assetColWidth = 15;
 
-  const assetHeaders = allAssetTypes.map((ext) => `.${ext}`.padStart(assetColWidth)).join('');
+  const assetHeaders = allAssetTypes.map((extension) => `.${extension}`.padStart(assetColWidth)).join('');
   const header = `  ${''.padEnd(labelCol)}${'Files'.padStart(filesCol)}${'JS'.padStart(sizeCol)}${'Types'.padStart(sizeCol)}${assetHeaders}${'Total'.padStart(sizeCol)}`;
   const divider = '─'.repeat(header.length - 2);
 
@@ -484,8 +521,8 @@ function printSizeSummary(): void {
 
   for (const row of rows) {
     const assetCells = allAssetTypes
-      .map((ext) => {
-        const entry = row.assets.get(ext);
+      .map((extension) => {
+        const entry = row.assets.get(extension);
         return entry ? formatAssetCell(entry.bytes, entry.count, assetColWidth) : '—'.padStart(assetColWidth);
       })
       .join('');
@@ -507,11 +544,11 @@ function printSizeSummary(): void {
   }
 
   const totalAssetCells = allAssetTypes
-    .map((ext) => {
+    .map((extension) => {
       let bytes = 0;
       let count = 0;
       for (const row of rows) {
-        const entry = row.assets.get(ext);
+        const entry = row.assets.get(extension);
         if (entry) {
           bytes += entry.bytes;
           count += entry.count;

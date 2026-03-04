@@ -46,7 +46,7 @@ const createCopyTarget = (configFilePath: string): CreateNodesResult | undefined
 
 export const createNodesV2: CreateNodesV2 = [
   '**/copy-files-from-to.cjson',
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- not necessary as already has an explicit return type
+  // oxlint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- not necessary as already has an explicit return type
   (configFiles, _options) => {
     const results: Array<[string, CreateNodesResult]> = [];
 

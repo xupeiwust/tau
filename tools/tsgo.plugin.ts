@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-array-push-push -- easier to read */
 /**
  * NX Plugin for tsgo (TypeScript Go compiler).
  *
@@ -76,20 +75,20 @@ function fileExists(workspaceRoot: string, projectRoot: string, filename: string
   return existsSync(join(workspaceRoot, projectRoot, filename));
 }
 
-function dirExists(workspaceRoot: string, projectRoot: string, dirName: string): boolean {
-  return existsSync(join(workspaceRoot, projectRoot, dirName));
+function directoryExists(workspaceRoot: string, projectRoot: string, directoryName: string): boolean {
+  return existsSync(join(workspaceRoot, projectRoot, directoryName));
 }
 
 function getSourcePatterns(workspaceRoot: string, projectRoot: string): string[] {
   const patterns: string[] = [];
   const sourceDirectories = ['src', 'lib', 'app'];
 
-  for (const dir of sourceDirectories) {
-    if (dirExists(workspaceRoot, projectRoot, dir)) {
-      patterns.push(`{projectRoot}/${dir}/**/*.ts`);
-      patterns.push(`{projectRoot}/${dir}/**/*.tsx`);
-      patterns.push(`{projectRoot}/${dir}/**/*.js`);
-      patterns.push(`{projectRoot}/${dir}/**/*.jsx`);
+  for (const directory of sourceDirectories) {
+    if (directoryExists(workspaceRoot, projectRoot, directory)) {
+      patterns.push(`{projectRoot}/${directory}/**/*.ts`);
+      patterns.push(`{projectRoot}/${directory}/**/*.tsx`);
+      patterns.push(`{projectRoot}/${directory}/**/*.js`);
+      patterns.push(`{projectRoot}/${directory}/**/*.jsx`);
     }
   }
 
@@ -115,11 +114,11 @@ function getAdditionalInputPatterns(workspaceRoot: string, projectRoot: string):
     patterns.push('{projectRoot}/vite-environment.d.ts');
   }
 
-  if (dirExists(workspaceRoot, projectRoot, '.react-router')) {
+  if (directoryExists(workspaceRoot, projectRoot, '.react-router')) {
     patterns.push('{projectRoot}/.react-router/types/**/*');
   }
 
-  if (dirExists(workspaceRoot, projectRoot, '.source')) {
+  if (directoryExists(workspaceRoot, projectRoot, '.source')) {
     patterns.push('{projectRoot}/.source/**/*');
   }
 
@@ -127,7 +126,7 @@ function getAdditionalInputPatterns(workspaceRoot: string, projectRoot: string):
     patterns.push('{projectRoot}/react-router.config.ts');
   }
 
-  if (dirExists(workspaceRoot, projectRoot, 'tests')) {
+  if (directoryExists(workspaceRoot, projectRoot, 'tests')) {
     patterns.push('{projectRoot}/tests/**/*.ts');
     patterns.push('{projectRoot}/tests/**/*.tsx');
   }
@@ -239,7 +238,7 @@ const createTsgoTarget = (
 
 export const createNodesV2: CreateNodesV2<TsgoPluginOptions> = [
   '**/tsconfig.json',
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- not necessary as already has an explicit return type
+
   (configFiles, options, context) => {
     const results: Array<[string, CreateNodesResult]> = [];
     const pluginOptions = options ?? {};
