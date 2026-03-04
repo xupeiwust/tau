@@ -1,4 +1,15 @@
 {
+  // Exclude repos/ (cloned upstream repos) from all file watching, search, and extension processing.
+  // Without this, extensions (oxfmt, Tailwind, Git, TypeScript) try to process 65k+ files and OOM.
+  "files.watcherExclude": {
+    "repos/**": true
+  },
+  "search.exclude": {
+    "repos/**": true
+  },
+  "files.exclude": {
+    "repos": true
+  },
   "javascript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.importModuleSpecifier": "non-relative",
