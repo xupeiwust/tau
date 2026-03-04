@@ -59,7 +59,8 @@ function ProjectCard({
   assets,
   files,
 }: CommunityBuildCardProperties): React.JSX.Element {
-  const [showPreview, setShowPreview] = useState(false);
+  const [activated, setActivated] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [isForking, setIsForking] = useState(false);
   const buildManager = useBuildManager();
   const navigate = useNavigate();
@@ -91,23 +92,19 @@ function ProjectCard({
           },
           files,
         });
-
         await navigate(`/builds/${createdBuild.id}`);
-      } catch (error: unknown) {
-        console.error('Failed to remix project:', error);
+      } catch {
         setIsForking(false);
       }
     },
     [isForking, name, description, thumbnail, author, tags, assets, id, buildManager, files, navigate],
   );
 
-  const handlePreviewToggle = useCallback(
-    (event: React.MouseEvent) => {
-      event.stopPropagation();
-      setShowPreview(!showPreview);
-    },
-    [showPreview],
-  );
+  const handlePreviewToggle = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    setActivated(true);
+    setVisible((v) => !v);
+  }, []);
 
   const handleCardClick = useCallback(() => {
     void navigate(`/builds/${id}/preview`);
@@ -117,11 +114,11 @@ function ProjectCard({
     <Card className="group relative flex flex-col overflow-hidden py-0">
       <div className="flex flex-1 cursor-pointer flex-col" onClick={handleCardClick}>
         <div className="inset-0 aspect-video h-fit w-full overflow-hidden bg-muted group-hover:bg-accent/70 sm:aspect-video">
-          {!showPreview && (
+          {!visible && (
             <img src={thumbnail || '/placeholder.svg'} alt={name} className="size-full object-cover" loading="lazy" />
           )}
-          {showPreview ? (
-            <div className="size-full object-cover">
+          {activated ? (
+            <div className={visible ? 'size-full object-cover' : 'hidden'}>
               <CadPreviewProvider buildId={id} mainFile={mainFile} files={files}>
                 <div
                   className="size-full"
@@ -144,7 +141,7 @@ function ProjectCard({
             className="absolute top-1 right-1 z-10 size-7 sm:top-2 sm:right-2 sm:size-9"
             onClick={handlePreviewToggle}
           >
-            <Eye className={showPreview ? 'size-3.5 text-primary sm:size-4' : 'size-3.5 sm:size-4'} />
+            <Eye className={visible ? 'size-3.5 text-primary sm:size-4' : 'size-3.5 sm:size-4'} />
           </Button>
         </div>
         <div className="flex flex-1 flex-col sm:pt-4">
