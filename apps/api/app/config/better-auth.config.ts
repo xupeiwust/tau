@@ -105,7 +105,6 @@ export function getBetterAuthConfig(options: BetterAuthConfigOptions): BetterAut
     },
 
     secret: configService.get('AUTH_SECRET', { infer: true }),
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- baseURL is a valid option
     baseURL: configService.get('AUTH_URL', { infer: true }),
     trustedOrigins: [configService.get('TAU_FRONTEND_URL', { infer: true })],
 
@@ -166,7 +165,7 @@ export function getBetterAuthConfig(options: BetterAuthConfigOptions): BetterAut
     // eslint-disable-next-line @typescript-eslint/naming-convention -- onAPIError is a valid option
     onAPIError: {
       throw: false,
-      onError(error, _ctx) {
+      onError(error, _context) {
         logger.error(`Auth error: ${JSON.stringify(error)}.`);
       },
     },

@@ -4,25 +4,13 @@
     "outDir": "./out-tsc/lib",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": [
-      "ES2024",
-      "dom"
-    ],
-    "types": [
-      "node"
-    ],
+    "lib": ["ES2024", "dom"],
+    "types": ["node"],
     "target": "ESNext",
     "paths": {
-      "#*": [
-        "./src/*"
-      ]
+      "#*": ["./src/*"]
     }
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "src/**/*.spec.ts",
-    "src/**/*.test.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts"]
 }

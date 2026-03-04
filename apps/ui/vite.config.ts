@@ -10,13 +10,13 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import mdx from 'fumadocs-mdx/vite';
 import svgSpriteWrapper from 'vite-svg-sprite-wrapper';
 import { defineConfig } from 'vite';
-// eslint-disable-next-line no-restricted-imports -- allowed for Fumadocs.
-import * as MdxConfig from './app/lib/fumadocs/source.config';
-// eslint-disable-next-line no-restricted-imports -- Vite plugins live outside app/.
+// oxlint-disable-next-line no-restricted-imports, import/extensions -- allowed for Fumadocs; .js for ESM
+import * as MdxConfig from './app/lib/fumadocs/source.config.js';
+// oxlint-disable-next-line no-restricted-imports, import/extensions -- Vite plugins; .js for ESM
 import { crossOriginIsolation } from './vite-plugins/cross-origin-isolation.js';
-// eslint-disable-next-line no-restricted-imports -- Vite plugins live outside app/.
+// oxlint-disable-next-line no-restricted-imports, import/extensions -- Vite plugins; .js for ESM
 import { tsModuleUrlPlugin } from './vite-plugins/ts-module-url.js';
-// eslint-disable-next-line no-restricted-imports -- Vite plugins live outside app/.
+// oxlint-disable-next-line no-restricted-imports, import/extensions -- Vite plugins; .js for ESM
 import { base64Loader } from './vite-plugins/base64-loader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
       // Base64 Loader
       base64Loader,
 
+      // oxlint-disable-next-line max-nested-callbacks -- vite config structure
       ...(isTest
         ? []
         : // In non-test mode, include the React Router plugin and the Netlify plugin
@@ -57,7 +58,9 @@ export default defineConfig(({ mode }) => {
       nxViteTsPaths(),
 
       // Fumadocs
-      mdx(MdxConfig, { configPath: path.resolve(__dirname, './app/lib/fumadocs/source.config.ts') }), // Fumadocs
+      mdx(MdxConfig, {
+        configPath: path.resolve(__dirname, './app/lib/fumadocs/source.config.ts'),
+      }), // Fumadocs
 
       // Browser DevTools JSON plugin.
       devtoolsJson(),
@@ -71,7 +74,7 @@ export default defineConfig(({ mode }) => {
       // An SVG sprite is a single SVG file that contains all the SVG icons,
       // inlined as <use> elements.
       // This provides better caching performance.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- allowed for quick switching of sprite generation.
+      // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- allowed for quick switching of sprite generation.
       ...(enableSpriteGeneration
         ? [
             svgSpriteWrapper({

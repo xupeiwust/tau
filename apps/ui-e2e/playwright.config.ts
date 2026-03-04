@@ -4,7 +4,7 @@ import { nxE2EPreset } from '@nx/playwright/preset';
 import { workspaceRoot } from '@nx/devkit';
 
 // For CI, you may want to set BASE_URL to the deployed application.
-const baseUrl = process.env['BASE_URL'] ?? 'http://localhost:3000';
+const baseURL = process.env['BASE_URL'] ?? 'http://localhost:3000';
 
 /**
  * Read environment variables from file.
@@ -16,12 +16,11 @@ const baseUrl = process.env['BASE_URL'] ?? 'http://localhost:3000';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  // eslint-disable-next-line unicorn/prefer-module -- import.meta.url is incompatible with nx
+  // oxlint-disable-next-line unicorn/prefer-module -- import.meta.url is incompatible with nx
   ...nxE2EPreset(__filename, { testDir: './src' }),
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- expected format
-    baseURL: baseUrl,
+    baseURL,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },

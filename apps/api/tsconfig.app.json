@@ -11,5 +11,5 @@
     "erasableSyntaxOnly": false // Incompatible with NestJS dependency injection.
   },
   "include": ["app/**/*.ts"],
-  "exclude": ["app/**/*.spec.ts", "app/**/*.test.ts"],
+  "exclude": ["app/**/*.spec.ts", "app/**/*.test.ts"]
 }

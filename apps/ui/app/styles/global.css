@@ -4,7 +4,7 @@
 @import 'fumadocs-ui/css/preset.css';
 
 @import 'tw-animate-css';
-@source "../../../../node_modules/@daveyplate/better-auth-ui";
+@source '../../../../node_modules/@daveyplate/better-auth-ui';
 
 /* Typography is provided by fumadocs-ui/css/preset.css (forked @tailwindcss/typography with fd-* color support) */
 
@@ -35,11 +35,11 @@
   --hue-highlighter: calc(var(--hue-primary) - 86deg); /* Results in ~180deg - true teal */
 
   /* Lightness levels - will be flipped in dark mode */
-  --l-base: 1.00;
+  --l-base: 1;
   /* Base lightness level, typically used for the lightest backgrounds */
   --l-surface: 0.96;
   /* Slightly darker than base, used for surfaces like cards */
-  --l-subtle: 0.90;
+  --l-subtle: 0.9;
   /* Subtle lightness, for less prominent elements */
   --l-element: 0.85;
   /* Lightness for UI elements like buttons */
@@ -136,15 +136,15 @@
   --chart-2: oklch(0.55 0.18 290deg); /* Purple - Output */
   --chart-3: oklch(0.55 0.15 180deg); /* Teal - Cache */
   --chart-4: oklch(0.55 0.18 150deg); /* Green */
-  --chart-5: oklch(0.55 0.20 30deg); /* Orange */
+  --chart-5: oklch(0.55 0.2 30deg); /* Orange */
 
   /* Diagram colors — derived from primary hue so they adapt automatically */
   --diagram-node: oklch(0.95 0.03 var(--hue-primary));
-  --diagram-node-border: oklch(0.78 0.10 var(--hue-primary));
+  --diagram-node-border: oklch(0.78 0.1 var(--hue-primary));
   --diagram-node-text: var(--foreground);
   --diagram-cluster: oklch(0.97 0.015 var(--hue-primary));
   --diagram-cluster-border: oklch(0.87 0.06 var(--hue-primary));
-  --diagram-line: oklch(0.55 0.10 var(--hue-primary));
+  --diagram-line: oklch(0.55 0.1 var(--hue-primary));
   --diagram-text: var(--muted-foreground);
   --diagram-note: oklch(0.95 0.025 calc(var(--hue-primary) + 60deg));
   --diagram-note-border: oklch(0.75 0.08 calc(var(--hue-primary) + 60deg));
@@ -152,7 +152,7 @@
 }
 
 .dark,
-:root[class~="dark"] {
+:root[class~='dark'] {
   /* Invert lightness levels for dark mode */
   --l-base: 0.21;
   --l-surface: 0.28;
@@ -186,18 +186,18 @@
   --highlighter-foreground: oklch(var(--l-deepest) 0.01 var(--hue-neutral) / 0.85);
 
   /* Chart colors - lighter for dark mode */
-  --chart-1: oklch(0.70 0.16 250deg); /* Blue - Input */
-  --chart-2: oklch(0.70 0.16 290deg); /* Purple - Output */
-  --chart-3: oklch(0.70 0.14 180deg); /* Teal - Cache */
-  --chart-4: oklch(0.70 0.16 150deg); /* Green */
-  --chart-5: oklch(0.70 0.18 30deg); /* Orange */
+  --chart-1: oklch(0.7 0.16 250deg); /* Blue - Input */
+  --chart-2: oklch(0.7 0.16 290deg); /* Purple - Output */
+  --chart-3: oklch(0.7 0.14 180deg); /* Teal - Cache */
+  --chart-4: oklch(0.7 0.16 150deg); /* Green */
+  --chart-5: oklch(0.7 0.18 30deg); /* Orange */
 
   /* Diagram colors - dark mode */
-  --diagram-node: oklch(0.30 0.04 var(--hue-primary));
+  --diagram-node: oklch(0.3 0.04 var(--hue-primary));
   --diagram-node-border: oklch(0.42 0.06 var(--hue-primary));
-  --diagram-cluster: oklch(0.20 0.015 var(--hue-primary));
+  --diagram-cluster: oklch(0.2 0.015 var(--hue-primary));
   --diagram-cluster-border: oklch(0.28 0.035 var(--hue-primary));
-  --diagram-line: oklch(0.50 0.06 var(--hue-primary));
+  --diagram-line: oklch(0.5 0.06 var(--hue-primary));
   --diagram-note: oklch(0.26 0.025 calc(var(--hue-primary) + 60deg));
   --diagram-note-border: oklch(0.38 0.05 calc(var(--hue-primary) + 60deg));
 }
@@ -316,7 +316,7 @@
   --color-fd-ring: var(--ring);
   --color-fd-popover: var(--popover);
   --color-fd-popover-foreground: var(--popover-foreground);
-  
+
   --color-fd-info: var(--color-information);
   --color-fd-warning: var(--color-warning);
   --color-fd-error: var(--color-destructive);
@@ -327,7 +327,6 @@
   --color-fd-diff-add-symbol: rgb(10, 200, 100);
 
   @keyframes gradient {
-
     0%,
     100% {
       background-position: 0% 50%;
@@ -339,7 +338,6 @@
   }
 
   @keyframes pulse-subtle {
-
     0%,
     100% {
       opacity: 1;
@@ -351,7 +349,6 @@
   }
 
   @keyframes gentle-bounce {
-
     0%,
     100% {
       transform: translateY(0);
@@ -413,7 +410,6 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
-
   *,
   ::after,
   ::before,
@@ -423,7 +419,7 @@
   }
 
   button:not(:disabled),
-  [role="button"]:not(:disabled) {
+  [role='button']:not(:disabled) {
     cursor: pointer;
   }
 }
@@ -434,7 +430,7 @@
   }
 
   body {
-    @apply font-sans bg-background text-foreground antialiased scroll-smooth;
+    @apply scroll-smooth bg-background font-sans text-foreground antialiased;
     overflow: hidden;
   }
 }
@@ -463,7 +459,7 @@
 /* START SCROLLBAR STYLES */
 @plugin 'tailwind-scrollbar' {
   nocompatible: true;
-  preferredStrategy: 'pseudoelements';
+  preferredstrategy: 'pseudoelements';
 }
 
 :root {
@@ -514,7 +510,7 @@
 }
 
 .dark,
-:root[class~="dark"] {
+:root[class~='dark'] {
   --scroll-shadows-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -524,8 +520,7 @@
     /* Covers (scroll with content) */
     linear-gradient(90deg, var(--scroll-shadows-bg) 30%, transparent) left,
     linear-gradient(270deg, var(--scroll-shadows-bg) 30%, transparent) right,
-    /* Shadows (stay fixed) */
-    linear-gradient(90deg, var(--scroll-shadows-color), transparent) left,
+    /* Shadows (stay fixed) */ linear-gradient(90deg, var(--scroll-shadows-color), transparent) left,
     linear-gradient(270deg, var(--scroll-shadows-color), transparent) right;
   background-repeat: no-repeat;
   background-color: var(--scroll-shadows-bg);
@@ -543,8 +538,7 @@
     /* Covers (scroll with content) */
     linear-gradient(180deg, var(--scroll-shadows-bg) 30%, transparent) top,
     linear-gradient(0deg, var(--scroll-shadows-bg) 30%, transparent) bottom,
-    /* Shadows (stay fixed) */
-    linear-gradient(180deg, var(--scroll-shadows-color), transparent) top,
+    /* Shadows (stay fixed) */ linear-gradient(180deg, var(--scroll-shadows-color), transparent) top,
     linear-gradient(0deg, var(--scroll-shadows-color), transparent) bottom;
   background-repeat: no-repeat;
   background-color: var(--scroll-shadows-bg);
@@ -562,14 +556,11 @@
     /* Y covers (scroll with content) */
     linear-gradient(180deg, var(--scroll-shadows-bg) 30%, transparent) top,
     linear-gradient(0deg, var(--scroll-shadows-bg) 30%, transparent) bottom,
-    /* X covers (scroll with content) */
-    linear-gradient(90deg, var(--scroll-shadows-bg) 30%, transparent) left,
+    /* X covers (scroll with content) */ linear-gradient(90deg, var(--scroll-shadows-bg) 30%, transparent) left,
     linear-gradient(270deg, var(--scroll-shadows-bg) 30%, transparent) right,
-    /* Y shadows (stay fixed) */
-    linear-gradient(180deg, var(--scroll-shadows-color), transparent) top,
+    /* Y shadows (stay fixed) */ linear-gradient(180deg, var(--scroll-shadows-color), transparent) top,
     linear-gradient(0deg, var(--scroll-shadows-color), transparent) bottom,
-    /* X shadows (stay fixed) */
-    linear-gradient(90deg, var(--scroll-shadows-color), transparent) left,
+    /* X shadows (stay fixed) */ linear-gradient(90deg, var(--scroll-shadows-color), transparent) left,
     linear-gradient(270deg, var(--scroll-shadows-color), transparent) right;
   background-repeat: no-repeat;
   background-color: var(--scroll-shadows-bg);
