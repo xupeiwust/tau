@@ -22,7 +22,8 @@
     "/packages/converter/src/assets/**",
     "**/generated/**",
     "**/assets/**",
-    "**/public/*.js"
+    "**/public/*.js",
+    "**/*.typeface.json"
   ],
   "overrides": [
     {
