@@ -25,13 +25,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Enable corepack
-        run: corepack enable
+      - name: Setup Nx Environment
+        uses: ./.github/actions/setup-nx
 
       - name: Check formatting
         # TODO: replace with `pnpm dlx oxfmt@catalog: --check` once pnpm/pnpm#10594 is fixed
