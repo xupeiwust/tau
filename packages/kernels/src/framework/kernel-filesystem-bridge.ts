@@ -273,7 +273,7 @@ export function createBridgeCall(port: MessagePort): {
         const request = {
           id,
           method,
-          args: args,
+          args,
         } satisfies BridgeRequest;
         const transferables = extractTransferables(args);
         port.postMessage(request, transferables);

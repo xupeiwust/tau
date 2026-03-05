@@ -208,7 +208,7 @@ export function detectEdges(
       {
         hash: `${hashA}_${hashB}`,
         reverseHash: `${hashB}_${hashA}`,
-        index0: index0,
+        index0,
         index1: i1,
       },
       {
