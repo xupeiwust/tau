@@ -196,10 +196,6 @@ Current local sample confirms:
 - `apps/oxlint/src/init.rs`: panic hook changed to file-first best-effort writes + non-panicking default hook call.
 - `apps/oxlint/src/run.rs`: added opt-in runtime invocation logging.
 - Rebuilt `oxlint` NAPI binding and deployed patched `.node` to local `node_modules` binding path with ad-hoc codesign.
-- Added workspace wrapper `.vscode/oxlint-debug-wrapper.mjs` and pointed `oxc.path.oxlint` to it.
-- Wrapper ensures default log targets for IDE sessions:
-  - runtime: `/tmp/oxlint-runtime.log`
-  - panic: `/tmp/oxlint-panic.log`
 
 ## Scope and non-goals
 
