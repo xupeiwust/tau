@@ -199,7 +199,8 @@ export class GeometryAnalysisService {
     const expected: BoundingBoxExpected = parseResult.data;
     const reasons: string[] = [];
 
-    if (expected.size > 0) {
+    // oxlint-disable-next-line unicorn/explicit-length-check -- false positive check against Set.prototype.entries
+    if (expected.size) {
       const axes = ['x', 'y', 'z'] as const;
       for (const [i, axis] of axes.entries()) {
         const exp = expected.size[axis];

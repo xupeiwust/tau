@@ -7,6 +7,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { fromMemoryFS } from '@taucad/kernels';
+import { createKernelFileSystem } from '@taucad/kernels/filesystem';
 import { createRpcDispatcher } from '@taucad/chat/rpc';
 import { getEnvironment } from '#config/environment.config.js';
 import { ChatController } from '#api/chat/chat.controller.js';
@@ -122,7 +123,7 @@ export async function createTestApp(): Promise<TestApp> {
   const headlessRpc: HeadlessChatRpcService = moduleRef.get(ChatRpcService);
 
   const dispatcher = createRpcDispatcher({
-    fileSystem: createHeadlessRpcFileSystem(memFs),
+    fileSystem: createHeadlessRpcFileSystem(createKernelFileSystem(memFs)),
     kernelClient: createHeadlessKernelClient({ createGeometry: async () => ({ success: true, issues: [] }) }),
   });
   headlessRpc.setDispatcher(dispatcher);
