@@ -90,16 +90,10 @@ function buildSocket({
     slotSide,
     makeFace(
       assembleWire(
-        new EdgeFinder()
-          .inPlane('XY', -SOCKET_HEIGHT)
-          .find((edge) => slotSide(edge)),
+        new EdgeFinder().inPlane('XY', -SOCKET_HEIGHT).find(slotSide),
       ),
     ),
-    makeFace(
-      assembleWire(
-        new EdgeFinder().inPlane('XY', 0).find((edge) => slotSide(edge)),
-      ),
-    ),
+    makeFace(assembleWire(new EdgeFinder().inPlane('XY', 0).find(slotSide))),
   ]);
 
   if (enableScrew || enableMagnet) {
@@ -131,11 +125,11 @@ function buildSocket({
 
 /**
  * Creates an array with sequential numbers
- * @param i - Number of elements
+ * @param index - Number of elements
  * @returns Array of sequential numbers
  */
-function range(i: number) {
-  return [...Array.from({ length: i }).keys()];
+function range(index: number) {
+  return [...Array.from({ length: index }).keys()];
 }
 
 /**
@@ -168,10 +162,10 @@ function cloneOnGrid(
   const xCorr = ((xSteps - 1) * (xSpan ?? span)) / 2;
   const yCorr = ((ySteps - 1) * (ySpan ?? xSpan ?? span)) / 2;
 
-  const translations = range(xSteps).flatMap((i) => {
+  const translations = range(xSteps).flatMap((x) => {
     return range(ySteps).map(
-      (j) =>
-        [i * SIZE - xCorr, j * SIZE - yCorr, 0] as [number, number, number],
+      (y) =>
+        [x * SIZE - xCorr, y * SIZE - yCorr, 0] as [number, number, number],
     );
   });
   return translations.map((translation) =>
