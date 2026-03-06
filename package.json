@@ -36,7 +36,8 @@
     "repos": "node scripts/repos.ts",
     "repos:clone": "node scripts/repos.ts clone --all",
     "repos:sync": "node scripts/repos.ts sync --all",
-    "repos:status": "node scripts/repos.ts status --all"
+    "repos:status": "node scripts/repos.ts status --all",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^2.0.34",
@@ -267,8 +268,10 @@
     "eslint-plugin-no-use-extend-native": "catalog:",
     "eslint-plugin-unicorn": "catalog:",
     "happy-dom": "^16.8.1",
+    "husky": "catalog:",
     "jsdom": "~26.0.0",
     "ky": "^1.14.3",
+    "lint-staged": "catalog:",
     "madge": "catalog:",
     "nx": "catalog:",
     "oxfmt": "catalog:",
@@ -323,6 +326,9 @@
       "unrs-resolver",
       "sharp"
     ]
+  },
+  "lint-staged": {
+    "*": "oxfmt --no-error-on-unmatched-pattern"
   },
   "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
 }
