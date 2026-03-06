@@ -435,7 +435,7 @@
         "paths": ["error", "domain", "freelist", "smalloc", "punycode", "sys", "querystring", "colors"],
         "patterns": [
           {
-            "group": [".*"],
+            "regex": "^\\.",
             "allowImportNamePattern": "^Route$",
             "message": "Use absolute imports instead of relative imports. For example, instead of `import { hexToRgb } from './utils/color.utils'`, use `import { hexToRgb } from '#utils/color.utils'`."
           }
