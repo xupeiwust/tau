@@ -45,6 +45,9 @@
     },
     {
       "path": "./libs/utils"
+    },
+    {
+      "path": "./libs/vite"
     }
   ],
   "files": [],
