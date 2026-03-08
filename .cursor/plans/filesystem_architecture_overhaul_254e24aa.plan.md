@@ -62,6 +62,33 @@ todos:
   - id: integration-tests
     content: "Integration tests: Bridge + FileService over MessageChannel, write → tree invalidation → event pipeline"
     status: pending
+  - id: tree-hydration
+    content: "Phase 4+: Add explicit hydrateTreeSnapshot(rootDirectory) on ready to populate fileTree before any writes; test startup-with-zero-writes path"
+    status: pending
+  - id: external-change-detection
+    content: "Phase 4+: Preserve/replace webaccess polling actor for external filesystem changes (OS/Finder edits); test file-changed-outside-app scenario"
+    status: pending
+  - id: event-scoping
+    content: "Phase 2c/4: Scope ChangeEventBus payloads with absolute path + backend; machine filters events by rootDirectory to prevent cross-build tree churn"
+    status: pending
+  - id: registry-handle-invalidation
+    content: "Phase 1c: Invalidate standalone WebAccess providers on handle swap/permission change; cache key must include handle identity"
+    status: pending
+  - id: bridge-wire-schema
+    content: "Phase 3: Define formal wire schema for request | response | event | control(disconnect) message types; test interleaving (events while calls pending, disconnect mid-call)"
+    status: pending
+  - id: invalidation-matrix
+    content: "Phase 2b/2d: Document canonical cache invalidation table per operation (write, mkdir, rename, unlink, rmdir, reconfigure) covering tree cache + file cache + cross-directory renames"
+    status: pending
+  - id: consumer-audit
+    content: "Phase 5b: Full consumer audit — enumerate ALL fileTree/openFiles selectors and RPC adapters across the app; verify each is migrated with signoff checklist"
+    status: pending
+  - id: handle-store-pooling
+    content: "Phase 8: Optional connection pooling for handle-store IndexedDB (Known Issue #9) — ref-counted DB handle instead of open/close per operation"
+    status: pending
+  - id: stress-tests
+    content: "Stress/chaos tests: large tree (1000+ files), large binary (50MB), rapid setRoot toggling, dispose/reconnect soak, concurrent read+write+event interleaving"
+    status: pending
 isProject: false
 ---
 
@@ -221,6 +248,8 @@ class ProviderRegistry {
 - Caches provider instances per backend (fixes Known Issue #5: standalone FS created per call)
 - `getStandaloneProvider` returns cached read-only instances for the files route
 - `switchActiveProvider` replaces `reconfigureFileSystem`
+- **Handle invalidation**: Standalone WebAccess provider cache must be invalidated when the `FileSystemDirectoryHandle` changes (user picks a new directory) or permission is re-granted. Cache key should incorporate handle identity (e.g., `${backend}:${handle.name}`) so a handle swap produces a cache miss rather than returning a stale provider.
+- `invalidateStandaloneProvider(backend)` method — called by `switchActiveProvider` and `setDirectoryHandle`
 
 ### 1d. BoundedFileCache
 
@@ -288,16 +317,27 @@ class DirectoryTreeCache {
 - `invalidateSubtree` clears a directory and all descendants — called after rename/rmdir
 - Replaces polling-based `getDirectoryStat` (fixes Known Issue #1, #6)
 
+**Canonical invalidation matrix** (must be documented in code and tested):
+
+- `writeFile(path)` — invalidate parent directory of `path`; update/add entry in file cache
+- `mkdir(path)` — invalidate parent directory of `path`
+- `rename(from, to)` — invalidate parent of `from` AND parent of `to`; if directories differ, both parents invalidated; `invalidateSubtree(from)` to clear cached children; update file cache keys (prefix rename)
+- `unlink(path)` — invalidate parent directory of `path`; delete from file cache
+- `rmdir(path)` — `invalidateSubtree(path)`; invalidate parent directory; delete all file cache entries under `path/`
+- `reconfigure(backend)` — `clear()` entire tree cache AND entire file cache (backend switch = full reset)
+- `writeFiles(files)` — collect unique parent directories, invalidate each once (deduplicated)
+- `copyDirectory(src, dest)` — invalidate parent of `dest`; `invalidateSubtree(dest)` to clear any stale entries
+
 ### 2c. ChangeEventBus
 
 **File:** `apps/ui/app/filesystem/change-event-bus.ts`
 
 ```typescript
 type ChangeEvent =
-  | { type: 'fileWritten'; path: string }
-  | { type: 'fileDeleted'; path: string }
-  | { type: 'fileRenamed'; oldPath: string; newPath: string }
-  | { type: 'directoryChanged'; path: string };
+  | { type: 'fileWritten'; path: string; backend: FileSystemBackend }
+  | { type: 'fileDeleted'; path: string; backend: FileSystemBackend }
+  | { type: 'fileRenamed'; oldPath: string; newPath: string; backend: FileSystemBackend }
+  | { type: 'directoryChanged'; path: string; backend: FileSystemBackend };
 
 class ChangeEventBus {
   subscribe(port: MessagePort, handler: (event: ChangeEvent) => void): () => void;
@@ -309,6 +349,8 @@ class ChangeEventBus {
 - Emits change events to all connected ports
 - Main thread subscribes to get tree change notifications (fixes Known Issue #7 by enabling push-based updates)
 - Replaces the need for explicit `spawnBackgroundRefresh` after every mutation
+- **Event scoping**: All events include `path` (absolute) and `backend`. The machine-side listener filters events by `rootDirectory` prefix — a machine scoped to `/builds/abc` ignores events for `/builds/xyz`. This prevents cross-build tree churn when a shared worker serves multiple `FileManagerProvider` instances.
+- Edge case: `reconfigure` emits a special `{ type: 'backendChanged'; backend }` event so all listeners know to full-reset their tree state
 
 ### 2d. FileService
 
@@ -421,11 +463,43 @@ function createBridgeServer(handlers, port): {
 };
 ```
 
-Protocol extension: `{ type: 'event', event: string, data: unknown }` messages flow server→client (no response expected). Distinguished from RPC by `type: 'event'` vs `type: undefined` (current `{ id, method, args }` pattern).
+**Formal wire schema** — all messages on the port are one of four discriminated types:
+
+```typescript
+// Request: client → server (existing)
+type BridgeRequest = { type?: undefined; id: number; method: string; args: unknown[] };
+
+// Response: server → client (existing)
+type BridgeResponse = { type?: undefined; id: number; result?: unknown; error?: BridgeError };
+
+// Event: server → client (new, no response expected)
+type BridgeEvent = { type: 'event'; event: string; data: unknown };
+
+// Control: bidirectional (new)
+type BridgeControl = { type: 'disconnect' };
+
+type BridgeMessage = BridgeRequest | BridgeResponse | BridgeEvent | BridgeControl;
+```
+
+The `createBridgeServer` `onmessage` handler discriminates on `type`:
+- `undefined` (no `type` field) — existing request/response path
+- `'event'` — ignored server-side (events flow server→client only)
+- `'disconnect'` — clean up port from active set
+
+The `createBridgeCall` `onmessage` handler discriminates on `type`:
+- `undefined` — existing response resolution
+- `'event'` — dispatch to registered `listen()` handlers
+- `'disconnect'` — dispose the call instance
 
 The `ChangeEventBus` in `FileService` uses the server `emit()` to push `treeChanged` events.
 
-Tests: Extend `kernel-filesystem-bridge.test.ts` with event channel tests.
+**Interleaving safety**: Events can arrive while RPC calls are pending. The client handler must process both without interference. Tests must cover:
+- Event received between request send and response receive
+- Multiple events during a single long-running RPC call
+- Disconnect message received while calls are pending (must reject all pending)
+- Rapid `listen()` subscribe/unsubscribe cycles
+
+Tests: Extend `kernel-filesystem-bridge.test.ts` with event channel + interleaving + disconnect tests.
 
 ---
 
@@ -442,8 +516,19 @@ Key changes from current implementation (840 lines):
   - Guard prevents spawning if one is already in flight
 - **Incremental refresh**: `replaceFileTreeFromBackgroundRefresh` should only update the changed parent directory, not replace the entire tree
 - **Tree event subscription**: When bridge supports `listen()`, subscribe to `treeChanged` events and update `fileTree` incrementally instead of polling
-- **Remove** `readDirectoryActor` invocation in `loadingRootDirectory` — initial tree load moves to the hook (lazy load on demand)
-- **Simplify states**: Consider merging `loadingRootDirectory` into `ready` since tree loading is now lazy/event-driven
+- **Startup tree hydration**: The current `loadingRootDirectory` state performs a full recursive `getDirectoryStat` before entering `ready`. Several subsystems depend on a populated `fileTree` at startup:
+  - `rpc-handlers.ts` `createBrowserRpcFileSystem` uses `fileTree` for `readdir`/`exists` — empty tree means AI tools see no files
+  - `use-chat-snapshot.ts` sends `fileTree` to the LLM for project context
+  - `chat-editor-file-tree.tsx` builds the sidebar tree from `fileTree`
+  - `chat-viewer.tsx`, `chat-viewer-dockview.tsx`, `dockview-open-file-action.tsx` all read `fileTree`
+
+  **Resolution**: Replace full recursive `getDirectoryStat` with a single-level `readShallowDirectory` for the root (e.g., `/builds/{id}/`) at startup, then subscribe to `treeChanged` events for incremental updates. The machine should NOT skip initial tree loading entirely — it must hydrate at least the root level before entering `ready`. Add a `hydrateTreeSnapshot` action that performs one shallow read + sets `fileTree` context.
+  - Test: "startup with zero writes" — machine enters `ready` with a populated `fileTree` containing at least root-level entries
+  - Test: "startup with empty filesystem" — machine enters `ready` with empty `fileTree`, no errors
+- **External change detection (webaccess)**: The current `fileWatcherActor` polls `getDirectoryStat` every 2s (focused) / 10s (blurred) to detect changes made outside the app (e.g., user edits a file in VS Code while the directory is mounted via File System Access API). The push-based `ChangeEventBus` only captures writes that go through `FileService` — it cannot detect external OS-level changes. **The polling actor must be preserved for the `webaccess` backend**, adapted to use incremental tree diffing instead of full recursive `getDirectoryStat`. When the poll detects changes, it should emit synthetic `ChangeEvent`s so the rest of the pipeline (machine, Monaco) reacts consistently.
+  - Test: "file changed outside app" — external write detected by poll, `fileTree` updated, `fileWritten` event emitted
+  - Test: "file deleted outside app" — external delete detected, entry removed from tree
+- **Simplify states**: Merge `loadingRootDirectory` into `creatingWorker` completion — after worker init succeeds, perform the initial shallow hydration read as part of the same transition (or as an `entry` action on `ready`), rather than a separate blocking state. This eliminates the race where events are dropped during `loadingRootDirectory`.
 
 **File:** `apps/ui/app/machines/file-manager.machine.types.ts`
 
@@ -465,6 +550,10 @@ Test the XState machine in isolation:
 - Error state recovery
 - Multiple rapid mutations coalesce into single refresh
 - Background refresh doesn't start during `creatingWorker`
+- **Startup hydration**: machine enters `ready` with populated `fileTree` (at least root-level entries)
+- **Event scoping**: machine ignores `ChangeEvent`s whose `path` does not start with `rootDirectory`
+- **External poll**: webaccess backend starts `fileWatcherActor` on `ready` entry, poll triggers incremental diff
+- **Rapid `setRoot`**: two rapid `setRoot` calls with different `buildId` — first init is aborted, second completes cleanly
 
 Mock the worker proxy via `vi.fn()` for all RPC methods.
 
@@ -483,13 +572,41 @@ Mock the worker proxy via `vi.fn()` for all RPC methods.
 
 ### 5b. Update consumers
 
-Every consumer that currently uses `readBackendFileTree` or accesses `openFiles` directly needs updating:
+Every consumer that currently uses `readBackendFileTree` or accesses `openFiles` directly needs updating.
 
-- `**apps/ui/app/routes/files/route.tsx`**: Complete rewrite in Phase 6
-- `**apps/ui/app/lib/monaco-model-service.ts`**: Replace `getDirectoryStat('')` background sync with tree change event subscription
-- `**apps/ui/app/hooks/use-monaco-model-service.tsx`**: Wire up tree event subscription
-- `**openFiles` selectors** in `chat-editor.tsx`, `chat-editor-dockview.tsx`, `chat-editor-file-tree.tsx`: Update to use `fileCache` accessor
-- `**fileTree` selectors** remain unchanged (same shape)
+**Full consumer audit** (all files that read `fileTree` or `openFiles` from machine context):
+
+`fileTree` consumers (read via `useSelector(fileManagerRef, state => state.context.fileTree)`):
+- `apps/ui/app/routes/builds_.$id/chat-editor-dockview.tsx` (lines 127, 263) — builds inline file tree for dockview panels
+- `apps/ui/app/routes/builds_.$id/chat-editor-file-tree.tsx` (line 396+) — builds headless-tree sidebar from flat `fileTree`
+- `apps/ui/app/routes/builds_.$id/chat-viewer.tsx` (line 51) — reads file tree for viewer file list
+- `apps/ui/app/routes/builds_.$id/chat-viewer-dockview.tsx` (line 62) — reads file tree for viewer dockview
+- `apps/ui/app/components/panes/dockview-open-file-action.tsx` (line 43) — reads file tree for open-file action
+- `apps/ui/app/hooks/use-chat-rpc-socket.tsx` (line 139) — passes `fileTree` to `RpcHandlerDependencies` for AI tool `readdir`/`exists`
+- `apps/ui/app/hooks/rpc-handlers.ts` (lines 45, 58, 83, 97) — `createBrowserRpcFileSystem` iterates `fileTree` entries for `readdir`/`exists`
+- `apps/ui/app/hooks/use-chat-snapshot.ts` (line 28) — sends `fileTree` array to LLM via `useFileTree()`
+- `apps/ui/app/hooks/use-file-manager.tsx` (line 585) — `useFileTree()` hook converts Map to array
+- `apps/ui/app/routes/builds_.$id_.preview/preview-files.tsx` (line 112) — preview route file tree
+- `apps/ui/app/routes/files/route.tsx` — NOT a `fileTree` consumer (uses `readBackendFileTree` separately)
+
+`openFiles` consumers (read from `file-manager.machine.ts` context):
+- `apps/ui/app/routes/builds_.$id/chat-editor.tsx` (line 63) — `useSelector(fileManagerRef, state => state.context.openFiles)` to get active file content
+- `apps/ui/app/routes/builds_.$id/chat-editor-dockview.tsx` (lines 572-601) — reads `openFiles` from editor machine (different — `editorRef` not `fileManagerRef`)
+- `apps/ui/app/routes/builds_.$id/chat-editor-file-tree.tsx` (line 344) — reads `openFiles` from editor machine
+- `apps/ui/app/routes/builds_.$id/chat-editor-tabs.tsx` (line 15) — reads `openFiles` from editor machine
+- `apps/ui/app/hooks/use-chat-snapshot.ts` (line 40) — reads `openFiles` from editor machine for snapshot
+
+**Important distinction**: Most `openFiles` references are to the **editor machine** (`editor.machine.ts` context, type `OpenFile[]`), NOT the file manager machine. Only `chat-editor.tsx` line 63 reads `openFiles` from `fileManagerRef` (the `Map<string, Uint8Array>` being replaced by `BoundedFileCache`). The editor machine's `openFiles: OpenFile[]` is a separate concept (open tabs) and is NOT affected by this migration.
+
+Migration actions:
+- `apps/ui/app/routes/files/route.tsx` — Complete rewrite in Phase 6
+- `apps/ui/app/lib/monaco-model-service.ts` — Replace `getDirectoryStat('')` background sync with tree change event subscription
+- `apps/ui/app/hooks/use-monaco-model-service.tsx` — Wire up tree event subscription
+- `apps/ui/app/routes/builds_.$id/chat-editor.tsx` — Update `openFiles` selector to read from `fileCache` accessor (only consumer of `fileManagerRef.context.openFiles`)
+- `apps/ui/app/hooks/rpc-handlers.ts` — Verify `fileTree` shape is unchanged; add test for empty-tree `readdir`/`exists` behavior
+- `apps/ui/app/hooks/use-chat-rpc-socket.tsx` — No change needed if `fileTree` shape is preserved
+- All other `fileTree` selectors — No change needed if `Map<string, FileEntry>` shape is preserved
+- **Signoff**: Each file above must be verified working after migration (manual or automated test)
 
 ---
 
@@ -557,6 +674,7 @@ Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
 - Remove `ensureReady()` from every method — providers handle their own initialization
 - Fix `ensureReady` always passing `'indexeddb'` (Known Issue #11) — provider init is explicit
 - Clean up diagnostic logging added during debugging
+- **Handle-store connection pooling (Known Issue #9)**: `handle-store.ts` currently calls `openHandleDb()` (which opens IndexedDB) and then `db.close()` on every single operation. Refactor to a ref-counted singleton pattern — open once, close when ref count hits zero after a debounced idle timeout (e.g., 5s). This eliminates repeated open/close overhead during rapid operations like batch build creation. Optional improvement — skip if profiling shows negligible impact.
 
 ---
 
@@ -572,9 +690,10 @@ Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
 | `DirectoryTreeCache` | `directory-tree-cache.test.ts` | Set/get/invalidate, subtree invalidation, getFullTree                  |
 | `ChangeEventBus`     | `change-event-bus.test.ts`     | Subscribe/emit, multiple subscribers, dispose cleanup                  |
 | `MemoryProvider`     | `memory-provider.test.ts`      | All CRUD ops, exists, stat, readdir                                    |
-| `ProviderRegistry`   | `provider-registry.test.ts`    | Caching, standalone instances, switch active, dispose                  |
+| `ProviderRegistry`   | `provider-registry.test.ts`    | Caching, standalone instances, switch active, dispose, handle swap invalidation |
 | `FileService`        | `file-service.test.ts`         | Read/write routing, serialization, tree invalidation, change events    |
-| `fileManagerMachine` | `file-manager.machine.test.ts` | State transitions, debounced refresh, BoundedFileCache, error recovery |
+| `DirectoryTreeCache` (invalidation matrix) | `directory-tree-cache.test.ts` | Canonical invalidation per operation (write, mkdir, rename, unlink, rmdir, reconfigure, writeFiles, copyDirectory) |
+| `fileManagerMachine` | `file-manager.machine.test.ts` | State transitions, debounced refresh, BoundedFileCache, error recovery, startup hydration, event scoping, rapid setRoot |
 
 
 ### Integration tests
@@ -584,13 +703,26 @@ Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
 | ------------------------------------------------------ | ------------------------------------------------------ |
 | Bridge + FileService                                   | End-to-end RPC over MessageChannel with MemoryProvider |
 | Bridge event channel                                   | Server emit → client listener over MessageChannel      |
+| Bridge interleaving                                    | Event received during pending RPC call; disconnect mid-call |
 | FileService write → tree invalidation → event emission | Full write pipeline                                    |
+| Event scoping                                          | Two machines with different rootDirectory; verify cross-build isolation |
+| Startup hydration                                      | Machine init → ready with populated fileTree (zero-write startup) |
+| WebAccess external change detection                    | External file mutation detected by poll → tree updated → event emitted |
 
+
+### Stress / chaos tests
+
+- **Large tree**: 1000+ files across 50+ directories — verify tree cache, file cache eviction, and lazy loading all perform within acceptable bounds
+- **Large binary**: 50 MB STL file — verify skip-large-binary in BoundedFileCache, transfer semantics (zero-copy), no OOM
+- **Rapid `setRoot` toggling**: 10 rapid `setRoot` calls alternating between two builds — verify no leaked workers, no stale proxies, final state is correct
+- **Dispose/reconnect soak**: Create bridge → call methods → dispose → create new bridge → repeat 50 times — verify no port/memory leaks
+- **Concurrent read+write+event**: Simultaneous `readFile`, `writeFile`, and event subscription — verify no deadlocks, no lost events, serialization queue drains correctly
+- **Event flood**: 100 rapid `fileWritten` events — verify debounce coalesces to minimal refresh calls
 
 ### Existing tests to update
 
 - `apps/ui/app/machines/file-manager.test.ts` — Update to test `WriteCoordinator` directly
-- `packages/kernels/src/framework/kernel-filesystem-bridge.test.ts` — Add event channel + port lifecycle tests
+- `packages/kernels/src/framework/kernel-filesystem-bridge.test.ts` — Add event channel + interleaving + port lifecycle tests
 - `packages/kernels/src/filesystem/filesystem-wrappers.test.ts` — Update if `exposeFileSystem` signature changes
 
 ---
@@ -601,19 +733,21 @@ Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
 flowchart TD
     types["Phase 1a: types.ts"]
     providers["Phase 1b: Providers"]
-    registry["Phase 1c: ProviderRegistry"]
+    registry["Phase 1c: ProviderRegistry\n+ handle invalidation"]
     cache["Phase 1d: BoundedFileCache"]
     wc["Phase 2a: WriteCoordinator"]
-    dtc["Phase 2b: DirectoryTreeCache"]
-    ceb["Phase 2c: ChangeEventBus"]
+    dtc["Phase 2b: DirectoryTreeCache\n+ invalidation matrix"]
+    ceb["Phase 2c: ChangeEventBus\n+ event scoping"]
     fs["Phase 2d: FileService"]
     worker["Phase 2e: Worker entry"]
-    bridge["Phase 3: Bridge events"]
-    machine["Phase 4: Machine overhaul"]
+    bridge["Phase 3: Bridge events\n+ wire schema"]
+    machine["Phase 4: Machine overhaul\n+ hydration + external poll"]
+    audit["Phase 5b: Consumer audit"]
     hook["Phase 5: Hook + consumers"]
     lazy["Phase 6: Lazy file tree"]
     ports["Phase 7: Port lifecycle"]
-    cleanup["Phase 8: Cleanup"]
+    cleanup["Phase 8: Cleanup\n+ handle-store pooling"]
+    stress["Stress / chaos tests"]
 
     types --> providers
     types --> cache
@@ -627,10 +761,12 @@ flowchart TD
     cache --> machine
     worker --> machine
     machine --> hook
-    hook --> lazy
+    hook --> audit
+    audit --> lazy
     bridge --> ports
     lazy --> cleanup
     ports --> cleanup
+    cleanup --> stress
 ```
 
 
