@@ -310,7 +310,6 @@
       "@oxc-project/runtime@0.101.0": "patches/@oxc-project__runtime@0.101.0.patch"
     },
     "overrides": {
-      "vite": "npm:rolldown-vite@latest",
       "@langchain/google-common": "https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-common-2.1.32.tgz",
       "@langchain/google-vertexai": "https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-vertexai-2.1.27.tgz"
     },
