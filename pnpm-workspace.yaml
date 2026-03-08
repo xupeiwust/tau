@@ -52,8 +52,8 @@ catalog:
   '@types/react': 19.0.12
   '@types/react-dom': 19.0.4
   '@typescript/native-preview': 7.0.0-dev.20260223.1
-  '@vitest/coverage-v8': 4.0.9
-  '@vitest/ui': 4.0.9
+  '@vitest/coverage-v8': 4.1.0-beta.6
+  '@vitest/ui': 4.1.0-beta.6
   '@zenfs/core': ^2.5.0
   '@zenfs/dom': ^1.2.7
   cdn-resolve: ^2.1.2
@@ -104,7 +104,7 @@ catalog:
   uint8array-extras: ^1.5.0
   uzip: ^0.20201231.0
   vite: 8.0.0-beta.16
-  vitest: 4.0.9
+  vitest: 4.1.0-beta.6
   ws: ^8.19.0
   xstate: ^5.28.0
   zod: ^4.3.6
