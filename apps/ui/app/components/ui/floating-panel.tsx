@@ -17,6 +17,15 @@ type Side = 'left' | 'right';
 type TooltipSide = 'left' | 'right' | 'top' | 'bottom';
 type Align = 'start' | 'end';
 
+const chainStopPropagation = <E extends React.SyntheticEvent>(
+  handler: ((event: E) => void) | undefined,
+): ((event: E) => void) => {
+  return (event: E) => {
+    event.stopPropagation();
+    handler?.(event);
+  };
+};
+
 const floatingPanelContentHeaderVariants = cva(
   cn(
     'group/floating-panel-content-header',
@@ -377,22 +386,39 @@ function FloatingPanelContentHeader({ children, className }: FloatingPanelConten
   const { side } = useFloatingPanel();
   const isMobile = useIsMobile();
   const isInsideDrawer = useIsInsideDrawer();
+  const handleRef = React.useRef<HTMLDivElement>(null);
 
-  const useDrawerHandle = isMobile && isInsideDrawer;
-  const Comp = useDrawerHandle ? DrawerHandle : 'div';
+  if (isMobile && isInsideDrawer) {
+    return (
+      <DrawerHandle
+        ref={handleRef}
+        className={cn('relative', floatingPanelContentHeaderVariants({ side }), drawerHandleOverrides, className)}
+        data-slot='floating-panel-content-header'
+        onClickCapture={(event: React.MouseEvent) => {
+          // Portaled content (e.g. nested drawer overlays from ComboBoxResponsive)
+          // lives inside the React tree but outside the real DOM subtree.
+          // Prevent such clicks from reaching vaul's handleStartCycle, which
+          // would cycle the parent drawer's snap points.
+          // DismissableLayer (which closes the nested drawer) uses native
+          // pointerdown events on the document, so stopping the React click
+          // here does not interfere with it.
+          if (handleRef.current && !handleRef.current.contains(event.target as Node)) {
+            event.stopPropagation();
+          }
+        }}
+      >
+        {children}
+      </DrawerHandle>
+    );
+  }
 
   return (
-    <Comp
-      className={cn(
-        'relative',
-        floatingPanelContentHeaderVariants({ side }),
-        useDrawerHandle && drawerHandleOverrides,
-        className,
-      )}
+    <div
+      className={cn('relative', floatingPanelContentHeaderVariants({ side }), className)}
       data-slot='floating-panel-content-header'
     >
       {children}
-    </Comp>
+    </div>
   );
 }
 
@@ -428,12 +454,29 @@ type FloatingPanelMenuButtonProps = React.ComponentProps<typeof PaneButton>;
  * Thin wrapper around the shared `PaneButton` that adds mobile-responsive
  * sizing (`max-md:size-8 max-md:rounded-md`) and the
  * `floating-panel-menu-button` data-slot for styling hooks.
+ *
+ * When rendered inside a mobile drawer, stops click and pointerDown
+ * propagation at the button level so vaul's DrawerHandle doesn't cycle
+ * snap points or initiate drag state. Propagation is stopped here (not on
+ * the parent actions container) so that React Portal children like nested
+ * drawer overlays are unaffected.
  */
-function FloatingPanelMenuButton({ className, ...properties }: FloatingPanelMenuButtonProps): React.JSX.Element {
+function FloatingPanelMenuButton({
+  className,
+  onClick,
+  onPointerDown,
+  ...properties
+}: FloatingPanelMenuButtonProps): React.JSX.Element {
+  const isMobile = useIsMobile();
+  const isInsideDrawer = useIsInsideDrawer();
+  const isDrawerHandle = isMobile && isInsideDrawer;
+
   return (
     <PaneButton
       data-slot='floating-panel-menu-button'
       className={cn('max-md:size-8 max-md:rounded-md', className)}
+      onClick={isDrawerHandle ? chainStopPropagation(onClick) : onClick}
+      onPointerDown={isDrawerHandle ? chainStopPropagation(onPointerDown) : onPointerDown}
       {...properties}
     />
   );
