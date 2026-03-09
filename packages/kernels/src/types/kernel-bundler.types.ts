@@ -51,7 +51,7 @@ export type BuiltinModule = {
 
 /**
  * Bundler service provided to kernel modules via KernelRuntime.
- * Wraps esbuild-wasm with ZenFS filesystem integration and CDN module resolution.
+ * Wraps esbuild-wasm with virtual filesystem integration and CDN module resolution.
  * Created lazily on first access -- non-JS kernels incur zero cost.
  */
 export type KernelBundler = {
