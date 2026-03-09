@@ -172,4 +172,24 @@ describe('convertOffToGltf', () => {
       expect(material.getAlphaMode()).toBe('BLEND');
     });
   });
+
+  it('should convert valid OFF to JSON glTF format when format is gltf', async () => {
+    const offContent = `OFF 3 1 0
+0 0 0
+1 0 0
+0.5 1 0
+3 0 1 2 255 0 0 255
+`;
+    const gltfBytes = await convertOffToGltf(offContent, 'gltf');
+    const json = JSON.parse(new TextDecoder().decode(gltfBytes)) as {
+      asset: unknown;
+      meshes: unknown[];
+      buffers: Array<{ uri: string }>;
+    };
+
+    expect(json.asset).toBeDefined();
+    expect(json.meshes).toBeDefined();
+    expect(json.buffers).toBeDefined();
+    expect(json.buffers[0]!.uri).toMatch(/^data:application\/octet-stream;base64,/);
+  });
 });

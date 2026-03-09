@@ -8,6 +8,7 @@ import type {
   CreateGeometryResult,
   ExportGeometryResult,
   GetParametersResult,
+  KernelIssue,
   MiddlewareRegistrations,
   BundlerRegistration,
 } from '#types/kernel.types.js';
@@ -47,10 +48,14 @@ import type {
   AssetDependency,
 } from '#types/kernel-dependency.types.js';
 import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
+import { signalSlot, workerStateEnum } from '#types/kernel-protocol.types.js';
+import { isRenderAbortedError } from '#framework/kernel-worker-client.js';
 import type { FileSystemProxy } from '#framework/kernel-filesystem-bridge.js';
 import { createBridgeProxy } from '#framework/kernel-filesystem-bridge.js';
 import { createKernelFileSystem } from '#filesystem/create-kernel-filesystem.js';
 import { createKernelError } from '#framework/kernel-helpers.js';
+import { cooperativeYield } from '#framework/async-polyfills.js';
+import { parameterDebounceMs, fileChangeDebounceMs } from '#framework/kernel-framework.constants.js';
 import { hashBytes, hashString } from '#utils/hash.utils.js';
 import { KernelTracer } from '#framework/kernel-tracer.js';
 import { WorkerTelemetryCollector } from '#framework/worker-telemetry.js';
@@ -58,6 +63,18 @@ import type { KernelMiddleware } from '#middleware/kernel-middleware.js';
 import { createMiddlewareRuntime } from '#middleware/kernel-middleware.js';
 
 const tauVersion = '0.1.0';
+
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const item of a) {
+    if (!b.has(item)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * A resolved middleware instance paired with its parsed options.
@@ -132,6 +149,24 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   protected static resolveFromRoot(relativePath: string, basePath: string): string {
     return joinPath(basePath, relativePath);
   }
+
+  /** Callback for notifying the dispatcher when watched files change. */
+  public onFilesChanged?: (paths: string[]) => void;
+
+  /** Callback for pushing state changes to the dispatcher (postMessage fallback). */
+  public onStateChanged?: (state: 'idle' | 'rendering' | 'error', detail?: string) => void;
+
+  /** Callback for pushing geometry results to the dispatcher. */
+  public onGeometryComputed?: (result: HashedGeometryResult) => void;
+
+  /** Callback for pushing parameter results to the dispatcher. */
+  public onParametersResolved?: (result: GetParametersResult) => void;
+
+  /** Callback for pushing progress updates to the dispatcher. */
+  public onProgressUpdate?: (phase: RenderPhase) => void;
+
+  /** Callback for pushing errors to the dispatcher. */
+  public onError?: (issues: KernelIssue[]) => void;
 
   /**
    * Framework-managed native geometry handle from the last successful createGeometry call.
@@ -261,6 +296,43 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /** Per-render dependency computation cache. Cleared at the start of each render cycle. */
   private renderDependencyCache?: { hash: string; dependencies: Dependency[] };
 
+  /** Currently watched dependency paths. Used for incremental watch-set diffing. */
+  private watchedPaths = new Set<string>();
+
+  /** Unsubscribe function for the current watch subscription. */
+  private watchUnsubscribe?: () => void;
+
+  /** SharedArrayBuffer signal channel for bidirectional abort/state signaling. */
+  private signalView: Int32Array | undefined;
+
+  /** Current render generation for abort detection. */
+  private renderGeneration = 0;
+
+  /** Current file for autonomous render loop. */
+  private currentFile: GeometryFile | undefined;
+
+  /** Current parameters for autonomous render loop. */
+  private currentParameters: Record<string, unknown> = {};
+
+  /** Current tessellation for autonomous render loop. */
+  private currentTessellation: Tessellation | undefined;
+
+  /** Debounce timer for file change re-renders. */
+  private readonly fileDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Debounce timer for parameter change re-renders. */
+  private paramDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * Whether a render is currently in progress. Exposed for export-during-render decisions.
+   *
+   * @returns True if a render is in progress, false otherwise.
+   */
+  public get isRendering(): boolean {
+    return this._renderInProgress;
+  }
+  private _renderInProgress = false;
+
   /** Cached KernelBundler facade exposed via KernelRuntime */
   private cachedBundlerFacade: KernelBundler | undefined;
 
@@ -380,10 +452,69 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     this.telemetryCollector?.flush();
   }
 
+  /**
+   * Set the SharedArrayBuffer signal channel for bidirectional abort/state signaling.
+   * Called by the dispatcher during initialization if the main thread provides a signal buffer.
+   *
+   * @param buffer - SharedArrayBuffer for the signal channel.
+   */
+  public setSignalBuffer(buffer: SharedArrayBuffer): void {
+    this.signalView = new Int32Array(buffer);
+  }
+
+  /**
+   * Handle a setFile command from the main thread.
+   * Stores the file, parameters, tessellation, aborts any in-progress render,
+   * and starts an immediate render (no debounce for initial file set).
+   *
+   * @param file - The geometry file to render.
+   * @param parameters - Parameter overrides.
+   * @param tessellation - Optional tessellation config.
+   */
+  public handleSetFile(file: GeometryFile, parameters: Record<string, unknown>, tessellation?: Tessellation): void {
+    console.log('[KernelWorker] handleSetFile', { file, parameters, tessellation });
+    this.currentFile = file;
+    this.currentParameters = parameters;
+    this.currentTessellation = tessellation;
+
+    this.renderGeneration++;
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.abortGeneration, this.renderGeneration);
+    }
+
+    clearTimeout(this.fileDebounceTimer);
+    clearTimeout(this.paramDebounceTimer);
+
+    void this.executeRender();
+  }
+
+  /**
+   * Handle a setParameters command from the main thread.
+   * Stores the parameters, aborts any in-progress render,
+   * and schedules a render with 50ms debounce.
+   *
+   * @param parameters - Parameter overrides.
+   */
+  public handleSetParameters(parameters: Record<string, unknown>): void {
+    this.currentParameters = parameters;
+
+    this.renderGeneration++;
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.abortGeneration, this.renderGeneration);
+    }
+
+    this.scheduleRender(parameterDebounceMs);
+  }
+
   /** Clean up worker state, native handles, telemetry collector, and filesystem proxy. */
   public async cleanup(): Promise<void> {
+    clearTimeout(this.fileDebounceTimer);
+    clearTimeout(this.paramDebounceTimer);
+    this.watchUnsubscribe?.();
+    this.watchUnsubscribe = undefined;
     this.assetHashCache.clear();
     this.nativeHandle = undefined;
+    this.currentFile = undefined;
     this.telemetryCollector?.dispose();
     this.telemetryCollector = undefined;
     this.fileSystem?.dispose();
@@ -824,6 +955,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     });
     this.onProgress = undefined;
     renderSpan.end();
+
+    this._updateWatchSetFromCaches();
+
     return result;
   }
 
@@ -847,6 +981,80 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     }
 
     this.onFileChanged(changedPaths);
+  }
+
+  /**
+   * Update filesystem watch subscriptions based on the current dependency set.
+   * Diffs against the previous watch set to avoid full resubscribe churn.
+   *
+   * @param dependencies - absolute paths of current dependencies
+   */
+  public updateWatchSet(dependencies: string[]): void {
+    if (!this.fileSystem?.watch) {
+      return;
+    }
+
+    const newPaths = new Set(dependencies.filter((p) => !p.includes('.tau/cache/')));
+
+    if (setsEqual(this.watchedPaths, newPaths)) {
+      return;
+    }
+
+    this.watchUnsubscribe?.();
+
+    if (newPaths.size === 0) {
+      this.watchedPaths = newPaths;
+      this.watchUnsubscribe = undefined;
+      return;
+    }
+
+    this.watchUnsubscribe = this.fileSystem.watch(
+      {
+        paths: [...newPaths],
+        recursive: false,
+        excludes: ['.tau/cache/**'],
+      },
+      (event) => {
+        const changedPaths: string[] = [];
+        if ('path' in event) {
+          changedPaths.push(event.path);
+        }
+        if (event.type === 'rename' && 'oldPath' in event) {
+          changedPaths.push(event.oldPath);
+          if ('newPath' in event) {
+            changedPaths.push(event.newPath);
+          }
+        }
+        if (event.type === 'reset' || event.type === 'overflow') {
+          this.fileHashCache.clear();
+          this.fileContentCache.clear();
+          this.bundleResultCache.clear();
+          this.onFilesChanged?.([]);
+          if (this.currentFile) {
+            this.scheduleRender(fileChangeDebounceMs);
+          }
+          return;
+        }
+        if (changedPaths.length > 0) {
+          for (const path of changedPaths) {
+            this.fileHashCache.delete(path);
+            this.fileContentCache.delete(path);
+            this.fileContentCache.delete(`utf8:${path}`);
+          }
+          for (const [entryPath, result] of this.bundleResultCache) {
+            if (result.dependencies.some((dep) => changedPaths.includes(dep))) {
+              this.bundleResultCache.delete(entryPath);
+            }
+          }
+          this.onFilesChanged?.(changedPaths);
+          if (this.currentFile) {
+            this.scheduleRender(fileChangeDebounceMs);
+          }
+        }
+      },
+    );
+
+    this.watchedPaths = newPaths;
   }
 
   /**
@@ -1005,16 +1213,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
-   * Get the absolute path of the active file.
-   * Combines project root with activeFilePath.
-   *
-   * @returns the fully resolved absolute file path
-   */
-  private get activeFileAbsolutePath(): string {
-    return KernelWorker.resolveFromRoot(this.activeFilePath, this.getProjectRootPath());
-  }
-
-  /**
    * Get bundled asset URLs (fonts, WASM, etc.) for cache key computation.
    * Override in kernels that use bundled assets.
    *
@@ -1102,6 +1300,186 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @returns Array of absolute file paths that are dependencies (including the entry file)
    */
   protected abstract onGetDependencies(input: GetDependenciesInput, runtime: KernelRuntime): Promise<string[]>;
+
+  /**
+   * Get the absolute path of the active file.
+   * Combines project root with activeFilePath.
+   *
+   * @returns the fully resolved absolute file path
+   */
+  private get activeFileAbsolutePath(): string {
+    return KernelWorker.resolveFromRoot(this.activeFilePath, this.getProjectRootPath());
+  }
+
+  /**
+   * Push worker state to the shared signal channel and notify the main thread.
+   *
+   * @param state - The worker state to push.
+   */
+  private pushState(state: 'idle' | 'rendering' | 'error'): void {
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.workerState, workerStateEnum[state]);
+      Atomics.notify(this.signalView, signalSlot.workerState);
+    }
+    this.onStateChanged?.(state);
+  }
+
+  /**
+   * Push progress percentage to the shared signal channel (no notify, polled).
+   *
+   * @param percent - Progress percentage (0-100).
+   */
+  private pushProgress(percent: number): void {
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.progressPercent, percent);
+    }
+  }
+
+  /**
+   * Check if the current render has been aborted by a newer generation.
+   *
+   * @param generation - The render generation to check.
+   * @returns True if aborted, false otherwise.
+   */
+  private isAborted(generation: number): boolean {
+    if (this.signalView) {
+      return Atomics.load(this.signalView, signalSlot.abortGeneration) !== generation;
+    }
+    return generation !== this.renderGeneration;
+  }
+
+  /**
+   * Schedule a render after a debounce delay. Clears any existing timer.
+   *
+   * @param delayMs - Debounce delay in milliseconds.
+   */
+  private scheduleRender(delayMs: number): void {
+    clearTimeout(this.fileDebounceTimer);
+    clearTimeout(this.paramDebounceTimer);
+    this.paramDebounceTimer = setTimeout(() => {
+      void this.executeRender();
+    }, delayMs);
+  }
+
+  /**
+   * Execute an autonomous render cycle. Handles the full pipeline:
+   * increment generation, bundle, execute, compute geometry, push results.
+   * Checks abort at each async boundary.
+   */
+  private async executeRender(): Promise<void> {
+    if (!this.currentFile) {
+      console.log('[KernelWorker] executeRender: no currentFile, skipping');
+      return;
+    }
+
+    const generation = ++this.renderGeneration;
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.abortGeneration, generation);
+    }
+
+    console.log('[KernelWorker] executeRender: starting', { file: this.currentFile.filename, generation });
+
+    this.pushState('rendering');
+    this.pushProgress(0);
+    this._renderInProgress = true;
+
+    try {
+      this.tracer.reset();
+      const renderSpan = this.tracer.startSpan('kernel.render', {
+        file: this.currentFile.filename,
+      });
+      this.onProgress = (phase: RenderPhase) => {
+        this.onProgressUpdate?.(phase);
+      };
+      this.renderDependencyCache = undefined;
+      this.setBasePath(this.currentFile);
+
+      if (this.isAborted(generation)) {
+        console.log('[KernelWorker] executeRender: aborted after setBasePath');
+        return;
+      }
+
+      console.log('[KernelWorker] executeRender: getting parameters...');
+      const parametersResult = await this.getParameters(this.currentFile);
+      if (this.isAborted(generation)) {
+        console.log('[KernelWorker] executeRender: aborted after getParameters');
+        return;
+      }
+
+      console.log('[KernelWorker] executeRender: parameters resolved', { success: parametersResult.success });
+      this.onParametersResolved?.(parametersResult);
+
+      let mergedParameters = this.currentParameters;
+      if (parametersResult.success) {
+        const extracted = parametersResult.data as {
+          defaultParameters?: Record<string, unknown>;
+        };
+        if (extracted.defaultParameters) {
+          mergedParameters = deepmerge(extracted.defaultParameters, this.currentParameters);
+        }
+      }
+
+      await cooperativeYield();
+      if (this.isAborted(generation)) {
+        console.log('[KernelWorker] executeRender: aborted after yield');
+        return;
+      }
+
+      this.pushProgress(30);
+
+      console.log('[KernelWorker] executeRender: creating geometry...');
+      const result = await this.createGeometry({
+        file: this.currentFile,
+        parameters: mergedParameters,
+        tessellation: this.currentTessellation,
+      });
+
+      if (this.isAborted(generation)) {
+        console.log('[KernelWorker] executeRender: aborted after createGeometry');
+        return;
+      }
+
+      console.log('[KernelWorker] executeRender: geometry computed', { success: result.success });
+      this.pushProgress(100);
+      this.onProgress = undefined;
+      renderSpan.end();
+
+      this._updateWatchSetFromCaches();
+
+      this.flushTelemetry();
+      this.onGeometryComputed?.(result);
+      this.pushState('idle');
+    } catch (error) {
+      console.error('[KernelWorker] executeRender: error', error);
+      if (isRenderAbortedError(error) || this.isAborted(generation)) {
+        this.pushState('idle');
+        return;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.onError?.([{ message: errorMessage, type: 'runtime', severity: 'error' }]);
+      this.pushState('error');
+    } finally {
+      this._renderInProgress = false;
+    }
+  }
+
+  /**
+   * Derive the full set of watched dependencies from all active caches
+   * and update the filesystem watch subscription.
+   */
+  private _updateWatchSetFromCaches(): void {
+    const allDeps = new Set<string>();
+    for (const result of this.bundleResultCache.values()) {
+      for (const dep of result.dependencies) {
+        allDeps.add(dep);
+      }
+    }
+    for (const path of this.fileHashCache.keys()) {
+      allDeps.add(path);
+    }
+    this.updateWatchSet([...allDeps]);
+  }
 
   /**
    * Perform the actual bundler context initialization.

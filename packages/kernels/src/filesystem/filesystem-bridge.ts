@@ -8,18 +8,31 @@
  */
 
 import { safeDispose } from '@taucad/utils/dispose';
-import type { BridgeHandle } from '#framework/kernel-filesystem-bridge.js';
+import type { BridgeHandle, BridgeServerHandle } from '#framework/kernel-filesystem-bridge.js';
+import type { KernelWatchRequest, KernelWatchEvent } from '#types/kernel-worker.types.js';
 import { createBridgeServer, catchMessages } from '#framework/kernel-filesystem-bridge.js';
 
-/** Default message type used by exposeFileSystem and createFileSystemBridge. */
 const defaultBridgeMessageType = 'connect';
 
-/**
- * Options for filesystem bridge wrappers.
- */
+/** Options for configuring the filesystem bridge message type. */
 export type FileSystemBridgeOptions = {
-  /** Custom message type for the bridge handshake (default: 'connect'). */
   messageType?: string;
+};
+
+/**
+ * Optional watch handler for bridge servers.
+ * When provided, enables watch/unwatch control messages over the bridge.
+ */
+export type BridgeWatchHandler = {
+  watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void, ownerId?: string): () => void;
+  cleanupWatches(ownerId: string): void;
+};
+
+/** Handle returned by {@link exposeFileSystem} for managing bridge connections and cleanup. */
+export type ExposeFileSystemHandle = {
+  cleanup: () => void;
+  activePorts: Set<MessagePort>;
+  serverHandles: Map<MessagePort, BridgeServerHandle>;
 };
 
 /**
@@ -28,34 +41,76 @@ export type FileSystemBridgeOptions = {
  * Listens on the worker's global scope for messages with the specified type
  * and a transferred MessagePort. For each received port, buffers any incoming
  * messages via `catchMessages`, sets up a `createBridgeServer`, then replays
- * the buffered messages. This ensures no messages are lost if the caller
- * starts sending before the server is fully wired.
+ * the buffered messages.
  *
- * Returns a cleanup function that removes the listener.
+ * Returns a handle with:
+ * - `cleanup`: removes the listener
+ * - `activePorts`: set of currently connected ports
+ * - `serverHandles`: map from port to BridgeServerHandle (with emit())
  *
- * @param handlers - Object whose methods are served over each incoming port
- * @param options - Optional configuration
- * @returns Cleanup function that removes the message listener
- *
- * @example
- * ```typescript
- * import { exposeFileSystem } from '@taucad/kernels/filesystem';
- * import { fileManager } from './file-manager.js';
- *
- * exposeFileSystem(fileManager);
- * ```
+ * @param handlers - Filesystem handler methods to expose
+ * @param options - Optional message type and watch handler
+ * @returns Handle with cleanup, activePorts, and serverHandles
  */
 export function exposeFileSystem<T extends Record<string, unknown>>(
   handlers: T,
-  options?: FileSystemBridgeOptions,
-): () => void {
+  options?: FileSystemBridgeOptions & { watchHandler?: BridgeWatchHandler },
+): ExposeFileSystemHandle {
   const messageType = options?.messageType ?? defaultBridgeMessageType;
+  const activePorts = new Set<MessagePort>();
+  const serverHandles = new Map<MessagePort, BridgeServerHandle>();
+  const portWatches = new Map<MessagePort, Map<string, () => void>>();
 
   const handler = (event: MessageEvent): void => {
     if (event.data?.type === messageType && event.data.port instanceof MessagePort) {
+      console.debug(`[exposeFileSystem] connect received, setting up bridge server`);
       const port = event.data.port as MessagePort;
       const stopAndReplayMessages = catchMessages(port);
-      createBridgeServer(handlers, port);
+      const portId = `port_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      activePorts.add(port);
+      portWatches.set(port, new Map());
+
+      const serverHandle = createBridgeServer(handlers, port, {
+        onDisconnect() {
+          const watches = portWatches.get(port);
+          if (watches) {
+            for (const unsubscribe of watches.values()) {
+              unsubscribe();
+            }
+            portWatches.delete(port);
+          }
+          options?.watchHandler?.cleanupWatches(portId);
+          activePorts.delete(port);
+          serverHandles.delete(port);
+          safeDispose(() => {
+            port.close();
+          });
+        },
+        onWatch(watchId: string, request: KernelWatchRequest) {
+          if (!options?.watchHandler) {
+            return;
+          }
+          const unsubscribe = options.watchHandler.watch(
+            request,
+            (watchEvent: KernelWatchEvent) => {
+              serverHandle.emit(`watch:${watchId}`, watchEvent);
+            },
+            portId,
+          );
+          portWatches.get(port)?.set(watchId, unsubscribe);
+        },
+        onUnwatch(watchId: string) {
+          const watches = portWatches.get(port);
+          const unsubscribe = watches?.get(watchId);
+          if (unsubscribe) {
+            unsubscribe();
+            watches?.delete(watchId);
+          }
+        },
+      });
+      serverHandles.set(port, serverHandle);
+
       stopAndReplayMessages();
     }
   };
@@ -66,33 +121,29 @@ export function exposeFileSystem<T extends Record<string, unknown>>(
   // works identically. Using onmessage would be overwritten by other code
   // (e.g. Vite HMR client) and silently break bridge connections.
   self.addEventListener('message', handler);
-  return () => {
-    self.removeEventListener('message', handler);
+
+  return {
+    cleanup() {
+      self.removeEventListener('message', handler);
+      for (const port of activePorts) {
+        safeDispose(() => {
+          port.close();
+        });
+      }
+      activePorts.clear();
+      serverHandles.clear();
+    },
+    activePorts,
+    serverHandles,
   };
 }
 
 /**
  * Create a filesystem bridge to a worker.
  *
- * Creates a MessageChannel, transfers port1 to the target worker via
- * postMessage, and returns port2 for use with `client.connect({ port })`.
- *
- * The main thread is only involved at setup time -- after the bridge is
- * established, the kernel worker and target worker communicate directly.
- *
- * @param worker - Target worker (must have `exposeFileSystem` set up)
- * @param options - Optional configuration
- * @returns BridgeHandle with the consumer port and a dispose function
- *
- * @example
- * ```typescript
- * import { createFileSystemBridge } from '@taucad/kernels/filesystem';
- *
- * const { port, dispose } = createFileSystemBridge(fmWorker);
- * await client.connect({ port });
- * // later...
- * dispose();
- * ```
+ * @param worker - Target worker to receive the bridge port
+ * @param options - Optional message type configuration
+ * @returns Bridge handle with port and dispose
  */
 export function createFileSystemBridge(worker: Worker, options?: FileSystemBridgeOptions): BridgeHandle {
   const messageType = options?.messageType ?? defaultBridgeMessageType;

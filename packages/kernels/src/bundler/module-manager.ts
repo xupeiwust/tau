@@ -104,6 +104,7 @@ export class ModuleManager {
    *
    * @param name - package name (e.g., 'lodash')
    * @param subpath - optional subpath (e.g., 'debounce')
+   * @returns Promise that resolves when the module is cached
    */
   public async ensureCdnModule(name: string, subpath?: string): Promise<void> {
     const cacheKey = subpath ? `${name}/${subpath}` : name;

@@ -7,8 +7,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { PluginBuild } from 'esbuild-wasm';
-import { createZenFsPlugin, httpFetchMaxSizeBytes } from '#bundler/esbuild-core.js';
+import type { PluginBuild, Metafile } from 'esbuild-wasm';
+import { createVfsPlugin, extractProjectDependencies, extractExternalImports } from '#bundler/esbuild-core.js';
+import { esbuildNamespace, httpFetchMaxSizeBytes } from '#bundler/esbuild.constants.js';
 import { ModuleManager } from '#bundler/module-manager.js';
 import { createMockFileSystem } from '#testing/kernel-testing.utils.js';
 import type { MockFileSystem } from '#testing/kernel-testing.utils.js';
@@ -76,7 +77,7 @@ type CapturedHandlers = {
 };
 
 /**
- * Create the ZenFS plugin with mocks and capture key handlers
+ * Create the file plugin with mocks and capture key handlers
  * so they can be invoked directly in tests without requiring esbuild-wasm.
  */
 function capturePluginHandlers(filesystem: MockFileSystem): CapturedHandlers {
@@ -92,7 +93,7 @@ function capturePluginHandlers(filesystem: MockFileSystem): CapturedHandlers {
         }
       }),
     onLoad: vi.fn().mockImplementation((options: { namespace?: string }, callback: CapturedHandler) => {
-      if (options.namespace === 'http-url') {
+      if (options.namespace === esbuildNamespace.httpUrl) {
         httpUrlOnLoad = callback;
       }
     }),
@@ -104,7 +105,7 @@ function capturePluginHandlers(filesystem: MockFileSystem): CapturedHandlers {
     initialOptions: {},
   };
 
-  const plugin = createZenFsPlugin({
+  const plugin = createVfsPlugin({
     filesystem,
     moduleManager: new ModuleManager(filesystem),
     builtinModules: new Map(),
@@ -154,7 +155,7 @@ describe('ESBuild Bundler – http-url onLoad handler', () => {
 
       await handler({
         path: 'https://esm.sh/lodash',
-        namespace: 'http-url',
+        namespace: esbuildNamespace.httpUrl,
         suffix: '',
         pluginData: undefined,
         with: {},
@@ -172,7 +173,7 @@ describe('ESBuild Bundler – http-url onLoad handler', () => {
 
       const result = (await handler({
         path: 'https://esm.sh/slow-package',
-        namespace: 'http-url',
+        namespace: esbuildNamespace.httpUrl,
         suffix: '',
         pluginData: undefined,
         with: {},
@@ -200,7 +201,7 @@ describe('ESBuild Bundler – http-url onLoad handler', () => {
 
       const result = (await handler({
         path: 'https://esm.sh/huge-package',
-        namespace: 'http-url',
+        namespace: esbuildNamespace.httpUrl,
         suffix: '',
         pluginData: undefined,
         with: {},
@@ -219,7 +220,7 @@ describe('ESBuild Bundler – http-url onLoad handler', () => {
 
       const result = (await handler({
         path: 'https://esm.sh/sneaky-large-package',
-        namespace: 'http-url',
+        namespace: esbuildNamespace.httpUrl,
         suffix: '',
         pluginData: undefined,
         with: {},
@@ -236,7 +237,7 @@ describe('ESBuild Bundler – http-url onLoad handler', () => {
 
       const result = (await handler({
         path: 'https://esm.sh/small-package/index.js',
-        namespace: 'http-url',
+        namespace: esbuildNamespace.httpUrl,
         suffix: '',
         pluginData: undefined,
         with: {},
@@ -271,7 +272,7 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
     const result = (await mainOnResolve({
       path: '/@thi.ng/vectors@^8.6.20/defopvn?target=es2022',
       importer: '/node_modules/@thi.ng/geom-voronoi/index.js',
-      namespace: 'zenfs',
+      namespace: esbuildNamespace.vfs,
       kind: 'import-statement',
       resolveDir: '/node_modules/@thi.ng/geom-voronoi',
       suffix: '',
@@ -280,14 +281,14 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
     })) as { path: string; namespace: string };
 
     expect(result.path).toBe('https://esm.sh/@thi.ng/vectors@^8.6.20/defopvn?target=es2022');
-    expect(result.namespace).toBe('http-url');
+    expect(result.namespace).toBe(esbuildNamespace.httpUrl);
   });
 
   it('should resolve Node.js polyfill paths from CDN-cached modules to esm.sh URLs', async () => {
     const result = (await mainOnResolve({
       path: '/node/process.mjs',
       importer: '/node_modules/some-package/index.js',
-      namespace: 'zenfs',
+      namespace: esbuildNamespace.vfs,
       kind: 'import-statement',
       resolveDir: '/node_modules/some-package',
       suffix: '',
@@ -296,14 +297,14 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
     })) as { path: string; namespace: string };
 
     expect(result.path).toBe('https://esm.sh/node/process.mjs');
-    expect(result.namespace).toBe('http-url');
+    expect(result.namespace).toBe(esbuildNamespace.httpUrl);
   });
 
   it('should resolve CDN bundle entry paths from CDN-cached modules', async () => {
     const result = (await mainOnResolve({
       path: '/poisson-disk-sampling@2.3.1/es2022/poisson-disk-sampling.bundle.mjs',
       importer: '/node_modules/poisson-disk-sampling/index.js',
-      namespace: 'zenfs',
+      namespace: esbuildNamespace.vfs,
       kind: 'import-statement',
       resolveDir: '/node_modules/poisson-disk-sampling',
       suffix: '',
@@ -312,7 +313,7 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
     })) as { path: string; namespace: string };
 
     expect(result.path).toBe('https://esm.sh/poisson-disk-sampling@2.3.1/es2022/poisson-disk-sampling.bundle.mjs');
-    expect(result.namespace).toBe('http-url');
+    expect(result.namespace).toBe(esbuildNamespace.httpUrl);
   });
 
   it('should NOT redirect absolute-path imports from project files', async () => {
@@ -322,7 +323,7 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
     const result = (await mainOnResolve({
       path: '/utils/helpers.ts',
       importer: 'main.ts',
-      namespace: 'zenfs',
+      namespace: esbuildNamespace.vfs,
       kind: 'import-statement',
       resolveDir: '/project',
       suffix: '',
@@ -330,7 +331,181 @@ describe('ESBuild Bundler – CDN absolute-path resolution', () => {
       with: {},
     })) as { path: string; namespace: string };
 
-    expect(result.namespace).toBe('zenfs');
+    expect(result.namespace).toBe(esbuildNamespace.vfs);
     expect(result.path).not.toContain('esm.sh');
   });
 });
+
+// =============================================================================
+// extractProjectDependencies
+// =============================================================================
+
+/* eslint-disable @typescript-eslint/naming-convention -- Metafile input/output keys use esbuild's namespace:path format */
+
+describe('extractProjectDependencies', () => {
+  it('should extract vfs-namespace project files as absolute paths', () => {
+    const metafile: Metafile = {
+      inputs: {
+        'vfs:main.ts': { bytes: 100, imports: [], format: undefined },
+        'vfs:utils/helpers.ts': { bytes: 50, imports: [], format: undefined },
+      },
+      outputs: {},
+    };
+
+    const result = extractProjectDependencies(metafile, '/builds/project');
+    expect(result).toEqual(['/builds/project/main.ts', '/builds/project/utils/helpers.ts']);
+  });
+
+  it('should exclude node_modules paths that start with /', () => {
+    const metafile: Metafile = {
+      inputs: {
+        'vfs:main.ts': { bytes: 100, imports: [], format: undefined },
+        'vfs:/node_modules/lodash/index.js': { bytes: 500, imports: [], format: undefined },
+      },
+      outputs: {},
+    };
+
+    const result = extractProjectDependencies(metafile, '/builds/project');
+    expect(result).toEqual(['/builds/project/main.ts']);
+  });
+
+  it('should exclude non-vfs namespace entries', () => {
+    const metafile: Metafile = {
+      inputs: {
+        'vfs:main.ts': { bytes: 100, imports: [], format: undefined },
+        'builtin:replicad': { bytes: 200, imports: [], format: undefined },
+        'http-url:https://esm.sh/lodash': { bytes: 300, imports: [], format: undefined },
+      },
+      outputs: {},
+    };
+
+    const result = extractProjectDependencies(metafile, '/builds/project');
+    expect(result).toEqual(['/builds/project/main.ts']);
+  });
+
+  it('should return empty array for undefined metafile', () => {
+    const result = extractProjectDependencies(undefined, '/builds/project');
+    expect(result).toEqual([]);
+  });
+
+  it('should return empty array when no vfs-namespace inputs exist', () => {
+    const metafile: Metafile = {
+      inputs: {
+        'builtin:replicad': { bytes: 200, imports: [], format: undefined },
+      },
+      outputs: {},
+    };
+
+    const result = extractProjectDependencies(metafile, '/builds/project');
+    expect(result).toEqual([]);
+  });
+
+  it('should handle projectPath with trailing slash', () => {
+    const metafile: Metafile = {
+      inputs: {
+        'vfs:main.ts': { bytes: 100, imports: [], format: undefined },
+      },
+      outputs: {},
+    };
+
+    const result = extractProjectDependencies(metafile, '/builds/project/');
+    expect(result).toEqual(['/builds/project/main.ts']);
+  });
+});
+
+// =============================================================================
+// extractExternalImports
+// =============================================================================
+
+describe('extractExternalImports', () => {
+  it('should collect external import specifiers from metafile outputs', () => {
+    const metafile: Metafile = {
+      inputs: {},
+      outputs: {
+        'out.js': {
+          bytes: 1000,
+          inputs: {},
+          imports: [
+            { path: 'replicad', kind: 'import-statement', external: true },
+            { path: 'vfs:utils.ts', kind: 'import-statement', external: false },
+          ],
+          exports: [],
+          entryPoint: 'main.ts',
+        },
+      },
+    };
+
+    const result = extractExternalImports(metafile);
+    expect(result).toEqual(['replicad']);
+  });
+
+  it('should deduplicate external specifiers', () => {
+    const metafile: Metafile = {
+      inputs: {},
+      outputs: {
+        'out.js': {
+          bytes: 1000,
+          inputs: {},
+          imports: [
+            { path: 'replicad', kind: 'import-statement', external: true },
+            { path: 'replicad', kind: 'import-statement', external: true },
+          ],
+          exports: [],
+          entryPoint: 'main.ts',
+        },
+      },
+    };
+
+    const result = extractExternalImports(metafile);
+    expect(result).toEqual(['replicad']);
+  });
+
+  it('should collect externals from multiple output chunks', () => {
+    const metafile: Metafile = {
+      inputs: {},
+      outputs: {
+        'chunk-a.js': {
+          bytes: 500,
+          inputs: {},
+          imports: [{ path: 'replicad', kind: 'import-statement', external: true }],
+          exports: [],
+        },
+        'chunk-b.js': {
+          bytes: 500,
+          inputs: {},
+          imports: [{ path: 'manifold-3d', kind: 'import-statement', external: true }],
+          exports: [],
+        },
+      },
+    };
+
+    const result = extractExternalImports(metafile);
+    expect(result).toEqual(expect.arrayContaining(['replicad', 'manifold-3d']));
+    expect(result).toHaveLength(2);
+  });
+
+  it('should return empty array for undefined metafile', () => {
+    const result = extractExternalImports(undefined);
+    expect(result).toEqual([]);
+  });
+
+  it('should return empty array when no external imports exist', () => {
+    const metafile: Metafile = {
+      inputs: {},
+      outputs: {
+        'out.js': {
+          bytes: 1000,
+          inputs: {},
+          imports: [{ path: 'vfs:utils.ts', kind: 'import-statement', external: false }],
+          exports: [],
+          entryPoint: 'main.ts',
+        },
+      },
+    };
+
+    const result = extractExternalImports(metafile);
+    expect(result).toEqual([]);
+  });
+});
+
+/* eslint-enable @typescript-eslint/naming-convention -- re-enable after metafile fixture blocks */

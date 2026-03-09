@@ -11,6 +11,7 @@
 import { SourceMapConsumer } from 'source-map-js';
 import type { KernelStackFrame, FrameContext, ErrorLocation } from '#types/kernel.types.js';
 import { named } from '#framework/named.js';
+import { vfsNamespacePrefix } from '#bundler/esbuild.constants.js';
 
 // =============================================================================
 // Stack Trace Parsing
@@ -144,15 +145,16 @@ export function createFrameClassifier(): (fileName: string) => FrameContext {
 
 /**
  * Resolve a source map path to a project-relative path.
- * esbuild source maps contain paths prefixed with the namespace (e.g., `zenfs:main.ts`).
+ * esbuild source maps contain paths prefixed with the namespace (e.g., `vfs:main.ts`).
  *
  * @param sourcePath - raw source path from the source map
  * @param projectPath - optional project root to strip from the path
  * @returns cleaned path relative to the project root
  */
 export function resolveSourcePath(sourcePath: string, projectPath?: string): string {
-  const zenfsPrefix = 'zenfs:';
-  const cleanPath = sourcePath.startsWith(zenfsPrefix) ? sourcePath.slice(zenfsPrefix.length) : sourcePath;
+  const cleanPath = sourcePath.startsWith(vfsNamespacePrefix)
+    ? sourcePath.slice(vfsNamespacePrefix.length)
+    : sourcePath;
 
   if (projectPath && cleanPath.startsWith(projectPath)) {
     const relative = cleanPath.slice(projectPath.length);

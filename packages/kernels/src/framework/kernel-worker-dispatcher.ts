@@ -10,9 +10,10 @@
  */
 
 import type { OnWorkerLog, LogLevel, LogOrigin } from '@taucad/types';
-import type { HashedGeometryResult } from '#types/kernel.types.js';
+import type { HashedGeometryResult, ExportGeometryResult } from '#types/kernel.types.js';
 import type { KernelCommand, KernelResponse, PerformanceEntryData } from '#types/kernel-protocol.types.js';
 import type { KernelWorker } from '#framework/kernel-worker.js';
+import { logFlushDebounceMs } from '#framework/kernel-framework.constants.js';
 import type { KernelMessagePort } from '#framework/kernel-message-adapter.js';
 import { createErrorTrap } from '#framework/worker-error-trap.js';
 import { named } from '#framework/named.js';
@@ -27,6 +28,19 @@ function extractGltfTransferables(result: HashedGeometryResult): Transferable[] 
     if (geometry.format === 'gltf') {
       buffers.push(geometry.content.buffer);
     }
+  }
+
+  return buffers;
+}
+
+function extractExportTransferables(result: ExportGeometryResult): Transferable[] {
+  if (!result.success) {
+    return [];
+  }
+
+  const buffers: Transferable[] = [];
+  for (const file of result.data) {
+    buffers.push(file.bytes.buffer);
   }
 
   return buffers;
@@ -68,7 +82,7 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
       origin: log.origin,
       data: log.data,
     });
-    logFlushTimer ??= setTimeout(flushLogs, 250);
+    logFlushTimer ??= setTimeout(flushLogs, logFlushDebounceMs);
   };
 
   worker.setTelemetrySend((entries: PerformanceEntryData[]) => {
@@ -88,6 +102,36 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
           if ('fileSystemPort' in message && message.fileSystemPort) {
             fileSystemPort = message.fileSystemPort;
           }
+
+          const signalBuffer = 'signalBuffer' in message ? message.signalBuffer : undefined;
+          if (signalBuffer) {
+            worker.setSignalBuffer(signalBuffer);
+          }
+
+          worker.onFilesChanged = (paths: string[]) => {
+            respond({ type: 'filesChanged', paths });
+          };
+
+          worker.onStateChanged = (state, detail) => {
+            respond({ type: 'stateChanged', state, detail });
+          };
+
+          worker.onGeometryComputed = (result) => {
+            const transferables = extractGltfTransferables(result);
+            respond({ type: 'geometryComputed', requestId: '', result }, transferables);
+          };
+
+          worker.onParametersResolved = (result) => {
+            respond({ type: 'parametersResolved', requestId: '', result });
+          };
+
+          worker.onProgressUpdate = (phase) => {
+            respond({ type: 'progress', requestId: '', phase });
+          };
+
+          worker.onError = (issues) => {
+            respond({ type: 'error', requestId: '', issues });
+          };
 
           await Promise.race([
             worker.initialize({
@@ -137,6 +181,17 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
           break;
         }
 
+        case 'setFile': {
+          console.log('[KernelDispatcher] setFile received', { file: message.file, params: message.parameters });
+          worker.handleSetFile(message.file, message.parameters, message.tessellation);
+          break;
+        }
+
+        case 'setParameters': {
+          worker.handleSetParameters(message.parameters);
+          break;
+        }
+
         case 'fileChanged': {
           await Promise.race([worker.notifyFileChanged(message.paths), trapPromise]);
           break;
@@ -152,7 +207,8 @@ export function createWorkerDispatcher(worker: KernelWorker, port: KernelMessage
             worker.exportGeometry(message.format, message.tessellation),
             trapPromise,
           ]);
-          respond({ type: 'exported', requestId, result: exportResult });
+          const exportTransferables = extractExportTransferables(exportResult);
+          respond({ type: 'exported', requestId, result: exportResult }, exportTransferables);
           break;
         }
 

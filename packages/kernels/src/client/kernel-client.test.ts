@@ -225,7 +225,7 @@ describe('filesystem render', () => {
     client.terminate();
   });
 
-  it('renders with changedPaths for cache invalidation', async () => {
+  it('renders after notifyFileChanged for cache invalidation', async () => {
     const fileSystem = fromMemoryFS({ [absolutePath]: boxCode });
 
     const client = createKernelClient({
@@ -239,10 +239,10 @@ describe('filesystem render', () => {
     expect(result1.success).toBe(true);
 
     await fileSystem.writeFile(absolutePath, sphereCode);
+    client.notifyFileChanged([absolutePath]);
 
     const result2 = await client.render({
       file: absolutePath,
-      changedPaths: [absolutePath],
     });
     expect(result2.success).toBe(true);
 

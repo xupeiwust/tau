@@ -16,7 +16,40 @@
 import type { OpenCascadeInstance } from 'replicad-opencascadejs';
 import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
 import { OcKernelError } from '#kernels/replicad/oc-kernel-error.js';
+import { RenderAbortedError } from '#framework/kernel-worker-client.js';
+import { signalSlot } from '#types/kernel-protocol.types.js';
 import { named } from '#framework/named.js';
+
+// =============================================================================
+// Cooperative abort context (module-level, set per render cycle)
+// =============================================================================
+
+let abortSignalView: Int32Array | undefined;
+let abortGeneration = 0;
+
+/**
+ * Configure the abort context before starting a render cycle.
+ * The proxy checks this before every OC call (~1ns overhead per call).
+ *
+ * @param view - Int32Array view over the shared signal buffer
+ * @param generation - current render generation (must match to continue)
+ */
+export function setAbortContext(view: Int32Array, generation: number): void {
+  abortSignalView = view;
+  abortGeneration = generation;
+}
+
+/** Clear the abort context after a render cycle completes or is aborted. */
+export function clearAbortContext(): void {
+  abortSignalView = undefined;
+  abortGeneration = 0;
+}
+
+function checkAbort(): void {
+  if (abortSignalView && Atomics.load(abortSignalView, signalSlot.abortGeneration) !== abortGeneration) {
+    throw new RenderAbortedError();
+  }
+}
 
 /**
  * Configuration for OC API call tracing.
@@ -139,6 +172,7 @@ function createEmscriptenWrapper(rethrowIfWasmException: (error: unknown) => nev
         }
 
         const wrapper = function (this: unknown, ...methodArguments: unknown[]): unknown {
+          checkAbort();
           try {
             return wrapEmscriptenResult(Reflect.apply(member, target, methodArguments));
           } catch (error: unknown) {
@@ -192,6 +226,7 @@ export function wrapOcForExceptions(oc: OpenCascadeInstance): OpenCascadeInstanc
       if (isCallable(value)) {
         const wrapped = new Proxy(value, {
           construct(constructTarget, args, newTarget) {
+            checkAbort();
             try {
               return wrapEmscriptenResult(Reflect.construct(constructTarget, args, newTarget)) as Record<
                 string,
@@ -203,6 +238,7 @@ export function wrapOcForExceptions(oc: OpenCascadeInstance): OpenCascadeInstanc
           },
           // oxlint-disable-next-line unicorn-js/prevent-abbreviations -- spec-mandated Proxy/Reflect parameter name
           apply(applyTarget, thisArg, args) {
+            checkAbort();
             try {
               return wrapEmscriptenResult(Reflect.apply(applyTarget, thisArg, args));
             } catch (error: unknown) {
@@ -259,6 +295,7 @@ export function wrapOcWithTracing(
   function wrapFunctionForSummary(function_: GenericFunction, className: string): GenericFunction {
     return new Proxy(function_, {
       construct(target, args, newTarget) {
+        checkAbort();
         const start = performance.now();
         try {
           const result: unknown = Reflect.construct(target, args, newTarget);
@@ -270,6 +307,7 @@ export function wrapOcWithTracing(
         }
       },
       apply(target, thisArgument, args) {
+        checkAbort();
         const start = performance.now();
         try {
           const result: unknown = Reflect.apply(target, thisArgument, args);
@@ -286,6 +324,7 @@ export function wrapOcWithTracing(
   function wrapFunctionForPerCall(function_: GenericFunction, className: string): GenericFunction {
     return new Proxy(function_, {
       construct(target, args, newTarget) {
+        checkAbort();
         const span = tracer.startSpan(`oc.${className}`, {
           method: 'constructor',
         });
@@ -298,6 +337,7 @@ export function wrapOcWithTracing(
         }
       },
       apply(target, thisArgument, args) {
+        checkAbort();
         const span = tracer.startSpan(`oc.${className}`, { method: 'apply' });
         try {
           return wrapEmscriptenResult(Reflect.apply(target, thisArgument, args));

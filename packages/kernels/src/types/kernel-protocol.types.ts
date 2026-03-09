@@ -31,6 +31,7 @@ export type KernelCommand =
       middlewareEntries: MiddlewareRegistrations;
       bundlerEntries?: BundlerRegistrations;
       fileSystemPort?: MessagePort;
+      signalBuffer?: SharedArrayBuffer;
     }
   | {
       type: 'render';
@@ -38,6 +39,16 @@ export type KernelCommand =
       file: GeometryFile;
       params: Record<string, unknown>;
       tessellation?: Tessellation;
+    }
+  | {
+      type: 'setFile';
+      file: GeometryFile;
+      parameters: Record<string, unknown>;
+      tessellation?: Tessellation;
+    }
+  | {
+      type: 'setParameters';
+      parameters: Record<string, unknown>;
     }
   | {
       type: 'export';
@@ -70,6 +81,40 @@ export type PerformanceEntryData = {
 export type RenderPhase = string;
 
 /**
+ * Worker state as reported via the shared signal channel and stateChanged responses.
+ */
+export type WorkerState = 'idle' | 'rendering' | 'error';
+
+/** Integer enum for worker state in the SharedArrayBuffer signal channel. */
+export const workerStateEnum = {
+  idle: 0,
+  rendering: 1,
+  error: 2,
+} as const satisfies Record<WorkerState, number>;
+
+/** Reverse lookup from integer to WorkerState string. */
+export const workerStateNames: Record<number, WorkerState> = {
+  [workerStateEnum.idle]: 'idle',
+  [workerStateEnum.rendering]: 'rendering',
+  [workerStateEnum.error]: 'error',
+};
+
+/**
+ * Int32Array index layout for the bidirectional GrowableSharedArrayBuffer signal channel.
+ *
+ * - Slot 0: abort generation (main -> worker, Atomics.store / Atomics.load)
+ * - Slot 1: worker state enum (worker -> main, Atomics.store + Atomics.notify / Atomics.waitAsync)
+ * - Slot 2: progress percent (worker -> main, Atomics.store, polled)
+ * - Slot 3: render phase (worker -> main, Atomics.store, polled)
+ */
+export const signalSlot = {
+  abortGeneration: 0,
+  workerState: 1,
+  progressPercent: 2,
+  renderPhase: 3,
+} as const;
+
+/**
  * Responses sent from the kernel worker back to the kernel machine (main thread).
  * Request-scoped responses include the `requestId` from the originating command.
  */
@@ -94,6 +139,11 @@ export type KernelResponse =
       detail?: Record<string, unknown>;
     }
   | {
+      type: 'stateChanged';
+      state: WorkerState;
+      detail?: string;
+    }
+  | {
       type: 'log';
       level: LogLevel;
       message: string;
@@ -109,4 +159,5 @@ export type KernelResponse =
         data?: unknown;
       }>;
     }
-  | { type: 'telemetry'; entries: PerformanceEntryData[] };
+  | { type: 'telemetry'; entries: PerformanceEntryData[] }
+  | { type: 'filesChanged'; paths: string[] };

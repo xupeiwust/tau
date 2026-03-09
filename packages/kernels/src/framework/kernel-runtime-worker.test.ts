@@ -1,0 +1,275 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { KernelRuntimeWorker } from '#framework/kernel-runtime-worker.js';
+import { defineKernel } from '#types/kernel-worker.types.js';
+import type { KernelDefinition } from '#types/kernel-worker.types.js';
+import { seedTestFileSystem, initializeWorkerForTesting, createGeometryFile } from '#testing/kernel-testing.utils.js';
+
+// ===================================================================
+// Helpers
+// ===================================================================
+
+function createMockKernelDefinition(id: string, overrides?: Partial<KernelDefinition>): KernelDefinition {
+  const initSpy = vi.fn().mockResolvedValue({ id });
+  const definition = defineKernel({
+    name: id,
+    version: '1.0.0',
+    initialize: initSpy,
+    getDependencies: async (input) => [input.filePath],
+    getParameters: async () => ({
+      success: true as const,
+      data: { defaultParameters: {}, jsonSchema: {} },
+      issues: [],
+    }),
+    createGeometry: async () => ({
+      geometry: [{ type: 'gltf' as const, data: new Uint8Array([1, 2, 3]) }],
+      issues: [],
+      nativeHandle: undefined,
+    }),
+    exportGeometry: async () => ({
+      success: true as const,
+      data: new Uint8Array(),
+      issues: [],
+    }),
+    ...overrides,
+  });
+
+  Object.defineProperty(definition, '_initSpy', { value: initSpy });
+  return definition;
+}
+
+function getInitSpy(definition: KernelDefinition): ReturnType<typeof vi.fn> {
+  return (definition as unknown as { _initSpy: ReturnType<typeof vi.fn> })._initSpy;
+}
+
+async function createMultiKernelWorker(
+  modules: Array<{
+    id: string;
+    extensions: string[];
+    definition: KernelDefinition;
+    detectImport?: string;
+    builtinModuleNames?: string[];
+  }>,
+): Promise<KernelRuntimeWorker> {
+  const worker = new KernelRuntimeWorker();
+  await initializeWorkerForTesting(worker, {
+    workerOptions: {
+      kernelModules: modules.map((m) => ({
+        id: m.id,
+        moduleUrl: `test://${m.id}`,
+        extensions: m.extensions,
+        detectImport: m.detectImport,
+        builtinModuleNames: m.builtinModuleNames,
+        definition: m.definition,
+      })),
+    },
+  });
+  return worker;
+}
+
+// ===================================================================
+// Tests
+// ===================================================================
+
+describe('KernelRuntimeWorker kernel selection', () => {
+  const basePath = '/builds/test';
+
+  beforeEach(async () => {
+    await seedTestFileSystem({
+      [`${basePath}/model.scad`]: 'cube([10, 10, 10]);',
+      [`${basePath}/main.ts`]: `import { draw } from 'replicad';\ndraw();`,
+      [`${basePath}/plain.ts`]: 'export const main = () => ({ type: "mesh" });',
+      [`${basePath}/data.xyz`]: 'some unknown format',
+      [`${basePath}/model.step`]: 'ISO-10303-21;',
+    });
+  });
+
+  describe('extension fast path', () => {
+    it('should select a kernel by extension when no detectImport is needed', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+      ]);
+
+      const canHandle = await worker.canHandle(createGeometryFile('model.scad'));
+      expect(canHandle).toBe(true);
+    });
+
+    it('should select the first matching kernel by extension order', async () => {
+      const kernelA = createMockKernelDefinition('kernel-a');
+      const kernelB = createMockKernelDefinition('kernel-b');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'kernel-a', extensions: ['scad'], definition: kernelA },
+        { id: 'kernel-b', extensions: ['scad'], definition: kernelB },
+      ]);
+
+      await worker.canHandle(createGeometryFile('model.scad'));
+
+      expect(getInitSpy(kernelA)).toHaveBeenCalledOnce();
+      expect(getInitSpy(kernelB)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('regex detection', () => {
+    it('should select a kernel when file content matches detectImport regex', async () => {
+      const replicadDefinition = createMockKernelDefinition('replicad');
+
+      const worker = await createMultiKernelWorker([
+        {
+          id: 'replicad',
+          extensions: ['ts', 'js'],
+          definition: replicadDefinition,
+          detectImport: String.raw`import.*from\s+["']replicad["']`,
+        },
+      ]);
+
+      const canHandle = await worker.canHandle(createGeometryFile('main.ts'));
+      expect(canHandle).toBe(true);
+    });
+
+    it('should not select a kernel when file content does not match detectImport regex', async () => {
+      const replicadDefinition = createMockKernelDefinition('replicad');
+      const catchAllDefinition = createMockKernelDefinition('tau');
+
+      const worker = await createMultiKernelWorker([
+        {
+          id: 'replicad',
+          extensions: ['ts', 'js'],
+          definition: replicadDefinition,
+          detectImport: String.raw`import.*from\s+["']replicad["']`,
+        },
+        { id: 'tau', extensions: ['*'], definition: catchAllDefinition },
+      ]);
+
+      await worker.canHandle(createGeometryFile('plain.ts'));
+
+      expect(getInitSpy(replicadDefinition)).not.toHaveBeenCalled();
+      expect(getInitSpy(catchAllDefinition)).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('catch-all fallback', () => {
+    it('should select the catch-all kernel when no other kernel matches', async () => {
+      const catchAllDefinition = createMockKernelDefinition('tau');
+
+      const worker = await createMultiKernelWorker([{ id: 'tau', extensions: ['*'], definition: catchAllDefinition }]);
+
+      const canHandle = await worker.canHandle(createGeometryFile('model.step'));
+      expect(canHandle).toBe(true);
+      expect(getInitSpy(catchAllDefinition)).toHaveBeenCalledOnce();
+    });
+
+    it('should reject when catch-all canHandle returns false', async () => {
+      const catchAllDefinition = createMockKernelDefinition('tau', {
+        canHandle: async () => false,
+      });
+
+      const worker = await createMultiKernelWorker([{ id: 'tau', extensions: ['*'], definition: catchAllDefinition }]);
+
+      const canHandle = await worker.canHandle(createGeometryFile('data.xyz'));
+      expect(canHandle).toBe(false);
+    });
+
+    it('should defer catch-all when bundler-equipped kernels exist', async () => {
+      const replicadDefinition = createMockKernelDefinition('replicad');
+      const catchAllDefinition = createMockKernelDefinition('tau');
+
+      const worker = await createMultiKernelWorker([
+        {
+          id: 'replicad',
+          extensions: ['ts', 'js'],
+          definition: replicadDefinition,
+          detectImport: String.raw`import.*from\s+["']replicad["']`,
+          builtinModuleNames: ['replicad'],
+        },
+        { id: 'tau', extensions: ['*'], definition: catchAllDefinition },
+      ]);
+
+      await worker.canHandle(createGeometryFile('model.step'));
+
+      expect(getInitSpy(replicadDefinition)).not.toHaveBeenCalled();
+      expect(getInitSpy(catchAllDefinition)).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('multi-kernel priority', () => {
+    it('should select extension-matched kernel over catch-all', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+      const catchAllDefinition = createMockKernelDefinition('tau');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+        { id: 'tau', extensions: ['*'], definition: catchAllDefinition },
+      ]);
+
+      await worker.canHandle(createGeometryFile('model.scad'));
+
+      expect(getInitSpy(scadDefinition)).toHaveBeenCalledOnce();
+      expect(getInitSpy(catchAllDefinition)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('selection cache', () => {
+    it('should reuse cached kernel selection on repeated calls for the same file', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+      ]);
+
+      await worker.canHandle(createGeometryFile('model.scad'));
+      await worker.canHandle(createGeometryFile('model.scad'));
+
+      expect(getInitSpy(scadDefinition)).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('file change invalidation', () => {
+    it('should clear selection cache after notifyFileChanged', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+      ]);
+
+      await worker.canHandle(createGeometryFile('model.scad'));
+      expect(getInitSpy(scadDefinition)).toHaveBeenCalledOnce();
+
+      await worker.notifyFileChanged([`${basePath}/model.scad`]);
+
+      await worker.canHandle(createGeometryFile('model.scad'));
+    });
+  });
+
+  describe('no kernel matches', () => {
+    it('should return empty geometry when no kernel matches an unrecognized extension', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+      ]);
+
+      const result = await worker.createGeometry({
+        file: createGeometryFile('data.xyz'),
+        parameters: {},
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual([]);
+      }
+    });
+
+    it('should return false from canHandle when no kernel matches', async () => {
+      const scadDefinition = createMockKernelDefinition('openscad');
+
+      const worker = await createMultiKernelWorker([
+        { id: 'openscad', extensions: ['scad'], definition: scadDefinition },
+      ]);
+
+      const canHandle = await worker.canHandle(createGeometryFile('data.xyz'));
+      expect(canHandle).toBe(false);
+    });
+  });
+});

@@ -2,10 +2,10 @@
  * ESBuild Core
  *
  * Provides in-browser bundling using esbuild-wasm with custom plugins
- * for ZenFS filesystem integration and node_modules resolution.
+ * for virtual filesystem integration and node_modules resolution.
  *
  * This module is designed to run in kernel workers and uses:
- * - A `zenfs` namespace for project files (project-relative paths) and CDN modules
+ * - A `vfs` namespace for project files (project-relative paths) and CDN modules
  * - A `builtin` namespace for pre-loaded modules served from memory (zero FS I/O)
  * - An `http-url` namespace for HTTP/HTTPS URLs fetched on demand
  * - ModuleManager for CDN module fetching and caching at root `/node_modules/`
@@ -21,6 +21,12 @@ import type { ExecuteResult } from '#types/kernel-bundler.types.js';
 import type { BuiltinModule } from '#bundler/module-manager.js';
 import { ModuleManager } from '#bundler/module-manager.js';
 import { isNode } from '#framework/environment.js';
+import {
+  esbuildNamespace,
+  vfsNamespacePrefix,
+  httpFetchTimeoutMs,
+  httpFetchMaxSizeBytes,
+} from '#bundler/esbuild.constants.js';
 
 // =============================================================================
 // Types
@@ -64,16 +70,6 @@ export type BundlerOptions = {
 };
 
 // =============================================================================
-// HTTP Fetch Limits
-// =============================================================================
-
-/** Maximum time (ms) to wait for a remote HTTP module before aborting. */
-export const httpFetchTimeoutMs = 30_000;
-
-/** Maximum response size (bytes) for fetched HTTP modules (10 MB). */
-export const httpFetchMaxSizeBytes = 10 * 1024 * 1024;
-
-// =============================================================================
 // WASM Configuration
 // =============================================================================
 
@@ -102,6 +98,8 @@ let initializationPromise: Promise<void> | undefined;
  * Uses isomorphic initialization:
  * - Browser/Worker: wasmURL (fetches WASM via network from bundled file)
  * - Node.js: No options (uses child process to run native esbuild binary)
+ *
+ * @returns Promise that resolves when initialization is complete
  */
 export async function initializeEsbuild(): Promise<void> {
   if (esbuildInitialized) {
@@ -129,9 +127,6 @@ export async function initializeEsbuild(): Promise<void> {
 // =============================================================================
 // Shared Helpers
 // =============================================================================
-
-/** Namespace prefix that esbuild adds to file paths in error messages for the zenfs namespace. */
-const zenfsPrefix = 'zenfs:';
 
 /** Default names to auto-export from CommonJS-style entry files */
 const defaultAutoExportNames = ['main', 'defaultParams'];
@@ -281,24 +276,24 @@ function extractInlineSourceMap(code: string): string | undefined {
  * Resolve an esbuild file path to a clean project-relative path.
  *
  * esbuild prefixes file paths with `namespace:` for custom namespaces.
- * Since the plugin uses project-relative paths in the zenfs namespace,
+ * Since the plugin uses project-relative paths in the vfs namespace,
  * stripping the prefix yields a clean filename (e.g., `main.ts`).
  *
  * @param filePath - esbuild file path, possibly prefixed with namespace
  * @returns clean project-relative path
  */
 function resolveEsbuildFilePath(filePath: string): string {
-  return filePath.startsWith(zenfsPrefix) ? filePath.slice(zenfsPrefix.length) : filePath;
+  return filePath.startsWith(vfsNamespacePrefix) ? filePath.slice(vfsNamespacePrefix.length) : filePath;
 }
 
 // =============================================================================
-// Production ZenFS Plugin
+// Production VFS Plugin
 // =============================================================================
 
 /**
- * Configuration for the ZenFS esbuild plugin that resolves project files, builtins, and CDN modules.
+ * Configuration for the vfs-namespace esbuild plugin that resolves project files, builtins, and CDN modules.
  */
-export type ZenFsPluginOptions = {
+export type VfsPluginOptions = {
   filesystem: KernelFileSystem;
   moduleManager: ModuleManager;
   builtinModules: Map<string, BuiltinModule>;
@@ -308,36 +303,36 @@ export type ZenFsPluginOptions = {
 };
 
 /**
- * Create a plugin that resolves and loads files from the ZenFS filesystem.
+ * Create a plugin that resolves and loads files from the kernel filesystem.
  *
  * Architecture:
- * - `zenfs` namespace: Project files (project-relative paths) and CDN modules
+ * - `vfs` namespace: Project files (project-relative paths) and CDN modules
  * - `builtin` namespace: Built-in modules served directly from memory (zero FS I/O)
  * - `http-url` namespace: HTTP/HTTPS URLs fetched on demand
  *
  * Project files use project-relative paths (e.g., `main.ts`, `src/utils.ts`) within
- * the `zenfs` namespace. All filesystem I/O reconstructs absolute paths from the
+ * the `vfs` namespace. All filesystem I/O reconstructs absolute paths from the
  * relative esbuild path + projectPath.
  *
  * Bare specifier resolution:
  * 1. Builtins (replicad, jscad, zod) -> `builtin` namespace (memory)
- * 2. CDN modules -> ensure cached at `/node_modules/`, then `zenfs` namespace
+ * 2. CDN modules -> ensure cached at `/node_modules/`, then `vfs` namespace
  * 3. Relative/absolute imports -> resolved via filesystem with extension probing
  *
  * @param options - plugin configuration with filesystem, modules, and paths
- * @returns esbuild plugin for zenfs-based module resolution
+ * @returns esbuild plugin for vfs-namespace module resolution
  */
-export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
+export function createVfsPlugin(options: VfsPluginOptions): Plugin {
   const { filesystem, moduleManager, builtinModules, projectPath, entryPath, autoExportNames } = options;
 
-  // Path conversion helpers: esbuild sees project-relative paths in the zenfs namespace,
-  // but all filesystem I/O uses absolute ZenFS paths.
+  // Path conversion helpers: esbuild sees project-relative paths in the vfs namespace,
+  // but all filesystem I/O uses absolute paths.
   const projectPrefix = projectPath.endsWith('/') ? projectPath : projectPath + '/';
 
   /**
-   * Convert absolute ZenFS path to project-relative path for esbuild identity.
+   * Convert absolute filesystem path to project-relative path for esbuild identity.
    *
-   * @param absolutePath - absolute ZenFS path
+   * @param absolutePath - absolute filesystem path
    * @returns project-relative path
    */
   function toRelative(absolutePath: string): string {
@@ -345,10 +340,10 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
   }
 
   /**
-   * Reconstruct absolute ZenFS path from esbuild's project-relative path for filesystem I/O.
+   * Reconstruct absolute filesystem path from esbuild's project-relative path for filesystem I/O.
    *
    * @param relativePath - project-relative path from esbuild
-   * @returns absolute ZenFS path
+   * @returns absolute filesystem path
    */
   function toAbsolute(relativePath: string): string {
     return relativePath.startsWith('/') ? relativePath : `${projectPrefix}${relativePath}`;
@@ -358,16 +353,16 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
   const relativeEntryPath = toRelative(entryPath);
 
   return {
-    name: 'zenfs',
+    name: esbuildNamespace.vfs,
     setup(build) {
       // -----------------------------------------------------------------
       // onResolve: all imports
       // -----------------------------------------------------------------
       // oxlint-disable-next-line complexity -- TOOD: refactor
       build.onResolve({ filter: /.*/ }, async (args) => {
-        // Entry point: convert to project-relative path in zenfs namespace
+        // Entry point: convert to project-relative path in vfs namespace
         if (args.kind === 'entry-point') {
-          return { path: toRelative(args.path), namespace: 'zenfs' };
+          return { path: toRelative(args.path), namespace: esbuildNamespace.vfs };
         }
 
         // Imports originating from the http-url namespace (sub-imports within
@@ -375,9 +370,9 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
         // registered below. Only full URLs are handled here; relative, absolute, and
         // bare paths are passed through by returning undefined so esbuild falls
         // through to the http-url onResolve handlers.
-        if (args.namespace === 'http-url') {
+        if (args.namespace === esbuildNamespace.httpUrl) {
           if (args.path.startsWith('http://') || args.path.startsWith('https://')) {
-            return { path: args.path, namespace: 'http-url' };
+            return { path: args.path, namespace: esbuildNamespace.httpUrl };
           }
 
           // Let the http-url-specific onResolve handlers below handle this import
@@ -391,7 +386,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
 
         // Handle http/https URLs - fetch and bundle them
         if (args.path.startsWith('http://') || args.path.startsWith('https://')) {
-          return { path: args.path, namespace: 'http-url' };
+          return { path: args.path, namespace: esbuildNamespace.httpUrl };
         }
 
         // --- Bare specifiers ---
@@ -402,19 +397,19 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
           // then fall back to root package name (e.g., '@jscad/modeling')
           const fullSpecifier = packageInfo.path ? `${packageInfo.name}/${packageInfo.path}` : packageInfo.name;
           if (builtinModules.has(fullSpecifier)) {
-            return { path: fullSpecifier, namespace: 'builtin' };
+            return { path: fullSpecifier, namespace: esbuildNamespace.builtin };
           }
 
           if (builtinModules.has(packageInfo.name)) {
-            return { path: packageInfo.name, namespace: 'builtin' };
+            return { path: packageInfo.name, namespace: esbuildNamespace.builtin };
           }
 
-          // CDN modules: ensure cached at root /node_modules/, return zenfs path
+          // CDN modules: ensure cached at root /node_modules/, return vfs-namespace path
           // These keep absolute paths since they're outside the project directory
           try {
             const cachePath = getCdnCachePath(packageInfo.name, packageInfo.path || undefined);
             await moduleManager.ensureCdnModule(packageInfo.name, packageInfo.path || undefined);
-            return { path: cachePath, namespace: 'zenfs' };
+            return { path: cachePath, namespace: esbuildNamespace.vfs };
           } catch (error) {
             return {
               errors: [
@@ -437,7 +432,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
         if (args.path.startsWith('/') && importerAbsolute.startsWith('/node_modules/')) {
           return {
             path: `https://esm.sh${args.path}`,
-            namespace: 'http-url',
+            namespace: esbuildNamespace.httpUrl,
           };
         }
 
@@ -445,7 +440,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
           const resolvedPath = resolveRelativePath(args.path, importerAbsolute);
           const withExtension = await resolveFileExtension(filesystem, resolvedPath);
           // Return project-relative path for project files
-          return { path: toRelative(withExtension), namespace: 'zenfs' };
+          return { path: toRelative(withExtension), namespace: esbuildNamespace.vfs };
         } catch (error) {
           return {
             errors: [
@@ -460,7 +455,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
       // -----------------------------------------------------------------
       // onLoad: builtin namespace (serve from memory)
       // -----------------------------------------------------------------
-      build.onLoad({ filter: /.*/, namespace: 'builtin' }, (args) => {
+      build.onLoad({ filter: /.*/, namespace: esbuildNamespace.builtin }, (args) => {
         const builtin = builtinModules.get(args.path);
         if (!builtin) {
           return {
@@ -474,7 +469,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
       // -----------------------------------------------------------------
       // onLoad: HTTP/HTTPS URLs
       // -----------------------------------------------------------------
-      build.onLoad({ filter: /.*/, namespace: 'http-url' }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: esbuildNamespace.httpUrl }, async (args) => {
         try {
           const response = await fetch(args.path, {
             signal: AbortSignal.timeout(httpFetchTimeoutMs),
@@ -531,20 +526,20 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
       // -----------------------------------------------------------------
       // onResolve: relative imports within HTTP modules (e.g. ./lib/foo.js)
       // -----------------------------------------------------------------
-      build.onResolve({ filter: /^\./, namespace: 'http-url' }, (args) => {
+      build.onResolve({ filter: /^\./, namespace: esbuildNamespace.httpUrl }, (args) => {
         // Resolve relative to the importer URL (resolveDir is unreliable for URLs)
         const resolvedUrl = new URL(args.path, args.importer).href;
-        return { path: resolvedUrl, namespace: 'http-url' };
+        return { path: resolvedUrl, namespace: esbuildNamespace.httpUrl };
       });
 
       // -----------------------------------------------------------------
       // onResolve: absolute-path imports within HTTP modules (e.g. /lodash@4.17.21/es2022/lodash.mjs)
       // -----------------------------------------------------------------
-      build.onResolve({ filter: /^\//, namespace: 'http-url' }, (args) => {
+      build.onResolve({ filter: /^\//, namespace: esbuildNamespace.httpUrl }, (args) => {
         // Resolve absolute paths against the importer's origin
         const importerUrl = new URL(args.importer);
         const resolvedUrl = new URL(args.path, importerUrl.origin).href;
-        return { path: resolvedUrl, namespace: 'http-url' };
+        return { path: resolvedUrl, namespace: esbuildNamespace.httpUrl };
       });
 
       // -----------------------------------------------------------------
@@ -553,17 +548,17 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
       // CDNs use different URL schemes (e.g. JSPM uses npm: prefixes, Skypack uses
       // hashed pins). Instead, resolve through esm.sh which handles bare specifiers.
       // -----------------------------------------------------------------
-      build.onResolve({ filter: /^[^./]/, namespace: 'http-url' }, (args) => {
+      build.onResolve({ filter: /^[^./]/, namespace: esbuildNamespace.httpUrl }, (args) => {
         const resolvedUrl = `https://esm.sh/${args.path}`;
-        return { path: resolvedUrl, namespace: 'http-url' };
+        return { path: resolvedUrl, namespace: esbuildNamespace.httpUrl };
       });
 
       // -----------------------------------------------------------------
-      // onLoad: zenfs namespace (project files + CDN cache)
+      // onLoad: vfs namespace (project files + CDN cache)
       // -----------------------------------------------------------------
-      build.onLoad({ filter: /.*/, namespace: 'zenfs' }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: esbuildNamespace.vfs }, async (args) => {
         try {
-          // Reconstruct absolute ZenFS path for filesystem I/O
+          // Reconstruct absolute path for filesystem I/O
           const absolutePath = toAbsolute(args.path);
 
           let content = await filesystem.readFile(absolutePath, 'utf8');
@@ -602,7 +597,7 @@ export function createZenFsPlugin(options: ZenFsPluginOptions): Plugin {
 // =============================================================================
 
 /**
- * In-browser esbuild bundler for CAD scripts with ZenFS and CDN module support.
+ * In-browser esbuild bundler for CAD scripts with virtual filesystem and CDN module support.
  */
 export class EsbuildBundler {
   private readonly filesystem: KernelFileSystem;
@@ -692,7 +687,7 @@ const module = { exports };
         sourcemap: this.sourceMaps ? 'inline' : false,
         platform: 'browser',
         plugins: [
-          createZenFsPlugin({
+          createVfsPlugin({
             filesystem: this.filesystem,
             moduleManager: this.moduleManager,
             builtinModules: this.builtinModules,
@@ -711,7 +706,7 @@ const module = { exports };
 
       // Extract project-file dependencies from the metafile.
       // Keys in metafile.inputs use the format "namespace:path".
-      // Project files live in the zenfs namespace with project-relative paths.
+      // Project files live in the vfs namespace with project-relative paths.
       // CDN/node_modules paths are excluded (tracked via asset hashes separately).
       const dependencies = this.extractDependencies(result.metafile);
 
@@ -784,7 +779,7 @@ const module = { exports };
    * Extract absolute paths of project-file dependencies from the esbuild metafile.
    *
    * Metafile input keys use "namespace:path" format. Project files live in the
-   * `zenfs` namespace with project-relative paths. CDN/node_modules and builtin
+   * `vfs` namespace with project-relative paths. CDN/node_modules and builtin
    * modules are excluded since they are tracked separately via asset hashes.
    *
    * @param metafile - The esbuild metafile from a build with `metafile: true`
@@ -799,12 +794,12 @@ const module = { exports };
     const dependencies: string[] = [];
 
     for (const inputKey of Object.keys(metafile.inputs)) {
-      // Only include project files from the zenfs namespace
-      if (!inputKey.startsWith(zenfsPrefix)) {
+      // Only include project files from the vfs namespace
+      if (!inputKey.startsWith(vfsNamespacePrefix)) {
         continue;
       }
 
-      const relativePath = inputKey.slice(zenfsPrefix.length);
+      const relativePath = inputKey.slice(vfsNamespacePrefix.length);
 
       // Exclude CDN/node_modules paths (they start with '/')
       if (relativePath.startsWith('/')) {
@@ -822,7 +817,7 @@ const module = { exports };
    * Convert an esbuild message to a KernelIssue.
    *
    * File paths in esbuild messages use the format `namespace:path`. Since the plugin
-   * stores project-relative paths in the `zenfs` namespace, we strip the `zenfs:` prefix
+   * stores project-relative paths in the `vfs` namespace, we strip the `vfs:` prefix
    * to produce clean filenames (e.g., `main.ts`) for UI display and FileLink navigation.
    *
    * @param message - esbuild error or warning message
@@ -863,12 +858,12 @@ export type DetectionPluginOptions = {
 /**
  * Create a detection-only esbuild plugin.
  *
- * This is a simplified version of the production zenfs plugin. The key difference:
+ * This is a simplified version of the production vfs plugin. The key difference:
  * bare specifiers are marked as `external` instead of being resolved via builtinModules
  * or CDN. This means esbuild reports what was imported without needing any modules
  * to be registered, eliminating the chicken-and-egg problem for kernel detection.
  *
- * Relative imports are still resolved normally via zenfs so the full import tree
+ * Relative imports are still resolved normally via the vfs namespace so the full import tree
  * is walked correctly (TypeScript, barrel files, re-exports all handled).
  *
  * @returns esbuild plugin for import detection
@@ -885,17 +880,17 @@ export function createDetectionPlugin({ filesystem, projectPath }: DetectionPlug
   }
 
   return {
-    name: 'zenfs-detection',
+    name: `${esbuildNamespace.vfs}-detection`,
     setup(build) {
       let relativeEntryPath = '';
 
       build.onResolve({ filter: /.*/ }, async (args) => {
         if (args.kind === 'entry-point') {
           relativeEntryPath = toRelative(args.path);
-          return { path: relativeEntryPath, namespace: 'zenfs' };
+          return { path: relativeEntryPath, namespace: esbuildNamespace.vfs };
         }
 
-        if (args.namespace === 'http-url' || args.path.startsWith('data:')) {
+        if (args.namespace === esbuildNamespace.httpUrl || args.path.startsWith('data:')) {
           return { external: true };
         }
 
@@ -912,13 +907,13 @@ export function createDetectionPlugin({ filesystem, projectPath }: DetectionPlug
         try {
           const resolvedPath = resolveRelativePath(args.path, importerAbsolute);
           const withExtension = await resolveFileExtension(filesystem, resolvedPath);
-          return { path: toRelative(withExtension), namespace: 'zenfs' };
+          return { path: toRelative(withExtension), namespace: esbuildNamespace.vfs };
         } catch {
           return { external: true };
         }
       });
 
-      build.onLoad({ filter: /.*/, namespace: 'zenfs' }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: esbuildNamespace.vfs }, async (args) => {
         try {
           const absolutePath = toAbsolute(args.path);
           const content = await filesystem.readFile(absolutePath, 'utf8');
@@ -958,11 +953,11 @@ export function extractProjectDependencies(metafile: Metafile | undefined, proje
   const dependencies: string[] = [];
 
   for (const inputKey of Object.keys(metafile.inputs)) {
-    if (!inputKey.startsWith(zenfsPrefix)) {
+    if (!inputKey.startsWith(vfsNamespacePrefix)) {
       continue;
     }
 
-    const relativePath = inputKey.slice(zenfsPrefix.length);
+    const relativePath = inputKey.slice(vfsNamespacePrefix.length);
 
     if (relativePath.startsWith('/')) {
       continue;

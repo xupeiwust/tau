@@ -8,7 +8,7 @@
 import type { GeometryFile, ExportFormat, ExportFile, LogOrigin } from '@taucad/types';
 import type { HashedGeometryResult, GetParametersResult, KernelResult } from '#types/kernel.types.js';
 import type { KernelFileSystemBase, Tessellation } from '#types/kernel-worker.types.js';
-import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
+import type { PerformanceEntryData, RenderPhase, WorkerState } from '#types/kernel-protocol.types.js';
 import { KernelWorkerClient } from '#framework/kernel-worker-client.js';
 import type { BridgeHandle } from '#framework/kernel-filesystem-bridge.js';
 import { createBridgePort } from '#framework/kernel-filesystem-bridge.js';
@@ -71,8 +71,6 @@ export type FileInput = {
   parameters?: Record<string, unknown>;
   /** Tessellation quality override. */
   tessellation?: Tessellation;
-  /** Files that changed since the last render (cache invalidation). */
-  changedPaths?: string[];
 };
 
 /**
@@ -160,6 +158,8 @@ type EventHandlers = {
   telemetry: Set<(entries: PerformanceEntryData[]) => void>;
   parametersResolved: Set<(result: GetParametersResult) => void>;
   geometry: Set<(result: HashedGeometryResult) => void>;
+  filesChanged: Set<(paths: string[]) => void>;
+  state: Set<(state: WorkerState, detail?: string) => void>;
 };
 
 /**
@@ -190,8 +190,7 @@ export type KernelClient = {
    * Render geometry from the connected filesystem.
    *
    * `file` can be a string shorthand (e.g., `'/src/main.ts'`) or a `GeometryFile`.
-   * When `changedPaths` is provided, the worker invalidates caches for those files
-   * before rendering (absorbs the old `notifyFileChanged` pattern).
+   * Cache invalidation is handled automatically by the worker's filesystem watch subscription.
    *
    * Tessellation resolution: input.tessellation > options.tessellation.preview > undefined (kernel default).
    */
@@ -226,8 +225,27 @@ export type KernelClient = {
   export(format: ExportFormat, callOptions?: { tessellation?: Tessellation }): Promise<ExportResult>;
 
   /**
+   * Set the active file for autonomous rendering (filesystem mode).
+   * The worker will immediately render and then watch for file changes.
+   *
+   * @param file - File path string or GeometryFile
+   * @param parameters - Parameters for the model
+   * @param tessellation - Optional tessellation quality
+   */
+  setFile(file: string | GeometryFile, parameters?: Record<string, unknown>, tessellation?: Tessellation): void;
+
+  /**
+   * Update parameters for autonomous rendering (filesystem mode).
+   * The worker debounces and re-renders with the new parameters.
+   *
+   * @param parameters - Updated parameters for the model
+   */
+  setParameters(parameters: Record<string, unknown>): void;
+
+  /**
    * Proactive cache invalidation without triggering a render.
-   * Prefer `changedPaths` in `render()` for the common case.
+   * Used by inline code mode. In filesystem mode, the worker's watch
+   * subscription handles invalidation automatically.
    *
    * @param paths - Changed file paths
    */
@@ -242,10 +260,12 @@ export type KernelClient = {
    * @returns Unsubscribe function
    */
   on(event: 'geometry', handler: (result: HashedGeometryResult) => void): () => void;
+  on(event: 'state', handler: (state: WorkerState, detail?: string) => void): () => void;
   on(event: 'log', handler: (entry: LogEntry) => void): () => void;
   on(event: 'progress', handler: (phase: RenderPhase, detail?: Record<string, unknown>) => void): () => void;
   on(event: 'telemetry', handler: (entries: PerformanceEntryData[]) => void): () => void;
   on(event: 'parametersResolved', handler: (result: GetParametersResult) => void): () => void;
+  on(event: 'filesChanged', handler: (paths: string[]) => void): () => void;
 
   /**
    * Terminate the worker and clean up all resources.
@@ -295,6 +315,8 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
     telemetry: new Set(),
     parametersResolved: new Set(),
     geometry: new Set(),
+    filesChanged: new Set(),
+    state: new Set(),
   };
 
   function getWorkerUrl(): string {
@@ -321,10 +343,35 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
           handler(entry);
         }
       },
-      (entries) => {
-        for (const handler of handlers.telemetry) {
-          handler(entries);
-        }
+      {
+        onTelemetry(entries) {
+          for (const handler of handlers.telemetry) {
+            handler(entries);
+          }
+        },
+        onFilesChanged(paths) {
+          for (const handler of handlers.filesChanged) {
+            handler(paths);
+          }
+        },
+        onStateChanged(state, detail) {
+          for (const handler of handlers.state) {
+            handler(state, detail);
+          }
+        },
+        onGeometryComputed(result) {
+          emitGeometry(result);
+        },
+        onParametersResolved(result) {
+          for (const handler of handlers.parametersResolved) {
+            handler(result);
+          }
+        },
+        onProgress(phase, detail) {
+          for (const handler of handlers.progress) {
+            handler(phase, detail);
+          }
+        },
       },
     );
 
@@ -369,6 +416,7 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
   }
 
   function emitGeometry(result: HashedGeometryResult): void {
+    console.log('[KernelClient] emitGeometry', { success: result.success, handlerCount: handlers.geometry.size });
     for (const handler of handlers.geometry) {
       handler(result);
     }
@@ -459,10 +507,6 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
       const fileInput = input;
       const client = await ensureConnected();
 
-      if (fileInput.changedPaths && fileInput.changedPaths.length > 0) {
-        client.notifyFileChanged(fileInput.changedPaths);
-      }
-
       const resolvedFile = typeof fileInput.file === 'string' ? resolveFileString(fileInput.file) : fileInput.file;
 
       return executeRender({
@@ -502,6 +546,16 @@ export function createKernelClient(options: KernelClientOptions): KernelClient {
       }
 
       return internalResult;
+    },
+
+    setFile(file: string | GeometryFile, parameters: Record<string, unknown> = {}, tessellation?: Tessellation): void {
+      const resolvedFile = typeof file === 'string' ? resolveFileString(file) : file;
+      const resolvedTessellation = tessellation ?? options.tessellation?.preview;
+      workerClient?.setFile(resolvedFile, parameters, resolvedTessellation);
+    },
+
+    setParameters(parameters: Record<string, unknown>): void {
+      workerClient?.setParameters(parameters);
     },
 
     notifyFileChanged(paths: string[]): void {

@@ -311,6 +311,7 @@
     "json-schema-default": "catalog:",
     "manifold-3d": "catalog:",
     "openscad-wasm-prebuilt": "catalog:",
+    "opencascade.js": "catalog:",
     "replicad": "catalog:",
     "replicad-opencascadejs": "catalog:",
     "source-map-js": "catalog:",

@@ -177,6 +177,27 @@ describe('detectEdges', () => {
     });
   });
 
+  describe('Degenerate triangles', () => {
+    it('should skip degenerate triangles where two vertices share the same hash', () => {
+      const positions = new Float32Array([
+        0,
+        0,
+        0, // V0
+        0,
+        0,
+        0, // V1 (same as V0)
+        1,
+        1,
+        0, // V2
+      ]);
+
+      const result = detectEdges(positions, undefined, 30);
+
+      // Degenerate triangle should be skipped, producing no edges
+      expect(result.positions.length).toBe(0);
+    });
+  });
+
   describe('Threshold behavior', () => {
     it('should detect all edges at threshold 0', () => {
       // Two triangles sharing an edge at 45 degree angle

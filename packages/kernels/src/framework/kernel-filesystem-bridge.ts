@@ -6,12 +6,16 @@
  * generic `{ id, method, args }` request/response protocol over MessagePort,
  * dispatching to any method on the served object.
  *
- * Production: the bridge proxies calls from kernel worker -> file-manager worker.
- * Tests: the bridge proxies calls from kernel worker -> in-process filesystem directly.
+ * Wire schema — all messages on a port are one of four discriminated types:
+ * - Request (no `type` field): `{ id, method, args }` — client → server
+ * - Response (no `type` field): `{ id, result?, error? }` — server → client
+ * - Event: `{ type: 'event', event, data }` — server → client (push, no response)
+ * - Control: `{ type: 'disconnect' }` — bidirectional
  */
 
 import { safeDispose } from '@taucad/utils/dispose';
-import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
+import type { KernelFileSystemBase, KernelWatchRequest, KernelWatchEvent } from '#types/kernel-worker.types.js';
+import { messagePortCallTimeoutMs } from '#framework/kernel-framework.constants.js';
 
 /**
  * Walk an arbitrarily nested value and collect every unique `ArrayBuffer`
@@ -19,8 +23,8 @@ import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
  * The returned list is de-duplicated so the same buffer is never
  * transferred twice (which would throw a `DataCloneError`).
  *
- * @param value - the value to scan for transferable buffers
- * @returns de-duplicated array of ArrayBuffer instances found in the value
+ * @param value - Arbitrarily nested value to scan for ArrayBuffers.
+ * @returns De-duplicated list of transferable ArrayBuffers.
  */
 export function extractTransferables(value: unknown): Transferable[] {
   const seen = new Set<ArrayBuffer>();
@@ -44,17 +48,15 @@ export function extractTransferables(value: unknown): Transferable[] {
   return [...seen];
 }
 
+// --- Wire schema types ---
+
 type BridgeRequest = {
   id: number;
   method: string;
   args: unknown[];
 };
 
-/**
- * Structured error sent over the bridge. Preserves the worker-side
- * error name, stack trace, errno code, and optional metadata so the
- * main-thread consumer can reconstruct a meaningful Error.
- */
+/** Serializable error representation transmitted over the bridge wire protocol. */
 export type BridgeError = {
   message: string;
   name: string;
@@ -69,32 +71,77 @@ type BridgeResponse = {
   error?: BridgeError;
 };
 
-/**
- * Maximum time (ms) to wait for a message port call to complete.
- */
-const messagePortCallTimeoutMs = 30_000;
+type BridgeEvent = {
+  type: 'event';
+  event: string;
+  data: unknown;
+};
+
+type BridgeControl =
+  | { type: 'disconnect' }
+  | { type: 'watch'; watchId: string; request: KernelWatchRequest }
+  | { type: 'unwatch'; watchId: string };
+
+type BridgeMessage = BridgeRequest | BridgeResponse | BridgeEvent | BridgeControl;
+
+// --- Server ---
+
+/** Handle returned by {@link createBridgeServer}, providing an event emitter for server-to-client push messages. */
+export type BridgeServerHandle = {
+  emit: (event: string, data: unknown) => void;
+};
 
 /**
  * Serve an object's methods over a MessagePort.
  *
- * Sets up a message handler on the given port. Incoming `{ id, method, args }`
- * messages are dispatched to the served object and responded to with
- * `{ id, result }` or `{ id, error }`. Can run in any context: main thread,
- * worker, or Node.js.
+ * Returns an `emit` function for pushing events to the client.
+ * The server handles three message types:
+ * - No `type` field → request/response (existing behavior)
+ * - `type: 'event'` → ignored server-side (events flow server→client only)
+ * - `type: 'disconnect'` → calls optional onDisconnect callback
  *
- * Errors are serialized as {@link BridgeError} objects so the consumer can
- * reconstruct the original error with name, stack, errno code, and metadata.
- *
- * @param handlers - Object whose methods are served (e.g. a KernelFileSystemBase or FileManager)
- * @param port - MessagePort to listen on
+ * @param handlers - Object whose methods are exposed over the port.
+ * @param port - MessagePort to serve on.
+ * @param options - Optional callbacks for disconnect, watch, and unwatch.
+ * @returns Handle with emit function for server-to-client push messages.
  */
-export function createBridgeServer<T extends Record<string, unknown>>(handlers: T, port: MessagePort): void {
+export function createBridgeServer<T extends Record<string, unknown>>(
+  handlers: T,
+  port: MessagePort,
+  options?: {
+    onDisconnect?: () => void;
+    onWatch?: (watchId: string, request: KernelWatchRequest) => void;
+    onUnwatch?: (watchId: string) => void;
+  },
+): BridgeServerHandle {
   // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MessagePort requires onmessage (implicitly calls start(); addEventListener does not)
-  port.onmessage = async (event: MessageEvent<BridgeRequest>): Promise<void> => {
-    const { id, method, args } = event.data;
+  port.onmessage = async (event: MessageEvent<BridgeMessage>): Promise<void> => {
+    const { data } = event;
+
+    if ('type' in data) {
+      switch (data.type) {
+        case 'disconnect': {
+          options?.onDisconnect?.();
+          break;
+        }
+        case 'watch': {
+          options?.onWatch?.(data.watchId, data.request);
+          break;
+        }
+        case 'unwatch': {
+          options?.onUnwatch?.(data.watchId);
+          break;
+        }
+      }
+      return;
+    }
+
+    const { id, method, args } = data as BridgeRequest;
+    console.debug(`[BridgeServer] request: ${method}(${JSON.stringify(args).slice(0, 100)})`);
 
     const function_ = handlers[method] as ((...functionArguments: unknown[]) => Promise<unknown>) | undefined;
     if (!function_) {
+      console.debug(`[BridgeServer] method '${method}' not found on handlers`);
       port.postMessage({
         id,
         error: { message: `Unknown method: ${method}`, name: 'Error' },
@@ -129,7 +176,6 @@ export function createBridgeServer<T extends Record<string, unknown>>(handlers: 
       try {
         port.postMessage({ id, error: bridgeError } satisfies BridgeResponse);
       } catch {
-        // Last resort: send a minimal error response
         port.postMessage({
           id,
           error: { message: bridgeError.message, name: bridgeError.name },
@@ -137,28 +183,32 @@ export function createBridgeServer<T extends Record<string, unknown>>(handlers: 
       }
     }
   };
+
+  return {
+    emit(eventName: string, eventData: unknown): void {
+      const message: BridgeEvent = { type: 'event', event: eventName, data: eventData };
+      try {
+        port.postMessage(message);
+      } catch {
+        // Port may be closed
+      }
+    },
+  };
 }
 
-/**
- * Handle returned by bridge creation functions. Provides the consumer-side
- * MessagePort and a `dispose()` method that closes the bridge and releases
- * both ports.
- */
+// --- Client ---
+
+/** Handle returned by {@link createBridgePort}, providing the client-side MessagePort and a dispose function. */
 export type BridgeHandle = {
-  /** Consumer-side MessagePort for use with createBridgeProxy or client.connect(). */
   port: MessagePort;
-  /** Close the bridge and release ports. */
   dispose(): void;
 };
 
 /**
  * Create a MessagePort that bridges to a filesystem implementation.
  *
- * Convenience wrapper: creates a MessageChannel, serves the object on port1
- * via `createBridgeServer`, and returns port2 for the consumer.
- *
- * @param handlers - Object whose methods are served (e.g. a KernelFileSystemBase or FileManager)
- * @returns BridgeHandle with the consumer port and a dispose function
+ * @param handlers - Object whose methods are served over the bridge.
+ * @returns Handle with port and dispose function.
  */
 export function createBridgePort<T extends Record<string, unknown>>(handlers: T): BridgeHandle {
   const channel = new MessageChannel();
@@ -176,21 +226,12 @@ export function createBridgePort<T extends Record<string, unknown>>(handlers: T)
   };
 }
 
-/**
- * A KernelFileSystemBase proxy backed by a MessagePort, with an explicit dispose
- * method to reject pending calls and detach the message handler.
- */
+/** Proxy-based filesystem client backed by a MessagePort bridge, with watch subscription and disposal support. */
 export type FileSystemProxy = KernelFileSystemBase & {
+  watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void): () => void;
   dispose(): void;
 };
 
-/**
- * Reconstruct an Error from a {@link BridgeError} received over the bridge.
- * Preserves the original error name, stack trace, errno code, and metadata.
- *
- * @param bridgeError - the serialized error received over the message port
- * @returns a native Error instance with restored name, stack, code, and metadata
- */
 function reconstructError(bridgeError: BridgeError): Error & {
   code?: string;
   metadata?: Record<string, unknown>;
@@ -209,31 +250,20 @@ function reconstructError(bridgeError: BridgeError): Error & {
 }
 
 /**
- * Create a low-level RPC call/dispose pair backed by a MessagePort.
+ * Create a low-level RPC call/listen/dispose triple backed by a MessagePort.
  *
- * Sends `{ id, method, args }` messages and returns promises that resolve with
- * the result or reject with a reconstructed {@link BridgeError}. Used by
- * {@link createBridgeProxy} and application-level proxies that need to call
- * arbitrary methods on a bridge-served object.
+ * Handles three message types:
+ * - No `type` field → response resolution (existing)
+ * - `type: 'event'` → dispatch to registered listen() handlers
+ * - `type: 'disconnect'` → dispose the call instance
  *
- * @param port - MessagePort connected to a {@link createBridgeServer} endpoint
- * @returns Object with a `call` function for RPC invocation and a `dispose` function
- *   that rejects all pending calls and detaches the message handler
- *
- * @example
- * ```typescript
- * import { createBridgeCall, createBridgeServer } from '@taucad/kernels/filesystem';
- *
- * const channel = new MessageChannel();
- * createBridgeServer(myHandlers, channel.port1);
- *
- * const { call, dispose } = createBridgeCall(channel.port2);
- * const entries = await call('readdir', ['/']);
- * dispose();
- * ```
+ * @param port - MessagePort for bridge communication.
+ * @returns Object with call, listen, watch, and dispose methods.
  */
 export function createBridgeCall(port: MessagePort): {
   call: (method: string, args: unknown[]) => Promise<unknown>;
+  listen: (event: string, handler: (data: unknown) => void) => () => void;
+  watch: (request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void) => () => void;
   dispose: () => void;
 } {
   type PendingEntry = {
@@ -244,10 +274,37 @@ export function createBridgeCall(port: MessagePort): {
 
   let nextId = 0;
   const pending = new Map<number, PendingEntry>();
+  const eventListeners = new Map<string, Set<(data: unknown) => void>>();
 
   // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MessagePort requires onmessage (implicitly calls start(); addEventListener does not)
-  port.onmessage = (event: MessageEvent<BridgeResponse>): void => {
-    const { id, result, error } = event.data;
+  port.onmessage = (event: MessageEvent<BridgeMessage>): void => {
+    const { data } = event;
+
+    if ('type' in data) {
+      if (data.type === 'event') {
+        const eventMessage = data;
+        const handlers = eventListeners.get(eventMessage.event);
+        if (handlers) {
+          for (const handler of handlers) {
+            try {
+              handler(eventMessage.data);
+            } catch (error) {
+              console.error(`[BridgeCall] Event listener error for '${eventMessage.event}':`, error);
+            }
+          }
+        }
+        return;
+      }
+
+      if (data.type === 'disconnect') {
+        dispose();
+        return;
+      }
+
+      return;
+    }
+
+    const { id, result, error } = data as BridgeResponse;
     const entry = pending.get(id);
     if (!entry) {
       return;
@@ -266,6 +323,24 @@ export function createBridgeCall(port: MessagePort): {
     (port as unknown as { unref: () => void }).unref();
   }
 
+  function dispose(): void {
+    // oxlint-disable-next-line unicorn/prefer-add-event-listener -- we set onmessage during setup, so we need to remove it here.
+    port.onmessage = null;
+    for (const [, entry] of pending) {
+      clearTimeout(entry.timer);
+      safeDispose(() => {
+        entry.reject(new Error('Bridge proxy closed'));
+      });
+    }
+    pending.clear();
+    eventListeners.clear();
+    safeDispose(() => {
+      port.close();
+    });
+  }
+
+  let watchIdCounter = 0;
+
   return {
     async call(method: string, args: unknown[]): Promise<unknown> {
       return new Promise((resolve, reject) => {
@@ -276,108 +351,126 @@ export function createBridgeCall(port: MessagePort): {
           }
         }, messagePortCallTimeoutMs);
         pending.set(id, { resolve, reject, timer });
-        const request = {
-          id,
-          method,
-          args,
-        } satisfies BridgeRequest;
+        const request = { id, method, args } satisfies BridgeRequest;
         const transferables = extractTransferables(args);
         port.postMessage(request, transferables);
       });
     },
-    dispose() {
-      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- we set onmessage during setup, so we need to remove it here.
-      port.onmessage = null;
-      for (const [, entry] of pending) {
-        clearTimeout(entry.timer);
-        safeDispose(() => {
-          entry.reject(new Error('Bridge proxy closed'));
-        });
-      }
 
-      pending.clear();
-      safeDispose(() => {
-        port.close();
-      });
+    listen(eventName: string, handler: (data: unknown) => void): () => void {
+      let handlers = eventListeners.get(eventName);
+      if (!handlers) {
+        handlers = new Set();
+        eventListeners.set(eventName, handlers);
+      }
+      handlers.add(handler);
+
+      return () => {
+        handlers.delete(handler);
+        if (handlers.size === 0) {
+          eventListeners.delete(eventName);
+        }
+      };
     },
+
+    watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void): () => void {
+      const watchId = `w_${watchIdCounter++}`;
+      const eventKey = `watch:${watchId}`;
+
+      let handlers = eventListeners.get(eventKey);
+      if (!handlers) {
+        handlers = new Set();
+        eventListeners.set(eventKey, handlers);
+      }
+      handlers.add(handler as (data: unknown) => void);
+
+      port.postMessage({ type: 'watch', watchId, request } satisfies BridgeControl);
+
+      let unsubscribed = false;
+      return () => {
+        if (unsubscribed) {
+          return;
+        }
+        unsubscribed = true;
+        handlers.delete(handler as (data: unknown) => void);
+        if (handlers.size === 0) {
+          eventListeners.delete(eventKey);
+        }
+        try {
+          port.postMessage({ type: 'unwatch', watchId } satisfies BridgeControl);
+        } catch {
+          // Port may already be closed
+        }
+      };
+    },
+
+    dispose,
   };
 }
 
 /**
  * Create a generic `Proxy`-based RPC client backed by a MessagePort.
  *
- * Every property access (except `dispose`) returns a function that
- * forwards the call over the bridge as `{ id, method, args }`. This
- * eliminates the need for hand-written per-method stubs.
+ * Every property access (except `dispose` and `listen`) returns a function that
+ * forwards the call over the bridge as `{ id, method, args }`.
  *
- * @param port - MessagePort connected to a {@link createBridgeServer} endpoint
- * @returns Proxy whose method calls are forwarded over the bridge
- *
- * @example
- * ```typescript
- * import { createBridgeProxy } from '@taucad/kernels/filesystem';
- *
- * const proxy = createBridgeProxy<FileManagerProtocol>(channel.port2);
- * const entries = await proxy.readdir('/');
- * proxy.dispose();
- * ```
+ * @param port - MessagePort for bridge communication.
+ * @returns Proxy that forwards method calls over the bridge.
  */
 // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- generic proxy type must accept any callable shape
 export function createBridgeProxy<T extends Record<string, (...args: any[]) => any>>(
   port: MessagePort,
-): T & { dispose(): void } {
-  const { call, dispose: rawDispose } = createBridgeCall(port);
+): T & {
+  dispose(): void;
+  listen(event: string, handler: (data: unknown) => void): () => void;
+  watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void): () => void;
+} {
+  const { call, listen, watch, dispose: rawDispose } = createBridgeCall(port);
   let isDisposed = false;
 
   const dispose = (): void => {
     isDisposed = true;
+    port.postMessage({ type: 'disconnect' } satisfies BridgeControl);
     rawDispose();
   };
 
-  return new Proxy({} as T & { dispose(): void }, {
-    get(_, method: string | symbol) {
-      if (method === 'dispose') {
-        return dispose;
-      }
-
-      // Guard: properties that must NOT trigger bridge calls.
-      // - `then`: prevents thenable coercion (Promise.resolve(proxy) would call
-      //   proxy.then(resolve, reject), sending functions over postMessage → DataCloneError)
-      // - `toJSON`: prevents accidental serialization (JSON.stringify(proxy))
-      // - Symbols: prevents coercion, iteration, and toString traps
-      if (method === 'then' || method === 'toJSON' || typeof method === 'symbol') {
-        return undefined;
-      }
-
-      if (isDisposed) {
-        throw new Error(`Bridge proxy has been disposed — cannot call '${method}'`);
-      }
-
-      return async (...args: unknown[]) => call(method, args);
+  return new Proxy(
+    {} as T & {
+      dispose(): void;
+      listen(event: string, handler: (data: unknown) => void): () => void;
+      watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void): () => void;
     },
-  });
+    {
+      get(_, method: string | symbol) {
+        if (method === 'dispose') {
+          return dispose;
+        }
+        if (method === 'listen') {
+          return listen;
+        }
+        if (method === 'watch') {
+          return watch;
+        }
+
+        if (method === 'then' || method === 'toJSON' || typeof method === 'symbol') {
+          return undefined;
+        }
+
+        if (isDisposed) {
+          throw new Error(`Bridge proxy has been disposed — cannot call '${method}'`);
+        }
+
+        return async (...args: unknown[]) => call(method, args);
+      },
+    },
+  );
 }
 
 /**
  * Buffer incoming messages on a MessagePort during initialization.
  *
- * Call this immediately after receiving a port, before the server handler
- * is set up. The returned function stops buffering and replays all
- * captured messages in order, so no requests are lost during the
- * initialization window.
- *
- * Adopted from ZenFS's `catchMessages` pattern.
- *
- * @param port - MessagePort to buffer messages on
- * @returns A function that stops buffering and replays captured messages
- *
- * @example
- * ```typescript
- * const stopAndReplayMessages = catchMessages(port);
- * await initializeFileSystem();
- * createBridgeServer(handlers, port);
- * stopAndReplayMessages();
- * ```
+ * @param port - MessagePort to buffer messages from.
+ * @returns Flush function that replays buffered messages and removes the buffer.
  */
 export function catchMessages(port: MessagePort): () => void {
   const buffered: MessageEvent[] = [];

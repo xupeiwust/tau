@@ -153,10 +153,13 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     input: CreateGeometryInput,
     runtime: KernelRuntime,
   ): Promise<CreateGeometryResult> {
+    console.log('[RuntimeWorker] onCreateGeometry', { filePath: input.filePath, basePath: input.basePath });
     const kernel = await this.ensureActiveKernel(input.filePath, runtime);
     if (!kernel) {
+      console.warn('[RuntimeWorker] onCreateGeometry: NO kernel selected — returning empty geometry');
       return { success: true, data: [], issues: [] };
     }
+    console.log('[RuntimeWorker] onCreateGeometry: kernel selected', { id: kernel.entry.id });
 
     try {
       const output = await kernel.definition.createGeometry(input, runtime, kernel.ctx);
@@ -222,16 +225,26 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
 
   private async ensureActiveKernel(filePath: string, runtime: KernelRuntime): Promise<LoadedKernel | undefined> {
     if (this.activeKernelId) {
+      console.log('[RuntimeWorker] ensureActiveKernel: cached', { id: this.activeKernelId });
       return this.getActiveKernel();
     }
 
+    console.log('[RuntimeWorker] ensureActiveKernel: selecting kernel...', {
+      filePath,
+      moduleCount: this.kernelModules.length,
+    });
     const span = runtime.tracer.startSpan('kernel.select', { file: filePath });
     const selection = await this.selectKernel(filePath, runtime);
     if (!selection) {
+      console.warn('[RuntimeWorker] ensureActiveKernel: selectKernel returned undefined');
       span.end();
       return undefined;
     }
 
+    console.log('[RuntimeWorker] ensureActiveKernel: selected', {
+      id: selection.kernel.entry.id,
+      method: selection.method,
+    });
     this.activeKernelId = selection.kernel.entry.id;
     span.end();
     return selection.kernel;
@@ -310,6 +323,7 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     if (cached) {
       const kernel = this.loadedKernels.get(cached.id);
       if (kernel) {
+        console.log('[RuntimeWorker] selectKernel: cache hit', { id: cached.id, method: cached.method });
         return { kernel, method: cached.method };
       }
     }
@@ -319,11 +333,20 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     let catchAllEntry: KernelModuleEntry | undefined;
     const hasBundlerKernels = this.kernelModules.some((c) => c.builtinModuleNames && c.builtinModuleNames.length > 0);
 
+    console.log('[RuntimeWorker] selectKernel', {
+      filePath,
+      extension,
+      moduleCount: this.kernelModules.length,
+      moduleIds: this.kernelModules.map((c) => c.id),
+      hasBundlerKernels,
+    });
+
     /* oxlint-disable no-await-in-loop -- Sequential kernel selection: try each config in priority order */
 
     // Pass 1: Extension + regex fast path
     for (const config of this.kernelModules) {
       if (!config.extensions) {
+        console.log('[RuntimeWorker] selectKernel pass1: skip (no extensions)', { id: config.id });
         continue;
       }
 
@@ -334,11 +357,13 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
       }
 
       if (isCatchAll && hasBundlerKernels) {
+        console.log('[RuntimeWorker] selectKernel pass1: deferred catch-all', { id: config.id });
         catchAllEntry = config;
         continue;
       }
 
       if (!config.detectImport) {
+        console.log('[RuntimeWorker] selectKernel pass1: extension match (no regex)', { id: config.id });
         const kernel = await this.loadKernelModule(config, runtime.tracer);
         await this.ensureKernelInitialized(kernel, runtime);
         this.selectionCache.set(filePath, {
@@ -348,65 +373,97 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
         return { kernel, method: 'extension' };
       }
 
+      console.log('[RuntimeWorker] selectKernel pass1: trying regex', { id: config.id, regex: config.detectImport });
       try {
         const detectSpan = runtime.tracer.startSpan('kernel.detect-import', {
           kernel: config.id,
         });
         const code = await runtime.filesystem.readFile(filePath, 'utf8');
         detectSpan.end();
+        console.log('[RuntimeWorker] selectKernel pass1: readFile OK', {
+          id: config.id,
+          codeLength: typeof code === 'string' ? code.length : 0,
+          codePreview: typeof code === 'string' ? code.slice(0, 120) : '(binary)',
+        });
         const importRegex = new RegExp(config.detectImport, 's');
-        if (importRegex.test(code)) {
+        const matched = importRegex.test(code);
+        console.log('[RuntimeWorker] selectKernel pass1: regex result', { id: config.id, matched });
+        if (matched) {
           const kernel = await this.loadKernelModule(config, runtime.tracer);
           await this.ensureKernelInitialized(kernel, runtime);
           this.selectionCache.set(filePath, { id: config.id, method: 'regex' });
           return { kernel, method: 'regex' };
         }
-      } catch {
+      } catch (error) {
+        console.warn('[RuntimeWorker] selectKernel pass1: readFile FAILED', {
+          id: config.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         continue;
       }
     }
 
     // Pass 2: Bundler-assisted detection via detectImports
     const fileExtension = filePath.includes('.') ? filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase() : '';
-    if (this.hasBundlerForExtension(fileExtension)) {
+    const hasBundler = this.hasBundlerForExtension(fileExtension);
+    console.log('[RuntimeWorker] selectKernel pass2: bundler check', { fileExtension, hasBundler });
+    if (hasBundler) {
       const configsWithBuiltins = this.kernelModules.filter(
         (c) => c.builtinModuleNames && c.builtinModuleNames.length > 0,
       );
 
+      console.log('[RuntimeWorker] selectKernel pass2: configs with builtins', {
+        count: configsWithBuiltins.length,
+        ids: configsWithBuiltins.map((c) => c.id),
+      });
       if (configsWithBuiltins.length > 0) {
-        const bundler = await this.ensureBundlerForExtension(fileExtension);
-        const detectSpan = runtime.tracer.startSpan('kernel.detect-bundle', {
-          file: filePath,
-        });
-        const { detectedModules, dependencies } = await bundler.definition.detectImports(
-          { entryPath: filePath },
-          bundler.ctx,
-        );
-        detectSpan.end();
-
-        this.cachedDetectionDeps = dependencies;
-
-        const matchingConfigs = configsWithBuiltins.filter((config) =>
-          config.builtinModuleNames!.some((name) =>
-            detectedModules.some((detected) => detected === name || detected.startsWith(name + '/')),
-          ),
-        );
-
-        if (matchingConfigs.length > 0) {
-          const primaryConfig = matchingConfigs[0]!;
-          const primaryKernel = await this.loadKernelModule(primaryConfig, runtime.tracer);
-          await this.ensureKernelInitialized(primaryKernel, runtime);
-
-          for (const config of matchingConfigs.slice(1)) {
-            const kernel = await this.loadKernelModule(config, runtime.tracer);
-            await this.ensureKernelInitialized(kernel, runtime);
-          }
-
-          this.selectionCache.set(filePath, {
-            id: primaryConfig.id,
-            method: 'bundler',
+        try {
+          const bundler = await this.ensureBundlerForExtension(fileExtension);
+          const detectSpan = runtime.tracer.startSpan('kernel.detect-bundle', {
+            file: filePath,
           });
-          return { kernel: primaryKernel, method: 'bundler' };
+          const { detectedModules, dependencies } = await bundler.definition.detectImports(
+            { entryPath: filePath },
+            bundler.ctx,
+          );
+          detectSpan.end();
+          console.log('[RuntimeWorker] selectKernel pass2: detected modules', {
+            detectedModules,
+            depCount: dependencies.length,
+          });
+
+          this.cachedDetectionDeps = dependencies;
+
+          const matchingConfigs = configsWithBuiltins.filter((config) =>
+            config.builtinModuleNames!.some((name) =>
+              detectedModules.some((detected) => detected === name || detected.startsWith(name + '/')),
+            ),
+          );
+
+          console.log('[RuntimeWorker] selectKernel pass2: matching configs', {
+            count: matchingConfigs.length,
+            ids: matchingConfigs.map((c) => c.id),
+          });
+          if (matchingConfigs.length > 0) {
+            const primaryConfig = matchingConfigs[0]!;
+            const primaryKernel = await this.loadKernelModule(primaryConfig, runtime.tracer);
+            await this.ensureKernelInitialized(primaryKernel, runtime);
+
+            for (const config of matchingConfigs.slice(1)) {
+              const kernel = await this.loadKernelModule(config, runtime.tracer);
+              await this.ensureKernelInitialized(kernel, runtime);
+            }
+
+            this.selectionCache.set(filePath, {
+              id: primaryConfig.id,
+              method: 'bundler',
+            });
+            return { kernel: primaryKernel, method: 'bundler' };
+          }
+        } catch (error) {
+          console.warn('[RuntimeWorker] selectKernel pass2: bundler detection FAILED', {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }
@@ -414,6 +471,10 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     /* oxlint-enable no-await-in-loop -- End sequential kernel selection */
 
     // Pass 3: Catch-all fallback — guarded by canHandle when defined
+    console.log('[RuntimeWorker] selectKernel pass3: catch-all', {
+      hasCatchAll: Boolean(catchAllEntry),
+      catchAllId: catchAllEntry?.id,
+    });
     if (catchAllEntry) {
       return this.tryCatchAllKernel(catchAllEntry, {
         filePath,
@@ -422,6 +483,7 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
       });
     }
 
+    console.warn('[RuntimeWorker] selectKernel: NO kernel matched');
     return undefined;
   }
 

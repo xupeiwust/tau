@@ -190,6 +190,7 @@ export function render(
 /**
  * Normalizes, optionally transforms, and renders shapes from a model's main function output.
  *
+ * @param options - Shapes, optional beforeRender, defaultName, tessellation, and withBrepEdges
  * @returns An array of SVG or Replicad geometry objects
  */
 export function renderOutput({

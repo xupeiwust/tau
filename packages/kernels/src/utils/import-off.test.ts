@@ -105,4 +105,49 @@ describe('parseOff', () => {
       expect(result.colors[1]?.[3]).toBeCloseTo(127 / 255, 5);
     });
   });
+
+  describe('error handling and edge cases', () => {
+    it('should throw for missing OFF header', () => {
+      expect(() => parseOff('NOT_OFF\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n')).toThrow('missing OFF header');
+    });
+
+    it('should throw for empty OFF file', () => {
+      expect(() => parseOff('')).toThrow('Empty OFF file');
+    });
+
+    it('should throw for too few lines in file', () => {
+      expect(() => parseOff('OFF 100 1 0\n0 0 0\n')).toThrow('not enough lines');
+    });
+
+    it('should throw for missing vertex data when count exceeds lines', () => {
+      expect(() => parseOff('OFF 5 0 0\n0 0 0\n')).toThrow('not enough lines');
+    });
+
+    it('should throw for invalid vertex coordinates', () => {
+      const offContent = 'OFF 1 0 0\nabc def ghi\n';
+      expect(() => parseOff(offContent)).toThrow('invalid vertex');
+    });
+
+    it('should throw for missing coordinate values', () => {
+      const offContent = 'OFF 1 0 0\n1 2\n';
+      expect(() => parseOff(offContent)).toThrow('invalid vertex');
+    });
+
+    it('should throw for face with fewer than 3 vertices', () => {
+      const offContent = `OFF 3 1 0
+0 0 0
+1 0 0
+0 1 0
+2 0 1
+`;
+      expect(() => parseOff(offContent)).toThrow('must have at least 3 vertices');
+    });
+
+    it('should parse header-only OFF with zero counts', () => {
+      const offContent = 'OFF 0 0 0\n';
+      const result = parseOff(offContent);
+      expect(result.vertices).toHaveLength(0);
+      expect(result.faces).toHaveLength(0);
+    });
+  });
 });

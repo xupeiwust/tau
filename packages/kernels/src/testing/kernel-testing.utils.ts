@@ -8,12 +8,11 @@
 import deepmerge from 'deepmerge';
 import type { PartialDeep } from 'type-fest';
 import type { ExportFormat, GeometryResponse, GeometryFile, OnWorkerLog, FileStat, FileStatEntry } from '@taucad/types';
-import { dirname } from '@zenfs/core/path';
+import { parentDirectory, joinPath } from '@taucad/utils/path';
 import type { Mock } from 'vitest';
 import { expect, vi } from 'vitest';
 import { configure, fs } from '@zenfs/core';
 import { InMemory } from '@zenfs/core/backends/memory.js';
-import { joinPath } from '@taucad/utils/path';
 import type {
   CreateGeometryResult,
   HashedGeometryResult,
@@ -72,11 +71,10 @@ export async function seedTestFileSystem(files: Record<string, string | Uint8Arr
   // Write files to the filesystem
   for (const [path, content] of Object.entries(files)) {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    const parentDirectory = dirname(normalizedPath);
+    const parentDirectoryPath = parentDirectory(normalizedPath);
 
-    // Create parent directories if needed
-    if (parentDirectory && parentDirectory !== '/') {
-      await fs.promises.mkdir(parentDirectory, { recursive: true });
+    if (parentDirectoryPath && parentDirectoryPath !== '/') {
+      await fs.promises.mkdir(parentDirectoryPath, { recursive: true });
     }
 
     // Write file content

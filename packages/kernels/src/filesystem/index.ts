@@ -19,7 +19,7 @@ export { createKernelFileSystem } from '#filesystem/create-kernel-filesystem.js'
 
 // High-level wrappers
 export { exposeFileSystem, createFileSystemBridge } from '#filesystem/filesystem-bridge.js';
-export type { FileSystemBridgeOptions } from '#filesystem/filesystem-bridge.js';
+export type { FileSystemBridgeOptions, ExposeFileSystemHandle } from '#filesystem/filesystem-bridge.js';
 
 // Low-level bridge primitives
 export {
@@ -30,4 +30,4 @@ export {
   catchMessages,
   extractTransferables,
 } from '#framework/kernel-filesystem-bridge.js';
-export type { BridgeError, BridgeHandle } from '#framework/kernel-filesystem-bridge.js';
+export type { BridgeError, BridgeHandle, BridgeServerHandle } from '#framework/kernel-filesystem-bridge.js';

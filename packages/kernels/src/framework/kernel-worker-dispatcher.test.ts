@@ -276,4 +276,69 @@ describe('createWorkerDispatcher', () => {
       );
     });
   });
+
+  describe('cancel command', () => {
+    it('should handle cancel command without crashing', async () => {
+      const worker = createMockWorker();
+      const port = createMockPort();
+      createWorkerDispatcher(worker, port);
+
+      port.simulateMessage({
+        type: 'cancel',
+        requestId: 'cancel-1',
+      });
+
+      await waitForMicrotasks();
+
+      const errorResponse = port.sentMessages.find((m) => m.type === 'error');
+      expect(errorResponse).toBeUndefined();
+    });
+  });
+
+  describe('sync error catch paths', () => {
+    it('should send error response when setFile handler throws', async () => {
+      const worker = createMockWorker({
+        handleSetFile: vi.fn().mockImplementation(() => {
+          throw new Error('setFile exploded');
+        }),
+      } as never);
+      const port = createMockPort();
+      createWorkerDispatcher(worker, port);
+
+      port.simulateMessage({
+        type: 'setFile',
+        file: { path: '/', filename: 'test.ts' },
+        parameters: {},
+      } as KernelCommand);
+
+      await waitForMicrotasks();
+      const errorResponse = port.sentMessages.find((m) => m.type === 'error');
+      expect(errorResponse).toBeDefined();
+      expect((errorResponse as { issues: Array<{ message: string }> }).issues[0]!.message).toContain(
+        'setFile exploded',
+      );
+    });
+
+    it('should send error response when setParameters handler throws', async () => {
+      const worker = createMockWorker({
+        handleSetParameters: vi.fn().mockImplementation(() => {
+          throw new Error('setParameters exploded');
+        }),
+      } as never);
+      const port = createMockPort();
+      createWorkerDispatcher(worker, port);
+
+      port.simulateMessage({
+        type: 'setParameters',
+        parameters: { key: 'value' },
+      } as KernelCommand);
+
+      await waitForMicrotasks();
+      const errorResponse = port.sentMessages.find((m) => m.type === 'error');
+      expect(errorResponse).toBeDefined();
+      expect((errorResponse as { issues: Array<{ message: string }> }).issues[0]!.message).toContain(
+        'setParameters exploded',
+      );
+    });
+  });
 });

@@ -231,5 +231,23 @@ describe('filesystem constructors', () => {
       expect(stat.size).toBe(3);
       expect(stat.mtimeMs).toBeTypeOf('number');
     });
+
+    it('should throw ENOENT from stat for nonexistent path', async () => {
+      const fileSystem = fromMemoryFS();
+      await expect(fileSystem.stat('/does-not-exist')).rejects.toThrow('ENOENT');
+    });
+
+    it('should return directory stat from lstat', async () => {
+      const fileSystem = fromMemoryFS();
+      await fileSystem.mkdir('/my-dir');
+
+      const stat = await fileSystem.lstat('/my-dir');
+      expect(stat.type).toBe('dir');
+    });
+
+    it('should throw ENOENT from lstat for nonexistent path', async () => {
+      const fileSystem = fromMemoryFS();
+      await expect(fileSystem.lstat('/missing')).rejects.toThrow('ENOENT');
+    });
   });
 });

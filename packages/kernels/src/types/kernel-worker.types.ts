@@ -83,7 +83,43 @@ export type KernelFileSystemBase = {
   lstat(path: string): Promise<FileStat>;
   /** Check if path exists. */
   exists(path: string): Promise<boolean>;
+
+  /**
+   * Subscribe to filesystem change events for the given paths.
+   * Returns an unsubscribe function. Events are filtered server-side.
+   */
+  watch?(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void): () => void;
 };
+
+/**
+ * Watch request for kernel filesystem subscriptions.
+ * Mirrors the full WatchRequest contract but is self-contained
+ * within the kernels package (no dependency on the UI app types).
+ */
+export type KernelWatchRequest = {
+  paths: string[];
+  recursive?: boolean;
+  includes?: string[];
+  excludes?: string[];
+  filter?: KernelWatchEventFilter;
+  correlationId?: string;
+};
+
+/** Filter for selecting which filesystem event types to receive in a watch subscription. */
+export type KernelWatchEventFilter = {
+  added?: boolean;
+  updated?: boolean;
+  deleted?: boolean;
+  renamed?: boolean;
+};
+
+/** Discriminated union of filesystem watch events emitted by the watch subscription. */
+export type KernelWatchEvent =
+  | { type: 'change'; path: string; correlationId?: string }
+  | { type: 'delete'; path: string; correlationId?: string }
+  | { type: 'rename'; oldPath: string; newPath: string; correlationId?: string }
+  | { type: 'reset'; correlationId?: string }
+  | { type: 'overflow'; correlationId?: string };
 
 /**
  * Enhanced filesystem interface for kernel workers.

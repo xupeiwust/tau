@@ -10,18 +10,18 @@ import { exposeFileSystem, createFileSystemBridge } from '#filesystem/filesystem
 
 describe('filesystem high-level wrappers', () => {
   describe('exposeFileSystem', () => {
-    let activeCleanup: (() => void) | undefined;
+    let activeHandle: ReturnType<typeof exposeFileSystem> | undefined;
 
     afterEach(() => {
-      activeCleanup?.();
-      activeCleanup = undefined;
+      activeHandle?.cleanup();
+      activeHandle = undefined;
     });
 
     it('should serve a filesystem when receiving a bridge message', async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention -- filesystem paths use non-camelCase names
       const fs = fromMemoryFS({ '/hello.txt': 'world' });
 
-      activeCleanup = exposeFileSystem(fs);
+      activeHandle = exposeFileSystem(fs);
 
       const channel = new MessageChannel();
       const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
@@ -51,7 +51,7 @@ describe('filesystem high-level wrappers', () => {
       // The proxy sends immediately on port2; port1 isn't served yet.
       const resultPromise = proxy.readFile('/early.txt', 'utf8');
 
-      activeCleanup = exposeFileSystem(fs);
+      activeHandle = exposeFileSystem(fs);
 
       self.dispatchEvent(
         new MessageEvent('message', {
@@ -70,8 +70,8 @@ describe('filesystem high-level wrappers', () => {
     it('should stop listening after cleanup is called', async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention -- filesystem paths use non-camelCase names
       const fs = fromMemoryFS({ '/test.txt': 'data' });
-      activeCleanup = exposeFileSystem(fs);
-      activeCleanup();
+      activeHandle = exposeFileSystem(fs);
+      activeHandle.cleanup();
 
       const channel = new MessageChannel();
       // Post a message after cleanup -- no server should be set up
@@ -93,7 +93,7 @@ describe('filesystem high-level wrappers', () => {
     it('should support custom messageType', async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention -- filesystem paths use non-camelCase names
       const fs = fromMemoryFS({ '/custom.txt': 'custom' });
-      activeCleanup = exposeFileSystem(fs, { messageType: 'myBridge' });
+      activeHandle = exposeFileSystem(fs, { messageType: 'myBridge' });
 
       const channel = new MessageChannel();
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transformVerticesGltf } from '#framework/common.js';
+import { transformVerticesGltf, transformVertexArray } from '#framework/common.js';
 
 describe('transformVerticesGltf', () => {
   it('should transform z-up millimeters to y-up meters correctly', () => {
@@ -60,5 +60,30 @@ describe('transformVerticesGltf', () => {
     expect(Object.is(result[0], 0)).toBe(true); // Not -0
     expect(Object.is(result[1], 0)).toBe(true); // Not -0
     expect(Object.is(result[2], 0)).toBe(true); // Not -0
+  });
+});
+
+describe('transformVertexArray', () => {
+  it('should transform all vertices in a flat array', () => {
+    const vertices = [1000, 2000, 3000, 0, 0, 0];
+    const result = transformVertexArray(vertices);
+
+    expect(result[0]).toBeCloseTo(1, 5);
+    expect(result[1]).toBeCloseTo(3, 5);
+    expect(result[2]).toBeCloseTo(-2, 5);
+    expect(result[3]).toBe(0);
+    expect(result[4]).toBe(0);
+    expect(result[5]).toBe(0);
+  });
+
+  it('should skip vertices with undefined coordinates in transformVertexArray', () => {
+    // Array with length not divisible by 3 -- trailing element treated as incomplete vertex
+    const vertices = [1000, 2000, 3000, 500];
+    const result = transformVertexArray(vertices);
+
+    expect(result[0]).toBeCloseTo(1, 5);
+    expect(result[1]).toBeCloseTo(3, 5);
+    expect(result[2]).toBeCloseTo(-2, 5);
+    expect(result[3]).toBe(0);
   });
 });

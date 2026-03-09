@@ -59,15 +59,6 @@ describe('CodeInput single-key (file optional)', () => {
     };
     void input;
   });
-
-  it('should NOT allow changedPaths in code mode', () => {
-    const input: CodeInput<{ 'box.ts': string }> = {
-      code: { 'box.ts': 'const x = 1;' },
-      // @ts-expect-error -- changedPaths is never in code mode
-      changedPaths: ['/box.ts'],
-    };
-    void input;
-  });
 });
 
 // =============================================================================
@@ -122,16 +113,6 @@ describe('CodeInput multi-key (file required)', () => {
     };
     void input;
   });
-
-  it('should NOT allow changedPaths in multi-key code mode', () => {
-    const input: CodeInput<{ 'main.ts': string; 'utils.ts': string }> = {
-      code: { 'main.ts': '...', 'utils.ts': '...' },
-      file: 'main.ts',
-      // @ts-expect-error -- changedPaths is never in code mode
-      changedPaths: ['/main.ts'],
-    };
-    void input;
-  });
 });
 
 // =============================================================================
@@ -173,14 +154,6 @@ describe('FileInput (filesystem mode)', () => {
       file: { path: '/builds/test', filename: 'box.ts' },
     };
     expectTypeOf(input.file).toEqualTypeOf<string | GeometryFile>();
-  });
-
-  it('should compile with changedPaths', () => {
-    const input: FileInput = {
-      file: 'main.ts',
-      changedPaths: ['/main.ts', '/utils.ts'],
-    };
-    expectTypeOf(input.changedPaths).toEqualTypeOf<string[] | undefined>();
   });
 
   it('should compile with parameters and tessellation', () => {
@@ -225,10 +198,6 @@ describe('KernelClient.render() overload resolution', () => {
 
   it('should accept filesystem GeometryFile', () => {
     expectTypeOf(client.render({ file: { path: '/', filename: 'main.ts' } })).toBeObject();
-  });
-
-  it('should accept filesystem with changedPaths', () => {
-    expectTypeOf(client.render({ file: 'main.ts', changedPaths: ['/main.ts'] })).toBeObject();
   });
 
   it('should reject multi-key code without file', () => {

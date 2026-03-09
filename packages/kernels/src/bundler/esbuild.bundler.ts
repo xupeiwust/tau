@@ -9,7 +9,7 @@
  * - registerModule: register/update builtin modules for bundle resolution
  * - resolveDependencies: fast-path dependency resolution via metafile
  *
- * Named exports (EsbuildBundler, createZenFsPlugin, initializeEsbuild, etc.)
+ * Named exports (EsbuildBundler, createVfsPlugin, initializeEsbuild, etc.)
  * live in `./esbuild-core.ts` to avoid mixed default + named CJS output.
  */
 
