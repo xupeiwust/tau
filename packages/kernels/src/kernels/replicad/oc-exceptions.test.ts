@@ -32,7 +32,7 @@ describe('isEmscriptenObject', () => {
   it('should return true for object with delete method', () => {
     const object = {
       delete() {
-        /* noop */
+        /* Noop */
       },
       value: 42,
     };
