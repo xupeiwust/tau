@@ -227,6 +227,19 @@ Cross-origin isolation (COOP + COEP headers) is already a prerequisite for Tau -
 
 For **watch events** (originating from the file manager worker, not the main thread), the signal arrives as a MessagePort message to the kernel worker. During synchronous WASM, these queue. The abort for watch events takes effect at the next async boundary (strategy 2) rather than mid-WASM (strategy 1). This is acceptable because the file debounce timer (500ms) already adds latency -- saving a few hundred milliseconds of wasted WASM computation is a marginal improvement that doesn't justify the complexity of a three-way SharedArrayBuffer.
 
+#### Signal channel slot layout and notification strategy
+
+The `SharedArrayBuffer` carries four `Int32` slots, each using a different communication pattern chosen to match its frequency and latency requirements:
+
+| Slot                  | Direction     | Mechanism                                                | Rationale                                                                                                                                                                                                                                                                                                                                         |
+| --------------------- | ------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `abortGeneration` (0) | main → worker | `Atomics.store` / `Atomics.load` (polled by proxy)       | The OC Proxy checks this before every WASM call (~thousands per render), so detection latency is effectively zero. No thread is sleeping and waiting to be woken -- `Atomics.notify` would have no target.                                                                                                                                        |
+| `workerState` (1)     | worker → main | `Atomics.store` + `Atomics.notify` / `Atomics.waitAsync` | State transitions (idle → rendering → idle/error) drive UI state machine transitions and promise resolution. The main thread needs to react immediately, so the monitor loop sleeps via `Atomics.waitAsync` and is woken by `Atomics.notify` on each state change. Falls back to 16ms `setTimeout` polling if `Atomics.waitAsync` is unavailable. |
+| `progressPercent` (2) | worker → main | `Atomics.store` only (polled on demand)                  | Progress updates are high-frequency and cosmetic. The worker may store dozens of updates per second during meshing. Waking the main thread for each would create unnecessary churn. Instead, the UI reads this value at its own cadence (e.g., `requestAnimationFrame`). A 16ms delay in seeing "45% → 46%" is imperceptible.                     |
+| `renderPhase` (3)     | worker → main | `Atomics.store` only (polled on demand)                  | Same rationale as progress. Render phase transitions (bundling → executing → meshing → converting) are infrequent but still cosmetic -- the UI reads on demand rather than being woken for each change.                                                                                                                                           |
+
+The key design principle: **use notifications (`Atomics.notify` / `Atomics.waitAsync`) only when the consumer needs to react immediately to a state change. Use polling when the producer updates faster than the consumer needs to read, or when the consumer already checks on every operation.**
+
 #### Per-kernel abort capabilities
 
 | Kernel          | Proxy abort (strategy 1) | Async abort (strategy 2) | Mid-WASM abort?         | Worst-case abort latency |
