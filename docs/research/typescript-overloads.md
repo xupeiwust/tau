@@ -283,7 +283,7 @@ function type.
 
 ```typescript
 // ✗ BAD — assertion scattered across every test file
-const plugin = createZenFsPlugin({
+const plugin = createVfsPlugin({
   filesystem: filesystem as KernelFileSystem,
   moduleManager: new ModuleManager(filesystem as KernelFileSystem),
 });
@@ -308,7 +308,7 @@ const filesystem = createMockFileSystem();
 // filesystem satisfies KernelFileSystem ✓
 // filesystem.mocks.readFile gives access to the vi.fn() for assertions ✓
 
-const plugin = createZenFsPlugin({
+const plugin = createVfsPlugin({
   filesystem, // no assertion needed
   moduleManager: new ModuleManager(filesystem), // no assertion needed
 });
