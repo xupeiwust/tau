@@ -53,3 +53,36 @@ export function joinPath(...paths: string[]): string {
 
   return normalizePath(result);
 }
+
+/**
+ * Get the parent directory of a path.
+ *
+ * @param path - absolute path
+ * @returns parent directory path, or '/' for root-level paths
+ */
+export function parentDirectory(path: string): string {
+  const lastSlash = path.lastIndexOf('/');
+  if (lastSlash <= 0) {
+    return '/';
+  }
+  return path.slice(0, lastSlash);
+}
+
+/**
+ * Canonical path normalization for watch matching.
+ * Normalizes separators, removes duplicate slashes, ensures leading slash,
+ * and strips trailing slash (except for root '/').
+ *
+ * @param path - path to canonicalize
+ * @returns canonical absolute path
+ */
+export function canonicalizePath(path: string): string {
+  let normalized = path.replaceAll(/\/+/g, '/');
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  if (!normalized.startsWith('/')) {
+    normalized = `/${normalized}`;
+  }
+  return normalized;
+}
