@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { useThree } from '@react-three/fiber';
 import { InfiniteGrid } from '#components/geometry/graphics/three/react/infinite-grid.js';
 import { Theme, useTheme } from '#hooks/use-theme.js';
 import { useGraphicsSelector } from '#hooks/use-graphics.js';
@@ -13,6 +14,11 @@ export const Grid = React.memo(() => {
   const gridSizes = useGraphicsSelector((state) => state.context.gridSizes);
   const upDirection = useGraphicsSelector((state) => state.context.upDirection);
   const { theme } = useTheme();
+  const { invalidate } = useThree();
+
+  React.useEffect(() => {
+    invalidate();
+  }, [invalidate]);
 
   // Calculate theme-aware grid color
   const gridColor = React.useMemo(
