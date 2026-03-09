@@ -27,6 +27,11 @@
       "types": "./src/large-dep-regex-fix.vite-plugin.ts",
       "import": "./src/large-dep-regex-fix.vite-plugin.ts",
       "default": "./src/large-dep-regex-fix.vite-plugin.ts"
+    },
+    "./optimize-deps-from-cache": {
+      "types": "./src/optimize-deps-from-cache.vite-plugin.ts",
+      "import": "./src/optimize-deps-from-cache.vite-plugin.ts",
+      "default": "./src/optimize-deps-from-cache.vite-plugin.ts"
     }
   },
   "dependencies": {

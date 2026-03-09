@@ -51,36 +51,39 @@ function findTsSourceMatches(code: string, directory: string): UrlMatch[] {
  */
 export function tsModuleUrlBuildPlugin(): Plugin {
   return {
-    name: 'vite-plugin-ts-module-urls-build',
+    name: 'vite:ts-module-url-build',
     enforce: 'pre',
     apply: 'build',
 
-    transform(code, id) {
-      if (!code.includes('import.meta.url')) {
-        return;
-      }
+    transform: {
+      filter: { code: 'import.meta.url' },
+      handler(code, id) {
+        if (!code.includes('import.meta.url')) {
+          return;
+        }
 
-      const directory = path.dirname(id);
-      const matches = findTsSourceMatches(code, directory);
+        const directory = path.dirname(id);
+        const matches = findTsSourceMatches(code, directory);
 
-      if (matches.length === 0) {
-        return;
-      }
+        if (matches.length === 0) {
+          return;
+        }
 
-      let result = code;
+        let result = code;
 
-      for (const match of [...matches].reverse()) {
-        const tsPath = path.resolve(directory, match.relativePath.replace(/\.js$/, '.ts'));
-        const refId = this.emitFile({ type: 'chunk', id: tsPath });
+        for (const match of [...matches].reverse()) {
+          const tsPath = path.resolve(directory, match.relativePath.replace(/\.js$/, '.ts'));
+          const refId = this.emitFile({ type: 'chunk', id: tsPath });
 
-        const replacement = match.hasHref
-          ? `import.meta.ROLLUP_FILE_URL_${refId}`
-          : `new URL(import.meta.ROLLUP_FILE_URL_${refId})`;
+          const replacement = match.hasHref
+            ? `import.meta.ROLLUP_FILE_URL_${refId}`
+            : `new URL(import.meta.ROLLUP_FILE_URL_${refId})`;
 
-        result = result.slice(0, match.index) + replacement + result.slice(match.index + match.full.length);
-      }
+          result = result.slice(0, match.index) + replacement + result.slice(match.index + match.full.length);
+        }
 
-      return { code: result, map: null };
+        return { code: result, map: null, moduleType: 'js' };
+      },
     },
   };
 }
@@ -94,30 +97,33 @@ export function tsModuleUrlBuildPlugin(): Plugin {
  */
 export function tsModuleUrlServePlugin(): Plugin {
   return {
-    name: 'vite-plugin-ts-module-urls-serve',
+    name: 'vite:ts-module-url-serve',
     enforce: 'pre',
     apply: 'serve',
 
-    transform(code, id) {
-      if (!code.includes('import.meta.url')) {
-        return;
-      }
+    transform: {
+      filter: { code: 'import.meta.url' },
+      handler(code, id) {
+        if (!code.includes('import.meta.url')) {
+          return;
+        }
 
-      const directory = path.dirname(id);
-      const matches = findTsSourceMatches(code, directory);
+        const directory = path.dirname(id);
+        const matches = findTsSourceMatches(code, directory);
 
-      if (matches.length === 0) {
-        return;
-      }
+        if (matches.length === 0) {
+          return;
+        }
 
-      let result = code;
+        let result = code;
 
-      for (const { full, relativePath } of [...matches].reverse()) {
-        const tsRelativePath = relativePath.replace(/\.js$/, '.ts');
-        result = result.replace(full, full.replace(relativePath, tsRelativePath));
-      }
+        for (const { full, relativePath } of [...matches].reverse()) {
+          const tsRelativePath = relativePath.replace(/\.js$/, '.ts');
+          result = result.replace(full, full.replace(relativePath, tsRelativePath));
+        }
 
-      return { code: result, map: null };
+        return { code: result, map: null, moduleType: 'js' };
+      },
     },
   };
 }

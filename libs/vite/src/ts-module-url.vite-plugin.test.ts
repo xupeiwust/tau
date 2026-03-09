@@ -25,7 +25,8 @@ const noopContext: TransformContext = { emitFile: vi.fn() };
 
 function callTransform({ plugin, code, id, context = noopContext }: TransformInput) {
   type Hook = (this: TransformContext, code: string, id: string) => { code: string } | undefined;
-  return (plugin.transform as unknown as Hook).call(context, code, id);
+  const transform = plugin.transform as unknown as { handler: Hook };
+  return transform.handler.call(context, code, id);
 }
 
 const fakeId = '/project/src/plugins/factories.ts';
@@ -43,9 +44,14 @@ describe('tsModuleUrlBuildPlugin', () => {
   const plugin = tsModuleUrlBuildPlugin();
 
   it('should have correct metadata', () => {
-    expect(plugin.name).toBe('vite-plugin-ts-module-urls-build');
+    expect(plugin.name).toBe('vite:ts-module-url-build');
     expect(plugin.enforce).toBe('pre');
     expect(plugin.apply).toBe('build');
+  });
+
+  it('should have a hook filter for import.meta.url', () => {
+    const transform = plugin.transform as unknown as { filter: unknown };
+    expect(transform.filter).toEqual({ code: 'import.meta.url' });
   });
 
   it('should skip files without import.meta.url', () => {
@@ -132,9 +138,14 @@ describe('tsModuleUrlServePlugin', () => {
   const plugin = tsModuleUrlServePlugin();
 
   it('should have correct metadata', () => {
-    expect(plugin.name).toBe('vite-plugin-ts-module-urls-serve');
+    expect(plugin.name).toBe('vite:ts-module-url-serve');
     expect(plugin.enforce).toBe('pre');
     expect(plugin.apply).toBe('serve');
+  });
+
+  it('should have a hook filter for import.meta.url', () => {
+    const transform = plugin.transform as unknown as { filter: unknown };
+    expect(transform.filter).toEqual({ code: 'import.meta.url' });
   });
 
   it('should skip files without import.meta.url', () => {
@@ -216,9 +227,9 @@ describe('tsModuleUrlPlugin', () => {
   it('should return both build and serve plugins', () => {
     const plugins = tsModuleUrlPlugin();
     expect(plugins).toHaveLength(2);
-    expect(plugins[0]!.name).toBe('vite-plugin-ts-module-urls-build');
+    expect(plugins[0]!.name).toBe('vite:ts-module-url-build');
     expect(plugins[0]!.apply).toBe('build');
-    expect(plugins[1]!.name).toBe('vite-plugin-ts-module-urls-serve');
+    expect(plugins[1]!.name).toBe('vite:ts-module-url-serve');
     expect(plugins[1]!.apply).toBe('serve');
   });
 });

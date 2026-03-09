@@ -16,6 +16,7 @@ import { crossOriginIsolation } from '@taucad/vite/cross-origin-isolation';
 import { tsModuleUrlPlugin } from '@taucad/vite/ts-module-url';
 import { base64Loader } from '@taucad/vite/base64-loader';
 import { largeDepRegexFix } from '@taucad/vite/large-dep-regex-fix';
+import { optimizeDepsFromCache } from '@taucad/vite/optimize-deps-from-cache';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +32,10 @@ export default defineConfig(({ mode }) => {
     root: __dirname,
     cacheDir: '../../node_modules/.vite/apps/ui',
     plugins: [
+      // Pre-bundle all deps known from the previous dev session's cache,
+      // eliminating cascading "new dependencies optimized → reloading" on cold start.
+      optimizeDepsFromCache(),
+
       // Workaround: Vite 8 beta regex overflow on large pre-bundled deps (Monaco Editor)
       largeDepRegexFix(),
 

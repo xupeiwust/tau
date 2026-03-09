@@ -27,7 +27,7 @@ export function crossOriginIsolation(): Plugin {
   }
 
   return {
-    name: 'cross-origin-isolation',
+    name: 'vite:cross-origin-isolation',
     configureServer: applyHeaders,
     configurePreviewServer: applyHeaders,
   };

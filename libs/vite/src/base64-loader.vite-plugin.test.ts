@@ -12,11 +12,16 @@ const mockReadFileSync = vi.mocked(readFileSync);
 
 type TransformHook = (code: string, id: string) => { code: string; moduleType: string } | undefined;
 
-const transform = base64Loader.transform as TransformHook;
+const transformObj = base64Loader.transform as { filter: unknown; handler: TransformHook };
+const transform: TransformHook = (code, id) => transformObj.handler(code, id);
 
 describe('base64Loader', () => {
   it('should have correct name', () => {
-    expect(base64Loader.name).toBe('base64-loader');
+    expect(base64Loader.name).toBe('vite:base64-loader');
+  });
+
+  it('should have a hook filter for ?base64 ids', () => {
+    expect(transformObj.filter).toEqual({ id: /\?base64$/ });
   });
 
   it('should skip files without ?base64 query', () => {
@@ -60,12 +65,16 @@ describe('base64Loader', () => {
   });
 
   it('should handle paths with no extension', () => {
-    mockReadFileSync.mockReturnValue(Buffer.from('data') as never);
+    const content = Buffer.from('data');
+    mockReadFileSync.mockReturnValue(content as never);
 
     const result = transform('', '/path/to/Makefile?base64');
 
     expect(mockReadFileSync).toHaveBeenCalledWith('/path/to/Makefile');
-    expect(result).toBeDefined();
+    expect(result).toEqual({
+      code: `export default '${content.toString('base64')}';`,
+      moduleType: 'js',
+    });
   });
 
   it('should skip when path is empty after split', () => {

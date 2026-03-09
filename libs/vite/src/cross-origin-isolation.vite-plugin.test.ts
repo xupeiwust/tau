@@ -23,9 +23,9 @@ describe('crossOriginIsolation', () => {
   const plugin = crossOriginIsolation();
 
   it('should have correct metadata', () => {
-    expect(plugin.name).toBe('cross-origin-isolation');
-    expect(plugin.configureServer).toBeDefined();
-    expect(plugin.configurePreviewServer).toBeDefined();
+    expect(plugin.name).toBe('vite:cross-origin-isolation');
+    expect(plugin.configureServer).toBeTypeOf('function');
+    expect(plugin.configurePreviewServer).toBeTypeOf('function');
   });
 
   it('should register middleware on dev server', () => {
