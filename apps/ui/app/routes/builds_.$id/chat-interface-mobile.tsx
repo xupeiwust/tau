@@ -25,12 +25,19 @@ export const ChatInterfaceMobile = memo(function (): React.JSX.Element {
   const isViewerTab = activeTab === 'viewer';
 
   return (
-    <div className={cn('absolute inset-0 size-full', '[--nav-height:calc(var(--spacing)*10)]', 'md:hidden')}>
+    <div
+      className={cn(
+        // --nav-height is the height of the navigation tabs
+        'absolute inset-0 size-full',
+        '[--nav-height:calc(var(--spacing)*11)]', // 10 units of spacing
+        'md:hidden', // Hidden on desktop
+      )}
+    >
       {/* Main viewer - always visible */}
       <div
         className='relative h-full transition-all duration-200 ease-linear'
         style={{
-          paddingBottom: isViewerTab ? '0' : `calc(${Number(activeSnapPoint) - 0.07} * 100dvh)`,
+          paddingBottom: isViewerTab ? 'var(--nav-height)' : `calc(${Number(activeSnapPoint)} * 100dvh)`,
         }}
       >
         <ViewerDockview />
