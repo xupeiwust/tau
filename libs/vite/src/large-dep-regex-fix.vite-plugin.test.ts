@@ -10,7 +10,7 @@ type PluginStub = {
 
 function callConfigResolved(plugins: PluginStub[]) {
   const plugin = largeDepRegexFix();
-  (plugin.configResolved as ConfigResolvedHook)({ plugins });
+  (plugin.configResolved as unknown as ConfigResolvedHook)({ plugins });
 }
 
 describe('largeDepRegexFix', () => {
@@ -24,7 +24,12 @@ describe('largeDepRegexFix', () => {
     const filter = { code: /new\s+URL.+import\.meta\.url/s };
     const targetPlugin: PluginStub = {
       name: 'vite:asset-import-meta-url',
-      transform: { filter, handler() {} },
+      transform: {
+        filter,
+        handler() {
+          /* noop */
+        },
+      },
     };
 
     callConfigResolved([targetPlugin]);
@@ -37,7 +42,12 @@ describe('largeDepRegexFix', () => {
     const filter = { code: originalRegex };
     const otherPlugin: PluginStub = {
       name: 'some-other-plugin',
-      transform: { filter, handler() {} },
+      transform: {
+        filter,
+        handler() {
+          /* noop */
+        },
+      },
     };
 
     callConfigResolved([otherPlugin]);
@@ -56,7 +66,9 @@ describe('largeDepRegexFix', () => {
   });
 
   it('should leave transform unchanged when it is a plain function without filter', () => {
-    const originalTransform = () => {};
+    const originalTransform = () => {
+      /* noop */
+    };
     const targetPlugin: PluginStub = {
       name: 'vite:asset-import-meta-url',
       transform: originalTransform,
@@ -71,7 +83,12 @@ describe('largeDepRegexFix', () => {
     const filter = { code: 'already-a-string' };
     const targetPlugin: PluginStub = {
       name: 'vite:asset-import-meta-url',
-      transform: { filter, handler() {} },
+      transform: {
+        filter,
+        handler() {
+          /* noop */
+        },
+      },
     };
 
     callConfigResolved([targetPlugin]);
@@ -91,8 +108,21 @@ describe('largeDepRegexFix', () => {
     const filter = { code: /test/s };
     const plugins: PluginStub[] = [
       { name: 'plugin-a' },
-      { name: 'plugin-b', transform() {} },
-      { name: 'vite:asset-import-meta-url', transform: { filter, handler() {} } },
+      {
+        name: 'plugin-b',
+        transform() {
+          /* noop */
+        },
+      },
+      {
+        name: 'vite:asset-import-meta-url',
+        transform: {
+          filter,
+          handler() {
+            /* noop */
+          },
+        },
+      },
       { name: 'plugin-c' },
     ];
 

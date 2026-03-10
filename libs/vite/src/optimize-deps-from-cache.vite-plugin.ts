@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 
 import type { Plugin } from 'vite';
 
-interface CacheMetadata {
+type CacheMetadata = {
   optimized: Record<string, { needsInterop: boolean }>;
-}
+};
 
 /**
  * Reads the Vite dep-optimization cache from a previous dev session and
@@ -30,23 +30,29 @@ export function optimizeDepsFromCache(): Plugin {
     name: 'vite:optimize-deps-from-cache',
 
     config(config, env) {
-      if (env.command !== 'serve') return;
+      if (env.command !== 'serve') {
+        return;
+      }
 
       const root = config.root ?? process.cwd();
-      const cacheDir = resolve(root, config.cacheDir ?? 'node_modules/.vite');
-      const metadataPath = resolve(cacheDir, 'deps/_metadata.json');
+      const cacheDirectory = resolve(root, config.cacheDir ?? 'node_modules/.vite');
+      const metadataPath = resolve(cacheDirectory, 'deps/_metadata.json');
 
-      if (!existsSync(metadataPath)) return;
+      if (!existsSync(metadataPath)) {
+        return;
+      }
 
       let metadata: CacheMetadata;
       try {
-        metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as CacheMetadata;
+        metadata = JSON.parse(readFileSync(metadataPath, 'utf8')) as CacheMetadata;
       } catch {
         return;
       }
 
       const entries = Object.entries(metadata.optimized);
-      if (entries.length === 0) return;
+      if (entries.length === 0) {
+        return;
+      }
 
       const include = entries.map(([name]) => name);
       const needsInterop = entries.filter(([, meta]) => meta.needsInterop).map(([name]) => name);

@@ -12,8 +12,8 @@ const mockReadFileSync = vi.mocked(readFileSync);
 
 type TransformHook = (code: string, id: string) => { code: string; moduleType: string } | undefined;
 
-const transformObj = base64Loader.transform as { filter: unknown; handler: TransformHook };
-const transform: TransformHook = (code, id) => transformObj.handler(code, id);
+const transformObject = base64Loader.transform as { filter: unknown; handler: TransformHook };
+const transform: TransformHook = (code, id) => transformObject.handler(code, id);
 
 describe('base64Loader', () => {
   it('should have correct name', () => {
@@ -21,7 +21,7 @@ describe('base64Loader', () => {
   });
 
   it('should have a hook filter for ?base64 ids', () => {
-    expect(transformObj.filter).toEqual({ id: /\?base64$/ });
+    expect(transformObject.filter).toEqual({ id: /\?base64$/ });
   });
 
   it('should skip files without ?base64 query', () => {
@@ -36,7 +36,7 @@ describe('base64Loader', () => {
 
   it('should transform files with ?base64 query to base64 export', () => {
     const fileContent = Buffer.from('hello world');
-    mockReadFileSync.mockReturnValue(fileContent as never);
+    mockReadFileSync.mockReturnValue(fileContent);
 
     const result = transform('', '/path/to/file.png?base64');
 
@@ -49,7 +49,7 @@ describe('base64Loader', () => {
 
   it('should encode binary content correctly', () => {
     const binaryContent = Buffer.from([0x00, 0x01, 0xff, 0xfe, 0x89, 0x50, 0x4e, 0x47]);
-    mockReadFileSync.mockReturnValue(binaryContent as never);
+    mockReadFileSync.mockReturnValue(binaryContent);
 
     const result = transform('', '/path/to/image.png?base64');
 
@@ -57,7 +57,7 @@ describe('base64Loader', () => {
   });
 
   it('should return moduleType js for rolldown compatibility', () => {
-    mockReadFileSync.mockReturnValue(Buffer.from('test') as never);
+    mockReadFileSync.mockReturnValue(Buffer.from('test'));
 
     const result = transform('', '/path/to/file.woff2?base64');
 
@@ -66,7 +66,7 @@ describe('base64Loader', () => {
 
   it('should handle paths with no extension', () => {
     const content = Buffer.from('data');
-    mockReadFileSync.mockReturnValue(content as never);
+    mockReadFileSync.mockReturnValue(content);
 
     const result = transform('', '/path/to/Makefile?base64');
 

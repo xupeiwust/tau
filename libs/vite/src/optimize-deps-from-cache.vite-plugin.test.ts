@@ -20,7 +20,7 @@ function callConfig(config: { root?: string; cacheDir?: string } = {}, command =
   return (plugin.config as ConfigHook)(config, { command });
 }
 
-const METADATA = {
+const metadata = {
   optimized: {
     react: { needsInterop: true },
     'lodash-es': { needsInterop: false },
@@ -55,7 +55,7 @@ describe('optimizeDepsFromCache', () => {
 
   it('should return include and needsInterop from metadata', () => {
     mockExistsSync.mockReturnValue(true);
-    mockReadFileSync.mockReturnValue(JSON.stringify(METADATA));
+    mockReadFileSync.mockReturnValue(JSON.stringify(metadata));
 
     const result = callConfig({ root: '/project', cacheDir: 'node_modules/.vite' });
 

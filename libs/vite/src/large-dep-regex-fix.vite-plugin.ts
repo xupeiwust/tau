@@ -24,7 +24,7 @@ export function largeDepRegexFix(): Plugin {
           continue;
         }
 
-        const transform = plugin.transform;
+        const { transform } = plugin;
         if (transform && typeof transform === 'object' && 'filter' in transform && transform.filter) {
           const filter = transform.filter as { code?: unknown };
           if (filter.code instanceof RegExp) {
