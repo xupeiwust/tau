@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
 import { FileService } from '#file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
 import { WriteCoordinator } from '#write-coordinator.js';
 import { DirectoryTreeCache } from '#directory-tree-cache.js';
 import { ChangeEventBus } from '#change-event-bus.js';
-import type { ChangeEvent } from '#types.js';
+import type { ChangeEvent, FileSystemProvider } from '#types.js';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -469,14 +470,14 @@ describe('FileService', () => {
     });
 
     it('should return files and folders sorted (folders first, alpha) when backend has entries', async () => {
-      const mockProvider = {
+      const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['zebra.txt', 'alpha', 'beta.txt', 'alpha-dir']),
         stat: vi.fn().mockImplementation(async (path: string) => {
           const directories = new Set(['/alpha', '/alpha-dir']);
           return { isDirectory: directories.has(path), isFile: !directories.has(path), size: 10, mtimeMs: 1 };
         }),
-      };
-      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider as never);
+      });
+      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
 
@@ -496,15 +497,15 @@ describe('FileService', () => {
     });
 
     it('should return empty array when readdir throws', async () => {
-      const mockProvider = { readdir: vi.fn().mockRejectedValue(new Error('ENOENT')) };
-      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider as never);
+      const mockProvider = mock<FileSystemProvider>({ readdir: vi.fn().mockRejectedValue(new Error('ENOENT')) });
+      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
       expect(nodes).toEqual([]);
     });
 
     it('should skip entries where stat throws', async () => {
-      const mockProvider = {
+      const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['good.txt', 'bad.txt']),
         stat: vi.fn().mockImplementation(async (path: string) => {
           if (path === '/good.txt') {
@@ -512,19 +513,19 @@ describe('FileService', () => {
           }
           throw new Error('stat failed');
         }),
-      };
-      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider as never);
+      });
+      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
       expect(nodes).toEqual([{ id: '/good.txt', name: 'good.txt' }]);
     });
 
     it('should build correct paths when root is /', async () => {
-      const mockProvider = {
+      const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['file.txt']),
         stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
-      };
-      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider as never);
+      });
+      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
       expect(nodes[0]!.id).toBe('/file.txt');
@@ -532,11 +533,11 @@ describe('FileService', () => {
     });
 
     it('should build correct paths for nested directories', async () => {
-      const mockProvider = {
+      const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['child.txt']),
         stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
-      };
-      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider as never);
+      });
+      vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/parent/sub', 'indexeddb');
       expect(nodes[0]!.id).toBe('/parent/sub/child.txt');

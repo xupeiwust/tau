@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventCoalescer, coalesceEvents } from '#event-coalescer.js';
 import type { ChangeEvent } from '#types.js';
 
-const testBackend = 'memory' as const;
+const testBackend = 'memory';
 
 const written = (path: string): ChangeEvent => ({ type: 'fileWritten', path, backend: testBackend });
 const deleted = (path: string): ChangeEvent => ({ type: 'fileDeleted', path, backend: testBackend });

@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
 import { ProviderRegistry } from '#provider-registry.js';
 import type { FileSystemProvider } from '#types.js';
 
-const createMockHandle = (name: string): FileSystemDirectoryHandle =>
-  // oxlint-disable-next-line consistent-type-assertions -- mock stub for testing
-  ({ name }) as unknown as FileSystemDirectoryHandle;
+const createMockHandle = (name: string): FileSystemDirectoryHandle => mock<FileSystemDirectoryHandle>({ name });
 
 vi.mock('#providers/indexeddb-provider.js', () => ({
   createIndexedDbProvider: vi.fn(

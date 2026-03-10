@@ -4,7 +4,7 @@ import { WatchRegistry } from '#watch-registry.js';
 import { ChangeEventBus } from '#change-event-bus.js';
 import type { ChangeEvent, WatchRequest } from '#types.js';
 
-const testBackend = 'memory' as const;
+const testBackend = 'memory';
 
 const written = (path: string): ChangeEvent => ({ type: 'fileWritten', path, backend: testBackend });
 const deletedEvent = (path: string): ChangeEvent => ({ type: 'fileDeleted', path, backend: testBackend });

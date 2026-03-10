@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ChangeEventBus } from '#change-event-bus.js';
 import type { ChangeEvent } from '#types.js';
 
-const mockBackend = 'memory' as const;
+const mockBackend = 'memory';
 
 function fileWrittenEvent(path: string): ChangeEvent {
   return { type: 'fileWritten', path, backend: mockBackend };

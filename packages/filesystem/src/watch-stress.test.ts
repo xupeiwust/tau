@@ -4,7 +4,7 @@ import { ChangeEventBus } from '#change-event-bus.js';
 import { EventCoalescer } from '#event-coalescer.js';
 import type { ChangeEvent, WatchEvent } from '#types.js';
 
-const testBackend = 'memory' as const;
+const testBackend = 'memory';
 const written = (path: string): ChangeEvent => ({ type: 'fileWritten', path, backend: testBackend });
 const deleted = (path: string): ChangeEvent => ({ type: 'fileDeleted', path, backend: testBackend });
 
