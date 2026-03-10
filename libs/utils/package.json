@@ -34,6 +34,11 @@
       "types": "./src/dispose.utils.ts",
       "import": "./src/dispose.utils.ts",
       "default": "./src/dispose.utils.ts"
+    },
+    "./error": {
+      "types": "./src/error.utils.ts",
+      "import": "./src/error.utils.ts",
+      "default": "./src/error.utils.ts"
     }
   },
   "dependencies": {
