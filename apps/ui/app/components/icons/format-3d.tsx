@@ -1,8 +1,7 @@
-import type { ExportFormat } from '@taucad/types';
 import { cn } from '#utils/ui.utils.js';
 import { stringToColor } from '#utils/color.utils.js';
 
-export function Format3D(properties: React.SVGProps<SVGSVGElement> & { extension: ExportFormat }): React.JSX.Element {
+export function Format3D(properties: React.SVGProps<SVGSVGElement> & { extension: string }): React.JSX.Element {
   const color = stringToColor(properties.extension);
   const fontSize = properties.extension.length <= 3 ? 11 : 9.5;
 
