@@ -30,7 +30,7 @@ export default defineConfig({
         light: 'github-light',
         dark: 'github-dark',
       },
-      // Cast to LanguageInput[] - the precompiled grammars are compatible at runtime
+      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- precompiled Shiki grammars are compatible at runtime but don't match LanguageInput type
       langs: [...kclLang, ...openscadLang] as unknown as LanguageInput[],
     },
   },

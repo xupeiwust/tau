@@ -33,6 +33,7 @@ import {
  * silent no-op if the internal structure changes.
  */
 export function syncGizmoFov(gizmo: ViewportGizmo, cameraFovAngle: number): void {
+  // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- accessing private _camera property; no public FOV API exists
   const internalCamera = (gizmo as unknown as { _camera: THREE.PerspectiveCamera })._camera;
   if (!(internalCamera instanceof THREE.PerspectiveCamera)) {
     return;

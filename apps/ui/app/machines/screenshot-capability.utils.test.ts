@@ -193,6 +193,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.matcap).toBe(texture);
   });
@@ -205,6 +206,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.side).toBe(THREE.DoubleSide);
   });
@@ -217,6 +219,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.color.getHex()).toBe(0x00_ff_00);
   });
@@ -229,6 +232,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.opacity).toBe(0.5);
     expect(matcapMat.transparent).toBe(true);
@@ -242,6 +246,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.opacity).toBe(1);
     expect(matcapMat.transparent).toBe(false);
@@ -255,6 +260,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.vertexColors).toBe(true);
   });
@@ -267,6 +273,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matcapMat = mesh.material as unknown as THREE.MeshMatcapMaterial;
     expect(matcapMat.vertexColors).toBe(false);
   });
@@ -317,6 +324,7 @@ describe('applyMatcapToClonedScene', () => {
 
     applyMatcapToClonedScene(scene, texture);
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- TS2352: mesh.material type narrow needed for test assertion
     const matRed = meshRed.material as unknown as THREE.MeshMatcapMaterial;
     const matBlue = meshBlue.material as unknown as THREE.MeshMatcapMaterial;
     expect(matRed.color.getHex()).toBe(0xff_00_00);
@@ -338,8 +346,9 @@ describe('disposeClonedSceneMaterials', () => {
     // Apply matcap first (mimics screenshot pipeline)
     applyMatcapToClonedScene(scene, texture);
 
-    const disposeSpy1 = vi.spyOn(mesh1.material as THREE.Material, 'dispose');
-    const disposeSpy2 = vi.spyOn(mesh2.material as THREE.Material, 'dispose');
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mesh.material type narrow needed for dispose spy
+    const disposeSpy1 = vi.spyOn(mesh1.material as unknown as THREE.Material, 'dispose');
+    const disposeSpy2 = vi.spyOn(mesh2.material as unknown as THREE.Material, 'dispose');
 
     disposeClonedSceneMaterials(scene);
 
@@ -364,7 +373,8 @@ describe('disposeClonedSceneMaterials', () => {
     const texture = createStubTexture();
 
     applyMatcapToClonedScene(scene, texture);
-    const disposeSpy = vi.spyOn(mesh.material as THREE.Material, 'dispose');
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mesh.material type narrow needed for dispose spy
+    const disposeSpy = vi.spyOn(mesh.material as unknown as THREE.Material, 'dispose');
 
     disposeClonedSceneMaterials(scene);
 

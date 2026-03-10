@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { diffLines } from 'diff';
 import type { CodeLanguage } from '@taucad/types';
-import { highlighter, diffTransformer } from '#lib/shiki.js';
+import { highlighter, diffTransformer } from '#lib/shiki.lib.js';
 import { cn } from '#utils/ui.utils.js';
 import { useTheme } from '#hooks/use-theme.js';
 
@@ -19,6 +19,7 @@ type DiffSegment = { type: 'code'; lines: DiffLine[] } | { type: 'hidden'; count
  * Process diff changes to only show context lines around changes.
  * Returns segments of code and hidden line counts.
  */
+// oxlint-disable-next-line complexity -- diff processing has many branches by design
 function processDiffWithContext(originalContent: string, modifiedContent: string): DiffSegment[] {
   const changes = diffLines(originalContent, modifiedContent);
 

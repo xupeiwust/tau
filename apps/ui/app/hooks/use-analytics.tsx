@@ -15,6 +15,7 @@ export type ConsentStatus = 'pending' | 'granted' | 'denied';
  * Used when PostHog is not configured (e.g., no API key in development or self-hosted).
  */
 /* eslint-disable @typescript-eslint/naming-convention -- posthog-js uses snake_case method names */
+// oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- noop stub for external PostHog type; only methods actually called are implemented
 const noopAnalytics = {
   opt_in_capturing: () => undefined,
   opt_out_capturing: () => undefined,

@@ -6,7 +6,7 @@
 /* oxlint-disable @typescript-eslint/class-literal-property-style -- This is a port of the original transform-controls.ts file   */
 /* oxlint-disable max-depth -- This is a port of the original transform-controls.ts file */
 /* oxlint-disable complexity -- This is a port of the original transform-controls.ts file */
-import type { OrthographicCamera, PerspectiveCamera, Intersection, Camera, Vector2 } from 'three';
+import type { OrthographicCamera, Intersection, Camera } from 'three';
 import {
   Material,
   BoxGeometry,
@@ -23,11 +23,13 @@ import {
   MeshBasicMaterial,
   Object3D,
   OctahedronGeometry,
+  PerspectiveCamera,
   PlaneGeometry,
   Quaternion,
   Raycaster,
   SphereGeometry,
   TorusGeometry,
+  Vector2,
   Vector3,
   MeshMatcapMaterial,
   LineDashedMaterial,
@@ -95,6 +97,7 @@ class TransformControls<TCamera extends Camera = Camera> extends Object3D {
 
   private readonly eye = new Vector3();
 
+  private readonly pointerVector = new Vector2();
   private readonly positionStart = new Vector3();
   private readonly quaternionStart = new Quaternion();
   private readonly scaleStart = new Vector3();
@@ -339,7 +342,8 @@ class TransformControls<TCamera extends Camera = Camera> extends Object3D {
       return;
     }
 
-    this.raycaster.setFromCamera(pointer as unknown as Vector2, this.camera);
+    this.pointerVector.set(pointer.x, pointer.y);
+    this.raycaster.setFromCamera(this.pointerVector, this.camera);
 
     const intersect = this.intersectObjectWithRay(this.gizmo.picker[this.mode], this.raycaster);
 
@@ -352,7 +356,8 @@ class TransformControls<TCamera extends Camera = Camera> extends Object3D {
     }
 
     if (this.axis !== undefined) {
-      this.raycaster.setFromCamera(pointer as unknown as Vector2, this.camera);
+      this.pointerVector.set(pointer.x, pointer.y);
+      this.raycaster.setFromCamera(this.pointerVector, this.camera);
 
       const planeIntersect = this.intersectObjectWithRay(this.plane, this.raycaster, true);
 
@@ -419,7 +424,8 @@ class TransformControls<TCamera extends Camera = Camera> extends Object3D {
       return;
     }
 
-    this.raycaster.setFromCamera(pointer as unknown as Vector2, this.camera);
+    this.pointerVector.set(pointer.x, pointer.y);
+    this.raycaster.setFromCamera(this.pointerVector, this.camera);
 
     const planeIntersect = this.intersectObjectWithRay(this.plane, this.raycaster, true);
 
@@ -566,11 +572,9 @@ class TransformControls<TCamera extends Camera = Camera> extends Object3D {
         const cameraDistance = this.worldPosition.distanceTo(
           this.tempVector.setFromMatrixPosition(this.camera.matrixWorld),
         );
-        const cameraMaybePerspective = this.camera as unknown as PerspectiveCamera;
         let fovFactor = 1;
-        // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- type guard
-        if (cameraMaybePerspective.isPerspectiveCamera) {
-          fovFactor = Math.tan((cameraMaybePerspective.fov * Math.PI) / 360);
+        if (this.camera instanceof PerspectiveCamera) {
+          fovFactor = Math.tan((this.camera.fov * Math.PI) / 360);
           if (!Number.isFinite(fovFactor) || fovFactor === 0) {
             fovFactor = 1;
           }

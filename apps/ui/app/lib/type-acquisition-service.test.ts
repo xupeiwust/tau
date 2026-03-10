@@ -153,6 +153,7 @@ function createMockMonaco(): {
   };
 
   return {
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mock proxy type not assignable to Monaco
     monaco: monaco as unknown as typeof Monaco & MockMonaco,
     fireModelCreate(model: MockMonacoModel): void {
       for (const listener of modelCreateListeners) {

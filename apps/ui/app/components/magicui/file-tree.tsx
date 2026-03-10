@@ -65,14 +65,14 @@ function Tree({
 }: React.PropsWithChildren<TreeViewProps> & React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
   const [selectedId, setSelectedId] = useState<string | undefined>(initialSelectedId);
   const [expandedItems, setExpandedItems] = useState<string[] | undefined>(initialExpandedItems);
-  const prevExpandedRef = useRef<string[] | undefined>(undefined);
+  const previousExpandedRef = useRef<string[] | undefined>(undefined);
 
   useEffect(() => {
     const current = expandedItems ?? [];
-    const previous = prevExpandedRef.current ?? [];
+    const previous = previousExpandedRef.current ?? [];
 
-    if (prevExpandedRef.current === undefined) {
-      prevExpandedRef.current = current;
+    if (previousExpandedRef.current === undefined) {
+      previousExpandedRef.current = current;
       return;
     }
 
@@ -80,7 +80,7 @@ function Tree({
     for (const id of newlyExpanded) {
       onExpand?.(id);
     }
-    prevExpandedRef.current = current;
+    previousExpandedRef.current = current;
   }, [expandedItems, onExpand]);
 
   const selectItem = useCallback((id: string) => {

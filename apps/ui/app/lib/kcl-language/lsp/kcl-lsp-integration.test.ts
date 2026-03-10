@@ -49,7 +49,7 @@ async function lspRequest<T>(method: string, parameters: unknown): Promise<T> {
     } as JSONRPCRequest),
   );
 
-  const response = (await responsePromise) as unknown as JSONRPCResponse;
+  const response = (await responsePromise) as JSONRPCResponse;
 
   if (response.error) {
     throw new Error(`LSP error ${response.error.code}: ${response.error.message}`);
@@ -67,7 +67,7 @@ function lspNotify(method: string, parameters: unknown): void {
       jsonrpc: '2.0',
       method,
       params: parameters,
-    } as unknown as JSONRPCRequest),
+    } as JSONRPCRequest),
   );
 }
 

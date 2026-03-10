@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { CompletionRegistration } from 'monacopilot';
 import type * as Monaco from 'monaco-editor';
 import { cn } from '#utils/ui.utils.js';
-import { configureMonaco, registerCompletions } from '#lib/monaco.js';
+import { configureMonaco, registerCompletions } from '#lib/monaco.lib.js';
 import { useIsMobile } from '#hooks/use-mobile.js';
 import { Theme, useTheme } from '#hooks/use-theme.js';
 
@@ -72,6 +72,7 @@ export function CodeEditor({ className, ...rest }: CodeEditorProperties): React.
       // Monaco's tokenization.forceTokenization is a stable internal API used
       // extensively by its own features (colorizer, auto-indent, comment commands,
       // etc.) but not exposed in public type declarations.
+      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- Monaco internal API not exposed in public type declarations
       const tokenization = model as unknown as {
         tokenization?: { forceTokenization?: (lineNumber: number) => void };
       };

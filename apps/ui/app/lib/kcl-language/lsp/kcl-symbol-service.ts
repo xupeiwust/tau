@@ -9,10 +9,7 @@ import type { Node } from '@taucad/kcl-wasm-lib/bindings/Node';
 import type { Program } from '@taucad/kcl-wasm-lib/bindings/Program';
 import type { KclValue } from '@taucad/kcl-wasm-lib/bindings/KclValue';
 import type { BodyItem } from '@taucad/kcl-wasm-lib/bindings/BodyItem';
-import type { VariableDeclaration } from '@taucad/kcl-wasm-lib/bindings/VariableDeclaration';
-import type { FunctionExpression } from '@taucad/kcl-wasm-lib/bindings/FunctionExpression';
 import type { Parameter } from '@taucad/kcl-wasm-lib/bindings/Parameter';
-import type { ImportStatement } from '@taucad/kcl-wasm-lib/bindings/ImportStatement';
 import type { LspFileManager } from '#lib/kcl-language/lsp/kcl-lsp-client.js';
 import { createKclLogger } from '#lib/kcl-language/lsp/kcl-logs.js';
 
@@ -841,16 +838,15 @@ function extractVariableSymbol(options: {
 }): KclSymbol[] {
   const { item, uri, lineOffsets } = options;
   const symbols: KclSymbol[] = [];
-  const declaration = item as unknown as Node<VariableDeclaration>;
-  const declarator = declaration.declaration;
+  const declarator = item.declaration;
   const { name } = declarator.id;
-  const isExported = declaration.visibility === 'export';
+  const isExported = item.visibility === 'export';
 
   const position = offsetToPosition(lineOffsets, declarator.id.start);
 
   // Check if this is a function declaration
   if (declarator.init.type === 'FunctionExpression') {
-    const functionExpression = declarator.init as unknown as Node<FunctionExpression>;
+    const functionExpression = declarator.init;
     const parameters = extractParameters(functionExpression.params, uri, lineOffsets);
 
     // Add function symbol
@@ -1049,11 +1045,10 @@ function extractImportSymbol(
   lineOffsets: number[],
 ): KclSymbol[] {
   const symbols: KclSymbol[] = [];
-  const importStmt = item as unknown as Node<ImportStatement>;
-  const isExported = importStmt.visibility === 'export';
+  const isExported = item.visibility === 'export';
 
   // Extract path based on ImportPath type
-  const pathValue = importStmt.path;
+  const pathValue = item.path;
   let importPath = '';
 
   if ('filename' in pathValue) {
@@ -1072,7 +1067,7 @@ function extractImportSymbol(
   log.debug('extractImportSymbol: path type:', pathValue.type, 'extracted path:', importPath);
 
   // Extract selector (imported names)
-  const { selector } = importStmt;
+  const { selector } = item;
 
   log.debug('extractImportSymbol: selector type:', selector.type);
 

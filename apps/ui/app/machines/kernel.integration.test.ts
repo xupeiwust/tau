@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention -- test data uses filenames as object keys */
 // @vitest-environment node
 /**
  * Kernel Integration Test
@@ -137,14 +138,10 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
       file: { path: '/builds/bld_hollow_box', filename: 'main.ts' },
     });
 
-    console.log('[Layer2] render result:', {
-      success: result.success,
-      dataLength: result.data?.length,
-      issues: result.issues,
-    });
-
     expect(result.success).toBe(true);
-    expect(result.data.length).toBeGreaterThan(0);
+    if (result.success) {
+      expect(result.data.length).toBeGreaterThan(0);
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -174,14 +171,10 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
 
     const result = await geometryPromise;
 
-    console.log('[Layer3] setFile geometry result:', {
-      success: result.success,
-      dataLength: result.data?.length,
-      issues: result.issues,
-    });
-
     expect(result.success).toBe(true);
-    expect(result.data.length).toBeGreaterThan(0);
+    if (result.success) {
+      expect(result.data.length).toBeGreaterThan(0);
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -199,13 +192,9 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
       code: { 'main.ts': hollowBoxSource },
     });
 
-    console.log('[Layer4] inline code result:', {
-      success: result.success,
-      dataLength: result.data?.length,
-      issues: result.issues,
-    });
-
     expect(result.success).toBe(true);
-    expect(result.data.length).toBeGreaterThan(0);
+    if (result.success) {
+      expect(result.data.length).toBeGreaterThan(0);
+    }
   });
 });

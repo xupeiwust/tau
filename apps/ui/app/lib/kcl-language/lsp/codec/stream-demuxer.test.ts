@@ -12,7 +12,7 @@ function makeNotification(method: string, parameters?: unknown): Uint8Array<Arra
     jsonrpc: '2.0',
     method,
     params: parameters,
-  } as unknown as JSONRPCRequest);
+  } as JSONRPCRequest);
 }
 
 function makeRequest(id: number, method: string, parameters?: unknown): Uint8Array<ArrayBuffer> {

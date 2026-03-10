@@ -19,7 +19,7 @@ const isIos =
   // oxlint-disable-next-line @typescript-eslint/no-deprecated -- Required for iPad detection; no standard replacement exists
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-const isWkWebView = 'webkit' in globalThis && Boolean((globalThis as unknown as Record<string, unknown>)['webkit']);
+const isWkWebView = 'webkit' in globalThis;
 
 /**
  * Detect Quick Look support:

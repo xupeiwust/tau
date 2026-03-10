@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type * as Monaco from 'monaco-editor';
 import { MonacoModelService } from '#lib/monaco-model-service.js';
+import type { ModelServiceConfig } from '#lib/monaco-model-service.js';
 
 // =============================================================================
 // Mock dependencies
@@ -115,6 +116,7 @@ function createMockMonaco(): {
     },
   };
 
+  // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mock<T>() proxy not assignable to typeof Monaco & MockMonaco
   return { monaco: monaco as unknown as typeof Monaco & MockMonaco, models };
 }
 
@@ -175,11 +177,12 @@ describe('MonacoModelService', () => {
     fileManager = createMockFileManager();
     markerService = createMockMarkerService();
 
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mock<T>() proxy not assignable to ModelServiceConfig types
     service.initialize({
       monaco,
-      fileManagerRef: fileManagerRef as never,
-      fileManager: fileManager as never,
-      markerService: markerService as never,
+      fileManagerRef: fileManagerRef as unknown as ModelServiceConfig['fileManagerRef'],
+      fileManager: fileManager as unknown as ModelServiceConfig['fileManager'],
+      markerService: markerService as unknown as ModelServiceConfig['markerService'],
     });
   });
 

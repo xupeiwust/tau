@@ -2,7 +2,7 @@ import { useShikiHighlighter } from 'react-shiki/core';
 import type { ClassValue } from 'clsx';
 import type { CodeLanguage } from '@taucad/types';
 import { cn } from '#utils/ui.utils.js';
-import { highlighter } from '#lib/shiki.js';
+import { highlighter } from '#lib/shiki.lib.js';
 import { useTheme } from '#hooks/use-theme.js';
 
 type CodeViewerProps = {

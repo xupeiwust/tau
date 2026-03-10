@@ -66,7 +66,8 @@ export const TransformControls: ForwardRefComponent<TransformControlsProps, Tran
       },
       ref,
     ) => {
-      const defaultControls = useThree((state) => state.controls) as unknown as ControlsProto | undefined;
+      const rawControls = useThree((state) => state.controls);
+      const defaultControls = rawControls && 'enabled' in rawControls ? (rawControls as ControlsProto) : undefined;
       const gl = useThree((state) => state.gl);
       const events = useThree((state) => state.events);
       const defaultCamera = useThree((state) => state.camera);

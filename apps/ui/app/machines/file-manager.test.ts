@@ -5,7 +5,7 @@ import { WriteCoordinator } from '@taucad/filesystem';
 const fsp = zenfs.promises;
 let writeCoordinator = new WriteCoordinator();
 
-function serialized<T>(operation: () => Promise<T>): Promise<T> {
+async function serialized<T>(operation: () => Promise<T>): Promise<T> {
   return writeCoordinator.serialized(operation);
 }
 

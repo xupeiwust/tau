@@ -18,6 +18,7 @@ export class SharedRenderer {
   public constructor() {
     this.offscreen = new OffscreenCanvas(1, 1);
     this.renderer = new WebGLRenderer({
+      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- Three.js WebGLRenderer types don't accept OffscreenCanvas despite runtime support
       canvas: this.offscreen as unknown as HTMLCanvasElement,
       antialias: true,
       alpha: true,
