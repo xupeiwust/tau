@@ -35,7 +35,7 @@
     "jsdoc"
   ],
   "jsPlugins": [
-    "./tools/oxlint-plugins/tau-lint.js",
+    "./libs/oxlint/src/tau-lint.js",
     { "name": "unicorn-js", "specifier": "eslint-plugin-unicorn" },
     { "name": "node-js", "specifier": "eslint-plugin-n" },
     "eslint-plugin-no-use-extend-native",
@@ -1214,6 +1214,13 @@
       "files": ["**/scripts/**/*.mts", "**/scripts/**/*.ts"],
       "rules": {
         "unicorn/no-process-exit": "off"
+      }
+    },
+    {
+      // JS plugin files use JSDoc for types — disabling type-annotation rules that assume TypeScript.
+      "files": ["**/*.js"],
+      "rules": {
+        "jsdoc-js/no-types": "off"
       }
     }
   ],

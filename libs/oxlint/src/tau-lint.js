@@ -238,7 +238,7 @@ const requireIgnoreDescriptionRule = {
 const plugin = {
   meta: {
     name: 'tau-lint',
-    version: '1.0.0',
+    version: '1.1.0',
   },
   rules: {
     'no-abusive-eslint-disable': noAbusiveEslintDisableRule,

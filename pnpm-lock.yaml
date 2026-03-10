@@ -244,7 +244,7 @@ catalogs:
       specifier: 22.5.2
       version: 22.5.2
     opencascade.js:
-      specifier: /Users/rifont/git/tau/tarballs/opencascade.js-2.0.0-beta.full.tgz
+      specifier: /Users/rifont/git/tau/tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz
       version: 2.0.0-beta.b5ff984
     openscad-wasm-prebuilt:
       specifier: ^1.2.0
@@ -1187,6 +1187,8 @@ importers:
         specifier: workspace:*
         version: link:../types
 
+  libs/oxlint: {}
+
   libs/tau-examples: {}
 
   libs/types:
@@ -1334,7 +1336,7 @@ importers:
         version: 3.3.2
       opencascade.js:
         specifier: 'catalog:'
-        version: file:tarballs/opencascade.js-2.0.0-beta.full.tgz(ws@8.19.0)
+        version: file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz(ws@8.19.0)
       openscad-wasm-prebuilt:
         specifier: 'catalog:'
         version: 1.2.0
@@ -1358,7 +1360,7 @@ importers:
         version: 0.20201231.0
       vitest:
         specifier: '>=2.0.0'
-        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6(vitest@4.1.0-beta.6))(esbuild@0.27.3)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(esbuild@0.27.3)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
       ws:
         specifier: 'catalog:'
         version: 8.19.0
@@ -4077,7 +4079,7 @@ packages:
     engines: {node: '>=20'}
 
   '@langchain/google-common@https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-common-2.1.32.tgz':
-    resolution: {tarball: https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-common-2.1.32.tgz}
+    resolution: {integrity: sha512-lF6ZU5y+Z0XvYQKccoJWbut+bcICBhMcvDh0xs4N2zYPL3yLUB1mPxhzUqJGowkr0P12tuKVHFMsSlaWbuL+NQ==, tarball: https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-common-2.1.32.tgz}
     version: 2.1.32
     engines: {node: '>=20'}
     peerDependencies:
@@ -4088,7 +4090,7 @@ packages:
     engines: {node: '>=20'}
 
   '@langchain/google-vertexai@https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-vertexai-2.1.27.tgz':
-    resolution: {tarball: https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-vertexai-2.1.27.tgz}
+    resolution: {integrity: sha512-jphzPu9yU5YEO5A0fN4SByJGJ0sCIrkIfObLhzKuVcdbzVgtqpvD8zJZtterGqjP92uddcBsZGfJpT1kKdAKXQ==, tarball: https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-vertexai-2.1.27.tgz}
     version: 2.1.27
     engines: {node: '>=20'}
 
@@ -14194,8 +14196,8 @@ packages:
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
-  opencascade.js@file:tarballs/opencascade.js-2.0.0-beta.full.tgz:
-    resolution: {integrity: sha512-yQZEiPV6JE8SfOnXCKjSMSBB6fYU3uCHNrE08Vp2JRErcAo7aIZSR+W/QjXDz64MOZv/EDyab0mrSeiFeRrOMA==, tarball: file:tarballs/opencascade.js-2.0.0-beta.full.tgz}
+  opencascade.js@file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz:
+    resolution: {integrity: sha512-61F+JSoTDj9iubSabvUFuMQebE2mZkEGNpeLz7PWRQr5yxwwZdG+kC3ITgSkATbsKtFFG4l0mq+I8DPs5N/dQA==, tarball: file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz}
     version: 2.0.0-beta.b5ff984
     peerDependencies:
       ws: ^8.5.0
@@ -29296,7 +29298,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.3
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.7.9)
+      retry-axios: 2.6.0(axios@1.7.9(debug@4.4.3))
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -32216,7 +32218,7 @@ snapshots:
 
   openapi-types@12.1.3: {}
 
-  opencascade.js@file:tarballs/opencascade.js-2.0.0-beta.full.tgz(ws@8.19.0):
+  opencascade.js@file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz(ws@8.19.0):
     dependencies:
       '@gltf-transform/core': 4.3.0
       '@gltf-transform/functions': 4.3.0
@@ -33841,7 +33843,7 @@ snapshots:
 
   ret@0.5.0: {}
 
-  retry-axios@2.6.0(axios@1.7.9):
+  retry-axios@2.6.0(axios@1.7.9(debug@4.4.3)):
     dependencies:
       axios: 1.7.9(debug@4.4.3)
 
@@ -36043,7 +36045,7 @@ snapshots:
       typescript: 5.9.3
       vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
-  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6(vitest@4.1.0-beta.6))(esbuild@0.27.3)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
+  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(esbuild@0.27.3)(happy-dom@16.8.1)(jiti@2.6.1)(jsdom@26.0.0(canvas@3.2.1))(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       '@vitest/expect': 4.0.18
       '@vitest/mocker': 4.0.18(rolldown-vite@7.3.1(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))

@@ -87,8 +87,7 @@
         "^default",
         "{workspaceRoot}/eslint.config.mjs",
         "{workspaceRoot}/.oxlintrc.json",
-        "{workspaceRoot}/tools/eslint-rules/**/*",
-        "{workspaceRoot}/tools/oxlint-plugins/**/*",
+        "{workspaceRoot}/libs/oxlint/src/**/*",
         {
           "externalDependencies": ["eslint", "oxlint"]
         }

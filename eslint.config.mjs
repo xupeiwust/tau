@@ -172,6 +172,7 @@ const config = [
       'tarballs/**',
       'experiments/**',
       '**/wasm/**',
+      'repos/**',
     ],
   },
 
@@ -239,10 +240,20 @@ const config = [
       // TODO: Move to .oxlintrc.json once oxlint ships native `object-shorthand` (oxc-project/oxc#17688).
       'object-shorthand': ['error', 'always'],
       'id-denylist': ['error', 'temp', 'tmp', 'val', 'vals', 'obj', 'cb'],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSAsExpression > TSNeverKeyword',
+          message:
+            '`as never` erases all type information and masks underlying type errors. ' +
+            'Fix the root cause: use proper typing, type narrowing, or `as unknown as Type`. ' +
+            'See docs/policy/typescript-policy.md.',
+        },
+      ],
       'import-x/no-extraneous-dependencies': [
         'error',
         {
-          packageDir: ['.', '../..'],
+          packageDir: ['.', import.meta.dirname],
           devDependencies: true,
           optionalDependencies: false,
           peerDependencies: false,
