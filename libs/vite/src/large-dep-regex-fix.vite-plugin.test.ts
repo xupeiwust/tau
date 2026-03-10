@@ -27,7 +27,7 @@ describe('largeDepRegexFix', () => {
       transform: {
         filter,
         handler() {
-          /* noop */
+          /* No-op */
         },
       },
     };
@@ -45,7 +45,7 @@ describe('largeDepRegexFix', () => {
       transform: {
         filter,
         handler() {
-          /* noop */
+          /* No-op */
         },
       },
     };
@@ -67,7 +67,7 @@ describe('largeDepRegexFix', () => {
 
   it('should leave transform unchanged when it is a plain function without filter', () => {
     const originalTransform = () => {
-      /* noop */
+      /* No-op */
     };
     const targetPlugin: PluginStub = {
       name: 'vite:asset-import-meta-url',
@@ -86,7 +86,7 @@ describe('largeDepRegexFix', () => {
       transform: {
         filter,
         handler() {
-          /* noop */
+          /* No-op */
         },
       },
     };
@@ -111,7 +111,7 @@ describe('largeDepRegexFix', () => {
       {
         name: 'plugin-b',
         transform() {
-          /* noop */
+          /* No-op */
         },
       },
       {
@@ -119,7 +119,7 @@ describe('largeDepRegexFix', () => {
         transform: {
           filter,
           handler() {
-            /* noop */
+            /* No-op */
           },
         },
       },
