@@ -152,10 +152,9 @@ export class KernelWorkerClient {
 
     try {
       // GrowableSharedArrayBuffer: maxByteLength allows future expansion without worker restart
-      // oxlint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- GrowableSharedArrayBuffer options not yet typed
       this.signalBuffer = new SharedArrayBuffer(signalBufferByteLength, {
         maxByteLength: signalBufferMaxByteLength,
-      } as any);
+      });
       this.signalView = new Int32Array(this.signalBuffer);
     } catch {
       this.signalBuffer = undefined;
