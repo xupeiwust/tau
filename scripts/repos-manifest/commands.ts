@@ -2,7 +2,7 @@
 
 import process from 'node:process';
 import { execSync } from 'node:child_process';
-import type { RepoConfig, RepoStatus } from './lib.ts';
+import type { RepoConfig, RepoContext, RepoStatus } from './lib.ts';
 import {
   cloneRepo,
   forkRepo,
@@ -36,14 +36,14 @@ function parseArgs(argv: string[]): {
   const flags: Record<string, string | boolean> = {};
   let i = 1;
   while (i < argv.length) {
-    const arg = argv[i]!;
-    if (arg === '--') {
+    const argument = argv[i]!;
+    if (argument === '--') {
       positional.push(...argv.slice(i + 1));
       break;
     }
 
-    if (arg.startsWith('--')) {
-      const key = arg.slice(2);
+    if (argument.startsWith('--')) {
+      const key = argument.slice(2);
       const next = argv[i + 1];
       if (next && !next.startsWith('-')) {
         flags[key] = next;
@@ -52,8 +52,8 @@ function parseArgs(argv: string[]): {
         flags[key] = true;
         i += 1;
       }
-    } else if (arg.startsWith('-') && arg.length === 2) {
-      const short = arg[1]!;
+    } else if (argument.startsWith('-') && argument.length === 2) {
+      const short = argument[1]!;
       const longKey = shortFlagMap[short] ?? short;
       const next = argv[i + 1];
       if (next && !next.startsWith('-')) {
@@ -64,7 +64,7 @@ function parseArgs(argv: string[]): {
         i += 1;
       }
     } else {
-      positional.push(arg);
+      positional.push(argument);
       i += 1;
     }
   }
@@ -104,7 +104,7 @@ function cmdClone(positional: string[], flags: Record<string, string | boolean>)
 
   const results: Array<{ name: string; action: string; message: string }> = [];
   for (const [name, repo] of repos) {
-    const result = cloneRepo(name, repo, manifest, root);
+    const result = cloneRepo({ name, repo, manifest, root });
     results.push({ name, ...result });
     console.log(result.message);
   }
@@ -121,11 +121,11 @@ function cmdSync(positional: string[], flags: Record<string, string | boolean>):
 
   const results: Array<{ name: string; ok: boolean; message: string }> = [];
   for (const [name, repo] of repos) {
-    if (!isCloned(name, repo, manifest, root)) {
+    if (!isCloned({ name, repo, manifest, root })) {
       continue;
     }
 
-    const result = syncRepo(name, repo, manifest, root);
+    const result = syncRepo({ name, repo, manifest, root });
     results.push({ name, ...result });
     console.log(result.message);
   }
@@ -142,7 +142,7 @@ function cmdStatus(positional: string[], flags: Record<string, string | boolean>
 
   const statuses: RepoStatus[] = [];
   for (const [name, repo] of repos) {
-    statuses.push(getRepoStatus(name, repo, manifest, root));
+    statuses.push(getRepoStatus({ name, repo, manifest, root }));
   }
 
   if (flags['json']) {
@@ -179,7 +179,7 @@ function cmdList(flags: Record<string, string | boolean>): void {
       console.log(`${name}: ${group.description ?? ''}`);
       for (const repoName of group.repos) {
         const clonedFlag = manifest.repos[repoName]
-          ? isCloned(repoName, manifest.repos[repoName], manifest, root)
+          ? isCloned({ name: repoName, repo: manifest.repos[repoName], manifest, root })
             ? '✓'
             : '·'
           : '?';
@@ -200,7 +200,7 @@ function cmdList(flags: Record<string, string | boolean>): void {
       fork: repo.fork,
       branch: repo.branch,
       description: repo.description,
-      cloned: isCloned(name, repo, manifest, root),
+      cloned: isCloned({ name, repo, manifest, root }),
       path: repo.path ?? name,
     }));
 
@@ -224,11 +224,11 @@ function cmdList(flags: Record<string, string | boolean>): void {
   console.log('─'.repeat(nameWidth + 70));
 
   for (const [name, repo] of entries) {
-    if (flags['cloned'] && !isCloned(name, repo, manifest, root)) {
+    if (flags['cloned'] && !isCloned({ name, repo, manifest, root })) {
       continue;
     }
 
-    const clonedFlag = isCloned(name, repo, manifest, root) ? '✓' : '·';
+    const clonedFlag = isCloned({ name, repo, manifest, root }) ? '✓' : '·';
     const origin = repo.fork ?? repo.upstream;
     const upstream = repo.fork ? `← ${repo.upstream}` : '─';
     const branch = repo.branch ?? '─';
@@ -247,11 +247,11 @@ function cmdExec(positional: string[], flags: Record<string, string | boolean>):
   }
 
   for (const [name, repo] of repos) {
-    if (!isCloned(name, repo, manifest, root)) {
+    if (!isCloned({ name, repo, manifest, root })) {
       continue;
     }
 
-    const directory = repoPath(name, repo, manifest, root);
+    const directory = repoPath({ name, repo, manifest, root });
     console.log(`\n=== ${name} ===`);
     try {
       execSync(cmd, { cwd: directory, stdio: 'inherit' });
@@ -350,7 +350,7 @@ function cmdAdd(positional: string[], flags: Record<string, string | boolean>): 
   }
 
   if (flags['clone']) {
-    const result = cloneRepo(repoName, manifest.repos[repoName], manifest, root);
+    const result = cloneRepo({ name: repoName, repo: manifest.repos[repoName], manifest, root });
     console.log(result.message);
   }
 }

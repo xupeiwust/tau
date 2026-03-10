@@ -2,7 +2,7 @@ import process from 'node:process';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import yaml from 'js-yaml';
+import { load as yamlLoad, dump as yamlDump } from 'js-yaml'; // eslint-disable-line import-x/no-extraneous-dependencies -- workspace root dep
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -39,6 +39,13 @@ export type RepoStatus = {
   lastActivity?: number;
 };
 
+export type RepoContext = {
+  name: string;
+  repo: RepoConfig;
+  manifest: Manifest;
+  root: string;
+};
+
 // ── Root Detection ──────────────────────────────────────────────
 
 export function findRoot(): string {
@@ -49,13 +56,13 @@ export function findRoot(): string {
     }
   }
 
-  let dir = process.cwd();
-  while (dir !== dirname(dir)) {
-    if (existsSync(join(dir, 'repos.yaml'))) {
-      return dir;
+  let directory = process.cwd();
+  while (directory !== dirname(directory)) {
+    if (existsSync(join(directory, 'repos.yaml'))) {
+      return directory;
     }
 
-    dir = dirname(dir);
+    directory = dirname(directory);
   }
 
   throw new Error('Could not find repos.yaml. Run from the workspace root or set TAU_ROOT.');
@@ -70,14 +77,14 @@ export function readManifest(root?: string): {
   const resolvedRoot = root ?? findRoot();
   const filePath = join(resolvedRoot, 'repos.yaml');
   const content = readFileSync(filePath, 'utf8');
-  const manifest = yaml.load(content) as Manifest;
+  const manifest = yamlLoad(content) as Manifest;
   return { manifest, root: resolvedRoot };
 }
 
 export function writeManifest(manifest: Manifest, root?: string): void {
   const resolvedRoot = root ?? findRoot();
   const filePath = join(resolvedRoot, 'repos.yaml');
-  const content = yaml.dump(manifest, {
+  const content = yamlDump(manifest, {
     lineWidth: -1,
     noRefs: true,
     quotingType: "'",
@@ -93,13 +100,14 @@ export function repoUrl(ownerRepo: string): string {
 }
 
 export function parseOwnerRepo(url: string): string | undefined {
-  const match = /github\.com[/:](?<ownerRepo>[^/]+\/[^/.]+?)(?:\.git)?$/.exec(url);
+  const match = /github\.com[/:](?<ownerRepo>[^/]+\/[^./]+?)(?:\.git)?$/.exec(url);
   return match?.groups?.['ownerRepo'];
 }
 
 // ── Path Helpers ────────────────────────────────────────────────
 
-export function repoPath(name: string, repo: RepoConfig, manifest: Manifest, root: string): string {
+export function repoPath(context: RepoContext): string {
+  const { name, repo, manifest, root } = context;
   const relative = repo.path ?? name;
   return resolve(root, manifest.repos_dir, relative);
 }
@@ -151,63 +159,55 @@ export function resolveRepos(
 
 // ── Git Helpers ─────────────────────────────────────────────────
 
-export function isCloned(name: string, repo: RepoConfig, manifest: Manifest, root: string): boolean {
-  const dir = repoPath(name, repo, manifest, root);
-  return existsSync(join(dir, '.git'));
+export function isCloned(context: RepoContext): boolean {
+  const directory = repoPath(context);
+  return existsSync(join(directory, '.git'));
 }
 
-export function gitExec(name: string, repo: RepoConfig, manifest: Manifest, root: string, args: string[]): string {
-  const dir = repoPath(name, repo, manifest, root);
+export function gitExec(context: RepoContext, args: string[]): string {
+  const directory = repoPath(context);
   return execSync(['git', ...args].join(' '), {
-    cwd: dir,
+    cwd: directory,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
   }).trim();
 }
 
-export function getRepoStatus(name: string, repo: RepoConfig, manifest: Manifest, root: string): RepoStatus {
-  if (!isCloned(name, repo, manifest, root)) {
+export function getRepoStatus(context: RepoContext): RepoStatus {
+  const { name, repo } = context;
+  if (!isCloned(context)) {
     return { name, cloned: false };
   }
 
   try {
-    const branch = gitExec(name, repo, manifest, root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    const branch = gitExec(context, ['rev-parse', '--abbrev-ref', 'HEAD']);
 
-    const statusOutput = gitExec(name, repo, manifest, root, ['status', '--porcelain']);
+    const statusOutput = gitExec(context, ['status', '--porcelain']);
     const dirty = statusOutput.length > 0;
 
     let ahead = 0;
     let behind = 0;
     try {
-      const abOutput = gitExec(name, repo, manifest, root, [
-        'rev-list',
-        '--left-right',
-        '--count',
-        `origin/${branch}...HEAD`,
-      ]);
+      const abOutput = gitExec(context, ['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`]);
       const parts = abOutput.split('\t');
       behind = Number.parseInt(parts[0] ?? '0', 10);
       ahead = Number.parseInt(parts[1] ?? '0', 10);
     } catch {
-      // no tracking branch
+      // No tracking branch
     }
 
     let upstreamAhead: number | undefined;
     if (repo.fork) {
       try {
         const defaultBranch = repo.branch ?? branch;
-        const uaOutput = gitExec(name, repo, manifest, root, [
-          'rev-list',
-          '--count',
-          `HEAD..upstream/${defaultBranch}`,
-        ]);
+        const uaOutput = gitExec(context, ['rev-list', '--count', `HEAD..upstream/${defaultBranch}`]);
         upstreamAhead = Number.parseInt(uaOutput, 10);
       } catch {
-        // upstream not fetched yet
+        // Upstream not fetched yet
       }
     }
 
-    const lastActivity = getLastActivity(name, repo, manifest, root);
+    const lastActivity = getLastActivity(context);
 
     return {
       name,
@@ -224,13 +224,13 @@ export function getRepoStatus(name: string, repo: RepoConfig, manifest: Manifest
   }
 }
 
-export function getLastActivity(name: string, repo: RepoConfig, manifest: Manifest, root: string): number | undefined {
-  if (!isCloned(name, repo, manifest, root)) {
+export function getLastActivity(context: RepoContext): number | undefined {
+  if (!isCloned(context)) {
     return undefined;
   }
 
   try {
-    const ts = gitExec(name, repo, manifest, root, ['log', '-1', '--format=%ct']);
+    const ts = gitExec(context, ['log', '-1', '--format=%ct']);
     return Number.parseInt(ts, 10);
   } catch {
     return undefined;
@@ -253,14 +253,10 @@ export function fetchRepoDescription(upstream: string): string | undefined {
 
 // ── Clone ───────────────────────────────────────────────────────
 
-export function cloneRepo(
-  name: string,
-  repo: RepoConfig,
-  manifest: Manifest,
-  root: string,
-): { action: 'cloned' | 'skipped'; message: string } {
-  const dir = repoPath(name, repo, manifest, root);
-  if (existsSync(join(dir, '.git'))) {
+export function cloneRepo(context: RepoContext): { action: 'cloned' | 'skipped'; message: string } {
+  const { name, repo, manifest, root } = context;
+  const directory = repoPath(context);
+  if (existsSync(join(directory, '.git'))) {
     return { action: 'skipped', message: `${name}: already cloned` };
   }
 
@@ -273,7 +269,7 @@ export function cloneRepo(
   }
 
   const cloneUrl = repo.fork ? repoUrl(repo.fork) : repoUrl(repo.upstream);
-  const args = ['git', 'clone', cloneUrl, dir];
+  const args = ['git', 'clone', cloneUrl, directory];
   if (repo.shallow) {
     args.splice(1, 0, '--depth', '1');
   }
@@ -285,7 +281,7 @@ export function cloneRepo(
   execSync(args.join(' '), { stdio: 'inherit' });
 
   if (repo.fork) {
-    execSync(`git -C ${dir} remote add upstream ${repoUrl(repo.upstream)}`, {
+    execSync(`git -C ${directory} remote add upstream ${repoUrl(repo.upstream)}`, {
       stdio: 'inherit',
     });
   }
@@ -295,20 +291,16 @@ export function cloneRepo(
 
 // ── Sync ────────────────────────────────────────────────────────
 
-export function syncRepo(
-  name: string,
-  repo: RepoConfig,
-  manifest: Manifest,
-  root: string,
-): { ok: boolean; message: string } {
-  if (!isCloned(name, repo, manifest, root)) {
+export function syncRepo(context: RepoContext): { ok: boolean; message: string } {
+  const { name } = context;
+  if (!isCloned(context)) {
     return { ok: false, message: `${name}: not cloned` };
   }
 
   try {
-    gitExec(name, repo, manifest, root, ['fetch', '--all', '--prune']);
+    gitExec(context, ['fetch', '--all', '--prune']);
     try {
-      gitExec(name, repo, manifest, root, ['pull', '--ff-only']);
+      gitExec(context, ['pull', '--ff-only']);
     } catch {
       return {
         ok: false,
@@ -318,8 +310,8 @@ export function syncRepo(
 
     return { ok: true, message: `${name}: synced` };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return { ok: false, message: `${name}: ${msg}` };
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, message: `${name}: ${message}` };
   }
 }
 
@@ -345,28 +337,29 @@ export function forkRepo(name: string, manifest: Manifest, root: string): { ok: 
   try {
     execSync(`gh repo fork ${repo.upstream} --org ${manifest.owner} --clone=false`, { stdio: 'inherit' });
   } catch {
-    // fork may already exist on GitHub
+    // Fork may already exist on GitHub
   }
 
   repo.fork = forkSlug;
   writeManifest(manifest, root);
 
-  if (isCloned(name, repo, manifest, root)) {
-    const dir = repoPath(name, repo, manifest, root);
+  const context = { name, repo, manifest, root };
+  if (isCloned(context)) {
+    const directory = repoPath(context);
     try {
-      execSync(`git -C ${dir} remote rename origin upstream`, {
+      execSync(`git -C ${directory} remote rename origin upstream`, {
         stdio: 'pipe',
       });
     } catch {
-      // upstream remote may already exist
+      // Upstream remote may already exist
     }
 
     try {
-      execSync(`git -C ${dir} remote add origin ${repoUrl(forkSlug)}`, {
+      execSync(`git -C ${directory} remote add origin ${repoUrl(forkSlug)}`, {
         stdio: 'pipe',
       });
     } catch {
-      execSync(`git -C ${dir} remote set-url origin ${repoUrl(forkSlug)}`, {
+      execSync(`git -C ${directory} remote set-url origin ${repoUrl(forkSlug)}`, {
         stdio: 'pipe',
       });
     }
@@ -385,15 +378,16 @@ export function unforkRepo(name: string, manifest: Manifest, root: string): { ok
     return { ok: false, message: `${name}: not forked` };
   }
 
-  if (isCloned(name, repo, manifest, root)) {
-    const dir = repoPath(name, repo, manifest, root);
+  const context = { name, repo, manifest, root };
+  if (isCloned(context)) {
+    const directory = repoPath(context);
     try {
-      execSync(`git -C ${dir} remote remove origin`, { stdio: 'pipe' });
-      execSync(`git -C ${dir} remote rename upstream origin`, {
+      execSync(`git -C ${directory} remote remove origin`, { stdio: 'pipe' });
+      execSync(`git -C ${directory} remote rename upstream origin`, {
         stdio: 'pipe',
       });
     } catch {
-      // best effort
+      // Best effort
     }
   }
 

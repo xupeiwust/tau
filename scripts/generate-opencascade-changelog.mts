@@ -19,9 +19,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = join(__dirname, '..');
-const occtDir = join(rootDir, 'repos', 'OCCT');
-const outputFile = join(rootDir, 'docs', 'opencascade-v7.62-v8rc4-changelog.md');
+const rootDirectory = join(__dirname, '..');
+const occtDirectory = join(rootDirectory, 'repos', 'OCCT');
+const outputFile = join(rootDirectory, 'docs', 'opencascade-v7.62-v8rc4-changelog.md');
 
 const repo = 'Open-Cascade-SAS/OCCT';
 const baseTag = 'V7_6_2';
@@ -63,11 +63,11 @@ function formatTag(tag: string): string {
 }
 
 function getTagDate(tag: string): string {
-  return run(`git log -1 --format='%ci' ${tag}`, occtDir).split(' ')[0]!;
+  return run(`git log -1 --format='%ci' ${tag}`, occtDirectory).split(' ')[0] ?? '';
 }
 
 function getCommitCount(from: string, to: string): number {
-  return Number.parseInt(run(`git rev-list --count ${from}..${to}`, occtDir), 10);
+  return Number.parseInt(run(`git rev-list --count ${from}..${to}`, occtDirectory), 10);
 }
 
 function fetchReleaseBody(tag: string): string {
@@ -287,7 +287,7 @@ async function main(): Promise<void> {
     lines.push(`### ${version} (${t.date}, ${t.commitCount} commits)${breakingBadge}`);
     lines.push('');
     lines.push(
-      `[GitHub Release](https://github.com/${repo}/releases/tag/${t.tag}) · [Full Changelog](https://github.com/${repo}/compare/${t === tags[0] ? baseTag : tags[tags.indexOf(t) - 1]!.tag}...${t.tag})`,
+      `[GitHub Release](https://github.com/${repo}/releases/tag/${t.tag}) · [Full Changelog](https://github.com/${repo}/compare/${t === tags[0] ? baseTag : (tags[tags.indexOf(t) - 1]?.tag ?? baseTag)}...${t.tag})`,
     );
     lines.push('');
     lines.push(t.body);

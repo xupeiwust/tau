@@ -12,9 +12,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = join(__dirname, '..');
-const nodeModulesDir = join(rootDir, 'node_modules');
-const outputFile = join(rootDir, 'license-deps');
+const rootDirectory = join(__dirname, '..');
+const nodeModulesDirectory = join(rootDirectory, 'node_modules');
+const outputFile = join(rootDirectory, 'license-deps');
 
 type PackageInfo = {
   name: string;
@@ -22,6 +22,15 @@ type PackageInfo = {
   license: string;
   repository?: string;
   author?: string;
+};
+
+type PackageJsonRaw = {
+  name?: string;
+  version?: string;
+  license?: string | { type?: string };
+  licenses?: Array<{ type?: string }>;
+  repository?: string | { url?: string };
+  author?: string | { name?: string };
 };
 
 type LicenseGroup = {
@@ -69,52 +78,46 @@ async function readPackageJson(packagePath: string): Promise<PackageInfo | undef
   try {
     const packageJsonPath = join(packagePath, 'package.json');
     const content = await readFile(packageJsonPath, 'utf8');
-    const pkg = JSON.parse(content) as Record<string, unknown>;
+    const packageJson = JSON.parse(content) as PackageJsonRaw;
 
-    const name = pkg['name'] as string | undefined;
-    const version = pkg['version'] as string | undefined;
-    let license = pkg['license'] as string | undefined;
+    const {
+      name,
+      version,
+      license: licenseField,
+      licenses: licensesField,
+      repository: repositoryField,
+      author: authorField,
+    } = packageJson;
 
     if (!name || !version) {
       return undefined;
     }
 
-    // Handle license objects
-    if (typeof pkg['license'] === 'object' && pkg['license'] !== null) {
-      const licenseObject = pkg['license'] as Record<string, unknown>;
-      license = licenseObject['type'] as string | undefined;
+    let license: string | undefined;
+    if (typeof licenseField === 'string') {
+      license = licenseField;
+    } else if (typeof licenseField === 'object') {
+      license = licenseField.type;
     }
 
-    // Handle licenses array
-    if (Array.isArray(pkg['licenses']) && pkg['licenses'].length > 0) {
-      const licenses = pkg['licenses'] as Array<Record<string, unknown>>;
-      license = licenses
-        .map((l) => {
-          const { type } = l as { type?: unknown };
-          return typeof type === 'string' ? type : JSON.stringify(l);
-        })
-        .join(' OR ');
+    if (Array.isArray(licensesField) && licensesField.length > 0) {
+      license = licensesField.map((l) => l.type ?? JSON.stringify(l)).join(' OR ');
     }
 
-    // Extract repository URL
     let repository: string | undefined;
-    if (typeof pkg['repository'] === 'string') {
-      repository = pkg['repository'];
-    } else if (typeof pkg['repository'] === 'object' && pkg['repository'] !== null) {
-      const repositoryObject = pkg['repository'] as Record<string, unknown>;
-      repository = repositoryObject['url'] as string | undefined;
+    if (typeof repositoryField === 'string') {
+      repository = repositoryField;
+    } else if (typeof repositoryField === 'object') {
+      repository = repositoryField.url;
     }
 
-    // Normalize repository URL to a clickable HTTPS link
     repository &&= normalizeGithubUrl(repository);
 
-    // Extract author
     let author: string | undefined;
-    if (typeof pkg['author'] === 'string') {
-      author = pkg['author'];
-    } else if (typeof pkg['author'] === 'object' && pkg['author'] !== null) {
-      const authorObject = pkg['author'] as Record<string, unknown>;
-      author = authorObject['name'] as string | undefined;
+    if (typeof authorField === 'string') {
+      author = authorField;
+    } else if (typeof authorField === 'object') {
+      author = authorField.name;
     }
 
     return {
@@ -145,11 +148,11 @@ async function isDirectory(path: string): Promise<boolean> {
  * Scan a directory for packages.
  * Handles pnpm's symlinked structure by following symlinks.
  */
-async function scanDirectory(dir: string): Promise<PackageInfo[]> {
+async function scanDirectory(directory: string): Promise<PackageInfo[]> {
   const packages: PackageInfo[] = [];
 
   try {
-    const entries = await readdir(dir);
+    const entries = await readdir(directory);
 
     for (const entryName of entries) {
       // Skip hidden files and special pnpm directories
@@ -157,12 +160,12 @@ async function scanDirectory(dir: string): Promise<PackageInfo[]> {
         continue;
       }
 
-      const packagePath = join(dir, entryName);
+      const packagePath = join(directory, entryName);
 
       // Check if it's a directory (follows symlinks)
       // oxlint-disable-next-line no-await-in-loop -- Sequential scanning is intentional for memory efficiency
-      const isDir = await isDirectory(packagePath);
-      if (!isDir) {
+      const isDirectoryResult = await isDirectory(packagePath);
+      if (!isDirectoryResult) {
         continue;
       }
 
@@ -192,10 +195,10 @@ async function scanDirectory(dir: string): Promise<PackageInfo[]> {
 function groupByLicense(packages: PackageInfo[]): LicenseGroup[] {
   const groups = new Map<string, PackageInfo[]>();
 
-  for (const pkg of packages) {
-    const { license } = pkg;
+  for (const packageInfo of packages) {
+    const { license } = packageInfo;
     const existing = groups.get(license) ?? [];
-    existing.push(pkg);
+    existing.push(packageInfo);
     groups.set(license, existing);
   }
 
@@ -345,9 +348,9 @@ function generateMarkdown(groups: LicenseGroup[]): string {
     const notice = getLicenseNotice(group.license);
     lines.push(...notice);
 
-    for (const pkg of group.packages) {
-      const repoLink = pkg.repository ? ` — [Repository](${pkg.repository})` : '';
-      lines.push(`- **${pkg.name}** v${pkg.version}${repoLink}`);
+    for (const packageInfo of group.packages) {
+      const repoLink = packageInfo.repository ? ` — [Repository](${packageInfo.repository})` : '';
+      lines.push(`- **${packageInfo.name}** v${packageInfo.version}${repoLink}`);
     }
 
     lines.push('');
@@ -382,7 +385,7 @@ function generateMarkdown(groups: LicenseGroup[]): string {
 async function main(): Promise<void> {
   console.log('Scanning node_modules for package licenses...');
 
-  const packages = await scanDirectory(nodeModulesDir);
+  const packages = await scanDirectory(nodeModulesDirectory);
   console.log(`Found ${packages.length} packages`);
 
   const groups = groupByLicense(packages);

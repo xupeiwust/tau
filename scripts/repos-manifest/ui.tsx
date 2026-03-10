@@ -1,10 +1,10 @@
 /* oxlint-disable no-restricted-imports -- standalone scripts use relative imports */
 
 import process from 'node:process';
-import React, { useState, useMemo } from 'react';
-import { render, Box, Text, useInput, useApp } from 'ink';
-import { Spinner, ConfirmInput, TextInput } from '@inkjs/ui';
-import type { Manifest, RepoConfig, RepoStatus } from './lib.ts';
+import React, { useState, useMemo } from 'react'; // eslint-disable-line import-x/no-extraneous-dependencies -- workspace root dep
+import { render, Box, Text, useInput, useApp } from 'ink'; // eslint-disable-line import-x/no-extraneous-dependencies -- workspace root dep
+import { Spinner, ConfirmInput, TextInput } from '@inkjs/ui'; // eslint-disable-line import-x/no-extraneous-dependencies -- workspace root dep
+import type { Manifest, RepoConfig, RepoContext, RepoStatus } from './lib.ts';
 import { readManifest, getRepoStatus, getLastActivity, cloneRepo, syncRepo, forkRepo, unforkRepo } from './lib.ts';
 
 // ── Types ───────────────────────────────────────────────────────
@@ -23,8 +23,8 @@ type EnrichedRepo = {
 function loadRepos(manifest: Manifest, root: string): EnrichedRepo[] {
   const entries = Object.entries(manifest.repos);
   const enriched: EnrichedRepo[] = entries.map(([name, config]) => {
-    const status = getRepoStatus(name, config, manifest, root);
-    const lastActivity = status.cloned ? getLastActivity(name, config, manifest, root) : undefined;
+    const status = getRepoStatus({ name, repo: config, manifest, root });
+    const lastActivity = status.cloned ? getLastActivity({ name, repo: config, manifest, root }) : undefined;
     return { name, config, status, lastActivity };
   });
 
@@ -203,7 +203,7 @@ function useNavigationInput(options: {
   cursor: number;
   setShowFilter: (v: boolean) => void;
   setFilter: (v: string) => void;
-  setCursor: (fn: (c: number) => number) => void;
+  setCursor: (updater: (c: number) => number) => void;
   setGroup: (g: string) => void;
   setMessage: (m: string) => void;
   setMode: (m: AppMode) => void;
@@ -385,7 +385,7 @@ function App(): React.ReactElement {
         setMessage(`Cloning ${repo.name}...`);
         setTimeout(() => {
           try {
-            cloneRepo(repo.name, repo.config, manifest, root);
+            cloneRepo({ name: repo.name, repo: repo.config, manifest, root });
             setMessage(`✓ ${repo.name} cloned`);
           } catch (error) {
             setMessage(`✗ Clone failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -405,7 +405,7 @@ function App(): React.ReactElement {
         setMode('syncing');
         setMessage(`Syncing ${repo.name}...`);
         setTimeout(() => {
-          const result = syncRepo(repo.name, repo.config, manifest, root);
+          const result = syncRepo({ name: repo.name, repo: repo.config, manifest, root });
           setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`);
           refreshRepos();
           setMode('list');
@@ -423,7 +423,7 @@ function App(): React.ReactElement {
         let fail = 0;
         for (const repo of filteredRepos) {
           if (repo.status.cloned) {
-            const result = syncRepo(repo.name, repo.config, manifest, root);
+            const result = syncRepo({ name: repo.name, repo: repo.config, manifest, root });
             if (result.ok) {
               ok++;
             } else {

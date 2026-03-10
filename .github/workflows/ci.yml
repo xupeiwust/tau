@@ -34,6 +34,19 @@ jobs:
           version=$(awk '/^  oxfmt:/{gsub(/["'"'"']/, "", $2); print $2}' pnpm-workspace.yaml)
           pnpm dlx "oxfmt@${version}" --check
 
+  docs:
+    name: Validate docs frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Nx Environment
+        uses: ./.github/actions/setup-nx
+
+      - name: Validate frontmatter
+        run: pnpm docs:validate
+
   affected:
     name: Run affected tasks
     runs-on: ubuntu-latest

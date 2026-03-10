@@ -1,7 +1,6 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
     "composite": false,
     "declaration": false,
     "declarationMap": false,
@@ -10,5 +9,11 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "files": [],
+  "include": [],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
 }
