@@ -10,7 +10,14 @@
  * Type resolution works through pnpm workspace symlinks and package.json exports
  * pointing to source files, so no declaration emit is needed for type-checking.
  *
- * @see https://github.com/nicolo-ribaudo/TypeScript/tree/nicolo/nicolo/native-preview
+ * Cross-project `references` are intentionally omitted from tsconfig.lib.json and
+ * tsconfig.app.json files. With `--composite false`, tsgo does not emit declarations,
+ * so referenced projects' `.d.ts` outputs would never exist, causing TS6305 errors.
+ * Instead, cross-project types resolve via package.json exports pointing to `.ts`
+ * source, which tsgo type-checks directly through pnpm workspace symlinks.
+ *
+ * @see https://github.com/microsoft/typescript-go/issues/1182 — TS6305 with project references
+ * @see https://github.com/microsoft/typescript-go/issues/506 — tsgo and composite project behavior
  */
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
