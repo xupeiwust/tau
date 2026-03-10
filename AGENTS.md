@@ -85,6 +85,7 @@ Project skills in `.cursor/skills/` provide guided workflows. Read the relevant 
 - Use `react-virtuoso` for virtualization, not `@tanstack/react-virtual`; follow patterns in `combobox-responsive.tsx`
 - Never blow away the entire IndexedDB database — user work is stored there
 - Prefer algorithmic, code-level solutions over bundler config or Vite plugins; optimize for 3rd-party consumer DX
+- When asked to explore or investigate, present findings and analysis first; do not jump to code changes until implementation is explicitly requested
 
 ## Learned Workspace Facts
 
@@ -93,10 +94,11 @@ Project skills in `.cursor/skills/` provide guided workflows. Read the relevant 
 - External repos in `repos/` managed via `repos.yaml` and `pnpm repos`; gitignored and cursorignored; add to `.oxlintrc.json` ignorePatterns
 - `packages/kernels` is consumed as source via package.json exports, not built output
 - Vite plugins in `@taucad/vite` with `*.vite-plugin.ts` suffix, `vite:` prefix for names, and Vite 8 hook filters for Rolldown
-- Max 3 parameters per function; bundle extras into an options object
 - JSDoc: informative-docs (no restating symbol name), sort-tags (template, param, returns, throws, example, see), `@internal` must be empty
 - PR workflow: submit as draft; human reviews before marking ready via `gh pr ready`
 - Single FS worker architecture; all filesystem access flows through one serialized worker with ZenFS and IndexedDB backend
 - Editor architecture: machine owns openFiles, ref-counting, force-close; dockview subscribes only; use unique panel IDs (not file path)
 - Two filesystem watch planes: kernel fast path (dependency-scoped) and UI tree path (directory-scoped); do not merge into one coarse stream
+- `repos/opencascade.js` WASM build: platform bindings live in `BUILTIN_ADDITIONAL_BIND_CODE` (Python layer); YAML `additionalBindCode` is for per-config customization; prefer auto-generated bindings over manual C++ wrappers
+- WASM full builds (10-30+ min) must use `nohup` to survive terminal/session drops: `nohup env OCJS_OPT="-O0" ./build-wasm.sh full <yaml> > build.log 2>&1 &`; link-only rebuilds (~1-2 min) don't need it
 - Safari (as of 26.4): no `scheduler.yield()` or `using`/`await using` (`Symbol.dispose`); use fallbacks

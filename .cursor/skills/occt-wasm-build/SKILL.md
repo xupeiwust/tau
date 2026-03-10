@@ -44,17 +44,20 @@ All build operations go through `repos/opencascade.js/build-wasm.sh` as the sing
 
 ### Just Build WASM
 
+**Always use `nohup` for full builds.** Full builds take 10-30+ minutes (longer with cold caches). If the terminal session drops (SSH timeout, IDE restart, laptop sleep), the build is lost. Wrap the command with `nohup` and redirect output to a log file:
+
 ```bash
 cd repos/opencascade.js
 
-# Full build with cache (checks cache first, compiles only on miss)
-OCJS_LTO=0 ./build-wasm.sh full ../replicad/packages/replicad-opencascadejs/build-config/custom_build_single_v8.yml
+# Full build (always use nohup — takes 10-30+ min)
+nohup env OCJS_LTO=0 ./build-wasm.sh full build-configs/full.yml > build.log 2>&1 &
+tail -f build.log  # Monitor progress
 
-# Link-only rebuild (fastest, reuses compiled .o files)
-./build-wasm.sh link ../replicad/packages/replicad-opencascadejs/build-config/custom_build_single_v8.yml
+# Link-only rebuild (fastest, reuses compiled .o files — nohup optional, ~1-2 min)
+./build-wasm.sh link build-configs/full.yml
 
 # Rebuild PCH then link
-./build-wasm.sh pch link ../replicad/packages/replicad-opencascadejs/build-config/custom_build_single_v8.yml
+./build-wasm.sh pch link build-configs/full.yml
 
 # Regenerate .d.ts only (fastest — no compile/link, just reassemble from fragments)
 ./build-wasm.sh dts build-configs/full.yml
@@ -327,6 +330,17 @@ npx copy-files-from-to --config copy-files-from-to.cjson
 ```
 
 ## Troubleshooting
+
+### Build interrupted by terminal disconnect
+
+Full builds take 10-30+ minutes and are lost if the terminal session drops. Always use `nohup` for full builds:
+
+```bash
+nohup env OCJS_OPT=-O2 OCJS_LTO=0 ./build-wasm.sh full build-configs/full.yml > build.log 2>&1 &
+tail -f build.log
+```
+
+If a build was interrupted, check for stale lock files or partial cache entries (`*.storing` directories in `cache/`) and re-run.
 
 ### Stale cache after modifying OCCT source
 
