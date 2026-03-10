@@ -1,47 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createActor, setup, waitFor, assign } from 'xstate';
-import type { AnyActorRef } from 'xstate';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
-
-// ---------------------------------------------------------------------------
-// stopRootWithRehydration — exact copy from @xstate/react
-// ---------------------------------------------------------------------------
-
-function forEachActor(actorRef: AnyActorRef, callback: (ref: AnyActorRef) => void): void {
-  callback(actorRef);
-  // oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- mirror @xstate/react internals
-  const { children } = actorRef.getSnapshot();
-  if (children) {
-    // oxlint-disable-next-line @typescript-eslint/no-unsafe-argument -- mirror @xstate/react internals
-    for (const child of Object.values(children)) {
-      forEachActor(child as AnyActorRef, callback);
-    }
-  }
-}
-
-function stopRootWithRehydration(actorRef: AnyActorRef): void {
-  const persistedSnapshots: Array<[AnyActorRef, unknown]> = [];
-  forEachActor(actorRef, (ref) => {
-    persistedSnapshots.push([ref, ref.getSnapshot()]);
-    // oxlint-disable-next-line @typescript-eslint/no-unsafe-member-access -- mirror @xstate/react internals
-    (ref as unknown as Record<string, unknown>)['observers'] = new Set();
-  });
-
-  // oxlint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- mirror @xstate/react internals
-  const systemSnapshot = (
-    (actorRef.system as unknown as Record<string, unknown>)['getSnapshot'] as (() => unknown) | undefined
-  )?.();
-  actorRef.stop();
-  // oxlint-disable-next-line @typescript-eslint/no-unsafe-member-access -- mirror @xstate/react internals
-  (actorRef.system as unknown as Record<string, unknown>)['_snapshot'] = systemSnapshot;
-
-  for (const [ref, snapshot] of persistedSnapshots) {
-    // oxlint-disable-next-line @typescript-eslint/no-unsafe-member-access -- mirror @xstate/react internals
-    (ref as unknown as Record<string, unknown>)['_processingStatus'] = 0;
-    // oxlint-disable-next-line @typescript-eslint/no-unsafe-member-access -- mirror @xstate/react internals
-    (ref as unknown as Record<string, unknown>)['_snapshot'] = snapshot;
-  }
-}
+import { stopRootWithRehydration } from '#lib/xstate-test.utils.js';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -152,8 +112,8 @@ describe('fromSafeAsync', () => {
           events: {} as DataEvent,
         },
         actors: {
-          work: fromSafeAsync(async ({ input }: { input: { multiplier: number }; signal: AbortSignal }) => {
-            return { type: 'dataReady' as const, value: input.multiplier * 10 };
+          work: fromSafeAsync<{ type: 'dataReady'; value: number }, { multiplier: number }>(async ({ input }) => {
+            return { type: 'dataReady', value: input.multiplier * 10 };
           }),
         },
       }).createMachine({
@@ -259,7 +219,7 @@ describe('fromSafeAsync', () => {
               setTimeout(resolve, 100);
             });
             callLog.push('return');
-            return { type: 'workDone' as const, value: 'from-zombie' };
+            return { type: 'workDone', value: 'from-zombie' };
           }),
         },
       }).createMachine({
@@ -333,7 +293,7 @@ describe('fromSafeAsync', () => {
             await new Promise((resolve) => {
               setTimeout(resolve, 50);
             });
-            return { type: 'tagged' as const, invocation: myInvocation };
+            return { type: 'tagged', invocation: myInvocation };
           }),
         },
       }).createMachine({

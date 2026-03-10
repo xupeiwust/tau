@@ -20,7 +20,7 @@ import { fromSafeAsync } from '#lib/xstate.lib.js';
 // =============================================================================
 
 describe('fromSafeAsync<TReturn, TInput> generic parameters', () => {
-  it('should type input from explicit TInput generic', () => {
+  it('should type input and return from explicit generics', () => {
     type LoadedEvent = { type: 'loaded'; data: string };
     type LoadInput = { url: string; timeout: number };
 
@@ -33,10 +33,9 @@ describe('fromSafeAsync<TReturn, TInput> generic parameters', () => {
       },
       actors: {
         loadActor: fromSafeAsync<LoadedEvent, LoadInput>(async ({ input, signal }) => {
-          void signal;
-          expectTypeOf(input.url).toBeString();
-          expectTypeOf(input.timeout).toBeNumber();
-          return { type: 'loaded' as const, data: input.url };
+          expectTypeOf(signal).toEqualTypeOf<AbortSignal>();
+          expectTypeOf(input).toEqualTypeOf<LoadInput>();
+          return { type: 'loaded', data: input.url };
         }),
       },
     }).createMachine({
@@ -52,7 +51,7 @@ describe('fromSafeAsync<TReturn, TInput> generic parameters', () => {
           on: {
             loaded: {
               actions: ({ event }) => {
-                expectTypeOf(event.data).toBeString();
+                expectTypeOf(event).toEqualTypeOf<LoadedEvent>();
               },
             },
           },
@@ -77,10 +76,8 @@ describe('fromSafeAsync<TReturn, TInput> generic parameters', () => {
       },
       actors: {
         computeActor: fromSafeAsync<ComputedEvent, ComputeInput>(async ({ input }) => {
-          expectTypeOf(input.a).toBeNumber();
-          expectTypeOf(input.b).toBeNumber();
-          expectTypeOf(input.label).toBeString();
-          return { type: 'computed' as const, total: input.a + input.b };
+          expectTypeOf(input).toEqualTypeOf<ComputeInput>();
+          return { type: 'computed', total: input.a + input.b };
         }),
       },
     }).createMachine({
@@ -153,17 +150,66 @@ describe('fire-and-forget with input', () => {
 });
 
 // =============================================================================
+// provide() contextual typing — no inline types needed
+// =============================================================================
+
+describe('provide() contextual typing', () => {
+  it('should infer input and return types from the placeholder actor slot', () => {
+    type LoadedEvent = { type: 'loaded'; data: string };
+    type LoadInput = { url: string };
+
+    const machine = setup({
+      types: {
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- xstate setup
+        events: {} as LoadedEvent,
+      },
+      actors: {
+        loadActor: fromSafeAsync<LoadedEvent, LoadInput>(async (): Promise<LoadedEvent> => {
+          throw new Error('loadActor not provided');
+        }),
+      },
+    }).createMachine({
+      initial: 'loading',
+      states: {
+        loading: {
+          invoke: {
+            src: 'loadActor',
+            input: () => ({ url: '/api/data' }),
+            onDone: 'done',
+          },
+          on: {
+            loaded: {
+              actions: ({ event }) => {
+                expectTypeOf(event).toEqualTypeOf<LoadedEvent>();
+              },
+            },
+          },
+        },
+        done: { type: 'final' },
+      },
+    });
+
+    machine.provide({
+      actors: {
+        loadActor: fromSafeAsync(async ({ input }) => {
+          expectTypeOf(input).toEqualTypeOf<LoadInput>();
+          return { type: 'loaded', data: input.url };
+        }),
+      },
+    });
+  });
+});
+
+// =============================================================================
 // Standalone actors with explicit input annotation
 // =============================================================================
 
 describe('standalone actors with inline annotation', () => {
-  it('should accept inline parameter annotation as alternative to generics', () => {
-    const actor = fromSafeAsync(async ({ input, signal }: { input: { id: string }; signal: AbortSignal }) => {
-      void signal;
-      return { type: 'fetched' as const, id: input.id };
+  it('should infer input type from inline parameter annotation', () => {
+    fromSafeAsync(async ({ input }: { input: { id: string }; signal: AbortSignal }) => {
+      expectTypeOf(input).toEqualTypeOf<{ id: string }>();
+      return { type: 'fetched', id: input.id };
     });
-
-    expectTypeOf(actor).toBeObject();
   });
 });
 
@@ -173,14 +219,16 @@ describe('standalone actors with inline annotation', () => {
 
 describe('on: handler event type inference', () => {
   it('should infer event type in on: handlers from TReturn', () => {
+    type ResultEvent = { type: 'result'; value: number };
+
     setup({
       types: {
         // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- xstate setup
-        events: {} as { type: 'result'; value: number },
+        events: {} as ResultEvent,
       },
       actors: {
-        computeActor: fromSafeAsync<{ type: 'result'; value: number }>(async () => {
-          return { type: 'result' as const, value: 42 };
+        computeActor: fromSafeAsync<ResultEvent>(async () => {
+          return { type: 'result', value: 42 };
         }),
       },
     }).createMachine({
@@ -191,7 +239,7 @@ describe('on: handler event type inference', () => {
           on: {
             result: {
               actions: ({ event }) => {
-                expectTypeOf(event.value).toBeNumber();
+                expectTypeOf(event).toEqualTypeOf<ResultEvent>();
               },
             },
           },

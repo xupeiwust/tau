@@ -76,7 +76,7 @@ function createSafeSubscribable<T>(
  *
  * const loadActor = fromSafeAsync<LoadedEvent, LoadInput>(async ({ input, signal }) => {
  *   const data = await fetchData(input.url, { signal }); // input: LoadInput
- *   return { type: 'loaded' as const, data };             // return: LoadedEvent
+ *   return { type: 'loaded', data };                       // return: LoadedEvent
  * });
  * ```
  *
