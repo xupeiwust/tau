@@ -80,8 +80,8 @@ const involuteGear = (options: {
 
   const toothCurveResolution = 5;
   const points: Array<[number, number]> = [[0, 0]];
-  for (let i = 0; i <= toothCurveResolution; i++) {
-    const angle = maxAngle * (i / toothCurveResolution) ** (2 / 3);
+  for (let index = 0; index <= toothCurveResolution; index++) {
+    const angle = maxAngle * (index / toothCurveResolution) ** (2 / 3);
     const tanLength = angle * baseRadius;
     let radiantVector = vec2.fromAngleRadians(vec2.create(), angle);
     let tangentVector = vec2.scale(
@@ -90,7 +90,7 @@ const involuteGear = (options: {
       -tanLength,
     );
     radiantVector = vec2.scale(vec2.create(), radiantVector, baseRadius);
-    points[i + 1] = [
+    points[index + 1] = [
       radiantVector[0] + tangentVector[0],
       radiantVector[1] + tangentVector[1],
     ];
@@ -105,7 +105,7 @@ const involuteGear = (options: {
       tanLength,
     );
     radiantVector = vec2.scale(vec2.create(), radiantVector, baseRadius);
-    points[2 * toothCurveResolution + 2 - i] = [
+    points[2 * toothCurveResolution + 2 - index] = [
       radiantVector[0] + tangentVector[0],
       radiantVector[1] + tangentVector[1],
     ];
@@ -117,8 +117,8 @@ const involuteGear = (options: {
   const singleTooth3D = extrudeLinear({ height: thickness }, singleTooth2D);
 
   const allTeeth: Geom3[] = [];
-  for (let j = 0; j < numberTeeth; j++) {
-    const currentToothAngle = (j * 2 * Math.PI) / numberTeeth;
+  for (let index = 0; index < numberTeeth; index++) {
+    const currentToothAngle = (index * 2 * Math.PI) / numberTeeth;
     const rotatedTooth = rotateZ(currentToothAngle, singleTooth3D);
     allTeeth.push(rotatedTooth);
   }

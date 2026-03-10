@@ -71,8 +71,8 @@ export default function main(p = defaultParams): Shape3D {
     let dividers = null;
 
     // Vertical dividers (columns)
-    for (let i = 1; i < p.numCols; i++) {
-      const x = i * compartmentWidth - innerWidth / 2;
+    for (let index = 1; index < p.numCols; index++) {
+      const x = index * compartmentWidth - innerWidth / 2;
       const divider = drawRoundedRectangle(p.wallThickness, innerLength, 0)
         .sketchOnPlane()
         .extrude(p.height - p.baseThickness)
@@ -82,8 +82,8 @@ export default function main(p = defaultParams): Shape3D {
     }
 
     // Horizontal dividers (rows)
-    for (let i = 1; i < p.numRows; i++) {
-      const y = i * compartmentLength - innerLength / 2;
+    for (let index = 1; index < p.numRows; index++) {
+      const y = index * compartmentLength - innerLength / 2;
       const divider = drawRoundedRectangle(innerWidth, p.wallThickness, 0)
         .sketchOnPlane()
         .extrude(p.height - p.baseThickness)
