@@ -2,7 +2,7 @@ import { PostHogProvider, usePostHog } from 'posthog-js/react';
 import type { PostHog } from 'posthog-js/react';
 import { useAuthenticate } from '@daveyplate/better-auth-ui';
 import { useEffect, useRef } from 'react';
-import { posthogConfig } from '#lib/posthog.js';
+import { posthogConfig } from '#lib/posthog.lib.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
 
