@@ -58,6 +58,7 @@ groups:
       - tailwindcss-intellisense
       - react-router
       - vaul
+      - type-fest
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -323,3 +324,6 @@ repos:
   vaul:
     upstream: emilkowalski/vaul
     description: A drawer component for React.
+  type-fest:
+    upstream: sindresorhus/type-fest
+    description: A collection of essential TypeScript types
