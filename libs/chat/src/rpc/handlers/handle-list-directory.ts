@@ -8,11 +8,14 @@ export async function handleListDirectory(
 ): Promise<ListDirectoryRpcResult> {
   try {
     const rawEntries = await fileSystem.readdir(input.path);
-    const entries = rawEntries.map((entry) => ({
-      name: entry.name,
-      type: entry.type === 'directory' ? ('dir' as const) : ('file' as const),
-      size: entry.size,
-    }));
+    const entries = rawEntries.map(
+      (entry) =>
+        ({
+          name: entry.name,
+          type: entry.type === 'directory' ? 'dir' : 'file',
+          size: entry.size,
+        }) as const,
+    );
 
     return { success: true, entries, path: input.path || '/' };
   } catch (error) {
