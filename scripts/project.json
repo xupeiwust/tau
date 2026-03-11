@@ -10,6 +10,12 @@
       "options": {
         "command": "node scripts/validate-frontmatter.ts"
       }
+    },
+    "validate-project-names": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/validate-project-names.ts"
+      }
     }
   }
 }

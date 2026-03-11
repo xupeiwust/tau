@@ -7,9 +7,10 @@
  * Usage: node --import tsx scripts/update-license-deps.mts
  */
 
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
+import { readdir, readFile, writeFile, stat, access } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDirectory = join(__dirname, '..');
@@ -379,10 +380,17 @@ function generateMarkdown(groups: LicenseGroup[]): string {
   return lines.join('\n');
 }
 
+const stripGeneratedDate = (content: string): string =>
+  content.replace(/^\*Generated on \d{4}-\d{2}-\d{2}\*$/m, '*Generated on DATE*');
+
 /**
  * Main function.
+ *
+ * --check: validate that license-deps is up to date without writing (for CI)
  */
 async function main(): Promise<void> {
+  const isCheck = process.argv.includes('--check');
+
   console.log('Scanning node_modules for package licenses...');
 
   const packages = await scanDirectory(nodeModulesDirectory);
@@ -393,10 +401,30 @@ async function main(): Promise<void> {
 
   const markdown = generateMarkdown(groups);
 
+  if (isCheck) {
+    try {
+      await access(outputFile);
+    } catch {
+      console.error(`\n\x1B[31mERROR\x1B[0m  ${outputFile} does not exist. Run: pnpm update-license-deps\n`);
+      process.exit(1);
+    }
+
+    const existing = await readFile(outputFile, 'utf8');
+    const normalizedExisting = stripGeneratedDate(existing);
+    const normalizedGenerated = stripGeneratedDate(markdown);
+
+    if (normalizedExisting === normalizedGenerated) {
+      console.log('\nlicense-deps is up to date.');
+    } else {
+      console.error('\n\x1B[31mERROR\x1B[0m  license-deps is out of date. Run: pnpm update-license-deps\n');
+      process.exit(1);
+    }
+    return;
+  }
+
   await writeFile(outputFile, markdown, 'utf8');
   console.log(`Written to ${outputFile}`);
 
-  // Print summary
   console.log('\nLicense Summary:');
   for (const group of groups) {
     console.log(`  ${group.license}: ${group.packages.length} packages`);

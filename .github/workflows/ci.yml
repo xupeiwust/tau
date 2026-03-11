@@ -47,6 +47,32 @@ jobs:
       - name: Validate frontmatter
         run: pnpm docs:validate
 
+  project-names:
+    name: Validate project names
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Nx Environment
+        uses: ./.github/actions/setup-nx
+
+      - name: Validate project names
+        run: pnpm projects:validate
+
+  license-deps:
+    name: Validate license-deps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Nx Environment
+        uses: ./.github/actions/setup-nx
+
+      - name: Validate license-deps
+        run: pnpm license-deps:validate
+
   affected:
     name: Run affected tasks
     runs-on: ubuntu-latest
