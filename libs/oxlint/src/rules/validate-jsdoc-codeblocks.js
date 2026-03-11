@@ -17,6 +17,11 @@ import { createFSBackedSystem, createVirtualTypeScriptEnvironment } from '@types
 const CODEBLOCK_REGEX = /(?<openingFence>```(?<lang>[a-zA-Z]*)\n)(?<code>[\s\S]*?)```/g;
 const TS_LANGS = new Set(['ts', 'typescript']);
 const PUBLIC_TAG_REGEX = /@public(?:\s|$|\*)/;
+/** @type {Record<string, { full: string; messageId: string }>} */
+const SHORTHAND_LANGS = {
+  ts: { full: 'typescript', messageId: 'preferTypescriptTag' },
+  js: { full: 'javascript', messageId: 'preferJavascriptTag' },
+};
 const FILENAME = 'example-codeblock.ts';
 
 const compilerOptions = {
@@ -94,12 +99,15 @@ function stripStarPrefixes(rawCode) {
 export const validateJsdocCodeblocksRule = {
   meta: {
     type: 'suggestion',
+    fixable: 'code',
     docs: {
       description: 'Ensures JSDoc example codeblocks compile without TypeScript errors',
     },
     messages: {
       invalidCodeblock: '{{errorMessage}}',
-      missingLanguageTag: 'JSDoc fenced codeblock must specify a language tag (e.g., ts, json, text)',
+      missingLanguageTag: 'JSDoc fenced codeblock must specify a language tag (e.g., typescript, json, text)',
+      preferTypescriptTag: 'Use ```typescript instead of ```ts for JSDoc fenced codeblocks',
+      preferJavascriptTag: 'Use ```javascript instead of ```js for JSDoc fenced codeblocks',
     },
   },
   create(context) {
@@ -127,6 +135,22 @@ export const validateJsdocCodeblocksRule = {
                 messageId: 'missingLanguageTag',
               });
               continue;
+            }
+
+            if (lang in SHORTHAND_LANGS) {
+              const { full, messageId } = SHORTHAND_LANGS[lang];
+              const langStart = comment.range[0] + 2 + match.index + 3;
+              const langEnd = langStart + lang.length;
+              context.report({
+                loc: {
+                  start: context.sourceCode.getLocFromIndex(langStart),
+                  end: context.sourceCode.getLocFromIndex(langEnd),
+                },
+                messageId,
+                fix(fixer) {
+                  return fixer.replaceTextRange([langStart, langEnd], full);
+                },
+              });
             }
 
             if (!TS_LANGS.has(lang) || !rawCode?.trim()) {
