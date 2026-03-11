@@ -49,7 +49,7 @@ export type GeometryGltf = {
  */
 export type GeometryWebRtc = {
   format: 'webrtc';
-  stream: ReadableStream | MediaStream;
+  stream: ReadableStream | EventTarget;
 };
 
 /**
