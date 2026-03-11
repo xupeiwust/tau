@@ -100,3 +100,4 @@ Project skills in `.cursor/skills/` provide guided workflows. Read the relevant 
 - `repos/opencascade.js` WASM build: platform bindings in `BUILTIN_ADDITIONAL_BIND_CODE` (Python layer); full builds (10-30+ min) use `nohup`
 - `fromSafeAsync` (`#lib/xstate.lib.js`) replaces `fromPromise` for all UI XState async actors; uses `<TReturn, TInput>` generics matching `fromPromise<TOutput, TInput>`
 - Typechecking uses `tsgo` (Go-based TS compiler); do not add cross-project `references` arrays to `tsconfig.json` (causes TS6305)
+- Avoid `using`/`await using` syntax in shipped code; Rolldown does not downlevel it and Safari does not support it. Use try/finally with `[Symbol.asyncDispose]()` instead. ZenFS (`@zenfs/core`) also ships `using` in its dist — verify build output with `rg "await using" apps/ui/build/client/assets/`
