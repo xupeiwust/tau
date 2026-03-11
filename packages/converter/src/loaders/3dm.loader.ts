@@ -453,7 +453,7 @@ export class ThreeDmLoader extends BaseLoader<Document> {
     const positions = new Float32Array([point[0]!, point[1]!, point[2]!]);
 
     const drawColor = (
-      attributes.drawColor as (rhinoFile: File3dm) => {
+      attributes.drawColor as (file: File3dm) => {
         r: number;
         g: number;
         b: number;
@@ -690,6 +690,7 @@ export class ThreeDmLoader extends BaseLoader<Document> {
     const node = document.createNode().setMesh(mesh);
 
     // Set metadata including light properties
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- rhino3dm LightStyle enum has .name at runtime but not in types
     const lightStyle = geometry.lightStyle as unknown as { name: string };
     const metadata = this.extractObjectMetadata('Light', attributes);
     metadata['lightStyle'] = lightStyle.name;
@@ -862,6 +863,7 @@ export class ThreeDmLoader extends BaseLoader<Document> {
    */
   private createMaterialFromRhinoMaterial(rhinoMaterial: RhinoMaterial, document: Document): Material {
     // Check if it's a PBR material
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- rhino3dm Material and PhysicallyBasedMaterial are structurally disjoint
     const pbrMaterial = rhinoMaterial as unknown as PhysicallyBasedMaterial;
 
     if (pbrMaterial.supported) {
@@ -869,11 +871,13 @@ export class ThreeDmLoader extends BaseLoader<Document> {
     }
 
     // Create standard material from basic Rhino material
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- rhino3dm types declare diffuseColor as number[] but runtime returns {r,g,b}
     const diffuseColor = rhinoMaterial.diffuseColor as unknown as {
       r: number;
       g: number;
       b: number;
     };
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- rhino3dm types declare specularColor as number[] but runtime returns {r,g,b}
     const specularColor = rhinoMaterial.specularColor as unknown as {
       r: number;
       g: number;
@@ -908,7 +912,7 @@ export class ThreeDmLoader extends BaseLoader<Document> {
    * @returns the created glTF PBR material
    */
   private createPbrMaterial(pbrMaterial: PhysicallyBasedMaterial, document: Document): Material {
-    const baseColor = pbrMaterial.baseColor as unknown as {
+    const baseColor = pbrMaterial.baseColor as {
       r: number;
       g: number;
       b: number;
@@ -925,15 +929,15 @@ export class ThreeDmLoader extends BaseLoader<Document> {
       material.setAlphaMode('BLEND');
     }
 
-    // Set emission (if available in the PBR material)
+    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- rhino3dm types lack emission property on PhysicallyBasedMaterial
     const { emission } = pbrMaterial as unknown as { emission?: number };
     if (emission && emission > 0) {
-      const { emissionColor } = pbrMaterial as unknown as {
-        emissionColor?: { r: number; g: number; b: number };
+      const emissionColor = pbrMaterial.emissionColor as {
+        r: number;
+        g: number;
+        b: number;
       };
-      if (emissionColor) {
-        material.setEmissiveFactor([emissionColor.r / 255, emissionColor.g / 255, emissionColor.b / 255]);
-      }
+      material.setEmissiveFactor([emissionColor.r / 255, emissionColor.g / 255, emissionColor.b / 255]);
     }
 
     return material;
@@ -947,7 +951,7 @@ export class ThreeDmLoader extends BaseLoader<Document> {
    * @returns the normalized RGB color values (0–1 range)
    */
   private extractColor(attributes: ObjectAttributes, rhinoFile: File3dm): { r: number; g: number; b: number } {
-    // @ts-expect-error -- rhino3dm types are not correct.
+    // @ts-expect-error -- rhino3dm types declare drawColor() with no params but runtime accepts File3dm
     const drawColor = attributes.drawColor(rhinoFile) as {
       r: number;
       g: number;
