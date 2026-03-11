@@ -3,9 +3,10 @@ title: 'Testing Policy'
 description: 'Writing high-quality tests across the Tau monorepo. Assert observable behavior, error assertions, resource cleanup, mock factories, and async patterns. Covers Vitest, kernel tests, and API tests.'
 status: active
 created: '2026-03-09'
-updated: '2026-03-09'
+updated: '2026-03-10'
 related:
   - docs/policy/react-testing-policy.md
+  - docs/policy/typescript-policy.md
   - docs/research/typescript-overloads.md
 ---
 
@@ -150,26 +151,51 @@ afterEach(() => {
 });
 ```
 
-## 5. Mock Factories
+## 5. Type-Safe Mocks with `mock<T>()`
 
-Use shared factory functions for complex mocks. Never define local
-`MockFileSystem` types with `ReturnType<typeof vi.fn>` — use the shared
-`createMockFileSystem()` from `kernel-testing.utils.ts`.
+Use `mock<T>()` from `vitest-mock-extended` (already installed) to create typed
+test doubles. Never use `as unknown as T` to cast partial objects to full types.
+
+**Why**: `as unknown as` bypasses the compiler entirely. `mock<T>()` returns a
+deep Proxy that satisfies the full interface, auto-stubbing methods with
+`vi.fn()` and properties with `undefined`, while allowing overrides.
 
 ```typescript
-// CORRECT: shared factory, mock access via .mocks
+import { mock } from 'vitest-mock-extended';
+
+// CORRECT: typed mock with overrides
+const client = mock<KernelClient>({ terminate: vi.fn() });
+const options = mock<KernelClientOptions>();
+const ref = mock<BuildContext['fileManagerRef']>({ send: vi.fn() });
+
+// INCORRECT: bypasses type system
+const client = {} as unknown as KernelClient;
+const options = {} as unknown as KernelClientOptions;
+```
+
+For deeply nested mocks (NestJS services, complex interfaces), use `mockDeep<T>()`:
+
+```typescript
+import { mockDeep } from 'vitest-mock-extended';
+
+const mockResult = mockDeep<StreamTextResult>();
+```
+
+For domain objects with sensible defaults, use shared factory functions:
+
+```typescript
 import { createMockFileSystem } from '#testing/kernel-testing.utils.js';
 
 const filesystem = createMockFileSystem();
 filesystem.mocks.exists.mockResolvedValue(true);
-expect(filesystem.mocks.writeFile).toHaveBeenCalledWith(path, data);
-
-// INCORRECT: local mapped type that breaks overload assignability
-type MockFS = { [K in keyof KernelFileSystem]: ReturnType<typeof vi.fn> };
 ```
 
-See `docs/research/typescript-overloads.md` for the full rationale on why
-overloaded function types are incompatible with `vi.fn()` mapped types.
+**Limitation**: `mock<T>()` returns a Proxy. Objects that must be serialized
+(`JSON.stringify`, `postMessage`, `structuredClone`) cannot use `mock<T>()`.
+In those cases, use a plain object with a single `as T` assertion.
+
+See `docs/research/typescript-overloads.md` for why overloaded function types
+are incompatible with `vi.fn()` mapped types.
 
 ## 6. Async Patterns
 
@@ -262,6 +288,38 @@ expect(result.data[0]).toEqual(
 | Section comments  | Use `// ===` separators for large test files        |
 | Shared helpers    | Place in `testing/` directory with explicit exports |
 
+## 11. No Type Assertions for Mocks
+
+Never use `as unknown as T` to create mock objects or cast return values.
+
+**Why**: Double assertions erase all type information. When the real type changes,
+tests using `as unknown as` continue to compile and pass with stale shapes,
+hiding regressions.
+
+| Scenario                    | Pattern                                  | Notes                                          |
+| --------------------------- | ---------------------------------------- | ---------------------------------------------- |
+| Partial interface stub      | `mock<ServiceType>({ method: vi.fn() })` | Auto-stubs missing members                     |
+| Empty configuration         | `mock<ConfigType>()`                     | All properties default to `undefined`          |
+| Deep nested mock            | `mockDeep<ComplexType>()`                | Recursively mocks nested objects               |
+| Serialized data             | `{ field: 'value' } as DataType`         | Single assertion for plain data                |
+| Intentionally invalid input | `'bad' as unknown as ValidType`          | Error-path tests only; requires oxlint-disable |
+
+CORRECT:
+
+```typescript
+import { mock } from 'vitest-mock-extended';
+
+const client = mock<KernelClient>({ terminate: vi.fn() });
+const options = mock<KernelClientOptions>();
+```
+
+INCORRECT:
+
+```typescript
+const client = {} as unknown as KernelClient;
+const options = {} as unknown as KernelClientOptions;
+```
+
 ## Summary Checklist
 
 Before merging a test:
@@ -271,6 +329,7 @@ Before merging a test:
 - [ ] Resources are cleaned up in `afterEach` or `finally`
 - [ ] Fake timers are restored in `finally`
 - [ ] No `console.log` statements
+- [ ] Mock objects use `mock<T>()` from `vitest-mock-extended`, not `as unknown as`
 - [ ] Mock factories are shared, not duplicated per test file
 - [ ] Test names follow `should <verb> <outcome>` pattern
 - [ ] Structured data assertions check shape, not just existence

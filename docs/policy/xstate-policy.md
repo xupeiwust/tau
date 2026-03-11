@@ -278,7 +278,7 @@ type LoadInput = { id: string };
 // Data-returning actor — specify both TReturn and TInput
 const loadActor = fromSafeAsync<LoadedEvent, LoadInput>(async ({ input, signal }) => {
   const data = await fetchData(input.id, { signal }); // input: LoadInput
-  return { type: 'dataLoaded' as const, data }; // return: LoadedEvent
+  return { type: 'dataLoaded', data }; // return: LoadedEvent
 });
 
 // Fire-and-forget actor — void return with input
@@ -296,7 +296,7 @@ const sideEffect = fromSafeAsync(async () => {
 
 **Key rules**:
 
-1. **Always use `as const`** on the `type` field of returned events to preserve literal types.
+1. **Do not use `as const`** on individual literal values — contextual typing from generic parameters or `.provide()` already preserves literal types (see `docs/policy/typescript-policy.md` Rule 6).
 2. **Use generic parameters** (`fromSafeAsync<TReturn, TInput>`) to type input — avoid verbose inline parameter annotations.
 3. **Never use `as never`** on `fromSafeAsync(...)` results in `provide()` calls. If the types don't match, fix the placeholder actor's return type annotation or the mock's input type. See `docs/policy/typescript-policy.md` for resolution patterns.
 4. **Placeholder actors must declare their return type** explicitly (e.g., `Promise<void>` or `Promise<LoadedEvent>`) since `throw` infers `Promise<never>`.
