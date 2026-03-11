@@ -1,7 +1,106 @@
+/* oxlint-disable no-bitwise -- POSIX permission tests require bitwise AND to check individual mode bits */
+
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemory } from '@zenfs/core';
-import { createZenFsProvider } from '#providers/create-zenfs-provider.js';
+import {
+  S_IRUSR,
+  S_IWUSR,
+  S_IXUSR,
+  S_IRGRP,
+  S_IWGRP,
+  S_IXGRP,
+  S_IROTH,
+  S_IWOTH,
+  S_IXOTH,
+} from '@zenfs/core/constants.js';
+import { createZenFsProvider, fileMode, directoryMode } from '#providers/create-zenfs-provider.js';
 import type { FileSystemProvider } from '#types.js';
+
+describe('POSIX mode constants', () => {
+  describe('fileMode (rw-r--r--)', () => {
+    it('should equal 0o644', () => {
+      expect(fileMode).toBe(0o644);
+    });
+
+    it('should grant owner read', () => {
+      expect(fileMode & S_IRUSR).toBeTruthy();
+    });
+
+    it('should grant owner write', () => {
+      expect(fileMode & S_IWUSR).toBeTruthy();
+    });
+
+    it('should deny owner execute', () => {
+      expect(fileMode & S_IXUSR).toBeFalsy();
+    });
+
+    it('should grant group read', () => {
+      expect(fileMode & S_IRGRP).toBeTruthy();
+    });
+
+    it('should deny group write', () => {
+      expect(fileMode & S_IWGRP).toBeFalsy();
+    });
+
+    it('should deny group execute', () => {
+      expect(fileMode & S_IXGRP).toBeFalsy();
+    });
+
+    it('should grant others read', () => {
+      expect(fileMode & S_IROTH).toBeTruthy();
+    });
+
+    it('should deny others write', () => {
+      expect(fileMode & S_IWOTH).toBeFalsy();
+    });
+
+    it('should deny others execute', () => {
+      expect(fileMode & S_IXOTH).toBeFalsy();
+    });
+  });
+
+  describe('directoryMode (rwxr-xr-x)', () => {
+    it('should equal 0o755', () => {
+      expect(directoryMode).toBe(0o755);
+    });
+
+    it('should grant owner read', () => {
+      expect(directoryMode & S_IRUSR).toBeTruthy();
+    });
+
+    it('should grant owner write', () => {
+      expect(directoryMode & S_IWUSR).toBeTruthy();
+    });
+
+    it('should grant owner execute', () => {
+      expect(directoryMode & S_IXUSR).toBeTruthy();
+    });
+
+    it('should grant group read', () => {
+      expect(directoryMode & S_IRGRP).toBeTruthy();
+    });
+
+    it('should deny group write', () => {
+      expect(directoryMode & S_IWGRP).toBeFalsy();
+    });
+
+    it('should grant group execute', () => {
+      expect(directoryMode & S_IXGRP).toBeTruthy();
+    });
+
+    it('should grant others read', () => {
+      expect(directoryMode & S_IROTH).toBeTruthy();
+    });
+
+    it('should deny others write', () => {
+      expect(directoryMode & S_IWOTH).toBeFalsy();
+    });
+
+    it('should grant others execute', () => {
+      expect(directoryMode & S_IXOTH).toBeTruthy();
+    });
+  });
+});
 
 describe('createZenFsProvider', () => {
   let provider: FileSystemProvider;

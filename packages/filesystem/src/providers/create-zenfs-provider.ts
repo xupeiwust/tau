@@ -10,9 +10,25 @@
 
 import { resolveMountConfig, isFile, isDirectory, vfs } from '@zenfs/core';
 import type { Backend, BackendConfiguration } from '@zenfs/core';
-import { O_RDONLY, O_WRONLY, O_CREAT } from '@zenfs/core/constants.js';
+import {
+  O_RDONLY,
+  O_WRONLY,
+  O_CREAT,
+  S_IRUSR,
+  S_IWUSR,
+  S_IRGRP,
+  S_IROTH,
+  S_IRWXU,
+  S_IXGRP,
+  S_IXOTH,
+} from '@zenfs/core/constants.js';
 import { defaultContext } from '@zenfs/core/internal/contexts.js';
 import type { FileSystemProvider, ProviderCapabilities, ProviderFileStat } from '#types.js';
+
+// oxlint-disable-next-line no-bitwise -- POSIX file permission constants composed from S_* bits
+export const fileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH; // Rw-r--r-- (0o644)
+// oxlint-disable-next-line no-bitwise -- POSIX directory permission constants composed from S_* bits
+export const directoryMode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH; // Rwxr-xr-x (0o755)
 
 /** Options for creating a ZenFS-backed filesystem provider. */
 export type ZenFsProviderOptions<T extends Backend = Backend> = {
@@ -58,15 +74,19 @@ export const createZenFsProvider = async <T extends Backend>(
   function readFile(path: string, encoding: 'utf8'): Promise<string>;
   async function readFile(path: string, encoding?: 'utf8'): Promise<Uint8Array<ArrayBuffer> | string> {
     const inode = await fileSystem.stat(path);
-    await using handle = new vfs.Handle(defaultContext, path, fileSystem, path, O_RDONLY, inode);
+    const handle = new vfs.Handle(defaultContext, path, fileSystem, path, O_RDONLY, inode);
 
-    const size = Number(inode.size);
-    const buffer = new Uint8Array(size);
-    if (size > 0) {
-      await handle.read(buffer);
+    try {
+      const size = Number(inode.size);
+      const buffer = new Uint8Array(size);
+      if (size > 0) {
+        await handle.read(buffer);
+      }
+
+      return encoding === 'utf8' ? new TextDecoder().decode(buffer) : buffer;
+    } finally {
+      await handle[Symbol.asyncDispose]();
     }
-
-    return encoding === 'utf8' ? new TextDecoder().decode(buffer) : buffer;
   }
 
   return {
@@ -81,17 +101,21 @@ export const createZenFsProvider = async <T extends Backend>(
 
       const inode = exists
         ? await fileSystem.stat(path)
-        : await fileSystem.createFile(path, { uid: 0, gid: 0, mode: 0o644 });
+        : await fileSystem.createFile(path, { uid: 0, gid: 0, mode: fileMode });
 
       // oxlint-disable-next-line no-bitwise -- POSIX file flags require bitwise OR
       const writeFlags = O_WRONLY | O_CREAT;
-      await using handle = new vfs.Handle(defaultContext, path, fileSystem, path, writeFlags, inode);
+      const handle = new vfs.Handle(defaultContext, path, fileSystem, path, writeFlags, inode);
 
-      if (exists) {
-        await handle.truncate(0);
-      }
-      if (bytes.byteLength > 0) {
-        await handle.write(bytes);
+      try {
+        if (exists) {
+          await handle.truncate(0);
+        }
+        if (bytes.byteLength > 0) {
+          await handle.write(bytes);
+        }
+      } finally {
+        await handle[Symbol.asyncDispose]();
       }
     },
 
@@ -105,7 +129,7 @@ export const createZenFsProvider = async <T extends Backend>(
 
     async mkdir(path: string, options_?: { recursive?: boolean }): Promise<void> {
       if (!options_?.recursive) {
-        await fileSystem.mkdir(path, { uid: 0, gid: 0, mode: 0o755 });
+        await fileSystem.mkdir(path, { uid: 0, gid: 0, mode: directoryMode });
         return;
       }
       const segments = path.split('/').filter(Boolean);
@@ -114,7 +138,7 @@ export const createZenFsProvider = async <T extends Backend>(
         current += `/${segment}`;
         try {
           // oxlint-disable-next-line no-await-in-loop -- Sequential mkdir required for recursive creation
-          await fileSystem.mkdir(current, { uid: 0, gid: 0, mode: 0o755 });
+          await fileSystem.mkdir(current, { uid: 0, gid: 0, mode: directoryMode });
         } catch (error) {
           if ((error as { code?: string }).code !== 'EEXIST') {
             throw error;
