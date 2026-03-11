@@ -23,6 +23,12 @@ detect_touched_scopes() {
   local all_scopes=("$@")
   local touched=()
   local has_root=false
+  local staged_files
+  staged_files=$(git diff --cached --name-only 2>/dev/null)
+
+  if [ -z "$staged_files" ]; then
+    return
+  fi
 
   while IFS= read -r file; do
     local matched=false
@@ -37,11 +43,11 @@ detect_touched_scopes() {
     if [ "$matched" = false ]; then
       has_root=true
     fi
-  done < <(git diff --cached --name-only 2>/dev/null)
+  done <<< "$staged_files"
 
   [ "$has_root" = true ] && touched+=("root")
 
-  printf '%s\n' "${touched[@]}" | sort -u
+  [ ${#touched[@]} -gt 0 ] && printf '%s\n' "${touched[@]}" | sort -u
 }
 
 build_scope_map() {
@@ -92,12 +98,13 @@ extract_policy_rules() {
 # ---------------------------------------------------------------------------
 
 ALL_SCOPES=($(discover_scopes))
-TOUCHED_SCOPES=($(detect_touched_scopes "${ALL_SCOPES[@]}"))
 
-if [ ${#TOUCHED_SCOPES[@]} -eq 0 ]; then
+TOUCHED_OUTPUT=$(detect_touched_scopes "${ALL_SCOPES[@]}")
+if [ -z "$TOUCHED_OUTPUT" ]; then
   echo "No staged changes detected. Stage files first with 'git add'."
   exit 1
 fi
+TOUCHED_SCOPES=($TOUCHED_OUTPUT)
 
 SCOPE_LIST=$(printf ', %s' "${TOUCHED_SCOPES[@]}")
 SCOPE_LIST="${SCOPE_LIST:2}"
