@@ -15,7 +15,7 @@ the combined work is subject to GPL-2.0-or-later terms.
 
 By using Tau, you agree to comply with the license terms of all included dependencies.
 
-*Generated on 2026-02-25*
+*Generated on 2026-03-11*
 
 ## Summary
 
@@ -24,7 +24,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 | (MIT OR GPL-3.0-or-later) | 1 |
 | GPL-2.0-or-later | 1 |
 | LGPL-3.0-or-later | 2 |
-| Apache-2.0 | 23 |
+| Apache-2.0 | 22 |
 | (MIT OR CC0-1.0) | 1 |
 | 0BSD | 1 |
 | BlueOak-1.0.0 | 1 |
@@ -35,7 +35,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 | SIL OPEN FONT LICENSE | 1 |
 | UNKNOWN | 1 |
 | Unlicense | 2 |
-| MIT | 204 |
+| MIT | 214 |
 
 ## (MIT OR GPL-3.0-or-later)
 
@@ -85,14 +85,13 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **@rjsf/core** v5.24.13 — [Repository](https://github.com/rjsf-team/react-jsonschema-form)
 - **@rjsf/utils** v5.24.13 — [Repository](https://github.com/rjsf-team/react-jsonschema-form)
 - **@rjsf/validator-ajv8** v5.24.13 — [Repository](https://github.com/rjsf-team/react-jsonschema-form)
-- **@swc/core** v1.15.8 — [Repository](https://github.com/swc-project/swc)
-- **@swc/helpers** v0.5.19 — [Repository](https://github.com/swc-project/swc)
 - **@typescript/native-preview** v7.0.0-dev.20260223.1 — [Repository](https://github.com/microsoft/typescript-go)
 - **ai** v6.0.99 — [Repository](https://github.com/vercel/ai)
 - **bson** v6.10.4 — [Repository](https://github.com/mongodb/js-bson)
 - **class-variance-authority** v0.7.1 — [Repository](https://github.com/joe-bell/cva)
 - **comlink** v4.4.2 — [Repository](https://github.com/GoogleChromeLabs/comlink)
 - **drizzle-orm** v0.44.7 — [Repository](https://github.com/drizzle-team/drizzle-orm)
+- **manifold-3d** v3.3.2 — [Repository](https://github.com/elalish/manifold)
 - **openai** v4.104.0 — [Repository](https://github.com/openai/openai-node)
 - **reflect-metadata** v0.2.2 — [Repository](https://github.com/rbuckton/reflect-metadata)
 - **rxjs** v7.8.2 — [Repository](https://github.com/reactivex/rxjs)
@@ -150,6 +149,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 
 - **@arethetypeswrong/cli** v0.18.2 — [Repository](https://github.com/arethetypeswrong/arethetypeswrong.github.io)
 - **@daveyplate/better-auth-ui** v3.3.15
+- **@eslint-community/eslint-plugin-eslint-comments** v4.7.1 — [Repository](https://github.com/eslint-community/eslint-plugin-eslint-comments)
 - **@fastify/cors** v11.2.0 — [Repository](https://github.com/fastify/fastify-cors)
 - **@fastify/helmet** v13.0.2 — [Repository](https://github.com/fastify/fastify-helmet)
 - **@gltf-transform/core** v4.3.0 — [Repository](https://github.com/donmccurdy/glTF-Transform)
@@ -158,6 +158,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **@headless-tree/core** v1.6.3 — [Repository](https://github.com/lukasbach/headless-tree)
 - **@headless-tree/react** v1.6.3 — [Repository](https://github.com/lukasbach/headless-tree)
 - **@hookform/resolvers** v5.2.2 — [Repository](https://github.com/react-hook-form/resolvers)
+- **@inkjs/ui** v2.0.0 — [Repository](https://github.com/vadimdemedes/ink-ui)
 - **@jscad/modeling** v2.13.0 — [Repository](https://github.com/jscad/OpenJSCAD.org)
 - **@kittycad/lib** v2.0.48 — [Repository](https://github.com/KittyCAD/kittycad.ts)
 - **@langchain/anthropic** v1.3.20 — [Repository](https://github.com/langchain-ai/langchainjs)
@@ -216,7 +217,6 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **@shikijs/transformers** v3.22.0 — [Repository](https://github.com/shikijs/shiki)
 - **@socket.io/redis-adapter** v8.3.0 — [Repository](https://github.com/socketio/socket.io-redis-adapter)
 - **@statelyai/inspect** v0.4.0 — [Repository](https://github.com/statelyai/inspect)
-- **@swc-node/register** v1.11.1 — [Repository](https://github.com/swc-project/swc-node)
 - **@tailwindcss/typography** v0.5.19 — [Repository](https://github.com/tailwindlabs/tailwindcss-typography)
 - **@tailwindcss/vite** v4.2.1 — [Repository](https://github.com/tailwindlabs/tailwindcss)
 - **@tanstack/react-query** v4.43.0 — [Repository](https://github.com/TanStack/query)
@@ -230,6 +230,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **@types/draco3dgltf** v1.4.3 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/emscripten** v1.41.5 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/hast** v3.0.4 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
+- **@types/js-yaml** v4.0.9 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/jsdom** v21.1.7 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/json-schema** v7.0.15 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/madge** v5.0.3 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
@@ -243,8 +244,8 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **@types/three** v0.178.1 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/uzip** v0.20201231.2 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
 - **@types/ws** v8.18.1 — [Repository](https://github.com/DefinitelyTyped/DefinitelyTyped)
-- **@vitest/coverage-v8** v4.0.9 — [Repository](https://github.com/vitest-dev/vitest)
-- **@vitest/ui** v4.0.9 — [Repository](https://github.com/vitest-dev/vitest)
+- **@vitest/coverage-v8** v4.1.0-beta.6 — [Repository](https://github.com/vitest-dev/vitest)
+- **@vitest/ui** v4.1.0-beta.6 — [Repository](https://github.com/vitest-dev/vitest)
 - **@xstate/react** v5.0.5 — [Repository](https://github.com/statelyai/xstate)
 - **allotment** v1.20.5 — [Repository](https://github.com/johnwalley/allotment)
 - **autoprefixer** v10.4.21 — [Repository](https://github.com/postcss/autoprefixer)
@@ -267,23 +268,31 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **esbuild** v0.27.3 — [Repository](https://github.com/evanw/esbuild)
 - **esbuild-wasm** v0.27.3 — [Repository](https://github.com/evanw/esbuild)
 - **eslint** v9.32.0 — [Repository](https://github.com/eslint/eslint)
-- **eslint-config-prettier** v10.1.8 — [Repository](https://github.com/prettier/eslint-config-prettier)
+- **eslint-plugin-import-x** v4.16.1 — [Repository](https://github.com/un-ts/eslint-plugin-import-x)
 - **eslint-plugin-max-params-no-constructor** v0.0.4 — [Repository](https://github.com/paulomenezes/max-params-no-constructor)
-- **eslint-plugin-prettier** v5.5.3 — [Repository](https://github.com/prettier/eslint-plugin-prettier)
+- **eslint-plugin-n** v17.24.0 — [Repository](https://github.com/eslint-community/eslint-plugin-n)
+- **eslint-plugin-no-use-extend-native** v0.7.2 — [Repository](https://github.com/dustinspecker/eslint-plugin-no-use-extend-native)
+- **eslint-plugin-react** v7.37.5 — [Repository](https://github.com/jsx-eslint/eslint-plugin-react)
+- **eslint-plugin-unicorn** v63.0.0 — [Repository](https://github.com/sindresorhus/eslint-plugin-unicorn)
 - **fastify** v5.7.4 — [Repository](https://github.com/fastify/fastify)
 - **fumadocs-core** v16.6.5 — [Repository](https://github.com/fuma-nama/fumadocs)
 - **fumadocs-mdx** v14.2.8 — [Repository](https://github.com/fuma-nama/fumadocs)
 - **fumadocs-typescript** v4.0.14 — [Repository](https://github.com/fuma-nama/fumadocs)
 - **fumadocs-ui** v16.6.5 — [Repository](https://github.com/fuma-nama/fumadocs)
+- **gray-matter** v4.0.3 — [Repository](https://github.com/jonschlinkert/gray-matter)
 - **happy-dom** v16.8.1 — [Repository](https://github.com/capricorn86/happy-dom)
+- **husky** v9.1.7 — [Repository](https://github.com/typicode/husky)
 - **immer** v10.2.0 — [Repository](https://github.com/immerjs/immer)
+- **ink** v6.8.0 — [Repository](https://github.com/vadimdemedes/ink)
 - **ioredis** v5.9.3 — [Repository](https://github.com/luin/ioredis)
 - **isomorphic-git** v1.37.2 — [Repository](https://github.com/isomorphic-git/isomorphic-git)
+- **js-yaml** v4.1.1 — [Repository](https://github.com/nodeca/js-yaml)
 - **jsdom** v26.0.0 — [Repository](https://github.com/jsdom/jsdom)
 - **json-rpc-2.0** v1.7.1 — [Repository](https://github.com/shogowada/json-rpc-2.0)
 - **json-schema-default** v1.0.2 — [Repository](https://github.com/mdornseif/json-schema-default)
 - **ky** v1.14.3 — [Repository](https://github.com/sindresorhus/ky)
 - **langchain** v1.2.27 — [Repository](https://github.com/langchain-ai/langchainjs)
+- **lint-staged** v16.3.2 — [Repository](https://github.com/lint-staged/lint-staged)
 - **madge** v8.0.0 — [Repository](https://github.com/pahen/madge)
 - **mermaid** v11.12.3 — [Repository](https://github.com/mermaid-js/mermaid)
 - **monaco-editor** v0.55.1 — [Repository](https://github.com/microsoft/monaco-editor)
@@ -294,12 +303,13 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **nestjs-zod** v5.1.1 — [Repository](https://github.com/BenLorantfy/nestjs-zod)
 - **nx** v22.5.2 — [Repository](https://github.com/nrwl/nx)
 - **ollama** v0.5.18 — [Repository](https://github.com/ollama/ollama-js)
+- **oxfmt** v0.36.0 — [Repository](https://github.com/oxc-project/oxc)
+- **oxlint** v1.51.0 — [Repository](https://github.com/oxc-project/oxc)
+- **oxlint-tsgolint** v0.16.0 — [Repository](https://github.com/oxc-project/tsgolint)
 - **pgvector** v0.2.1 — [Repository](https://github.com/pgvector/pgvector-node)
 - **pino-http** v10.5.0 — [Repository](https://github.com/pinojs/pino-http)
 - **pino-pretty** v13.1.3 — [Repository](https://github.com/pinojs/pino-pretty)
 - **pluralize** v8.0.0 — [Repository](https://github.com/blakeembrey/pluralize)
-- **prettier** v3.4.2 — [Repository](https://github.com/prettier/prettier)
-- **prettier-plugin-tailwindcss** v0.6.14 — [Repository](https://github.com/tailwindlabs/prettier-plugin-tailwindcss)
 - **publint** v0.3.17 — [Repository](https://github.com/publint/publint)
 - **radix-ui** v1.4.3 — [Repository](https://github.com/radix-ui/primitives)
 - **react** v19.2.4 — [Repository](https://github.com/facebook/react)
@@ -315,8 +325,8 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **react-virtuoso** v4.18.1 — [Repository](https://github.com/petyosi/react-virtuoso)
 - **recharts** v3.7.0 — [Repository](https://github.com/recharts/recharts)
 - **remix-themes** v2.0.4 — [Repository](https://github.com/abereghici/remix-themes)
-- **replicad** v0.20.5
-- **replicad-opencascadejs** v0.20.2
+- **replicad** v0.21.0-v8.7
+- **replicad-opencascadejs** v0.21.0-v8.25
 - **rollup-plugin-visualizer** v6.0.5 — [Repository](https://github.com/btd/rollup-plugin-visualizer)
 - **safe-regex** v2.1.1 — [Repository](https://github.com/davisjam/safe-regex)
 - **shiki** v3.22.0 — [Repository](https://github.com/shikijs/shiki)
@@ -333,23 +343,22 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **tsdown** v0.15.12 — [Repository](https://github.com/rolldown/tsdown)
 - **tsx** v4.21.0 — [Repository](https://github.com/privatenumber/tsx)
 - **tw-animate-css** v1.4.0 — [Repository](https://github.com/Wombosvideo/tw-animate-css)
+- **typescript-eslint** v8.56.1 — [Repository](https://github.com/typescript-eslint/typescript-eslint)
 - **uint8array-extras** v1.5.0 — [Repository](https://github.com/sindresorhus/uint8array-extras)
-- **unplugin-swc** v1.5.9 — [Repository](https://github.com/unplugin/unplugin-swc)
 - **uzip** v0.20201231.0
 - **vaul** v1.1.2 — [Repository](https://github.com/emilkowalski/vaul)
-- **vite** v7.0.8 — [Repository](https://github.com/vitejs/vite)
+- **vite** v8.0.0-beta.16 — [Repository](https://github.com/vitejs/vite)
 - **vite-plugin-devtools-json** v0.2.1 — [Repository](https://github.com/ChromeDevTools/vite-plugin-devtools-json)
 - **vite-plugin-dts** v4.5.4 — [Repository](https://github.com/qmhc/vite-plugin-dts)
 - **vite-plugin-node** v7.0.0 — [Repository](https://github.com/axe-me/vite-plugin-node)
 - **vite-plugin-static-copy** v3.2.0 — [Repository](https://github.com/sapphi-red/vite-plugin-static-copy)
 - **vite-svg-sprite-wrapper** v1.5.0 — [Repository](https://github.com/vshepel/vite-svg-sprite-wrapper)
 - **vite-tsconfig-paths** v5.1.4 — [Repository](https://github.com/aleclarson/vite-tsconfig-paths)
-- **vitest** v4.0.9 — [Repository](https://github.com/vitest-dev/vitest)
+- **vitest** v4.1.0-beta.6 — [Repository](https://github.com/vitest-dev/vitest)
 - **vitest-mock-extended** v3.1.0 — [Repository](https://github.com/eratio08/vitest-mock-extended)
 - **vscode-languageserver-protocol** v3.17.5 — [Repository](https://github.com/Microsoft/vscode-languageserver-node)
 - **webpack-cli** v6.0.1 — [Repository](https://github.com/webpack/webpack-cli)
 - **ws** v8.19.0 — [Repository](https://github.com/websockets/ws)
-- **xo** v0.61.0-2 — [Repository](https://github.com/xojs/xo)
 - **xstate** v5.28.0 — [Repository](https://github.com/statelyai/xstate)
 - **zod** v4.3.6 — [Repository](https://github.com/colinhacks/zod)
 
