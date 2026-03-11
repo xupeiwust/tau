@@ -259,11 +259,7 @@ async function runSuite(): Promise<void> {
     process.exit(1);
   }
 
-  const ocTracing = values.noTracing
-    ? ('off' as const)
-    : values.ocProfile
-      ? ('per-call' as const)
-      : ('summary' as const);
+  const ocTracing = values.noTracing ? 'off' : values.ocProfile ? 'per-call' : 'summary';
 
   const provenance = loadProvenance();
   const wasmOption = resolveWasmOption();
