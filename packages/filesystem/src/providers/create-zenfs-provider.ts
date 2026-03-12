@@ -25,12 +25,17 @@ import {
 import { defaultContext } from '@zenfs/core/internal/contexts.js';
 import type { FileSystemProvider, ProviderCapabilities, ProviderFileStat } from '#types.js';
 
+/** @public */
 // oxlint-disable-next-line no-bitwise -- POSIX file permission constants composed from S_* bits
 export const fileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH; // Rw-r--r-- (0o644)
+/** @public */
 // oxlint-disable-next-line no-bitwise -- POSIX directory permission constants composed from S_* bits
 export const directoryMode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH; // Rwxr-xr-x (0o755)
 
-/** Options for creating a ZenFS-backed filesystem provider. */
+/**
+ * Options for creating a ZenFS-backed filesystem provider.
+ * @public
+ */
 export type ZenFsProviderOptions<T extends Backend = Backend> = {
   id: string;
   capabilities: ProviderCapabilities;
@@ -52,8 +57,12 @@ function toProviderStat(stats: { size: number; mtimeMs: number; mode: number }):
  * @param options - Provider id, capability flags, and ZenFS backend config.
  * @returns Initialized provider ready for use.
  *
- * @example
- * ```ts
+ * @public
+ * @example <caption>In-memory ZenFS provider</caption>
+ * ```typescript
+ * import { createZenFsProvider } from '@taucad/filesystem/providers';
+ * import { InMemory } from '@zenfs/core';
+ *
  * const provider = await createZenFsProvider({
  *   id: 'memory',
  *   capabilities: { persistent: false, writable: true, quotaBased: false },

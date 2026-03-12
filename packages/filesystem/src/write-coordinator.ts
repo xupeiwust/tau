@@ -4,6 +4,7 @@ const resolved: Promise<void> = Promise.resolve();
 /**
  * Serializes filesystem write operations into a sequential promise chain,
  * preventing concurrent writes that can cause ZenFS race conditions.
+ * @public
  */
 export class WriteCoordinator {
   private _writeQueue: Promise<void> = resolved;

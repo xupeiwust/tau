@@ -7,8 +7,11 @@ import { createZenFsProvider } from '#providers/create-zenfs-provider.js';
  *
  * @returns Provider backed by ZenFS `InMemory` backend.
  *
- * @example
- * ```ts
+ * @public
+ * @example <caption>Ephemeral in-memory filesystem</caption>
+ * ```typescript
+ * import { createMemoryProvider } from '@taucad/filesystem/providers';
+ *
  * const provider = await createMemoryProvider();
  * await provider.writeFile('/hello.txt', 'world');
  * ```

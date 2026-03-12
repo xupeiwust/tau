@@ -11,7 +11,10 @@
 
 import type { FileSystemBackend } from '@taucad/types';
 
-/** Capability flags describing what a storage provider supports. */
+/**
+ * Capability flags describing what a storage provider supports.
+ * @public
+ */
 export type ProviderCapabilities = {
   readonly persistent: boolean;
   readonly writable: boolean;
@@ -20,7 +23,10 @@ export type ProviderCapabilities = {
   readonly caseSensitive?: boolean;
 };
 
-/** Stat result returned by provider-level filesystem operations. */
+/**
+ * Stat result returned by provider-level filesystem operations.
+ * @public
+ */
 export type ProviderFileStat = {
   readonly size: number;
   readonly mtimeMs: number;
@@ -28,7 +34,10 @@ export type ProviderFileStat = {
   readonly isFile: boolean;
 };
 
-/** Backend-agnostic filesystem provider exposing POSIX-like operations. */
+/**
+ * Backend-agnostic filesystem provider exposing POSIX-like operations.
+ * @public
+ */
 export type FileSystemProvider = {
   readonly id: string;
   readonly capabilities: ProviderCapabilities;
@@ -46,7 +55,10 @@ export type FileSystemProvider = {
   dispose(): void;
 };
 
-/** Discriminated union of filesystem change events emitted by the event bus. */
+/**
+ * Discriminated union of filesystem change events emitted by the event bus.
+ * @public
+ */
 export type ChangeEvent =
   | { type: 'fileWritten'; path: string; backend: FileSystemBackend }
   | { type: 'fileDeleted'; path: string; backend: FileSystemBackend }
@@ -57,6 +69,7 @@ export type ChangeEvent =
 /**
  * Node in a standalone backend file tree.
  * Used by the /files route to display all backends side-by-side.
+ * @public
  */
 export type FileTreeNode = {
   id: string;
@@ -64,7 +77,10 @@ export type FileTreeNode = {
   children?: FileTreeNode[];
 };
 
-/** Cached directory entry with metadata, used by {@link DirectoryTreeCache}. */
+/**
+ * Cached directory entry with metadata, used by {@link DirectoryTreeCache}.
+ * @public
+ */
 export type TreeEntry = {
   name: string;
   type: 'file' | 'directory';
@@ -79,6 +95,7 @@ export type TreeEntry = {
 /**
  * Filter mask for watch event types. When a field is `true`, events of that
  * type are delivered. When omitted or `undefined`, the type is included.
+ * @public
  */
 export type WatchEventFilter = {
   added?: boolean;
@@ -95,6 +112,7 @@ export type WatchEventFilter = {
  * - `includes`/`excludes`: glob patterns for path filtering
  * - `filter`: event type mask
  * - `correlationId`: echoed in outgoing events for client-side routing
+ * @public
  */
 export type WatchRequest = {
   paths: string[];
@@ -108,6 +126,7 @@ export type WatchRequest = {
 /**
  * Events delivered to watch subscribers. `reset` and `overflow` signal that
  * the event stream is no longer reliable and consumers must resync.
+ * @public
  */
 export type WatchEvent =
   | { type: 'change'; path: string; correlationId?: string }

@@ -8,8 +8,11 @@ import { createZenFsProvider } from '#providers/create-zenfs-provider.js';
  * @param databasePrefix - Prefix for the IndexedDB store name (e.g. `"tau"` → `"taufs"`).
  * @returns Provider backed by ZenFS `IndexedDB` backend.
  *
- * @example
- * ```ts
+ * @public
+ * @example <caption>Persistent storage with IndexedDB</caption>
+ * ```typescript
+ * import { createIndexedDbProvider } from '@taucad/filesystem/providers';
+ *
  * const provider = await createIndexedDbProvider('tau');
  * ```
  */

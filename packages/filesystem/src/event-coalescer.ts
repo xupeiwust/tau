@@ -19,7 +19,10 @@ type PendingEvent = {
   timestamp: number;
 };
 
-/** Configuration for {@link EventCoalescer}. */
+/**
+ * Configuration for {@link EventCoalescer}.
+ * @public
+ */
 export type CoalescerOptions = {
   /** Window in milliseconds for coalescing events. Default: 50. */
   windowMs?: number;
@@ -35,6 +38,7 @@ const defaultMaxQueueDepth = 1000;
 /**
  * Buffers {@link ChangeEvent}s within a time window and applies coalescing
  * rules (cancel-out, collapse, dedup) before delivering the batch.
+ * @public
  */
 export class EventCoalescer {
   private readonly _windowMs: number;
@@ -127,6 +131,7 @@ export class EventCoalescer {
  *
  * @param events - Raw change events to coalesce.
  * @returns Coalesced event array.
+ * @public
  */
 export function coalesceEvents(events: ChangeEvent[]): ChangeEvent[] {
   if (events.length <= 1) {

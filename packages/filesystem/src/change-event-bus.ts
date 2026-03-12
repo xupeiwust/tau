@@ -4,7 +4,10 @@ type Subscriber = {
   handler: (event: ChangeEvent) => void;
 };
 
-/** Simple pub/sub bus for broadcasting {@link ChangeEvent}s to subscribers. */
+/**
+ * Simple pub/sub bus for broadcasting {@link ChangeEvent}s to subscribers.
+ * @public
+ */
 export class ChangeEventBus {
   private readonly _subscribers = new Set<Subscriber>();
 

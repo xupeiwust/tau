@@ -4,7 +4,10 @@ import { createIndexedDbProvider } from '#providers/indexeddb-provider.js';
 import { createWebAccessProvider } from '#providers/webaccess-provider.js';
 import { createMemoryProvider } from '#providers/memory-provider.js';
 
-/** Configuration for {@link ProviderRegistry}. */
+/**
+ * Configuration for {@link ProviderRegistry}.
+ * @public
+ */
 export type ProviderRegistryOptions = {
   databasePrefix?: string;
 };
@@ -12,6 +15,7 @@ export type ProviderRegistryOptions = {
 /**
  * Manages the lifecycle and caching of filesystem providers across
  * backends (IndexedDB, OPFS, Web Access, memory).
+ * @public
  */
 export class ProviderRegistry {
   private readonly _providers = new Map<string, FileSystemProvider>();

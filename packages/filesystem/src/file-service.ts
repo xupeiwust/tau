@@ -16,7 +16,10 @@ function toFileStat(stat: ProviderFileStat): FileStat {
   };
 }
 
-/** Options for {@link FileService.mkdir}. */
+/**
+ * Options for {@link FileService.mkdir}.
+ * @public
+ */
 export type MkdirOptions = {
   mode?: number;
   recursive?: boolean;
@@ -25,6 +28,7 @@ export type MkdirOptions = {
 /**
  * High-level filesystem service that coordinates reads, writes, caching,
  * and watch subscriptions across pluggable storage providers.
+ * @public
  */
 export class FileService {
   private readonly _registry: ProviderRegistry;

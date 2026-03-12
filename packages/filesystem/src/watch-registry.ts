@@ -157,13 +157,19 @@ function getEventPath(event: ChangeEvent): string | undefined {
   }
 }
 
-/** Optional configuration for WatchRegistry. */
+/**
+ * Optional configuration for WatchRegistry.
+ * @public
+ */
 export type WatchRegistryOptions = {
   caseSensitive?: boolean;
   maxQueueDepth?: number;
 };
 
-/** Ref-counted watch subscription registry with event coalescing and overflow handling. */
+/**
+ * Ref-counted watch subscription registry with event coalescing and overflow handling.
+ * @public
+ */
 export class WatchRegistry {
   private readonly _subscriptions = new Map<string, WatchSubscription>();
   private readonly _ownerWatches = new Map<string, Set<string>>();

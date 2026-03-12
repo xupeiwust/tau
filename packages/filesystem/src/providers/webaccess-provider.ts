@@ -8,10 +8,13 @@ import { createZenFsProvider } from '#providers/create-zenfs-provider.js';
  * @param handle - Browser directory handle obtained from `showDirectoryPicker()`.
  * @returns Provider backed by ZenFS `WebAccess` backend.
  *
- * @example
- * ```ts
- * const handle = await window.showDirectoryPicker();
- * const provider = await createWebAccessProvider(handle);
+ * @public
+ * @example <caption>Mounting a browser directory</caption>
+ * ```typescript
+ * import { createWebAccessProvider } from '@taucad/filesystem/providers';
+ *
+ * const rootHandle = await navigator.storage.getDirectory();
+ * const provider = await createWebAccessProvider(rootHandle);
  * ```
  */
 export const createWebAccessProvider = async (handle: FileSystemDirectoryHandle): Promise<FileSystemProvider> =>

@@ -3,6 +3,7 @@ const defaultMaxSingleFileBytes = 1024 * 1024;
 /**
  * LRU file cache with configurable entry count, total byte, and
  * single-file size limits. Evicts the oldest entries when limits are exceeded.
+ * @public
  */
 export class BoundedFileCache {
   private readonly _map = new Map<string, Uint8Array<ArrayBuffer>>();

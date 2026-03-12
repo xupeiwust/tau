@@ -4,6 +4,7 @@ import { canonicalizePath } from '@taucad/utils/path';
 /**
  * In-memory cache mapping directory paths to their entry metadata.
  * Supports targeted invalidation by path and subtree prefix.
+ * @public
  */
 export class DirectoryTreeCache {
   private readonly _cache = new Map<string, Map<string, TreeEntry>>();
