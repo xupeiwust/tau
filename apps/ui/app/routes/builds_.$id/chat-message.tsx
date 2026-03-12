@@ -47,6 +47,9 @@ type ChatMessageProperties = {
 };
 
 export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties): React.JSX.Element {
+  const userMessageCollapseRowThreshold = 8;
+  const userMessageCollapseCharacterThreshold = 900;
+
   const message = useChatSelector((state) => state.messagesById.get(messageId));
   const displayMessage = useChatSelector((state) => state.messageEdits[messageId] ?? state.messagesById.get(messageId));
   const fileParts = useChatSelector(
@@ -77,10 +80,9 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
 
   const isUser = message.role === messageRole.user;
   const isCollapsedUserMessage = isUser && !isEditing;
-  const shouldVirtualizeCollapsedUserMessage = isCollapsedUserMessage && fileParts.length === 0;
 
   const collapsedUserRows = useMemo(() => {
-    if (!shouldVirtualizeCollapsedUserMessage) {
+    if (!isCollapsedUserMessage || fileParts.length > 0) {
       return [];
     }
 
@@ -104,7 +106,28 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
     }
 
     return rows.length > 0 ? rows : [''];
-  }, [displayMessage.parts, shouldVirtualizeCollapsedUserMessage]);
+  }, [displayMessage.parts, fileParts.length, isCollapsedUserMessage]);
+
+  const collapsedUserCharacterCount = useMemo(() => {
+    if (!isCollapsedUserMessage || fileParts.length > 0) {
+      return 0;
+    }
+
+    let characterCount = 0;
+    for (const part of displayMessage.parts) {
+      if (part.type === 'text') {
+        characterCount += part.text.length;
+      }
+    }
+
+    return characterCount;
+  }, [displayMessage.parts, fileParts.length, isCollapsedUserMessage]);
+
+  const shouldCollapseUserMessage =
+    isCollapsedUserMessage &&
+    (collapsedUserRows.length > userMessageCollapseRowThreshold ||
+      collapsedUserCharacterCount > userMessageCollapseCharacterThreshold);
+  const shouldVirtualizeCollapsedUserMessage = shouldCollapseUserMessage && fileParts.length === 0;
 
   const renderCollapsedUserRow = useCallback(
     (index: number) => {
@@ -165,8 +188,8 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
           <div
             className={cn(
               'flex flex-col gap-1',
-              isUser &&
-                'max-h-58.5 cursor-pointer overflow-hidden rounded-sm border bg-background px-3 py-1 hover:border-primary',
+              isUser && 'cursor-pointer rounded-sm border bg-background px-3 py-1 hover:border-primary',
+              shouldCollapseUserMessage && 'max-h-58.5 overflow-hidden',
               fileParts.length > 0 && 'pt-3',
             )}
             onClick={handleEditClick}
