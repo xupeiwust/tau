@@ -1,18 +1,7 @@
-import { Suspense, use, useEffect, useId, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ClientOnly } from '#components/ui/utils/client-only.js';
 import { Theme, useTheme } from '#hooks/use-theme.js';
-
-const cache = new Map<string, Promise<unknown>>();
-
-async function cachePromise<T>(key: string, setPromise: () => Promise<T>): Promise<T> {
-  const cached = cache.get(key);
-  if (cached) {
-    return cached as Promise<T>;
-  }
-
-  const promise = setPromise();
-  cache.set(key, promise);
-  return promise;
-}
 
 const fontFamily = "'Geist Sans', ui-sans-serif, system-ui, sans-serif";
 
@@ -143,40 +132,74 @@ const themeCss = [
   '.messageText { font-size: 13px; font-weight: 500; }',
 ].join('\n');
 
-function MermaidRenderer({ chart }: { readonly chart: string }): React.JSX.Element {
-  const id = useId();
+let mermaidIdCounter = 0;
+
+function MermaidRenderer({ chart }: { readonly chart: string }): React.JSX.Element | undefined {
+  const [id] = useState(() => `mermaid-${mermaidIdCounter++}`);
   const { theme } = useTheme();
-  const { default: mermaid } = use(cachePromise('mermaid', async () => import('mermaid')));
   const isDark = theme === Theme.DARK;
+  const [svg, setSvg] = useState<string>();
+  // oxlint-disable-next-line typescript/no-invalid-void-type -- React DOM refs require null initializer
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bindFunctionsRef = useRef<((element: Element) => void) | undefined>(undefined);
 
-  const themeVariables = useMemo(() => buildThemeVariables(resolveDiagramColors(), { isDark }), [isDark]);
+  useEffect(() => {
+    let cancelled = false;
+    setSvg(undefined);
 
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'loose',
-    fontFamily,
-    theme: 'base',
-    themeVariables,
-    themeCSS: themeCss, // eslint-disable-line @typescript-eslint/naming-convention -- Mermaid API property name.
-    flowchart: { curve: 'basis', padding: 20 },
-  });
+    void (async () => {
+      const { default: mermaid } = await import('mermaid');
 
-  const { svg, bindFunctions } = use(
-    cachePromise(`${chart}-${theme}`, async () => {
-      return mermaid.render(id, chart.replaceAll(String.raw`\n`, '\n'));
-    }),
-  );
+      // oxlint-disable-next-line eslint/no-constant-condition, typescript/no-unnecessary-condition -- mutated by cleanup after await
+      if (cancelled) {
+        return;
+      }
+
+      const themeVariables = buildThemeVariables(resolveDiagramColors(), { isDark });
+
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'loose',
+        fontFamily,
+        theme: 'base',
+        themeVariables,
+        themeCSS: themeCss, // eslint-disable-line @typescript-eslint/naming-convention -- Mermaid API property name.
+        flowchart: { curve: 'basis', padding: 20 },
+      });
+
+      const result = await mermaid.render(id, chart.replaceAll(String.raw`\n`, '\n'));
+
+      // oxlint-disable-next-line eslint/no-constant-condition, typescript/no-unnecessary-condition -- mutated by cleanup after await
+      if (cancelled) {
+        return;
+      }
+
+      bindFunctionsRef.current = result.bindFunctions;
+      setSvg(result.svg);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, isDark, id]);
+
+  useEffect(() => {
+    if (containerRef.current && bindFunctionsRef.current) {
+      bindFunctionsRef.current(containerRef.current);
+      bindFunctionsRef.current = undefined;
+    }
+  }, [svg]);
+
+  if (!svg) {
+    return undefined;
+  }
 
   return (
     <div className='not-prose my-6 overflow-x-auto rounded-xl border border-border/50 bg-muted/30 px-4 py-6'>
       <div
         // oxlint-disable-next-line react/no-danger -- Mermaid returns pre-rendered SVG strings; dangerouslySetInnerHTML is the intended injection method.
         dangerouslySetInnerHTML={{ __html: svg }}
-        ref={(container) => {
-          if (container) {
-            bindFunctions?.(container);
-          }
-        }}
+        ref={containerRef}
         className='[&>svg]:mx-auto [&>svg]:block [&>svg]:bg-transparent!'
       />
     </div>
@@ -187,20 +210,10 @@ function MermaidRenderer({ chart }: { readonly chart: string }): React.JSX.Eleme
  * Renders a Mermaid diagram from chart definition text.
  * Only mounts on the client to avoid SSR hydration issues.
  */
-export function Mermaid({ chart }: { readonly chart: string }): React.JSX.Element | undefined {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return undefined;
-  }
-
+export function Mermaid({ chart }: { readonly chart: string }): ReactNode {
   return (
-    <Suspense>
+    <ClientOnly>
       <MermaidRenderer chart={chart} />
-    </Suspense>
+    </ClientOnly>
   );
 }
