@@ -1,8 +1,8 @@
-import { replicadTypesMap } from '@taucad/api-extractor';
+import { replicadTypes as replicadTypesMap } from '@taucad/api-extractor';
 import type { KernelConfig } from '#api/chat/prompts/kernel-prompt-configs/kernel.prompt.config.types.js';
 import canonicalExample from '#api/chat/prompts/kernel-prompt-configs/replicad.prompt.example.ts?raw';
 
-const replicadTypes = Object.values(JSON.parse(replicadTypesMap) as Record<string, string>).join('\n\n');
+const replicadTypes = Object.values(replicadTypesMap).join('\n\n');
 
 export const replicadConfig: KernelConfig = {
   fileExtension: '.ts',

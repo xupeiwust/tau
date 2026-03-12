@@ -8,7 +8,7 @@
  */
 
 import type * as Monaco from 'monaco-editor';
-import { replicadTypesOriginal, jscadModelingTypes, manifoldTypes } from '@taucad/api-extractor';
+import { kernelTypeMaps } from '@taucad/api-extractor';
 import type { LanguageContribution, ActivationContext, ActivationResult } from '#lib/monaco-language-registry.js';
 import { createJsDefinitionProvider } from '#lib/javascript-definition-provider.js';
 import { ModuleResolver } from '#lib/javascript-module-resolver.js';
@@ -91,25 +91,19 @@ export const jsTsContribution: LanguageContribution = {
 
     // Initialize Automatic Type Acquisition
     ataInstance = new TypeAcquisitionService();
-    ataInstance.initialize(monaco, {
-      staticTypes: [
-        {
-          packageName: 'replicad',
-          content: replicadTypesOriginal,
-          prewrapped: true,
-        },
-        {
-          packageName: '@jscad/modeling',
-          content: jscadModelingTypes,
-          prewrapped: true,
-        },
-        {
-          packageName: 'manifold-3d',
-          content: manifoldTypes,
-          prewrapped: true,
-        },
-      ],
-    });
+
+    // Register each kernel's type definitions as virtual files in Monaco.
+    // Each map entry becomes a separate addExtraLib registration at
+    // file:///node_modules/<modulePath>/index.d.ts.
+    const staticTypes = kernelTypeMaps.flatMap((typesMap) =>
+      Object.entries(typesMap).map(([packageName, content]) => ({
+        packageName,
+        content,
+        prewrapped: true,
+      })),
+    );
+
+    ataInstance.initialize(monaco, { staticTypes });
     ataInstance.startWatching();
 
     disposables.push({
