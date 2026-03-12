@@ -5,7 +5,7 @@ const baseConfig: Options = {
   entry: [
     'src/index.ts',
     'src/framework/kernel-runtime-worker.ts',
-    'src/middleware/kernel-middleware.ts',
+    'src/middleware/runtime-middleware.ts',
     'src/kernels/replicad/replicad.kernel.ts',
     'src/kernels/jscad/jscad.kernel.ts',
     'src/kernels/manifold/manifold.kernel.ts',

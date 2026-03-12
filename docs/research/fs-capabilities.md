@@ -30,7 +30,7 @@ Analysis of the full filesystem data flow reveals **one critical performance gap
 
 1. **CRITICAL**: Neither our bridge nor ZenFS uses `Transferable` lists for `Uint8Array`/`ArrayBuffer` in `postMessage()`. Every binary payload is **copied** via structured clone instead of **transferred** zero-copy. For large CAD files (STL, STEP, GLTF), this means double allocation and double copy on every read/write. Notably, the kernel dispatcher already correctly uses transfer lists for GLTF geometry results -- the filesystem bridge should follow the same pattern.
 
-2. **ZenFS has a built-in PortFS/RPC layer** (`attachFS`/`detachFS`/`resolveRemoteMount`) that handles cross-worker filesystem access. While our custom bridge is simpler and purpose-built for the `KernelFileSystem` contract, ZenFS's PortFS provides a full `node:fs`-compatible API over MessagePort, including features like `catchMessages` (message buffering during initialization) and an `Async` mixin with sync cache.
+2. **ZenFS has a built-in PortFS/RPC layer** (`attachFS`/`detachFS`/`resolveRemoteMount`) that handles cross-worker filesystem access. While our custom bridge is simpler and purpose-built for the `RuntimeFileSystem` contract, ZenFS's PortFS provides a full `node:fs`-compatible API over MessagePort, including features like `catchMessages` (message buffering during initialization) and an `Async` mixin with sync cache.
 
 3. **ZenFS's `SingleBuffer` backend** uses `SharedArrayBuffer` + `Atomics` for true zero-copy, lock-free concurrent access. This is potentially a future option for kernel workers that need synchronous FS access.
 
@@ -45,10 +45,10 @@ Analysis of the full filesystem data flow reveals **one critical performance gap
 Every `postMessage()` call in the filesystem bridge uses **structured clone only** -- no transfer list:
 
 ```typescript
-// createBridgeServer - line 82 of kernel-filesystem-bridge.ts
+// createBridgeServer - line 82 of runtime-filesystem-bridge.ts
 port.postMessage({ id, result } satisfies BridgeResponse);
 
-// createBridgeCall - line 211 of kernel-filesystem-bridge.ts
+// createBridgeCall - line 211 of runtime-filesystem-bridge.ts
 port.postMessage({ id, method, args } satisfies BridgeRequest);
 ```
 
@@ -74,10 +74,10 @@ Transfer is **zero-copy** -- the `ArrayBuffer` ownership is moved to the receivi
 
 ### Contrast: Kernel Geometry Already Uses Transfer
 
-The kernel worker dispatcher correctly uses transfer lists for GLTF geometry results:
+The runtime worker dispatcher correctly uses transfer lists for GLTF geometry results:
 
 ```typescript
-// kernel-worker-dispatcher.ts
+// runtime-worker-dispatcher.ts
 function extractGltfTransferables(result: HashedGeometryResult): Transferable[] {
   if (!result.success) return [];
   const buffers: Transferable[] = [];
@@ -276,7 +276,7 @@ Provides synchronous method implementations on async backends:
 Currently, our architecture:
 
 ```
-Kernel Worker → createBridgeProxy<KernelFileSystemBase>(port) → our bridge RPC → file-manager worker → ZenFS
+Kernel Worker → createBridgeProxy<RuntimeFileSystemBase>(port) → our bridge RPC → file-manager worker → ZenFS
 ```
 
 ZenFS's PortFS can do:
@@ -354,7 +354,7 @@ Main Thread                File-Manager Worker           Kernel Worker
      │                            │                           │
      │ ── MessageChannel ───────────────────────────────────► │
      │    port1 to fm-worker     │                           │
-     │    port2 to kernel client │                           │
+     │    port2 to runtime client │                           │
      │                            │ ◄─── direct comms ──────► │
      │                            │    (no main thread)       │
 ```
@@ -409,9 +409,9 @@ Kernel Worker                                    File-Manager Worker
 
 **Status**: Implemented via `extractTransferables(value)` utility. Both `createBridgeServer` (response) and `createBridgeCall` (request) now extract `ArrayBuffer` instances from values and include them in the `postMessage` transfer list. De-duplication prevents `DataCloneError` when the same buffer appears multiple times.
 
-### Priority 2 (High): Batch Operations in KernelFileSystem — ✅ IMPLEMENTED
+### Priority 2 (High): Batch Operations in RuntimeFileSystem — ✅ IMPLEMENTED
 
-**Status**: `KernelFileSystem` now includes `readFiles`, `readdirContents`, `readdirStat`, and `ensureDir` as first-class methods. Default implementations are built from the 11 primitives via `createKernelFileSystem(base)`. Backends can supply optimized overrides.
+**Status**: `RuntimeFileSystem` now includes `readFiles`, `readdirContents`, `readdirStat`, and `ensureDir` as first-class methods. Default implementations are built from the 11 primitives via `createRuntimeFileSystem(base)`. Backends can supply optimized overrides.
 
 ### Priority 3 (Medium): Replace Manual Proxy with Generic Bridge Proxy — ✅ IMPLEMENTED
 
@@ -470,7 +470,7 @@ Use ZenFS's `CopyOnWrite` backend to layer an in-memory write cache over the Ind
 | #   | Item                                                      | Priority | Impact        | Effort |
 | --- | --------------------------------------------------------- | -------- | ------------- | ------ |
 | 1   | Add `Transferable` support to bridge `postMessage`        | Critical | High          | Small  |
-| 2   | Add batch `readFiles` to `KernelFileSystem` interface     | High     | Medium        | Small  |
+| 2   | Add batch `readFiles` to `RuntimeFileSystem` interface    | High     | Medium        | Small  |
 | 3   | Use ZenFS `PortFS` for main-thread proxy in `apps/ui`     | Medium   | Medium        | Medium |
 | 4   | Adopt `catchMessages` pattern for init safety             | Medium   | Low           | Small  |
 | 5   | Investigate `SharedArrayBuffer` + `SingleBuffer` for WASM | Low      | High (future) | Large  |

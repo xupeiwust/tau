@@ -2,7 +2,7 @@
  * Import Resolution Utilities
  *
  * Shared pure functions for import specifier parsing and path resolution.
- * Used by both the kernel worker (esbuild bundling) and the main thread
+ * Used by both the runtime worker (esbuild bundling) and the main thread
  * (Monaco navigation, type acquisition).
  *
  * All functions are pure -- no filesystem or network access.
@@ -43,7 +43,7 @@ const nodeModulesRoot = '/node_modules';
  * Non-bare specifiers include relative paths ('./foo'), absolute paths ('/foo'),
  * and URLs ('https://cdn.example.com/foo').
  *
- * This utility is shared between the kernel worker (module resolution)
+ * This utility is shared between the runtime worker (module resolution)
  * and the main thread (type acquisition).
  * @public
  */

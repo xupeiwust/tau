@@ -272,7 +272,7 @@ const ViewerContent = memo(function ({
     editorRef,
   });
 
-  // Render timeout is now managed internally by the autonomous kernel worker
+  // Render timeout is now managed internally by the autonomous runtime worker
 
   // Select individual primitive values so that useSelector's reference equality
   // check works correctly. An object-returning selector creates a new reference

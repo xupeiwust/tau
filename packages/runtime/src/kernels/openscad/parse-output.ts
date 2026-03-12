@@ -1,4 +1,4 @@
-import type { ErrorLocation, KernelIssue, KernelStackFrame } from '#types/kernel.types.js';
+import type { ErrorLocation, KernelIssue, KernelStackFrame } from '#types/runtime.types.js';
 
 /**
  * Callback function type for adding parsed errors.

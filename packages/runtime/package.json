@@ -47,7 +47,7 @@
     "./kernels/zoo/engine-connection": "./src/kernels/zoo/engine-connection.ts",
     "./kernels/tau": "./src/kernels/tau/tau.kernel.ts",
     "./bundler/esbuild": "./src/bundler/esbuild.bundler.ts",
-    "./middleware/kernel-middleware": "./src/middleware/kernel-middleware.ts",
+    "./middleware/runtime-middleware": "./src/middleware/runtime-middleware.ts",
     "./middleware/parameter-cache": "./src/middleware/parameter-cache.middleware.ts",
     "./middleware/geometry-cache": "./src/middleware/geometry-cache.middleware.ts",
     "./middleware/gltf-coordinate-transform": "./src/middleware/gltf-coordinate-transform.middleware.ts",
@@ -126,14 +126,14 @@
           "default": "./dist/esm/transport/index.js"
         }
       },
-      "./middleware/kernel-middleware": {
+      "./middleware/runtime-middleware": {
         "require": {
-          "types": "./dist/cjs/middleware/kernel-middleware.d.cts",
-          "default": "./dist/cjs/middleware/kernel-middleware.cjs"
+          "types": "./dist/cjs/middleware/runtime-middleware.d.cts",
+          "default": "./dist/cjs/middleware/runtime-middleware.cjs"
         },
         "import": {
-          "types": "./dist/esm/middleware/kernel-middleware.d.ts",
-          "default": "./dist/esm/middleware/kernel-middleware.js"
+          "types": "./dist/esm/middleware/runtime-middleware.d.ts",
+          "default": "./dist/esm/middleware/runtime-middleware.js"
         }
       },
       "./kernels/replicad": {

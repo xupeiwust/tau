@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExportFile } from '@taucad/types';
 import { KernelRuntimeWorker } from '#framework/kernel-runtime-worker.js';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import type { KernelDefinition } from '#types/kernel-worker.types.js';
-import type { KernelIssue } from '#types/kernel.types.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import type { KernelDefinition } from '#types/runtime-kernel.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
 import { seedTestFileSystem, initializeWorkerForTesting, createGeometryFile } from '#testing/kernel-testing.utils.js';
 
 // ===================================================================

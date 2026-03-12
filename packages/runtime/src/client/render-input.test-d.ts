@@ -13,8 +13,8 @@
 
 import { describe, expectTypeOf, it } from 'vitest';
 import type { GeometryFile } from '@taucad/types';
-import type { CodeInput, ExportResult, FileInput, KernelClient } from '#client/kernel-client.js';
-import type { Tessellation } from '#types/kernel-worker.types.js';
+import type { CodeInput, ExportResult, FileInput, RuntimeClient } from '#client/runtime-client.js';
+import type { Tessellation } from '#types/runtime-kernel.types.js';
 
 // =============================================================================
 // CodeInput<T> -- single-key inline mode
@@ -169,12 +169,12 @@ describe('FileInput (filesystem mode)', () => {
 });
 
 // =============================================================================
-// KernelClient.render() overload resolution
+// RuntimeClient.render() overload resolution
 // =============================================================================
 
-describe('KernelClient.render() overload resolution', () => {
+describe('RuntimeClient.render() overload resolution', () => {
   // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- pure type testing
-  const client = {} as KernelClient;
+  const client = {} as RuntimeClient;
 
   it('should accept single-key code (file inferred)', () => {
     expectTypeOf(client.render({ code: { 'box.ts': 'const x = 1;' } })).toBeObject();
@@ -217,12 +217,12 @@ describe('KernelClient.render() overload resolution', () => {
 });
 
 // =============================================================================
-// KernelClient.export() overload resolution
+// RuntimeClient.export() overload resolution
 // =============================================================================
 
-describe('KernelClient.export() overload resolution', () => {
+describe('RuntimeClient.export() overload resolution', () => {
   // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- pure type testing
-  const client: KernelClient = {} as KernelClient;
+  const client: RuntimeClient = {} as RuntimeClient;
 
   it('should accept format-only (export from last render)', () => {
     expectTypeOf(client.export('step')).toEqualTypeOf<Promise<ExportResult>>();

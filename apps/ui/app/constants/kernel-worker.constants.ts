@@ -1,7 +1,7 @@
 import { replicad, opencascade, zoo, openscad, jscad, manifold, tau } from '@taucad/runtime/kernels';
 import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { ENV } from '#environment.config.js';
 
 /**
@@ -10,7 +10,7 @@ import { ENV } from '#environment.config.js';
  * Kernel array order defines selection priority -- the first kernel that
  * can handle a file wins.
  */
-export const defaultKernelOptions: KernelClientOptions = {
+export const defaultKernelOptions: RuntimeClientOptions = {
   kernels: [
     openscad(),
     zoo({ baseUrl: `${ENV.TAU_WEBSOCKET_URL}/v1/kernels/zoo` }),
@@ -31,7 +31,7 @@ export const defaultKernelOptions: KernelClientOptions = {
  * for enriched error stack traces with library source map resolution.
  * Adds ~50ms to init — only use where rich error feedback matters.
  */
-export const debugKernelOptions: KernelClientOptions = {
+export const debugKernelOptions: RuntimeClientOptions = {
   ...defaultKernelOptions,
   kernels: defaultKernelOptions.kernels.map((kernel) =>
     kernel.id === 'replicad'

@@ -170,21 +170,21 @@ The core library defines a platform-agnostic interface. Adapters implement that 
 
 ```typescript
 // Core: platform-agnostic interface
-type KernelTransport = {
-  send(message: KernelCommand): void;
-  onMessage(handler: (message: KernelResponse) => void): void;
+type RuntimeTransport = {
+  send(message: RuntimeCommand): void;
+  onMessage(handler: (message: RuntimeResponse) => void): void;
   close(): void;
   dispose(): void;
 };
 
 // Adapter: browser Web Worker
-function createWorkerTransport(worker: Worker): KernelTransport { ... }
+function createWorkerTransport(worker: Worker): RuntimeTransport { ... }
 
 // Adapter: Node.js worker_threads
-function createNodeTransport(worker: NodeWorker): KernelTransport { ... }
+function createNodeTransport(worker: NodeWorker): RuntimeTransport { ... }
 
 // Adapter: in-process (testing)
-function createInlineTransport(runtime: KernelRuntimeWorker): KernelTransport { ... }
+function createInlineTransport(runtime: KernelRuntimeWorker): RuntimeTransport { ... }
 ```
 
 ### Adapter Export Convention
@@ -369,7 +369,7 @@ When a public-facing method delegates to a provider implementation, the implemen
 
 ```typescript
 // Consumer-facing: clean, documented API
-type KernelClient = {
+type RuntimeClient = {
   render(input: RenderInput): Promise<RenderResult>;
 };
 
@@ -390,12 +390,12 @@ Every public type export must have corresponding type-level tests. Adapted from 
 ```typescript
 // src/types.test-d.ts
 import { expectTypeOf, describe, it } from 'vitest';
-import { createKernelClient } from './index';
+import { createRuntimeClient } from './index';
 import { replicad } from './kernels/replicad';
 
-describe('createKernelClient', () => {
+describe('createRuntimeClient', () => {
   it('should infer kernel context types', () => {
-    const client = createKernelClient({ kernels: [replicad()] });
+    const client = createRuntimeClient({ kernels: [replicad()] });
     expectTypeOf(client.render).toBeFunction();
     expectTypeOf(client.on).toBeCallableWith('progress', (_phase: string) => {});
   });

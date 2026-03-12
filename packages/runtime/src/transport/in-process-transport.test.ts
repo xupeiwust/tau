@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { PerformanceEntryData } from '#types/kernel-protocol.types.js';
-import { createKernelClient, fromMemoryFS } from '#index.js';
+import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import { createRuntimeClient, fromMemoryFS } from '#index.js';
 import { createInProcessTransport } from '#transport/in-process-transport.js';
 import { replicad } from '#plugins/kernel-factories.js';
 import { esbuild } from '#plugins/bundler-factories.js';
@@ -39,9 +39,9 @@ describe('createInProcessTransport', () => {
   });
 });
 
-describe('createKernelClient with in-process transport', () => {
+describe('createRuntimeClient with in-process transport', () => {
   it('renders geometry successfully', async () => {
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad()],
       bundlers: [esbuild()],
       fileSystem: fromMemoryFS({ [absolutePath]: boxCode }),
@@ -64,7 +64,7 @@ describe('createKernelClient with in-process transport', () => {
   it('delivers telemetry spans', async () => {
     const telemetryBatches: PerformanceEntryData[][] = [];
 
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad({ ocTracing: 'summary' })],
       bundlers: [esbuild()],
       fileSystem: fromMemoryFS({ [absolutePath]: boxCode }),
@@ -99,7 +99,7 @@ describe('createKernelClient with in-process transport', () => {
       }
     `;
 
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad()],
       bundlers: [esbuild()],
       fileSystem: fromMemoryFS({ [absolutePath]: invalidCode }),
@@ -122,7 +122,7 @@ describe('createKernelClient with in-process transport', () => {
   it('supports multiple sequential renders', async () => {
     const fileSystem = fromMemoryFS({ [absolutePath]: boxCode });
 
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad()],
       bundlers: [esbuild()],
       fileSystem,
@@ -154,7 +154,7 @@ describe('createKernelClient with in-process transport', () => {
   });
 
   it('cleans up without leaving active handles', async () => {
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad()],
       bundlers: [esbuild()],
       fileSystem: fromMemoryFS({ [absolutePath]: boxCode }),

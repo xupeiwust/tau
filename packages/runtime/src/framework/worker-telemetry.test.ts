@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WorkerTelemetryCollector, toAbsoluteTime } from '#framework/worker-telemetry.js';
-import type { PerformanceEntryData } from '#types/kernel-protocol.types.js';
+import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
 
 afterEach(() => {
   vi.restoreAllMocks();

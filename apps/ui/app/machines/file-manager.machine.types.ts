@@ -56,7 +56,7 @@ export type FileManagerApi = {
 
 /**
  * Full FileManager protocol served over MessagePort.
- * Superset of KernelFileSystem -- includes higher-level operations
+ * Superset of RuntimeFileSystem -- includes higher-level operations
  * and worker control methods (reconfigure, setDirectoryHandle).
  */
 export type FileManagerProtocol = {

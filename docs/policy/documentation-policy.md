@@ -339,7 +339,7 @@ All public APIs in `packages/` must have JSDoc documentation. This is enforced b
 - A description of what the function/type does.
 - `@param` tags with descriptions for all parameters.
 - `@returns` tag with description for functions with non-void return types.
-- `@example` tag for key public functions (factory functions, `createKernelClient`, `defineKernel`, `defineMiddleware`, `defineBundler`).
+- `@example` tag for key public functions (factory functions, `createRuntimeClient`, `defineKernel`, `defineMiddleware`, `defineBundler`).
 
 For `@example` standards (compilable examples, real-world usage, language tags), see [JSDoc Policy](jsdoc-policy.md).
 
@@ -348,7 +348,7 @@ For `@example` standards (compilable examples, real-world usage, language tags),
 Reference documentation is auto-generated from JSDoc using `fumadocs-typescript`'s `remarkAutoTypeTable` remark plugin. The workflow:
 
 1. JSDoc comments on source types in `packages/runtime/src/` are the source of truth.
-2. Dedicated props files in `apps/ui/content/docs/(kernels)/api/props/` re-export only the intended public API types.
+2. Dedicated props files in `apps/ui/content/docs/(runtime)/api/props/` re-export only the intended public API types.
 3. MDX reference pages use `<auto-type-table path="./props/[file].ts" name="[TypeName]" />` to render type tables.
 4. Only types explicitly re-exported in props files appear in docs. No internal types leak.
 

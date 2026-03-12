@@ -11,10 +11,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OnWorkerLog } from '@taucad/types';
-import type { ExportGeometryResult } from '#types/kernel.types.js';
-import type { ExportGeometryInput } from '#types/kernel-worker.types.js';
-import type { ExportGeometryHandler, KernelMiddlewareRuntime } from '#types/kernel-middleware.types.js';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
+import type { ExportGeometryResult } from '#types/runtime.types.js';
+import type { ExportGeometryInput } from '#types/runtime-kernel.types.js';
+import type { ExportGeometryHandler, KernelMiddlewareRuntime } from '#types/runtime-middleware.types.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 import { MockKernelWorker } from '#testing/kernel-testing.utils.js';
 
 describe('kernel-worker wrapExportGeometry middleware', () => {

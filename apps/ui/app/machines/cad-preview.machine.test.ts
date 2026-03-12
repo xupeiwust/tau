@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createActor, waitFor } from 'xstate';
 import { mock } from 'vitest-mock-extended';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { createMockKernelClient } from '@taucad/runtime/testing';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { stopRootWithRehydration } from '#lib/xstate-test.utils.js';
@@ -37,7 +37,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 
@@ -94,7 +94,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 
@@ -166,7 +166,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 
@@ -246,7 +246,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 
@@ -334,7 +334,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 
@@ -453,7 +453,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const cadRef = createActor(providedCadMachine, {
       input: {
         shouldInitializeKernelOnStart: false,
-        kernelOptions: mock<KernelClientOptions>(),
+        kernelOptions: mock<RuntimeClientOptions>(),
       },
     });
 

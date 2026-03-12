@@ -6,9 +6,9 @@ import {
   wrapOcForExceptions,
   wrapOcWithTracing,
 } from '#kernels/replicad/oc-tracing.js';
-import { RenderAbortedError, isRenderAbortedError } from '#framework/kernel-worker-client.js';
-import { signalSlot } from '#types/kernel-protocol.types.js';
-import type { KernelSpanTracer, SpanHandle } from '#types/kernel-tracer.types.js';
+import { RenderAbortedError, isRenderAbortedError } from '#framework/runtime-worker-client.js';
+import { signalSlot } from '#types/runtime-protocol.types.js';
+import type { RuntimeSpanTracer, SpanHandle } from '#types/runtime-tracer.types.js';
 import type { OpenCascadeInstance } from 'replicad-opencascadejs';
 
 // ===================================================================
@@ -32,7 +32,7 @@ function createMockOc(overrides?: Record<string, unknown>): MockOc {
   return base as unknown as MockOc;
 }
 
-function createMockTracer(): KernelSpanTracer & { startSpan: ReturnType<typeof vi.fn> } {
+function createMockTracer(): RuntimeSpanTracer & { startSpan: ReturnType<typeof vi.fn> } {
   const endFunction = vi.fn();
   const mockSpan: SpanHandle = { end: endFunction };
   return {

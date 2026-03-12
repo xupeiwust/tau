@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Document, NodeIO, Accessor } from '@gltf-transform/core';
 import { KHRMaterialsUnlit } from '@gltf-transform/extensions';
 import type { GeometryGltf, GeometrySvg } from '@taucad/types';
-import type { KernelMiddlewareRuntime } from '#types/kernel-middleware.types.js';
+import type { KernelMiddlewareRuntime } from '#types/runtime-middleware.types.js';
 import { gltfEdgeDetectionMiddleware } from '#middleware/gltf-edge-detection.middleware.js';
 import {
   createMockCreateGeometryHandler,

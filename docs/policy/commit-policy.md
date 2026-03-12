@@ -67,7 +67,7 @@ Scope is **required** — do not omit it. Use lowercase always.
 CORRECT:
 
 ```
-feat(kernels): add OpenCASCADE mesh export
+feat(runtime): add OpenCASCADE mesh export
 fix(ui): resolve theme toggle flickering
 chore(root): update GitHub Actions workflow
 ```
@@ -104,7 +104,7 @@ CORRECT:
 ```
 feat(api): Add user authentication endpoint
 fix(converter): Resolve STEP file import crash on empty solids
-refactor(kernels): Extract WASM loader into shared utility
+refactor(runtime): Extract WASM loader into shared utility
 ```
 
 INCORRECT:
@@ -112,7 +112,7 @@ INCORRECT:
 ```
 feat(api): added user authentication endpoint    # past tense
 fix(converter): Fixes STEP file import crash     # third-person
-refactor(kernels): Extracting WASM loader        # gerund
+refactor(runtime): Extracting WASM loader        # gerund
 feat(api): add user authentication endpoint      # lowercase first word
 ```
 
@@ -125,7 +125,7 @@ Reference concrete names, numbers, formats, and components. Avoid generic verbs 
 CORRECT:
 
 ```
-fix(kernels): Resolve OpenCASCADE null shape crash on empty STEP files
+fix(runtime): Resolve OpenCASCADE null shape crash on empty STEP files
 feat(ui): Add keyboard shortcut Cmd+K for command palette
 perf(converter): Reduce STL parse time by 40% via streaming decoder
 chore(root): Bump Node.js requirement from 22 to 24
@@ -134,7 +134,7 @@ chore(root): Bump Node.js requirement from 22 to 24
 INCORRECT:
 
 ```
-fix(kernels): Fix bug                        # what bug?
+fix(runtime): Fix bug                        # what bug?
 feat(ui): Add new feature                    # what feature?
 perf(converter): Improve performance         # how? by how much?
 chore(root): Update dependencies             # which ones?
@@ -155,7 +155,7 @@ When a body is needed, explain **why** the change was made and any non-obvious t
 CORRECT:
 
 ```
-fix(kernels): Clamp negative tolerance values in STEP export
+fix(runtime): Clamp negative tolerance values in STEP export
 
 Negative tolerance caused OpenCASCADE to produce degenerate faces.
 The STEP spec (ISO 10303-42) requires positive-definite tolerance.
@@ -165,7 +165,7 @@ Clamping to machine epsilon matches the behavior of FreeCAD and GMSH.
 INCORRECT:
 
 ```
-fix(kernels): Clamp negative tolerance values in STEP export
+fix(runtime): Clamp negative tolerance values in STEP export
 
 Changed the tolerance parameter to use Math.max with epsilon.
 Updated the test to check for the new behavior.
@@ -177,7 +177,7 @@ Added a comment explaining the change.
 Indicate breaking changes with `!` after the scope or a `BREAKING CHANGE:` footer:
 
 ```
-feat(kernels)!: Remove deprecated `renderSync` API
+feat(runtime)!: Remove deprecated `renderSync` API
 
 BREAKING CHANGE: `renderSync` has been removed. Use `render` with
 `await` instead. See migration guide in docs/guides/v3-migration.mdx.

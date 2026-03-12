@@ -22,11 +22,11 @@ export type EsbuildOptions = {
  *
  * @example <caption>Client with esbuild bundler</caption>
  * ```typescript
- * import { createKernelClient } from '@taucad/runtime';
+ * import { createRuntimeClient } from '@taucad/runtime';
  * import { replicad } from '@taucad/runtime/kernels';
  * import { esbuild } from '@taucad/runtime/bundler';
  *
- * const client = createKernelClient({
+ * const client = createRuntimeClient({
  *   kernels: [replicad()],
  *   bundlers: [esbuild({ extensions: ['ts', 'tsx'] })],
  * });

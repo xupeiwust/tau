@@ -1,0 +1,73 @@
+---
+title: Installation
+description: Install @taucad/runtime and configure it for your project.
+icon: lucide:download
+---
+
+# Installation
+
+Install `@taucad/runtime` and its peer dependencies to start using the multi-kernel CAD runtime in your project.
+
+## Prerequisites
+
+- Node.js 20 or later
+- A package manager: npm, pnpm, or yarn
+
+## Install the Package
+
+```bash tab="pnpm"
+pnpm add @taucad/runtime
+```
+
+```bash tab="npm"
+npm install @taucad/runtime
+```
+
+```bash tab="yarn"
+yarn add @taucad/runtime
+```
+
+## Framework Configuration
+
+### Vite
+
+`@taucad/runtime` uses Web Workers for kernel isolation. Vite handles worker URLs natively via `new URL(..., import.meta.url)`:
+
+```typescript
+import { createRuntimeClient } from '@taucad/runtime';
+```
+
+### Node.js
+
+For server-side usage, workers run as Node.js worker threads. Use `fromNodeFS` for filesystem access:
+
+```typescript
+import { createRuntimeClient, fromNodeFS } from '@taucad/runtime';
+import fs from 'node:fs';
+
+const client = createRuntimeClient({
+  kernels: [
+    /* ... */
+  ],
+  fileSystem: fromNodeFS(fs),
+});
+```
+
+## Subpath Imports
+
+The package exposes multiple subpath imports for tree-shaking:
+
+| Import Path                  | Contents                                                              |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `@taucad/runtime`            | Client, filesystem constructors, helpers                              |
+| `@taucad/runtime/kernels`    | Kernel factories (`replicad`, `manifold`, `openscad`, `jscad`, `zoo`) |
+| `@taucad/runtime/middleware` | `defineMiddleware` and built-in middleware                            |
+| `@taucad/runtime/bundler`    | `defineBundler` and esbuild bundler                                   |
+| `@taucad/runtime/transport`  | Transport layer (`createWorkerTransport`)                             |
+| `@taucad/runtime/types`      | All TypeScript type exports                                           |
+| `@taucad/runtime/testing`    | Testing utilities                                                     |
+
+## What's Next
+
+- [Quick Start](./quick-start) -- Render your first 3D model in under 4 minutes
+- [API Reference](/docs/api/client) -- Full API documentation for `createRuntimeClient`

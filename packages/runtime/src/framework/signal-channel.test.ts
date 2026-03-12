@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { signalSlot, workerStateEnum, workerStateNames } from '#types/kernel-protocol.types.js';
-import type { WorkerState } from '#types/kernel-protocol.types.js';
+import { signalSlot, workerStateEnum, workerStateNames } from '#types/runtime-protocol.types.js';
+import type { WorkerState } from '#types/runtime-protocol.types.js';
 
 describe('SharedArrayBuffer signal channel', () => {
   let signalBuffer: SharedArrayBuffer;
@@ -80,7 +80,7 @@ describe('SharedArrayBuffer signal channel', () => {
     it('should resolve state name from integer value', () => {
       Atomics.store(signalView, signalSlot.workerState, workerStateEnum.rendering);
       const stateInt = Atomics.load(signalView, signalSlot.workerState);
-      const stateName: WorkerState = workerStateNames[stateInt]!;
+      const stateName: WorkerState = workerStateNames[stateInt];
       expect(stateName).toBe('rendering');
     });
   });

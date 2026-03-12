@@ -1,6 +1,6 @@
 ---
 name: Kernel Runtime Architecture
-overview: A comprehensive re-architecture of the Tau kernel worker runtime -- from 5 eager Comlink-proxied workers to a single-worker-per-compilation-unit model with ES module kernel loading, framework-managed geometry lifecycle, zero-copy transfers, streaming WASM, structured telemetry, and ZenFS Emscripten integration for native filesystem access. Designed to create the world's most performant web-based, multi-kernel CAD runtime.
+overview: A comprehensive re-architecture of the Tau runtime worker runtime -- from 5 eager Comlink-proxied workers to a single-worker-per-compilation-unit model with ES module kernel loading, framework-managed geometry lifecycle, zero-copy transfers, streaming WASM, structured telemetry, and ZenFS Emscripten integration for native filesystem access. Designed to create the world's most performant web-based, multi-kernel CAD runtime.
 todos:
   - id: p0-tactical
     content: "Phase 0: Tactical performance -- P2-P5 existing items + WASM streaming + zero-copy transfers + filesystem batch reads + telemetry marks + OpenSCAD targeted mounting"
@@ -12,7 +12,7 @@ todos:
     content: "Phase 2: Add renderEntry to KernelWorker, collapse kernel machine parsing+evaluating into rendering state"
     status: completed
   - id: p3-protocol
-    content: "Phase 3: Define KernelCommand/KernelResponse protocol types, implement MessagePort dispatcher and fromCallback bridge"
+    content: "Phase 3: Define RuntimeCommand/RuntimeResponse protocol types, implement MessagePort dispatcher and fromCallback bridge"
     status: completed
   - id: p4-telemetry
     content: "Phase 4: Worker telemetry system -- PerformanceObserver collection + batch flush via MessagePort + main-thread aggregator"
@@ -263,10 +263,10 @@ async function readFiles(paths: string[]): Promise<Map<string, Uint8Array<ArrayB
 }
 ```
 
-**[kernel-worker.types.ts](libs/types/src/types/kernel-worker.types.ts)**: Add to `KernelFileSystem`:
+**[runtime-kernel.types.ts](libs/types/src/types/runtime-kernel.types.ts)**: Add to `RuntimeFileSystem`:
 
 ```typescript
-export type KernelFileSystem = {
+export type RuntimeFileSystem = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
   readFiles(paths: string[]): Promise<Map<string, Uint8Array<ArrayBuffer>>>; // NEW
@@ -517,18 +517,18 @@ The `rendering` state invokes `renderEntry` which sends back `parametersResolved
 
 ### Problem
 
-Comlink adds measurable overhead: per-request function creation, Proxy wrapping, and structured clone serialization for every call. For the kernel worker hot path (render, fileChanged, configureMiddleware), this overhead is avoidable because the protocol is small and well-defined.
+Comlink adds measurable overhead: per-request function creation, Proxy wrapping, and structured clone serialization for every call. For the runtime worker hot path (render, fileChanged, configureMiddleware), this overhead is avoidable because the protocol is small and well-defined.
 
 ### Design
 
-Replace Comlink with a typed MessagePort event protocol for the kernel worker hot path. Keep Comlink for the file manager (complex API with many overloaded methods, not on the hot path).
+Replace Comlink with a typed MessagePort event protocol for the runtime worker hot path. Keep Comlink for the file manager (complex API with many overloaded methods, not on the hot path).
 
 #### 3A. Define the protocol
 
-**New file: [kernel-protocol.ts](libs/types/src/types/kernel-protocol.ts)**:
+**New file: [runtime-protocol.ts](libs/types/src/types/runtime-protocol.ts)**:
 
 ```typescript
-export type KernelCommand =
+export type RuntimeCommand =
   | { type: 'initialize'; options: Record<string, unknown>; middlewareConfig: MiddlewareConfig }
   | { type: 'render'; file: GeometryFile; params: Record<string, unknown> }
   | { type: 'fileChanged'; paths: string[] }
@@ -537,7 +537,7 @@ export type KernelCommand =
   | { type: 'export'; format: ExportFormat; meshConfig?: MeshConfig }
   | { type: 'cleanup' };
 
-export type KernelResponse =
+export type RuntimeResponse =
   | { type: 'initialized' }
   | { type: 'canHandleResult'; result: boolean }
   | { type: 'parametersResolved'; result: GetParametersResult }
@@ -554,8 +554,8 @@ export type KernelResponse =
 
 ```typescript
 export function createWorkerDispatcher(worker: KernelWorker): void {
-  self.onmessage = async (e: MessageEvent<KernelCommand>) => {
-    const respond = (response: KernelResponse, transferables?: Transferable[]) =>
+  self.onmessage = async (e: MessageEvent<RuntimeCommand>) => {
+    const respond = (response: RuntimeResponse, transferables?: Transferable[]) =>
       self.postMessage(response, { transfer: transferables ?? [] });
 
     switch (e.data.type) {
@@ -585,15 +585,15 @@ export function createWorkerDispatcher(worker: KernelWorker): void {
 **[kernel.machine.ts](apps/ui/app/machines/kernel.machine.ts)**: Replace Comlink `wrap()` with a `fromCallback` actor that bridges MessagePort events to XState events:
 
 ```typescript
-const workerBridge = fromCallback<KernelResponse, { worker: Worker; fileManagerPort: MessagePort }>(
+const workerBridge = fromCallback<RuntimeResponse, { worker: Worker; fileManagerPort: MessagePort }>(
   ({ input, sendBack, receive }) => {
     const { worker } = input;
 
-    worker.onmessage = (e: MessageEvent<KernelResponse>) => {
+    worker.onmessage = (e: MessageEvent<RuntimeResponse>) => {
       sendBack(e.data); // Forward worker events as XState events
     };
 
-    receive((command: KernelCommand) => {
+    receive((command: RuntimeCommand) => {
       worker.postMessage(command); // Forward XState events as worker commands
     });
 
@@ -610,16 +610,16 @@ For `geometryComputed` responses containing GLTF `Uint8Array` data, use `postMes
 
 #### 3E. Isomorphic message adapter
 
-**New: [kernel-message-adapter.ts](apps/ui/app/components/geometry/kernel/utils/kernel-message-adapter.ts)**: Create a unified message interface for browser and Node.js, equivalent to what `comlink-worker.utils.ts` does for Comlink:
+**New: [runtime-message-adapter.ts](apps/ui/app/components/geometry/kernel/utils/runtime-message-adapter.ts)**: Create a unified message interface for browser and Node.js, equivalent to what `comlink-worker.utils.ts` does for Comlink:
 
 ```typescript
-export type KernelMessagePort = {
-  postMessage(message: KernelCommand | KernelResponse, transferables?: Transferable[]): void;
-  onMessage(handler: (data: KernelCommand | KernelResponse) => void): void;
+export type RuntimeMessagePort = {
+  postMessage(message: RuntimeCommand | RuntimeResponse, transferables?: Transferable[]): void;
+  onMessage(handler: (data: RuntimeCommand | RuntimeResponse) => void): void;
   close(): void;
 };
 
-export function getWorkerMessagePort(): KernelMessagePort {
+export function getWorkerMessagePort(): RuntimeMessagePort {
   if (isBrowserWorkerContext()) {
     return {
       postMessage: (msg, t) => self.postMessage(msg, { transfer: t ?? [] }),
@@ -962,8 +962,8 @@ The worker runtime provides shared services to all kernel modules:
 
 ```typescript
 type KernelRuntime = {
-  filesystem: KernelFileSystem;
-  logger: KernelLogger;
+  filesystem: RuntimeFileSystem;
+  logger: RuntimeLogger;
   bundler: {
     bundle(entryPath: string): Promise<BundleResult>;
     resolveDependencies(entryPath: string): Promise<string[]>;
@@ -980,9 +980,9 @@ The bundler and execute services are optional -- non-JS kernels (OpenSCAD, KCL, 
 
 #### Why not ZenFS Emscripten mount
 
-The original idea was to create a ZenFS instance in the kernel worker sharing the same IndexedDB store as the file manager, then mount it into Emscripten via the `@zenfs/emscripten` plugin. Deep analysis of ZenFS internals reveals this is **unsafe**:
+The original idea was to create a ZenFS instance in the runtime worker sharing the same IndexedDB store as the file manager, then mount it into Emscripten via the `@zenfs/emscripten` plugin. Deep analysis of ZenFS internals reveals this is **unsafe**:
 
-1. **Stale cache**: ZenFS's IndexedDB backend pre-loads ALL data into an in-memory `Map<number, Uint8Array>` at init time ([IndexedDB.ts:196-200](repos/zenfs/dom/src/IndexedDB.ts)). Synchronous reads (`getSync`) serve from this map, **never re-reading from IndexedDB**. Files written by the file manager worker after kernel worker init would be invisible.
+1. **Stale cache**: ZenFS's IndexedDB backend pre-loads ALL data into an in-memory `Map<number, Uint8Array>` at init time ([IndexedDB.ts:196-200](repos/zenfs/dom/src/IndexedDB.ts)). Synchronous reads (`getSync`) serve from this map, **never re-reading from IndexedDB**. Files written by the file manager worker after runtime worker init would be invisible.
 2. **No cross-worker sync**: ZenFS's `MutexedFS` lock ([mutexed.ts:97-126](repos/zenfs/core/src/mixins/mutexed.ts)) is per-instance only. Two ZenFS instances in different workers have no coordination -- concurrent writes corrupt directory listings (zen-fs/core#256, mitigated in the file manager by a serialization queue but not enforceable cross-worker).
 3. **Async mixin snapshot**: The `Async()` mixin maintains a separate in-memory `_sync` filesystem cache that is populated once at `ready()` ([async.ts:82-99](repos/zenfs/core/src/mixins/async.ts)). External writes never reach it.
 
@@ -1053,7 +1053,7 @@ async createGeometry(input, runtime, ctx) {
 2. **Zero file copying**: Emscripten reads directly from the `Map` in worker memory -- no `FS.writeFile()` loop
 3. **Instant mount**: No I/O at mount time -- the cache is already populated from prior render cycles
 4. **Consistent with framework principles**: Uses the same content cache that all other kernel operations use
-5. **No ZenFS dependency in kernel worker**: No need to configure, initialize, or manage a second ZenFS instance
+5. **No ZenFS dependency in runtime worker**: No need to configure, initialize, or manage a second ZenFS instance
 
 #### Applicability beyond OpenSCAD
 
@@ -1082,13 +1082,13 @@ const buildRef = useBuild({
 
 #### File manager integration
 
-The file manager worker handles mount resolution. When a kernel worker reads `/libs/mcmaster/bolt-m6.step`, the file manager:
+The file manager worker handles mount resolution. When a runtime worker reads `/libs/mcmaster/bolt-m6.step`, the file manager:
 
 1. Recognizes the path falls under a mounted data source
 2. Resolves the file from the appropriate source (zip entry, remote fetch)
-3. Returns the content through the normal `KernelFileSystem` interface
+3. Returns the content through the normal `RuntimeFileSystem` interface
 
-Kernel workers don't need to know whether a file came from IndexedDB, a zip archive, or a remote URL -- the `KernelFileSystem` interface is the same regardless.
+Kernel workers don't need to know whether a file came from IndexedDB, a zip archive, or a remote URL -- the `RuntimeFileSystem` interface is the same regardless.
 
 #### Mount types
 
@@ -1129,7 +1129,7 @@ type WorkerSessionState = {
   geometryContextCache: Map<string, GeometryContext>;
   loadedKernel: { module: KernelDefinition; ctx: unknown } | undefined;
   resolvedMiddleware: ResolvedMiddleware[];
-  middlewareLoggers: Map<string, KernelLogger>;
+  middlewareLoggers: Map<string, RuntimeLogger>;
   emscriptenCacheFS: EmscriptenFSBackend | undefined; // For Emscripten kernels (backed by fileContentCache)
 };
 ```
@@ -1180,7 +1180,7 @@ flowchart LR
 3. **MessagePort protocol for kernels**: Typed dispatcher, zero-copy transfers
 4. **Framework-managed geometry context**: `nativeHandle` pattern ensures export always works
 5. **FileManager-to-Worker direct channel**: Kernel workers talk to file manager without main thread mediation
-6. **Content-cache-backed Emscripten FS**: Emscripten kernels read from the worker's content cache -- no ZenFS in the kernel worker, no file copying, no cache coherency problem
+6. **Content-cache-backed Emscripten FS**: Emscripten kernels read from the worker's content cache -- no ZenFS in the runtime worker, no file copying, no cache coherency problem
 7. **Post-bundle kernel detection**: For JS/TS files, bundle first (reused anyway), inspect imports to determine kernel
 8. **Mountable data sources**: File manager resolves reads from project files, zip archives, and remote URLs transparently via `MountConfig`
 

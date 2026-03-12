@@ -34,7 +34,7 @@ A single-writer topology with zero-copy binary transfer and bounded caches preve
 Main Thread                       File Manager Worker              Kernel Worker
      │                                   │                               │
      │◄── createBridgeProxy             │              createBridgeProxy ──►│
-     │    <FileManagerProtocol>         │              <KernelFileSystemBase>│
+     │    <FileManagerProtocol>         │              <RuntimeFileSystemBase>│
      │    (MessagePort)                  │              (MessagePort)        │
      │   readFile, writeFile, stat       │   readFile, readFiles, stat   │
      │   readShallowDirectory            │   exists, readdir             │
@@ -48,7 +48,7 @@ Main Thread                       File Manager Worker              Kernel Worker
 All filesystem I/O runs on the file manager worker. The main thread and kernel workers access it exclusively via MessagePort RPC using the **same bridge mechanism** (`createFileSystemBridge` → `MessageChannel` → `createBridgeProxy`). The only difference is the TypeScript type used for the proxy:
 
 - **Main thread**: `createBridgeProxy<FileManagerProtocol>` — full API including worker management (`reconfigure`, `setDirectoryHandle`), diagnostics (`readBackendFileTree`), and higher-level operations (`copyDirectory`, `getZippedDirectory`)
-- **Kernel worker**: `createBridgeProxy<KernelFileSystemBase>` — 11 base primitives only (`readFile`, `writeFile`, `stat`, `readdir`, `exists`, etc.)
+- **Kernel worker**: `createBridgeProxy<RuntimeFileSystemBase>` — 11 base primitives only (`readFile`, `writeFile`, `stat`, `readdir`, `exists`, etc.)
 
 This is the Interface Segregation Principle (ISP): kernels receive a narrow API surface matching their needs. Both proxies talk to the same worker, same `fileManager` object, same bridge server. No thread may import or use ZenFS directly outside the worker.
 
@@ -297,7 +297,7 @@ Coalescing requirements:
 
 For render reactivity, use this path only:
 
-`FileService change event -> kernel worker watch handler -> worker cache invalidation -> worker emits filesChanged -> CadMachine debounce -> render`
+`FileService change event -> runtime worker watch handler -> worker cache invalidation -> worker emits filesChanged -> CadMachine debounce -> render`
 
 INCORRECT:
 

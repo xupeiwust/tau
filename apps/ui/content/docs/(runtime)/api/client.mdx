@@ -1,0 +1,47 @@
+---
+title: Client API
+description: createRuntimeClient, RuntimeClient, filesystem constructors, and connection management.
+icon: lucide:monitor
+---
+
+# Client API
+
+Use the client API when you need to create a kernel runtime, configure filesystem access, or manage worker connections. The factory and constructors are the primary entry points for integrating `@taucad/runtime` into an application.
+
+## createRuntimeClient
+
+<auto-type-table path='./props/client.ts' name='RuntimeClientOptions' />
+
+<auto-type-table path='./props/client.ts' name='ConnectOptions' />
+
+<auto-type-table path='./props/client.ts' name='RuntimeClient' />
+
+## Filesystem
+
+<auto-type-table path='./props/client.ts' name='RuntimeFileSystem' />
+
+`fromMemoryFS`, `fromNodeFS`, and `fromFsLike` implement `RuntimeFileSystem` for in-memory, Node.js, and any fs-compatible backends respectively.
+
+## Usage
+
+```typescript
+import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
+import { replicad } from '@taucad/runtime/kernels';
+import { esbuild } from '@taucad/runtime/bundler';
+
+const client = createRuntimeClient({
+  kernels: [replicad()],
+  bundlers: [esbuild()],
+  fileSystem: fromMemoryFS(),
+});
+
+const result = await client.render({
+  code: { 'main.ts': 'export default () => {}' },
+});
+client.terminate();
+```
+
+## Related
+
+- [Quick Start](/docs/getting-started/quick-start)
+- [Filesystem Setup](/docs/guides/filesystem-setup)

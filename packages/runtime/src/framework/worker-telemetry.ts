@@ -9,7 +9,7 @@
  * and export operation. No timers are used, so the collector adds zero overhead
  * when idle and does not keep the event loop alive.
  *
- * See docs/policy/kernel-telemetry-policy.md for the full telemetry policy.
+ * See docs/policy/runtime-telemetry-policy.md for the full telemetry policy.
  *
  * Naming convention: {subsystem}.{operation} (OTel-inspired)
  *
@@ -23,7 +23,7 @@
  * Kernel-authored:     {kernelName}.{operation} (e.g., replicad.wasm-init, replicad.run-main, openscad.call-main)
  */
 
-import type { PerformanceEntryData } from '#types/kernel-protocol.types.js';
+import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
 
 /**
  * Collects performance measure entries in a worker and flushes them in batches.

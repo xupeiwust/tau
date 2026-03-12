@@ -5,7 +5,7 @@ import { waitFor } from 'xstate';
 import type { ActorRefFrom } from 'xstate';
 import type { Remote } from 'comlink';
 import { useQueryClient } from '@tanstack/react-query';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import type { ObjectStoreWorker } from '#hooks/object-store.worker.js';
@@ -60,7 +60,7 @@ export function BuildProvider({
     Parameters<typeof useActorRef<typeof buildMachine>>[1]['input'],
     'buildId' | 'fileManagerRef' | 'kernelOptions'
   >;
-  readonly kernelOptions?: KernelClientOptions;
+  readonly kernelOptions?: RuntimeClientOptions;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   // Create the build machine actor - it will auto-load based on buildId

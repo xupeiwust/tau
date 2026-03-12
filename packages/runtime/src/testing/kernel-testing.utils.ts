@@ -25,33 +25,33 @@ import type {
   ExportGeometryResult,
   MiddlewareRegistrations,
   BundlerRegistrations,
-} from '#types/kernel.types.js';
-import type { PerformanceEntryData } from '#types/kernel-protocol.types.js';
+} from '#types/runtime.types.js';
+import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
 import type {
-  KernelLogger,
+  RuntimeLogger,
   KernelRuntime,
   KernelDefinition,
-  KernelFileSystem,
+  RuntimeFileSystem,
   CanHandleInput,
   GetDependenciesInput,
   GetParametersInput,
   CreateGeometryInput,
   ExportGeometryInput,
-} from '#types/kernel-worker.types.js';
-import type { BundlerDefinition } from '#types/kernel-bundler.types.js';
-import type { KernelClient } from '#client/kernel-client.js';
+} from '#types/runtime-kernel.types.js';
+import type { BundlerDefinition } from '#types/runtime-bundler.types.js';
+import type { RuntimeClient } from '#client/runtime-client.js';
 import type {
   KernelMiddlewareRuntime,
   MiddlewareState,
   CreateGeometryHandler,
   GetParametersHandler,
-} from '#types/kernel-middleware.types.js';
-import type { Dependency } from '#types/kernel-dependency.types.js';
-import type { KernelMiddleware } from '#middleware/kernel-middleware.js';
+} from '#types/runtime-middleware.types.js';
+import type { Dependency } from '#types/runtime-dependency.types.js';
+import type { KernelMiddleware } from '#middleware/runtime-middleware.js';
 import { KernelRuntimeWorker } from '#framework/kernel-runtime-worker.js';
 import type { ResolvedMiddleware } from '#framework/kernel-worker.js';
 import { KernelWorker } from '#framework/kernel-worker.js';
-import { createBridgePort } from '#framework/kernel-filesystem-bridge.js';
+import { createBridgePort } from '#framework/runtime-filesystem-bridge.js';
 import { fromFsLike } from '#filesystem/from-fs-like.js';
 
 async function resetFileSystem(): Promise<void> {
@@ -103,7 +103,7 @@ export async function clearTestFileSystem(): Promise<void> {
 // =============================================================================
 
 /**
- * Options for initializing a kernel worker in tests.
+ * Options for initializing a runtime worker in tests.
  * @public
  */
 export type InitializeWorkerOptions = {
@@ -118,7 +118,7 @@ export type InitializeWorkerOptions = {
 };
 
 /**
- * Initialize a kernel worker using the production code path.
+ * Initialize a runtime worker using the production code path.
  * Uses MessageChannel to connect to the real fileManager, ensuring tests
  * exercise the same code path as production.
  *
@@ -126,7 +126,7 @@ export type InitializeWorkerOptions = {
  * The first call to configure the filesystem "wins" - tests configure InMemory,
  * so the fileManager's ensureFileSystemConfigured('indexeddb') just waits.
  *
- * @param worker - The kernel worker instance to initialize
+ * @param worker - The runtime worker instance to initialize
  * @param options - Optional configuration (onLog, workerOptions for kernel-specific settings like withBrepEdges)
  * @returns Promise resolving to the initialized worker
  * @public
@@ -158,7 +158,7 @@ export async function initializeWorkerForTesting<T extends KernelWorker>(
 }
 
 type MockKernelLogger = {
-  [Key in keyof KernelLogger]: Mock<KernelLogger[Key]>;
+  [Key in keyof RuntimeLogger]: Mock<RuntimeLogger[Key]>;
 };
 
 /**
@@ -167,14 +167,14 @@ type MockKernelLogger = {
  * @returns A logger with vitest mock functions for all log levels
  * @public
  */
-export function createMockLogger(): KernelLogger & MockKernelLogger {
+export function createMockLogger(): RuntimeLogger & MockKernelLogger {
   const logger: MockKernelLogger = {
-    log: vi.fn<KernelLogger['log']>(),
-    debug: vi.fn<KernelLogger['debug']>(),
-    trace: vi.fn<KernelLogger['trace']>(),
-    warn: vi.fn<KernelLogger['warn']>(),
-    error: vi.fn<KernelLogger['error']>(),
-    custom: vi.fn<KernelLogger['custom']>(),
+    log: vi.fn<RuntimeLogger['log']>(),
+    debug: vi.fn<RuntimeLogger['debug']>(),
+    trace: vi.fn<RuntimeLogger['trace']>(),
+    warn: vi.fn<RuntimeLogger['warn']>(),
+    error: vi.fn<RuntimeLogger['error']>(),
+    custom: vi.fn<RuntimeLogger['custom']>(),
   };
 
   return logger;
@@ -216,11 +216,11 @@ export type MockFileSystemMocks = {
 };
 
 /**
- * A mock KernelFileSystem with vitest mock functions for verification.
+ * A mock RuntimeFileSystem with vitest mock functions for verification.
  * Use the `mocks` property to access mock functions for test setup.
  * @public
  */
-export type MockFileSystem = KernelFileSystem & {
+export type MockFileSystem = RuntimeFileSystem & {
   /** Access underlying mock functions for test assertions and setup */
   mocks: MockFileSystemMocks;
 };
@@ -810,7 +810,7 @@ export function createMockKernelRuntime(options?: { filesystemOverrides?: MockFi
 }
 
 // =============================================================================
-// Mock KernelClient for Testing
+// Mock RuntimeClient for Testing
 // =============================================================================
 
 const noop = () => {
@@ -818,25 +818,25 @@ const noop = () => {
 };
 
 /**
- * Creates a mock KernelClient for integration tests that exercise state
+ * Creates a mock RuntimeClient for integration tests that exercise state
  * machines or other consumers without spinning up a real worker.
  *
  * All methods are vitest mocks with sensible defaults (connect resolves,
  * export returns a successful stub, on returns an unsubscribe no-op, etc.).
  *
- * @returns A fully typed KernelClient backed by vitest mocks
+ * @returns A fully typed RuntimeClient backed by vitest mocks
  *
  * @public
  *
- * @example <caption>Stubbing a kernel client</caption>
+ * @example <caption>Stubbing a runtime client</caption>
  * ```typescript
  * import { createMockKernelClient } from '@taucad/runtime/testing';
  *
  * const client = createMockKernelClient();
  * ```
  */
-export function createMockKernelClient(): KernelClient {
-  return mock<KernelClient>({
+export function createMockKernelClient(): RuntimeClient {
+  return mock<RuntimeClient>({
     connect: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     setFile: vi.fn<(file: GeometryFile, params: Record<string, unknown>) => void>(),
     setParameters: vi.fn<(params: Record<string, unknown>) => void>(),
@@ -874,7 +874,7 @@ export type MockKernelWorkerOptions = {
   /** Custom onLog handler */
   onLog?: OnWorkerLog;
   /** Mock filesystem for middleware operations */
-  filesystem?: KernelFileSystem;
+  filesystem?: RuntimeFileSystem;
 };
 
 /**
@@ -1011,7 +1011,7 @@ export class MockKernelWorker extends KernelWorker {
  * @returns A readonly array of dependencies
  * @public
  */
-export function createMockDependencies(overrides?: Array<Partial<Dependency>>): readonly Dependency[] {
+export function createMockDependencies(overrides?: Array<Dependency>): readonly Dependency[] {
   const defaults: Dependency[] = [
     { type: 'file', path: 'test.kcl', contentHash: 'abc123' },
     {
@@ -1025,7 +1025,7 @@ export function createMockDependencies(overrides?: Array<Partial<Dependency>>): 
   ];
 
   if (overrides) {
-    return [...defaults, ...(overrides as Dependency[])];
+    return [...defaults, ...overrides];
   }
 
   return defaults;

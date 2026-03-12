@@ -4,14 +4,14 @@
  * exposeFileSystem -- worker-side: listens for incoming bridge ports and serves a filesystem.
  * createFileSystemBridge -- main-thread side: creates a MessageChannel and transfers a port to a worker.
  *
- * Together they form an expose/wrap pair for the KernelFileSystem MessagePort bridge protocol.
+ * Together they form an expose/wrap pair for the RuntimeFileSystem MessagePort bridge protocol.
  */
 
 import { safeDispose } from '@taucad/utils/dispose';
 import type { StringKeyedObject } from '#types/bridge.types.js';
-import type { BridgeHandle, BridgeServerHandle } from '#framework/kernel-filesystem-bridge.js';
-import type { KernelWatchRequest, KernelWatchEvent } from '#types/kernel-worker.types.js';
-import { createBridgeServer, catchMessages } from '#framework/kernel-filesystem-bridge.js';
+import type { BridgeHandle, BridgeServerHandle } from '#framework/runtime-filesystem-bridge.js';
+import type { RuntimeWatchRequest, RuntimeWatchEvent } from '#types/runtime-kernel.types.js';
+import { createBridgeServer, catchMessages } from '#framework/runtime-filesystem-bridge.js';
 
 const defaultBridgeMessageType = 'connect';
 
@@ -29,7 +29,7 @@ export type FileSystemBridgeOptions = {
  * @public
  */
 export type BridgeWatchHandler = {
-  watch(request: KernelWatchRequest, handler: (event: KernelWatchEvent) => void, ownerId?: string): () => void;
+  watch(request: RuntimeWatchRequest, handler: (event: RuntimeWatchEvent) => void, ownerId?: string): () => void;
   cleanupWatches(ownerId: string): void;
 };
 
@@ -96,13 +96,13 @@ export function exposeFileSystem<T extends StringKeyedObject>(
             port.close();
           });
         },
-        onWatch(watchId: string, request: KernelWatchRequest) {
+        onWatch(watchId: string, request: RuntimeWatchRequest) {
           if (!options?.watchHandler) {
             return;
           }
           const unsubscribe = options.watchHandler.watch(
             request,
-            (watchEvent: KernelWatchEvent) => {
+            (watchEvent: RuntimeWatchEvent) => {
               serverHandle.emit(`watch:${watchId}`, watchEvent);
             },
             portId,

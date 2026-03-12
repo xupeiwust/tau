@@ -8,7 +8,7 @@ import {
   formatRuntimeErrorWithOc,
 } from '#kernels/replicad/oc-exceptions.js';
 import { OcKernelError } from '#kernels/replicad/oc-kernel-error.js';
-import type { KernelStackFrame } from '#types/kernel.types.js';
+import type { KernelStackFrame } from '#types/runtime.types.js';
 import type { OpenCascadeInstance } from 'replicad-opencascadejs';
 
 // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mock<T>() proxy not assignable to OpenCascadeInstance

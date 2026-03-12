@@ -7,7 +7,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { fromMemoryFS } from '@taucad/runtime';
-import { createKernelFileSystem } from '@taucad/runtime/filesystem';
+import { createRuntimeFileSystem } from '@taucad/runtime/filesystem';
 import { createRpcDispatcher } from '@taucad/chat/rpc';
 import { getEnvironment } from '#config/environment.config.js';
 import { ChatController } from '#api/chat/chat.controller.js';
@@ -22,7 +22,7 @@ import { GeometryAnalysisService } from '#api/analysis/geometry-analysis.service
 import { authInstanceKey } from '#constants/auth.constant.js';
 import { HeadlessChatRpcService } from '#testing/headless-chat-rpc.service.js';
 import { createHeadlessRpcFileSystem } from '#testing/headless-rpc-filesystem.js';
-import { createHeadlessKernelClient } from '#testing/headless-kernel-client.js';
+import { createHeadlessRuntimeClient } from '#testing/headless-runtime-client.js';
 
 /**
  * In-memory checkpointer service that replaces the PostgreSQL-backed one.
@@ -123,8 +123,8 @@ export async function createTestApp(): Promise<TestApp> {
   const headlessRpc: HeadlessChatRpcService = moduleRef.get(ChatRpcService);
 
   const dispatcher = createRpcDispatcher({
-    fileSystem: createHeadlessRpcFileSystem(createKernelFileSystem(memFs)),
-    kernelClient: createHeadlessKernelClient({ createGeometry: async () => ({ success: true, issues: [] }) }),
+    fileSystem: createHeadlessRpcFileSystem(createRuntimeFileSystem(memFs)),
+    kernelClient: createHeadlessRuntimeClient({ createGeometry: async () => ({ success: true, issues: [] }) }),
   });
   headlessRpc.setDispatcher(dispatcher);
 

@@ -1,11 +1,11 @@
 /**
- * Create a KernelFileSystem from any fs-compatible object (ZenFS, BrowserFS, memfs, polyfills).
+ * Create a RuntimeFileSystem from any fs-compatible object (ZenFS, BrowserFS, memfs, polyfills).
  * Wraps an `fs.promises`-style API for same-thread usage (testing, Node.js, worker-side serving).
  */
 
 import type { NativeStats } from '@taucad/types';
 import { toFileStat } from '@taucad/types/constants';
-import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
+import type { RuntimeFileSystemBase } from '#types/runtime-kernel.types.js';
 
 /* oxlint-disable @protontech/enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- ZenFS/BrowserFS returns Buffer<ArrayBufferLike>, we must accept the wider type */
 /**
@@ -33,12 +33,12 @@ export type FsLike = {
 /* oxlint-enable @protontech/enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- re-enable after FsLike type */
 
 /**
- * Create a KernelFileSystem from any fs-compatible object.
+ * Create a RuntimeFileSystem from any fs-compatible object.
  * Wraps an `fs.promises`-style API for same-thread usage (testing, Node.js, worker-side serving).
  *
  * @param fsLike - An fs-compatible object with a `promises` namespace (e.g., `fs` from `@zenfs/core`, BrowserFS, memfs)
  * @param rootPath - Optional root path prefix for all operations (default: '/')
- * @returns KernelFileSystemBase backed by the provided fs-compatible object
+ * @returns RuntimeFileSystemBase backed by the provided fs-compatible object
  *
  * @public
  *
@@ -50,7 +50,7 @@ export type FsLike = {
  * const fileSystem = fromFsLike(fs);
  * ```
  */
-export function fromFsLike(fsLike: FsLike, rootPath = '/'): KernelFileSystemBase {
+export function fromFsLike(fsLike: FsLike, rootPath = '/'): RuntimeFileSystemBase {
   const resolve = (p: string): string => {
     if (rootPath === '/') {
       return p;

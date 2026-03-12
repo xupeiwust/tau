@@ -25,7 +25,7 @@ export type RpcDispatcher = {
  *
  * Used by:
  * - Browser: backed by fileManager, XState actors, WebGL
- * - Headless tests: backed by in-memory filesystem, kernel worker
+ * - Headless tests: backed by in-memory filesystem, runtime worker
  * @public
  */
 export function createRpcDispatcher(deps: RpcDependencies): RpcDispatcher {

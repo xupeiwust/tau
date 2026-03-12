@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { waitForSlotChange, cooperativeYield } from '#framework/async-polyfills.js';
-import { signalSlot } from '#types/kernel-protocol.types.js';
+import { signalSlot } from '#types/runtime-protocol.types.js';
 
 // ===================================================================
 // waitForSlotChange

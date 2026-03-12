@@ -1,6 +1,6 @@
 ---
 title: 'RPC & Filesystem Bridge Policy'
-description: 'MessagePort bridge architecture for connecting filesystem implementations to kernel workers across thread boundaries. Covers KernelFileSystem, from* constructors, and Bridge RPC primitives.'
+description: 'MessagePort bridge architecture for connecting filesystem implementations to kernel workers across thread boundaries. Covers RuntimeFileSystem, from* constructors, and Bridge RPC primitives.'
 status: active
 created: '2026-03-03'
 updated: '2026-03-05'
@@ -14,7 +14,7 @@ Internal reference for the MessagePort bridge architecture used to connect files
 
 ## Rationale
 
-The kernel package needs two distinct communication systems: KernelTransport for typed protocol messages (render, export, cancel) and Bridge RPC for generic method calls across MessagePort. Merging them would either over-complicate the bridge or under-type the transport. The three-layer architecture (primitives → constructors → bridge) keeps the interface clean while enabling worker-to-worker filesystem access without main-thread relay.
+The kernel package needs two distinct communication systems: RuntimeTransport for typed protocol messages (render, export, cancel) and Bridge RPC for generic method calls across MessagePort. Merging them would either over-complicate the bridge or under-type the transport. The three-layer architecture (primitives → constructors → bridge) keeps the interface clean while enabling worker-to-worker filesystem access without main-thread relay.
 
 ## Architectural Overview
 
@@ -22,7 +22,7 @@ The kernel package has two distinct communication systems, each purpose-built fo
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ KernelTransport                                                 │
+│ RuntimeTransport                                                 │
 │ Typed protocol messages: render, export, cancel, fileChanged    │
 │ Discriminated unions, requestId correlation, fire-and-forget    │
 │ Implementations: Worker, InProcess, (future: WebSocket, HTTP)   │
@@ -35,18 +35,18 @@ The kernel package has two distinct communication systems, each purpose-built fo
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Why two systems?** They solve different problems. KernelTransport carries complex, typed protocol messages with many fields, fire-and-forget commands, and transport-agnostic design (WebSocket, HTTP, FFI). The Bridge carries simple method calls and is always MessagePort-based, always request/response. Merging them would either over-complicate the bridge or under-type the transport.
+**Why two systems?** They solve different problems. RuntimeTransport carries complex, typed protocol messages with many fields, fire-and-forget commands, and transport-agnostic design (WebSocket, HTTP, FFI). The Bridge carries simple method calls and is always MessagePort-based, always request/response. Merging them would either over-complicate the bridge or under-type the transport.
 
 ## Three-Layer Filesystem Architecture
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ Layer 1: KernelFileSystemBase (11 primitives)                 │
-│         + KernelFileSystem (Base + enhanced helpers)           │
-│ createKernelFileSystem(base) adds default helpers             │
+│ Layer 1: RuntimeFileSystemBase (11 primitives)                 │
+│         + RuntimeFileSystem (Base + enhanced helpers)           │
+│ createRuntimeFileSystem(base) adds default helpers             │
 ├───────────────────────────────────────────────────────────────┤
 │ Layer 2: Constructors (from* factories)                       │
-│ Create KernelFileSystemBase from various sources:             │
+│ Create RuntimeFileSystemBase from various sources:             │
 │ fromNodeFS, fromMemoryFS, fromFsLike                          │
 ├───────────────────────────────────────────────────────────────┤
 │ Layer 3: Bridge RPC (MessagePort transport)                   │
@@ -59,14 +59,14 @@ The kernel package has two distinct communication systems, each purpose-built fo
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### Layer 1: KernelFileSystem
+### Layer 1: RuntimeFileSystem
 
 The contract interface is split into two types:
 
-**`KernelFileSystemBase`** -- the 11 Node.js `fs.promises`-compatible primitives that filesystem backends must implement:
+**`RuntimeFileSystemBase`** -- the 11 Node.js `fs.promises`-compatible primitives that filesystem backends must implement:
 
 ```typescript
-type KernelFileSystemBase = {
+type RuntimeFileSystemBase = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
   writeFile(path: string, data: Uint8Array<ArrayBuffer> | string): Promise<void>;
@@ -81,10 +81,10 @@ type KernelFileSystemBase = {
 };
 ```
 
-**`KernelFileSystem`** -- extends Base with higher-level helpers that have default implementations built from the primitives:
+**`RuntimeFileSystem`** -- extends Base with higher-level helpers that have default implementations built from the primitives:
 
 ```typescript
-type KernelFileSystem = KernelFileSystemBase & {
+type RuntimeFileSystem = RuntimeFileSystemBase & {
   readFiles(paths: string[]): Promise<Record<string, Uint8Array<ArrayBuffer>>>;
   readdirContents(dirPath: string): Promise<Record<string, Uint8Array<ArrayBuffer>>>;
   readdirStat(dirPath: string): Promise<FileStatEntry[]>;
@@ -92,16 +92,16 @@ type KernelFileSystem = KernelFileSystemBase & {
 };
 ```
 
-**`createKernelFileSystem(base)`** wraps a `KernelFileSystemBase` with default implementations for the enhanced methods. Backends may supply optimized overrides:
+**`createRuntimeFileSystem(base)`** wraps a `RuntimeFileSystemBase` with default implementations for the enhanced methods. Backends may supply optimized overrides:
 
 ```typescript
-const fs = createKernelFileSystem(base); // defaults: readFiles = Promise.all(paths.map(readFile)), etc.
-const fs = createKernelFileSystem({ ...base, readFiles: optimizedBatchRead }); // override
+const fs = createRuntimeFileSystem(base); // defaults: readFiles = Promise.all(paths.map(readFile)), etc.
+const fs = createRuntimeFileSystem({ ...base, readFiles: optimizedBatchRead }); // override
 ```
 
 **Design decisions:**
 
-- **Type split keeps the interface clean.** Filesystem backends implement only the 11 primitives (`KernelFileSystemBase`). The wrapper adds the helpers, so consumers always get the full `KernelFileSystem` with zero optional methods.
+- **Type split keeps the interface clean.** Filesystem backends implement only the 11 primitives (`RuntimeFileSystemBase`). The wrapper adds the helpers, so consumers always get the full `RuntimeFileSystem` with zero optional methods.
 - **Simplified stat return.** Returns `FileStat = { type: 'file' | 'dir'; size; mtimeMs }` (from `@taucad/types`) instead of a full Node.js `Stats` object. This avoids serialization complexity across MessagePort while providing the metadata kernels actually need. `FileStatEntry` extends `FileStat` with `path` and `name` for directory listing results. `NativeStats` and `toFileStat()` (from `@taucad/types/constants`) handle the conversion from Node.js-style `isDirectory()` methods.
 - **`lstat` mirrors `stat`.** Required by `isomorphic-git`. Implementations without symlink support (ZenFS, in-memory) delegate `lstat` to `stat`.
 - **`exists` is explicit.** While `stat` + catch achieves the same result, `exists` is a common enough operation that an explicit method reduces boilerplate and improves readability.
@@ -109,7 +109,7 @@ const fs = createKernelFileSystem({ ...base, readFiles: optimizedBatchRead }); /
 
 ### Layer 2: Constructors
 
-Factory functions that create `KernelFileSystemBase` from various sources. Each normalizes a different source API into the 11-primitive contract.
+Factory functions that create `RuntimeFileSystemBase` from various sources. Each normalizes a different source API into the 11-primitive contract.
 
 | Constructor                     | Source                         | Use Case                                                   |
 | ------------------------------- | ------------------------------ | ---------------------------------------------------------- |
@@ -156,11 +156,11 @@ Every request carries a monotonically increasing `id`. The server dispatches by 
 | `createBridgeProxy<T>(port)`               | Low   | Generic `Proxy`-based RPC client for any protocol type                     |
 | `catchMessages(port)`                      | Low   | Buffer incoming messages during initialization, replay on demand           |
 | `extractTransferables(value)`              | Low   | Walk nested values and collect `ArrayBuffer` transferables (de-duplicated) |
-| `createKernelFileSystem(base)`             | Mid   | Wrap `KernelFileSystemBase` with default enhanced method implementations   |
+| `createRuntimeFileSystem(base)`            | Mid   | Wrap `RuntimeFileSystemBase` with default enhanced method implementations  |
 | `exposeFileSystem(handlers, options?)`     | High  | Worker-side: listen for incoming bridge ports                              |
 | `createFileSystemBridge(worker, options?)` | High  | Main-thread: create channel + transfer port to worker                      |
 
-**Naming split:** Generic bridge primitives use the `Bridge` prefix. Filesystem-typed functions use the `FileSystem` prefix. This distinction is intentional: `createBridgeServer` serves _any_ object (generic `<T extends Record<string, unknown>>`), while `createBridgeProxy<KernelFileSystemBase>` returns a typed filesystem proxy.
+**Naming split:** Generic bridge primitives use the `Bridge` prefix. Filesystem-typed functions use the `FileSystem` prefix. This distinction is intentional: `createBridgeServer` serves _any_ object (generic `<T extends Record<string, unknown>>`), while `createBridgeProxy<RuntimeFileSystemBase>` returns a typed filesystem proxy.
 
 #### High-Level Wrappers: expose/bridge pair
 
@@ -175,24 +175,24 @@ const port = createFileSystemBridge(fileManagerWorker);
 await client.connect({ port });
 ```
 
-The main thread creates a `MessageChannel`, transfers `port1` to the target worker, and returns `port2`. After setup, the kernel worker and filesystem worker communicate directly -- the main thread is not in the hot path.
+The main thread creates a `MessageChannel`, transfers `port1` to the target worker, and returns `port2`. After setup, the runtime worker and filesystem worker communicate directly -- the main thread is not in the hot path.
 
 ## Connection Modes
 
-The `KernelClient.connect()` method accepts two shapes, representing different abstraction levels:
+The `RuntimeClient.connect()` method accepts two shapes, representing different abstraction levels:
 
 ```typescript
 type ConnectOptions =
-  | { fileSystem: KernelFileSystem } // main-thread relay
+  | { fileSystem: RuntimeFileSystem } // main-thread relay
   | { port: MessagePort }; // direct bridge
 ```
 
 ### Main-thread relay: `{ fileSystem }`
 
-The client creates a `MessageChannel` internally, serves the filesystem via `createBridgeServer` on `port1`, and transfers `port2` to the kernel worker. Simple but adds one hop: kernel worker → main thread → filesystem implementation.
+The client creates a `MessageChannel` internally, serves the filesystem via `createBridgeServer` on `port1`, and transfers `port2` to the runtime worker. Simple but adds one hop: runtime worker → main thread → filesystem implementation.
 
 ```typescript
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [replicad()],
   fileSystem: fromMemoryFS(files),
 });
@@ -219,7 +219,7 @@ await client.connect({ port });
 ```
 @taucad/runtime              → fromNodeFS, fromMemoryFS, fromFsLike (constructors)
 @taucad/runtime/filesystem   → exposeFileSystem, createFileSystemBridge (high-level)
-                               createKernelFileSystem (wrapper)
+                               createRuntimeFileSystem (wrapper)
                                createBridgeServer, createBridgePort, createBridgeCall (low-level)
                                createBridgeProxy, catchMessages, extractTransferables (low-level)
 ```
@@ -228,7 +228,7 @@ The main entry exports constructors because they're the most common consumer nee
 
 ## ZenFS Decoupling
 
-The runtime package must be completely decoupled from ZenFS. The package provides a `node:fs`-compatible interface (`KernelFileSystem`) and constructors that normalize various fs implementations into that interface. No ZenFS types, imports, or naming should appear in the public API.
+The runtime package must be completely decoupled from ZenFS. The package provides a `node:fs`-compatible interface (`RuntimeFileSystem`) and constructors that normalize various fs implementations into that interface. No ZenFS types, imports, or naming should appear in the public API.
 
 **Current state:** Completed. `fromZenFS` and `ZenFSLike` have been renamed to `fromFsLike` and `FsLike` respectively. The function accepts _any_ object with a `promises` namespace -- not just ZenFS. The dead `fromProxy` code from the Comlink era has been removed.
 
@@ -238,11 +238,11 @@ The runtime package must be completely decoupled from ZenFS. The package provide
 
 ## Architectural Invariants
 
-1. **KernelFileSystem is the only filesystem dependency in the framework.** Kernels, bundlers, and middleware never see MessagePort, Bridge, or constructor details. They receive `KernelFileSystem` via `KernelRuntime.fileSystem`.
+1. **RuntimeFileSystem is the only filesystem dependency in the framework.** Kernels, bundlers, and middleware never see MessagePort, Bridge, or constructor details. They receive `RuntimeFileSystem` via `KernelRuntime.fileSystem`.
 
-2. **Bridge primitives are generic.** `createBridgeServer<T>`, `createBridgePort<T>`, `createBridgeCall`, and `createBridgeProxy<T>` work with any object, not just filesystems. This enables the app to serve a `FileManager` (which has methods beyond `KernelFileSystem`) through the same bridge infrastructure. `createBridgeProxy<T>(port)` eliminates the need for hand-written per-method stubs by using JavaScript's `Proxy` to auto-dispatch.
+2. **Bridge primitives are generic.** `createBridgeServer<T>`, `createBridgePort<T>`, `createBridgeCall`, and `createBridgeProxy<T>` work with any object, not just filesystems. This enables the app to serve a `FileManager` (which has methods beyond `RuntimeFileSystem`) through the same bridge infrastructure. `createBridgeProxy<T>(port)` eliminates the need for hand-written per-method stubs by using JavaScript's `Proxy` to auto-dispatch.
 
-3. **Constructors normalize, not extend.** Each `from*` function converts a source API to exactly the `KernelFileSystemBase` interface -- the 11 primitives, no extra methods, no source-specific behavior leaking through.
+3. **Constructors normalize, not extend.** Each `from*` function converts a source API to exactly the `RuntimeFileSystemBase` interface -- the 11 primitives, no extra methods, no source-specific behavior leaking through.
 
 4. **Zero-copy binary transfer.** `extractTransferables` scans values for `ArrayBuffer` instances and includes them in the `postMessage` transfer list. This avoids expensive structured-clone copies for large file content (CAD files can be tens of MB).
 
@@ -256,7 +256,7 @@ The runtime package must be completely decoupled from ZenFS. The package provide
 
 ### Why `createBridgeServer` not `createFileSystemServer`
 
-The function is generic (`<T extends Record<string, unknown>>`), not `KernelFileSystem`. Naming it `createFileSystemServer` would be misleading when it's used to serve a `FileManager` with 20+ methods. The name should describe what the function does, not just its most common use case (library API policy Section 5: "Describe the action, not the architecture").
+The function is generic (`<T extends Record<string, unknown>>`), not `RuntimeFileSystem`. Naming it `createFileSystemServer` would be misleading when it's used to serve a `FileManager` with 20+ methods. The name should describe what the function does, not just its most common use case (library API policy Section 5: "Describe the action, not the architecture").
 
 ### Why `exposeFileSystem` keeps the `FileSystem` prefix
 

@@ -19,7 +19,7 @@ import type {
   ViewSide,
 } from '@taucad/chat';
 import { createRpcDispatcher } from '@taucad/chat/rpc';
-import type { RpcDependencies, RpcFileSystem, RpcKernelClient, RpcGraphicsClient } from '@taucad/chat/rpc';
+import type { RpcDependencies, RpcFileSystem, RpcRuntimeClient, RpcGraphicsClient } from '@taucad/chat/rpc';
 import type { FileEntry } from '@taucad/types';
 import { idPrefix } from '@taucad/types/constants';
 import { generatePrefixedId } from '@taucad/utils/id';
@@ -100,7 +100,7 @@ function createBrowserRpcFileSystem(
   };
 }
 
-function createBrowserKernelClient(buildRef: ActorRefFrom<typeof buildMachine>): RpcKernelClient {
+function createBrowserKernelClient(buildRef: ActorRefFrom<typeof buildMachine>): RpcRuntimeClient {
   return {
     async getKernelResult(targetFile: string): Promise<GetKernelResultRpcResult> {
       try {

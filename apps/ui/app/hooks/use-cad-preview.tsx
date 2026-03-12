@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useCallback } from 'reac
 import { useActorRef, useSelector } from '@xstate/react';
 import type { ActorRefFrom } from 'xstate';
 import type { Geometry } from '@taucad/types';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import type { JSONSchema7 } from 'json-schema';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { cadMachine } from '#machines/cad.machine.js';
@@ -46,7 +46,7 @@ export type CadPreviewProviderProps = {
   readonly parameters?: Record<string, unknown>;
   /** Whether the build should be triggered (default: true) */
   readonly isEnabled?: boolean;
-  readonly kernelOptions?: KernelClientOptions;
+  readonly kernelOptions?: RuntimeClientOptions;
   readonly children: ReactNode;
 };
 

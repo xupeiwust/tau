@@ -1,13 +1,13 @@
 import { assign, assertEvent, setup, enqueueActions, waitFor } from 'xstate';
 import type { ActorRefFrom, AnyActorRef } from 'xstate';
 import type { CodeIssue, ExportFormat, Geometry, GeometryFile, LogLevel, LogOrigin } from '@taucad/types';
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 import type {
   ExportResult,
   GetParametersResult,
   HashedGeometryResult,
-  KernelClient,
-  KernelClientOptions,
+  RuntimeClient,
+  RuntimeClientOptions,
   KernelIssue,
   RenderPhase,
   PerformanceEntryData,
@@ -34,17 +34,17 @@ export type CadContext = {
   shouldInitializeKernelOnStart: boolean;
   logActorRef?: ActorRefFrom<typeof logMachine>;
   fileManagerRef?: ActorRefFrom<typeof fileManagerMachine>;
-  kernelOptions: KernelClientOptions;
+  kernelOptions: RuntimeClientOptions;
   jsonSchema?: JSONSchema7;
   renderPhase: RenderPhase | undefined;
   telemetryEntries: PerformanceEntryData[];
-  kernelClient?: KernelClient;
+  kernelClient?: RuntimeClient;
   eventCleanups: Array<() => void>;
 };
 
 type KernelConnectedEvent = {
   type: 'kernelConnected';
-  client: KernelClient;
+  client: RuntimeClient;
   cleanups: Array<() => void>;
 };
 
@@ -75,11 +75,11 @@ type CadInput = {
   shouldInitializeKernelOnStart: boolean;
   logRef?: ActorRefFrom<typeof logMachine>;
   fileManagerRef?: ActorRefFrom<typeof fileManagerMachine>;
-  kernelOptions: KernelClientOptions;
+  kernelOptions: RuntimeClientOptions;
 };
 
 type ConnectKernelInput = {
-  kernelOptions: KernelClientOptions;
+  kernelOptions: RuntimeClientOptions;
   fileManagerRef?: ActorRefFrom<typeof fileManagerMachine>;
   machineRef: AnyActorRef;
 };
@@ -103,8 +103,8 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
 
   signal.throwIfAborted();
 
-  console.log('[CadMachine] connectKernelActor: creating kernel client...');
-  const client = createKernelClient(kernelOptions);
+  console.log('[CadMachine] connectKernelActor: creating runtime client...');
+  const client = createRuntimeClient(kernelOptions);
   const cleanups: Array<() => void> = [];
 
   cleanups.push(

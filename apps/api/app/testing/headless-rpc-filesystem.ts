@@ -1,10 +1,10 @@
-import type { KernelFileSystem } from '@taucad/runtime';
+import type { RuntimeFileSystem } from '@taucad/runtime';
 import type { RpcFileSystem } from '@taucad/chat/rpc';
 
 /**
- * Adapts a KernelFileSystem (e.g. fromMemoryFS()) to the RpcFileSystem interface.
+ * Adapts a RuntimeFileSystem (e.g. fromMemoryFS()) to the RpcFileSystem interface.
  */
-export function createHeadlessRpcFileSystem(fs: KernelFileSystem): RpcFileSystem {
+export function createHeadlessRpcFileSystem(fs: RuntimeFileSystem): RpcFileSystem {
   return {
     async readFile(path: string): Promise<string> {
       return fs.readFile(path, 'utf8');

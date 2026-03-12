@@ -4,7 +4,7 @@
  * These interfaces decouple the RPC handler logic from its execution
  * environment, enabling the same handlers to run in:
  * - Browser (via fileManager, XState actors, WebGL)
- * - Node.js headless (via KernelFileSystem, kernel worker)
+ * - Node.js headless (via RuntimeFileSystem, runtime worker)
  * - Workers or other JS runtimes
  */
 import type {
@@ -17,7 +17,7 @@ import type {
 
 /**
  * Abstract filesystem for RPC handlers.
- * Implementations can wrap browser fileManager, KernelFileSystem (fromMemoryFS/fromNodeFS), etc.
+ * Implementations can wrap browser fileManager, RuntimeFileSystem (fromMemoryFS/fromNodeFS), etc.
  * @public
  */
 export type RpcFileSystem = {
@@ -30,11 +30,11 @@ export type RpcFileSystem = {
 };
 
 /**
- * Abstract kernel client for getting compilation results.
- * Browser impl wraps buildRef (XState actor); headless impl wraps kernel worker directly.
+ * Abstract runtime client for getting compilation results.
+ * Browser impl wraps buildRef (XState actor); headless impl wraps runtime worker directly.
  * @public
  */
-export type RpcKernelClient = {
+export type RpcRuntimeClient = {
   getKernelResult(targetFile: string): Promise<GetKernelResultRpcResult>;
 };
 
@@ -57,7 +57,7 @@ export type RpcGraphicsClient = {
  */
 export type RpcDependencies = {
   fileSystem: RpcFileSystem;
-  kernelClient: RpcKernelClient;
+  kernelClient: RpcRuntimeClient;
   graphics?: RpcGraphicsClient;
 };
 

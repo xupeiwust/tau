@@ -1,6 +1,6 @@
 export type {
   RpcFileSystem,
-  RpcKernelClient,
+  RpcRuntimeClient,
   RpcGraphicsClient,
   RpcDependencies,
   RpcHandlerError,

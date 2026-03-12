@@ -74,12 +74,12 @@ Every file in `apps/ui/app/components/geometry/kernel/`, its imports, and the mi
 | File                                        | Imports                                                                                                                                                                                                                                                                                                                                          | Action    |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
 | `utils/kernel-worker.ts`                    | `@taucad/types` (LibDep), `@taucad/types/symbols` (LibDep), `@taucad/types/constants` (LibDep), `deepmerge` (ExtDep), `type-fest` (ExtDep), `package.json` (UIReplace→own pkg version), `#machines/file-manager.js` (UIReplace→self-contained type), `#utils/path.utils.js` (UIReplace→`@taucad/utils/path`), internal kernel `#` imports (Move) | **Adapt** |
-| `utils/kernel-worker-client.ts`             | `@taucad/types` (LibDep) only                                                                                                                                                                                                                                                                                                                    | **Move**  |
-| `utils/kernel-worker-dispatcher.ts`         | `@taucad/types` (LibDep), `@taucad/types/symbols` (LibDep), internal kernel `#` imports (Move)                                                                                                                                                                                                                                                   | **Move**  |
-| `utils/kernel-message-adapter.ts`           | `@taucad/types` (LibDep), `node:worker_threads` (conditional)                                                                                                                                                                                                                                                                                    | **Move**  |
+| `utils/runtime-worker-client.ts`            | `@taucad/types` (LibDep) only                                                                                                                                                                                                                                                                                                                    | **Move**  |
+| `utils/runtime-worker-dispatcher.ts`        | `@taucad/types` (LibDep), `@taucad/types/symbols` (LibDep), internal kernel `#` imports (Move)                                                                                                                                                                                                                                                   | **Move**  |
+| `utils/runtime-message-adapter.ts`          | `@taucad/types` (LibDep), `node:worker_threads` (conditional)                                                                                                                                                                                                                                                                                    | **Move**  |
 | `utils/kernel-worker-filemanager-bridge.ts` | `#machines/file-manager.js` (UIReplace→self-contained type)                                                                                                                                                                                                                                                                                      | **Adapt** |
 | `utils/kernel-helpers.ts`                   | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
-| `utils/kernel-tracer.ts`                    | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
+| `utils/runtime-tracer.ts`                   | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
 | `utils/worker-telemetry.ts`                 | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
 | `utils/error-enrichment.ts`                 | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
 | `utils/common.ts`                           | `@taucad/types` (LibDep)                                                                                                                                                                                                                                                                                                                         | **Move**  |
@@ -91,7 +91,7 @@ Every file in `apps/ui/app/components/geometry/kernel/`, its imports, and the mi
 
 | File                                                 | Imports                                                                                                                                                            | Action    |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| `middleware/kernel-middleware.ts`                    | `zod` (ExtDep), `type-fest` (ExtDep), `deepmerge` (ExtDep), `@taucad/types` (LibDep)                                                                               | **Move**  |
+| `middleware/runtime-middleware.ts`                    | `zod` (ExtDep), `type-fest` (ExtDep), `deepmerge` (ExtDep), `@taucad/types` (LibDep)                                                                               | **Move**  |
 | `middleware/geometry-cache.middleware.ts`            | `@msgpack/msgpack` (ExtDep), `@taucad/types` (LibDep), `zod` (ExtDep), `#utils/path.utils.js` (UIReplace→`@taucad/utils/path`), internal kernel `#` imports (Move) | **Adapt** |
 | `middleware/parameter-cache.middleware.ts`           | `@taucad/types` (LibDep), `#utils/path.utils.js` (UIReplace→`@taucad/utils/path`), internal kernel `#` imports (Move)                                              | **Adapt** |
 | `middleware/gltf-coordinate-transform.middleware.ts` | `@taucad/types` (LibDep), internal kernel `#` imports (Move)                                                                                                       | **Move**  |
@@ -172,7 +172,7 @@ Every file in `apps/ui/app/components/geometry/kernel/`, its imports, and the mi
 | `openscad/parse-output.test.ts`                           | Internal kernel `#` imports                         | **Adapt** paths              |
 | `replicad/replicad.worker.test.ts`                        | `@vitest-environment node`, internal `#` imports    | **Adapt** paths + test utils |
 | `zoo/zoo.worker.test.ts`                                  | `@vitest-environment node`, internal `#` imports    | **Adapt** paths + test utils |
-| `middleware/kernel-middleware.test.ts`                    | Internal kernel `#` imports                         | **Adapt** paths              |
+| `middleware/runtime-middleware.test.ts`                    | Internal kernel `#` imports                         | **Adapt** paths              |
 | `middleware/kernel-worker-middleware.test.ts`             | Internal kernel `#` imports                         | **Adapt** paths              |
 | `middleware/geometry-cache.middleware.test.ts`            | Internal kernel `#` imports                         | **Adapt** paths              |
 | `middleware/gltf-coordinate-transform.middleware.test.ts` | Internal `#` imports                                | **Adapt** paths              |
@@ -241,8 +241,8 @@ export { createDefaultConfig } from './config.js';
 export type { DefaultConfigOptions, DefaultConfigResult } from './config.js';
 
 // Main-thread client for communicating with kernel workers
-export { KernelWorkerClient } from './framework/kernel-worker-client.js';
-export type { OnLogCallback, OnTelemetryCallback, OnProgressCallback } from './framework/kernel-worker-client.js';
+export { RuntimeWorkerClient } from './framework/runtime-worker-client.js';
+export type { OnLogCallback, OnTelemetryCallback, OnProgressCallback } from './framework/runtime-worker-client.js';
 
 // FileManager bridge (main-thread side)
 export { createFileManagerPort } from './framework/kernel-worker-filemanager-bridge.js';
@@ -268,8 +268,8 @@ export { KernelRuntimeWorker } from './framework/kernel-runtime-worker.js';
 For middleware authors:
 
 ```typescript
-export { createKernelMiddleware, createMiddlewareRuntime } from './middleware/kernel-middleware.js';
-export type { KernelMiddleware, KernelMiddlewareConfig } from './middleware/kernel-middleware.js';
+export { createRuntimeMiddleware, createMiddlewareRuntime } from './middleware/runtime-middleware.js';
+export type { KernelMiddleware, KernelMiddlewareConfig } from './middleware/runtime-middleware.js';
 ```
 
 ### 4.4 Individual Kernel Modules (`@taucad/runtime/kernels/*`)
@@ -327,7 +327,7 @@ export {
 
 - `KernelWorker` base class (framework internal, not for extension by consumers)
 - `createWorkerDispatcher` (used only by the worker entry point)
-- `KernelTracer`, `WorkerTelemetryCollector` (internal instrumentation)
+- `RuntimeTracer`, `WorkerTelemetryCollector` (internal instrumentation)
 - `createFileManagerProxy` (worker-side internal)
 - `ResolvedMiddleware` type (framework internal)
 - Middleware state management (`createMiddlewareState`, `createMiddlewareLogger`)
@@ -427,11 +427,11 @@ export function createDefaultConfig(options?: DefaultConfigOptions): DefaultConf
 **Zero-config (any bundler or Node.js)** -- the recommended path:
 
 ```typescript
-import { createDefaultConfig, KernelWorkerClient, createFileManagerPort } from '@taucad/runtime';
+import { createDefaultConfig, RuntimeWorkerClient, createFileManagerPort } from '@taucad/runtime';
 
 const { workerUrl, kernelConfig, middlewareConfig, bundlerConfig } = createDefaultConfig();
 const worker = new Worker(workerUrl, { type: 'module' });
-const client = new KernelWorkerClient(worker, onLog);
+const client = new RuntimeWorkerClient(worker, onLog);
 await client.initialize({ kernelModules: kernelConfig }, fileManagerPort, middlewareConfig, bundlerConfig);
 ```
 
@@ -449,7 +449,7 @@ const config = createDefaultConfig({
 **Full manual control (power users)**:
 
 ```typescript
-import { KernelWorkerClient, createFileManagerPort } from '@taucad/runtime';
+import { RuntimeWorkerClient, createFileManagerPort } from '@taucad/runtime';
 import type { KernelConfig, MiddlewareConfig, BundlerConfig } from '@taucad/types';
 
 // Consumer resolves URLs however their environment requires
@@ -463,11 +463,11 @@ const kernelConfig: KernelConfig = [
 
 ```typescript
 import { Worker } from 'node:worker_threads';
-import { createDefaultConfig, KernelWorkerClient } from '@taucad/runtime';
+import { createDefaultConfig, RuntimeWorkerClient } from '@taucad/runtime';
 
 const { workerUrl, kernelConfig, middlewareConfig, bundlerConfig } = createDefaultConfig();
 const worker = new Worker(new URL(workerUrl));
-// kernel-message-adapter.ts handles Node.js MessagePort automatically
+// runtime-message-adapter.ts handles Node.js MessagePort automatically
 ```
 
 **Testing (direct injection, no worker or URL resolution needed)**:
@@ -512,7 +512,7 @@ const worker = await createTestWorker({
 {
   ".": "./src/index.ts",
   "./worker": "./src/framework/kernel-runtime-worker.ts",
-  "./middleware": "./src/middleware/kernel-middleware.ts",
+  "./middleware": "./src/middleware/runtime-middleware.ts",
   "./kernels/replicad": "./src/kernels/replicad/replicad.kernel.ts",
   "./kernels/jscad": "./src/kernels/jscad/jscad.kernel.ts",
   "./kernels/openscad": "./src/kernels/openscad/openscad.kernel.ts",
@@ -552,15 +552,15 @@ All tests default to `node` environment. Worker tests already use `@vitest-envir
 The following APIs are used by the kernel framework and must work in both environments:
 
 
-| API                               | Node.js          | Browser     | Status                                         |
-| --------------------------------- | ---------------- | ----------- | ---------------------------------------------- |
-| `crypto.subtle.digest`            | 15+              | All modern  | Already used, works                            |
-| `performance.now()`               | All              | All         | Already used, works                            |
-| `TextEncoder`/`TextDecoder`       | All              | All         | Already used, works                            |
-| `MessageChannel`/`MessagePort`    | `worker_threads` | All         | `kernel-message-adapter.ts` handles both       |
-| `fetch`                           | 18+              | All         | Used for asset hashing; tests mock it          |
-| Dynamic `import()`                | All              | All         | Used for module loading                        |
-| `self.postMessage` / `parentPort` | `worker_threads` | Web Workers | `kernel-message-adapter.ts` detects and adapts |
+| API                               | Node.js          | Browser     | Status                                          |
+| --------------------------------- | ---------------- | ----------- | ----------------------------------------------- |
+| `crypto.subtle.digest`            | 15+              | All modern  | Already used, works                             |
+| `performance.now()`               | All              | All         | Already used, works                             |
+| `TextEncoder`/`TextDecoder`       | All              | All         | Already used, works                             |
+| `MessageChannel`/`MessagePort`    | `worker_threads` | All         | `runtime-message-adapter.ts` handles both       |
+| `fetch`                           | 18+              | All         | Used for asset hashing; tests mock it           |
+| Dynamic `import()`                | All              | All         | Used for module loading                         |
+| `self.postMessage` / `parentPort` | `worker_threads` | Web Workers | `runtime-message-adapter.ts` detects and adapts |
 
 
 ### 6.3 Dual-Environment Test Gates (Phase 5)
@@ -641,18 +641,18 @@ packages/runtime/
     framework/
       kernel-worker.ts                # KernelWorker base class (internal)
       kernel-runtime-worker.ts        # Worker entry (self-registering)
-      kernel-worker-client.ts         # Main-thread client (public)
-      kernel-worker-dispatcher.ts     # Worker-side dispatcher (internal)
-      kernel-message-adapter.ts       # Isomorphic message adapter (internal)
+      runtime-worker-client.ts         # Main-thread client (public)
+      runtime-worker-dispatcher.ts     # Worker-side dispatcher (internal)
+      runtime-message-adapter.ts       # Isomorphic message adapter (internal)
       kernel-worker-filemanager-bridge.ts  # FM bridge (public: createFileManagerPort)
       kernel-helpers.ts               # Result helpers (public)
-      kernel-tracer.ts                # Tracer (internal)
+      runtime-tracer.ts                # Tracer (internal)
       worker-telemetry.ts             # Telemetry (internal)
       error-enrichment.ts             # Error enrichment (internal)
       common.ts                       # Common utils (internal)
 
     middleware/
-      kernel-middleware.ts            # createKernelMiddleware (public)
+      kernel-middleware.ts            # createRuntimeMiddleware (public)
       geometry-cache.middleware.ts    # Built-in middleware (public as module)
       gltf-coordinate-transform.middleware.ts
       gltf-edge-detection.middleware.ts
@@ -791,7 +791,7 @@ packages/runtime/
   - `defaultKernelConfig`, `debugKernelConfig`, `defaultMiddlewareConfig`, `defaultBundlerConfig` derived from the factory
   - The `debugKernelConfig` variant passes `{ kernels: { replicad: { options: { withExceptions: true } } } }`
   - The `ENV.TAU_WEBSOCKET_URL` for zoo kernel is injected via `createDefaultConfig({ kernels: { zoo: { options: { baseUrl } } } })`
-- Update `kernel.machine.ts` to import `KernelWorkerClient` and `createFileManagerPort` from `@taucad/runtime`
+- Update `kernel.machine.ts` to import `RuntimeWorkerClient` and `createFileManagerPort` from `@taucad/runtime`
 - Update `kernel.machine.ts` to use `workerUrl` from the config instead of `?url` import of runtime worker
 - Update route files that import kernel/middleware URLs directly (e.g. `auth-splashback.tsx`) to use `createDefaultConfig()` or individual subpath imports with the universal `new URL` pattern
 - Update `kcl-register-language.ts` dynamic import path

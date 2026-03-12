@@ -3,8 +3,8 @@ import { Scene, PerspectiveCamera, AmbientLight, DirectionalLight, Box3, Vector3
 import type { Group } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { KernelClient } from '@taucad/runtime';
-import { createKernelClient } from '@taucad/runtime';
+import type { RuntimeClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 import { replicad } from '@taucad/runtime/kernels';
 import { esbuild } from '@taucad/runtime/bundler';
 import { Loader } from '#components/ui/loader.js';
@@ -21,10 +21,10 @@ type KernelModelViewProps = {
 type ViewState = 'idle' | 'loading' | 'ready' | 'error';
 
 /**
- * Renders a Replicad model using a dedicated kernel client and the shared Three.js renderer.
+ * Renders a Replicad model using a dedicated runtime client and the shared Three.js renderer.
  *
  * Lifecycle:
- * 1. Lazily creates a kernel client when the component enters the viewport
+ * 1. Lazily creates a runtime client when the component enters the viewport
  * 2. Renders the code to produce GLTF geometry
  * 3. Loads GLTF into a Three.js scene
  * 4. Uses OrbitControls on the visible canvas for interaction
@@ -40,7 +40,7 @@ export function KernelModelView({ code, className }: KernelModelViewProps): Reac
   const sceneRef = useRef<Scene | undefined>(undefined);
   const cameraRef = useRef<PerspectiveCamera | undefined>(undefined);
   const controlsRef = useRef<OrbitControls | undefined>(undefined);
-  const clientRef = useRef<KernelClient | undefined>(undefined);
+  const clientRef = useRef<RuntimeClient | undefined>(undefined);
   const gltfSceneRef = useRef<Group | undefined>(undefined);
   const isVisibleRef = useRef(false);
   const hasInitializedRef = useRef(false);
@@ -105,7 +105,7 @@ export function KernelModelView({ code, className }: KernelModelViewProps): Reac
       setViewState('loading');
 
       try {
-        const client = createKernelClient({
+        const client = createRuntimeClient({
           kernels: [replicad()],
           middleware: [],
           bundlers: [esbuild()],

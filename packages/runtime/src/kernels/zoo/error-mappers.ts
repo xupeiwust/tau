@@ -5,9 +5,9 @@ import type {
   KernelErrorResult,
   KernelIssueType,
   KernelStackFrame,
-} from '#types/kernel.types.js';
+} from '#types/runtime.types.js';
 import { KclError, KclWasmError, extractWasmKclError } from '#kernels/zoo/kcl-errors.js';
-import { createKernelError } from '#framework/kernel-helpers.js';
+import { createKernelError } from '#kernels/kernel-helpers.js';
 import { sourceRangeToLineColumn } from '#kernels/zoo/source-range-utils.js';
 
 /**

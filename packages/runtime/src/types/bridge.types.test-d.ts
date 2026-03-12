@@ -10,7 +10,7 @@
 
 import { assertType, describe, expectTypeOf, it } from 'vitest';
 import type { StringKeyedObject } from '#types/bridge.types.js';
-import { createBridgeServer } from '#framework/kernel-filesystem-bridge.js';
+import { createBridgeServer } from '#framework/runtime-filesystem-bridge.js';
 
 // =============================================================================
 // StringKeyedObject constraint

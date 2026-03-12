@@ -12,7 +12,7 @@ See `docs/policy/library-api-policy.md` (section 4) for full rationale and examp
 ## When to use 1, 2, or 3 params
 
 - **1 param (options object)** -- Default for factory functions, configuration, and any function where all args describe the same concern.
-  `createKernelClient({ kernels, transport })`, `render({ file, parameters })`
+  `createRuntimeClient({ kernels, transport })`, `render({ file, parameters })`
 - **2 params (primary + config)** -- One clear "subject" and optional configuration.
   `exposeFileSystem(fileSystem, options?)`, `on(event, handler)`
 - **3 params (distinct architectural concerns)** -- Only in consistent interface contracts where each param is a different architectural layer.
@@ -55,7 +55,7 @@ See `docs/policy/library-api-policy.md` (section 5) for full rationale and examp
 
 | Prefix | Role | Examples |
 |---|---|---|
-| `create*` | Factory | `createKernelClient`, `createBridgePort` |
+| `create*` | Factory | `createRuntimeClient`, `createBridgePort` |
 | `define*` | Plugin definition | `defineKernel`, `defineMiddleware` |
 | `is*` | Type guard | `isGeometryFile`, `isKernelPlugin` |
 | `from*` | Conversion | `fromNodeFS`, `fromMemoryFS` |

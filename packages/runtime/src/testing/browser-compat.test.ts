@@ -28,7 +28,7 @@ describe('Browser compatibility (jsdom)', () => {
   });
 
   it('should import the middleware entry point without errors', async () => {
-    const module_ = await import('#middleware/kernel-middleware.js');
+    const module_ = await import('#middleware/runtime-middleware.js');
     expect(module_.defineMiddleware).toBeTypeOf('function');
     expect(module_.createMiddlewareRuntime).toBeTypeOf('function');
   });

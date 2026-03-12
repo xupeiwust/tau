@@ -30,14 +30,14 @@ CORRECT:
 
 ```typescript
 import { mock } from 'vitest-mock-extended';
-const options = mock<KernelClientOptions>();
+const options = mock<RuntimeClientOptions>();
 ```
 
 INCORRECT:
 
 ```typescript
 const options = {} as never;
-const options = {} as unknown as KernelClientOptions;
+const options = {} as unknown as RuntimeClientOptions;
 ```
 
 ### 2. Prefer Proper Typing Over Any Assertion
@@ -75,13 +75,13 @@ CORRECT:
 
 ```typescript
 import { mock } from 'vitest-mock-extended';
-const client = mock<KernelClient>({ terminate: vi.fn() });
+const client = mock<RuntimeClient>({ terminate: vi.fn() });
 ```
 
 INCORRECT:
 
 ```typescript
-const client = {} as unknown as KernelClient;
+const client = {} as unknown as RuntimeClient;
 ```
 
 When `as unknown as` is genuinely necessary (last resort), every usage must

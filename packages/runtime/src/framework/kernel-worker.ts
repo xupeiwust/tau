@@ -11,12 +11,12 @@ import type {
   KernelIssue,
   MiddlewareRegistrations,
   BundlerRegistration,
-} from '#types/kernel.types.js';
+} from '#types/runtime.types.js';
 import type {
-  KernelFileSystem,
-  KernelFileSystemBase,
+  RuntimeFileSystem,
+  RuntimeFileSystemBase,
   KernelRuntime,
-  KernelLogger,
+  RuntimeLogger,
   Tessellation,
   InitializeInput,
   GetParametersInput,
@@ -24,20 +24,20 @@ import type {
   GetDependenciesInput,
   CanHandleInput,
   ExportGeometryInput,
-} from '#types/kernel-worker.types.js';
+} from '#types/runtime-kernel.types.js';
 import type {
   KernelMiddlewareRuntime,
   CreateGeometryHandler,
   ExportGeometryHandler,
   GetParametersHandler,
-} from '#types/kernel-middleware.types.js';
+} from '#types/runtime-middleware.types.js';
 import type {
   KernelBundler,
   BuiltinModule,
   BundleResult,
   ExecuteResult,
   BundlerDefinition,
-} from '#types/kernel-bundler.types.js';
+} from '#types/runtime-bundler.types.js';
 import type {
   Dependency,
   FileDependency,
@@ -46,21 +46,21 @@ import type {
   OptionDependency,
   ParameterDependency,
   AssetDependency,
-} from '#types/kernel-dependency.types.js';
-import type { PerformanceEntryData, RenderPhase } from '#types/kernel-protocol.types.js';
-import { signalSlot, workerStateEnum } from '#types/kernel-protocol.types.js';
-import { isRenderAbortedError } from '#framework/kernel-worker-client.js';
-import type { FileSystemProxy } from '#framework/kernel-filesystem-bridge.js';
-import { createBridgeProxy } from '#framework/kernel-filesystem-bridge.js';
-import { createKernelFileSystem } from '#filesystem/create-kernel-filesystem.js';
-import { createKernelError } from '#framework/kernel-helpers.js';
+} from '#types/runtime-dependency.types.js';
+import type { PerformanceEntryData, RenderPhase } from '#types/runtime-protocol.types.js';
+import { signalSlot, workerStateEnum } from '#types/runtime-protocol.types.js';
+import { isRenderAbortedError } from '#framework/runtime-worker-client.js';
+import type { FileSystemProxy } from '#framework/runtime-filesystem-bridge.js';
+import { createBridgeProxy } from '#framework/runtime-filesystem-bridge.js';
+import { createRuntimeFileSystem } from '#filesystem/create-runtime-filesystem.js';
+import { createKernelError } from '#kernels/kernel-helpers.js';
 import { cooperativeYield } from '#framework/async-polyfills.js';
-import { parameterDebounceMs, fileChangeDebounceMs } from '#framework/kernel-framework.constants.js';
+import { parameterDebounceMs, fileChangeDebounceMs } from '#framework/runtime-framework.constants.js';
 import { hashBytes, hashString } from '#utils/hash.utils.js';
-import { KernelTracer } from '#framework/kernel-tracer.js';
+import { RuntimeTracer } from '#framework/runtime-tracer.js';
 import { WorkerTelemetryCollector } from '#framework/worker-telemetry.js';
-import type { KernelMiddleware } from '#middleware/kernel-middleware.js';
-import { createMiddlewareRuntime } from '#middleware/kernel-middleware.js';
+import type { KernelMiddleware } from '#middleware/runtime-middleware.js';
+import { createMiddlewareRuntime } from '#middleware/runtime-middleware.js';
 
 const tauVersion = '0.1.0';
 
@@ -239,13 +239,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Internal filesystem instance.
    * Initialized via initialize() when fileSystemPort is provided.
    */
-  private _filesystem: KernelFileSystem | undefined;
+  private _filesystem: RuntimeFileSystem | undefined;
 
   /**
    * Internal logger instance.
    * Initialized via initialize() after onLog is set.
    */
-  private _logger: KernelLogger | undefined;
+  private _logger: RuntimeLogger | undefined;
 
   /**
    * Cache for asset content hashes to avoid repeated fetches.
@@ -272,7 +272,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Cached middleware loggers, keyed by middleware name.
    * Loggers are stateless closures -- safe to reuse across operations.
    */
-  private readonly middlewareLoggerCache = new Map<string, KernelLogger>();
+  private readonly middlewareLoggerCache = new Map<string, RuntimeLogger>();
 
   /** Cached KernelRuntime instance -- invalidated on setBasePath */
   private cachedRuntime: KernelRuntime | undefined;
@@ -288,7 +288,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   private telemetryCollector?: WorkerTelemetryCollector;
 
   /** Span tracer for hierarchical telemetry with explicit parent-child IDs */
-  private readonly tracer = new KernelTracer();
+  private readonly tracer = new RuntimeTracer();
 
   /** Progress callback set during render, used by entry methods to emit phase transitions */
   private onProgress?: (phase: RenderPhase) => void;
@@ -355,7 +355,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @returns the kernel filesystem interface
    * @throws Error if accessed before initialize() completes with fileSystemPort
    */
-  private get filesystem(): KernelFileSystem {
+  private get filesystem(): RuntimeFileSystem {
     if (!this._filesystem) {
       throw new Error('filesystem not available - initialize must complete first with fileSystemPort');
     }
@@ -370,7 +370,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @returns the kernel logger interface
    * @throws Error if accessed before initialize() completes
    */
-  protected get logger(): KernelLogger {
+  protected get logger(): RuntimeLogger {
     if (!this._logger) {
       throw new Error('logger not available - initialize must complete first');
     }
@@ -413,7 +413,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
     // Register file manager and create filesystem if port is provided
     if (input.transferables.fileSystemPort) {
-      this.fileSystem = createBridgeProxy<KernelFileSystemBase>(input.transferables.fileSystemPort);
+      this.fileSystem = createBridgeProxy<RuntimeFileSystemBase>(input.transferables.fileSystemPort);
       this._filesystem = this.createFileSystem();
     }
 
@@ -1602,11 +1602,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * Create the unified filesystem interface.
    * Called during initialize() after fileSystem is set up.
    * Wraps the raw proxy with tracing, then enhances with helper methods
-   * via `createKernelFileSystem`.
+   * via `createRuntimeFileSystem`.
    *
-   * @returns KernelFileSystem with 11 base primitives + enhanced helper methods
+   * @returns RuntimeFileSystem with 11 base primitives + enhanced helper methods
    */
-  private createFileSystem(): KernelFileSystem {
+  private createFileSystem(): RuntimeFileSystem {
     const fileSystem = this.fileSystem!;
     const { tracer } = this;
 
@@ -1619,7 +1619,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       return data;
     }
 
-    return createKernelFileSystem({
+    return createRuntimeFileSystem({
       readFile,
 
       async exists(path: string): Promise<boolean> {
@@ -1765,10 +1765,10 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
-   * Create a KernelLogger for use in kernel methods.
+   * Create a RuntimeLogger for use in kernel methods.
    * The logger automatically injects the kernel name as the component.
    *
-   * @returns KernelLogger instance
+   * @returns RuntimeLogger instance
    */
   private getLogOrigin(): { component: string; file: string } {
     if (!this.cachedLogOrigin || this.cachedLogOriginFile !== this.activeFilePath) {
@@ -1782,7 +1782,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     return this.cachedLogOrigin;
   }
 
-  private createLogger(): KernelLogger {
+  private createLogger(): RuntimeLogger {
     return {
       log: (message, options) => {
         this.onLog({
@@ -1926,7 +1926,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param middlewareName - the middleware component name used as the log origin
    * @returns a logger scoped to the given middleware
    */
-  private getMiddlewareLogger(middlewareName: string): KernelLogger {
+  private getMiddlewareLogger(middlewareName: string): RuntimeLogger {
     let logger = this.middlewareLoggerCache.get(middlewareName);
     if (!logger) {
       logger = {

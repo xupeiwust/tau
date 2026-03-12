@@ -15,7 +15,7 @@ export { fromFsLike } from '#filesystem/from-fs-like.js';
 export type { FsLike } from '#filesystem/from-fs-like.js';
 
 // Enhanced filesystem wrapper
-export { createKernelFileSystem } from '#filesystem/create-kernel-filesystem.js';
+export { createRuntimeFileSystem } from '#filesystem/create-runtime-filesystem.js';
 
 // High-level wrappers
 export { exposeFileSystem, createFileSystemBridge } from '#filesystem/filesystem-bridge.js';
@@ -29,5 +29,5 @@ export {
   createBridgeProxy,
   catchMessages,
   extractTransferables,
-} from '#framework/kernel-filesystem-bridge.js';
-export type { BridgeError, BridgeHandle, BridgeServerHandle } from '#framework/kernel-filesystem-bridge.js';
+} from '#framework/runtime-filesystem-bridge.js';
+export type { BridgeError, BridgeHandle, BridgeServerHandle } from '#framework/runtime-filesystem-bridge.js';

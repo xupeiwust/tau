@@ -138,7 +138,7 @@ export function ViewerSettings({ className, overflowControls }: ViewerSettingsPr
   );
 
   const handleRenderTimeoutChange = useCallback((_value: string) => {
-    // Render timeout is now managed internally by the autonomous kernel worker
+    // Render timeout is now managed internally by the autonomous runtime worker
   }, []);
 
   // Get current timeout option for display (default to 30s if not found)

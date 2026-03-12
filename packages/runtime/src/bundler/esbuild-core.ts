@@ -15,9 +15,9 @@ import * as esbuild from 'esbuild-wasm';
 import type { Plugin, BuildOptions, Message, Metafile } from 'esbuild-wasm';
 import { isBareSpecifier, parsePackageSpecifier, getCdnCachePath, resolveRelativePath } from '@taucad/utils/import';
 import { base64ToString } from 'uint8array-extras';
-import type { KernelIssue } from '#types/kernel.types.js';
-import type { KernelFileSystem } from '#types/kernel-worker.types.js';
-import type { ExecuteResult } from '#types/kernel-bundler.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
+import type { RuntimeFileSystem } from '#types/runtime-kernel.types.js';
+import type { ExecuteResult } from '#types/runtime-bundler.types.js';
 import type { BuiltinModule } from '#bundler/module-manager.js';
 import { ModuleManager } from '#bundler/module-manager.js';
 import { isNode } from '#framework/environment.js';
@@ -53,7 +53,7 @@ export type BundleResult = {
  */
 export type BundlerOptions = {
   /** Filesystem interface for reading/writing files */
-  filesystem: KernelFileSystem;
+  filesystem: RuntimeFileSystem;
   /** Base path for the project (e.g., /builds/project) */
   projectPath: string;
   /** Built-in modules to use as fallback */
@@ -139,7 +139,7 @@ const defaultAutoExportNames = ['main', 'defaultParams'];
  * @param path - import path to resolve
  * @returns resolved path with file extension appended
  */
-async function resolveFileExtension(filesystem: KernelFileSystem, path: string): Promise<string> {
+async function resolveFileExtension(filesystem: RuntimeFileSystem, path: string): Promise<string> {
   // If already has extension, return as-is
   if (/\.[jt]sx?$/.test(path)) {
     return path;
@@ -294,7 +294,7 @@ function resolveEsbuildFilePath(filePath: string): string {
  * Configuration for the vfs-namespace esbuild plugin that resolves project files, builtins, and CDN modules.
  */
 export type VfsPluginOptions = {
-  filesystem: KernelFileSystem;
+  filesystem: RuntimeFileSystem;
   moduleManager: ModuleManager;
   builtinModules: Map<string, BuiltinModule>;
   projectPath: string;
@@ -600,7 +600,7 @@ export function createVfsPlugin(options: VfsPluginOptions): Plugin {
  * In-browser esbuild bundler for CAD scripts with virtual filesystem and CDN module support.
  */
 export class EsbuildBundler {
-  private readonly filesystem: KernelFileSystem;
+  private readonly filesystem: RuntimeFileSystem;
   private readonly projectPath: string;
   private readonly builtinModules: Map<string, BuiltinModule>;
   private readonly moduleManager: ModuleManager;
@@ -851,7 +851,7 @@ const module = { exports };
  * Options for the detection-only esbuild plugin used for kernel import detection.
  */
 export type DetectionPluginOptions = {
-  filesystem: KernelFileSystem;
+  filesystem: RuntimeFileSystem;
   projectPath: string;
 };
 
@@ -1053,6 +1053,6 @@ export async function executeCode(code: string): Promise<ExecuteResult> {
 export type EsbuildBundlerContext = {
   bundler: EsbuildBundler;
   builtinModules: Map<string, BuiltinModule>;
-  filesystem: KernelFileSystem;
+  filesystem: RuntimeFileSystem;
   projectPath: string;
 };

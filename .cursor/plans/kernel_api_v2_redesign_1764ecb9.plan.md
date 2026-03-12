@@ -6,13 +6,13 @@ todos:
     content: Create docs/library-api-best-practices.md with API design patterns distilled from Clerk JS codebase analysis
     status: completed
   - id: filesystem-redesign
-    content: Define KernelFileSystem (8 required Node.js-compatible methods), refactor kernel-worker-filemanager-bridge, build framework-internal helpers (readFiles, ensureDirectoryExists, getDirectoryContents, getDirectoryStat)
+    content: Define RuntimeFileSystem (8 required Node.js-compatible methods), refactor kernel-worker-filemanager-bridge, build framework-internal helpers (readFiles, ensureDirectoryExists, getDirectoryContents, getDirectoryStat)
     status: completed
   - id: transport-interface
-    content: Create KernelTransport interface and createWorkerTransport() in packages/runtime/src/transport/; refactor KernelWorkerClient to accept KernelTransport
+    content: Create RuntimeTransport interface and createWorkerTransport() in packages/runtime/src/transport/; refactor RuntimeWorkerClient to accept RuntimeTransport
     status: completed
   - id: remove-canhandle
-    content: Remove canHandle from protocol types, KernelWorkerClient, dispatcher, and kernel.machine.ts; internalize into renderEntry error path
+    content: Remove canHandle from protocol types, RuntimeWorkerClient, dispatcher, and kernel.machine.ts; internalize into renderEntry error path
     status: completed
   - id: plugin-factories
     content: "Create plugin factory functions: replicad(), zoo(), openscad(), jscad(), tau(), parameterCache(), geometryCache(), gltfCoordinateTransform(), gltfEdgeDetection(), esbuild(); create presets.all()"
@@ -21,19 +21,19 @@ todos:
     content: Refactor KernelWorker from single loadedBundler to Map<extension, LoadedBundler>; add extensions to BundlerDefinition; route bundler operations by file extension; change bundler→bundlers (array) in client options
     status: completed
   - id: client-factory
-    content: Implement createKernelClient() factory, KernelClient interface with .on() event subscription, lazy Worker creation, and connect() with KernelFileSystem
+    content: Implement createRuntimeClient() factory, RuntimeClient interface with .on() event subscription, lazy Worker creation, and connect() with RuntimeFileSystem
     status: completed
   - id: define-middleware-rename
-    content: Rename createKernelMiddleware() to defineMiddleware() across codebase
+    content: Rename createRuntimeMiddleware() to defineMiddleware() across codebase
     status: completed
   - id: reorganize-exports
     content: "Reorganize package.json exports: @taucad/runtime, /kernels, /middleware, /bundler, /transport, /testing"
     status: completed
   - id: simplify-ui-consumption
-    content: Migrate apps/ui to new createKernelClient API with plugin factories and .on() events
+    content: Migrate apps/ui to new createRuntimeClient API with plugin factories and .on() events
     status: in_progress
   - id: update-architecture-doc
-    content: Update docs/policy/kernel-architecture-policy.md with v2 entity model, layered architecture, and API tiers
+    content: Update docs/policy/runtime-architecture-policy.md with v2 entity model, layered architecture, and API tiers
     status: completed
   - id: jsdoc-eslint
     content: Install eslint-plugin-jsdoc, configure rules for packages/, add comprehensive JSDoc to all public APIs
@@ -63,17 +63,17 @@ isProject: false
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  KernelClient                                               │
+│  RuntimeClient                                               │
 │  High-level, Promise-based, lazy initialization             │
 │  const result = await client.render(file, params)           │
 │  const off = client.on('progress', handler)                 │
 ├─────────────────────────────────────────────────────────────┤
-│  KernelTransport                                            │
+│  RuntimeTransport                                            │
 │  Low-level, event-driven, transport-agnostic                │
 │  transport.send(command)                                    │
 │  transport.onMessage(handler)                               │
 ├─────────────────────────────────────────────────────────────┤
-│  KernelCommand / KernelResponse                             │
+│  RuntimeCommand / RuntimeResponse                             │
 │  Typed message protocol (discriminated unions)              │
 │  Portable across MessagePort, WebSocket, HTTP, native FFI   │
 └─────────────────────────────────────────────────────────────┘
@@ -83,12 +83,12 @@ isProject: false
 
 - **Realm**: Execution environment (main thread, Web Worker, Node.js worker_thread, remote server)
 - **Transport**: Communication channel between realms (MessagePort, WebSocket, HTTP)
-- **KernelClient**: High-level facade wrapping a Transport with Promises and event subscription
+- **RuntimeClient**: High-level facade wrapping a Transport with Promises and event subscription
 - **KernelRuntimeWorker**: Worker-side orchestrator (kernel selection, middleware chain, bundler)
 
 ### Why both layers
 
-The Transport layer is the true primitive -- pure messages, zero abstraction. It maps cleanly to any communication channel and supports future cross-language kernels (Rust, C++ via FFI). The Promise overhead of the Client layer is ~1 microsecond against renders that take 100ms-10s. Both layers are exposed: most consumers use `KernelClient`, framework authors and custom transport builders use `KernelTransport` directly.
+The Transport layer is the true primitive -- pure messages, zero abstraction. It maps cleanly to any communication channel and supports future cross-language kernels (Rust, C++ via FFI). The Promise overhead of the Client layer is ~1 microsecond against renders that take 100ms-10s. Both layers are exposed: most consumers use `RuntimeClient`, framework authors and custom transport builders use `RuntimeTransport` directly.
 
 ---
 
@@ -99,12 +99,12 @@ Each built-in kernel, middleware, and bundler is a **named export factory functi
 ### Consumer API
 
 ```typescript
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 import { replicad, zoo, openscad } from '@taucad/runtime/kernels';
 import { parameterCache, geometryCache, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
 
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [
     replicad({ withExceptions: true, meshConfiguration: { linearTolerance: 0.1 } }),
     zoo({ baseUrl: 'wss://my-server/v1/kernels/zoo' }),
@@ -168,7 +168,7 @@ export function replicad(options?: ReplicadOptions): KernelPlugin {
 Custom kernels/middleware/bundlers use the same shape -- no special API needed:
 
 ```typescript
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [
     replicad(),
     {
@@ -193,11 +193,11 @@ const client = createKernelClient({
 Zero-config defaults for consumers who want everything:
 
 ```typescript
-import { createKernelClient, presets } from '@taucad/runtime';
+import { createRuntimeClient, presets } from '@taucad/runtime';
 
-const client = createKernelClient(presets.all());
+const client = createRuntimeClient(presets.all());
 
-// Or: createKernelClient() defaults to presets.all()
+// Or: createRuntimeClient() defaults to presets.all()
 ```
 
 ### Two audiences, two define functions
@@ -317,7 +317,7 @@ protected hasBundlerForExtension(ext: string): boolean {
 
 ### Type changes
 
-`**[libs/types/src/types/kernel-bundler.types.ts](libs/types/src/types/kernel-bundler.types.ts)**`: Add `extensions` to `BundlerDefinition`:
+`**[libs/types/src/types/runtime-bundler.types.ts](libs/types/src/types/runtime-bundler.types.ts)**`: Add `extensions` to `BundlerDefinition`:
 
 ```typescript
 type BundlerDefinition<Context> = {
@@ -340,25 +340,25 @@ type BundlerDefinition<Context> = {
 
 ---
 
-## 3. KernelClient API
+## 3. RuntimeClient API
 
 ### Factory
 
 ```typescript
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [replicad(), openscad()],
   middleware: [geometryCache(), gltfEdgeDetection()],
   bundlers: [esbuild()],
 });
 ```
 
-### KernelClient interface
+### RuntimeClient interface
 
 ```typescript
-type KernelClient = {
-  connect(options: { fileSystem: KernelFileSystem }): Promise<void>;
+type RuntimeClient = {
+  connect(options: { fileSystem: RuntimeFileSystem }): Promise<void>;
 
   render(
     file: GeometryFile,
@@ -386,7 +386,7 @@ type KernelClient = {
 Events use `.on(event, handler)` which returns an unsubscribe function. Subscribable at any time during the client lifecycle, works naturally with React's `useEffect`:
 
 ```tsx
-function CadViewer({ client }: { client: KernelClient }) {
+function CadViewer({ client }: { client: RuntimeClient }) {
   const [phase, setPhase] = useState<string>();
 
   useEffect(() => {
@@ -399,7 +399,7 @@ No config-time event binding. No framework-specific packages needed.
 
 ### Lifecycle
 
-1. `createKernelClient(options)` -- returns client, no Worker created yet
+1. `createRuntimeClient(options)` -- returns client, no Worker created yet
 2. `client.connect({ fileSystem })` -- creates Worker + Transport, initializes protocol
 3. `client.render(file, params)` -- auto-connects if not yet connected (lazy)
 4. `client.on('event', handler)` -- subscribable at any time, returns unsubscribe
@@ -426,9 +426,9 @@ if (!result.success) {
 
 ### Changes
 
-- `**[libs/types/src/types/kernel-protocol.types.ts](libs/types/src/types/kernel-protocol.types.ts)**`: Remove `canHandle` command and `canHandleResult` response
-- `**[packages/runtime/src/framework/kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts)**`: Remove `canHandle()` method and `pendingCanHandle` state
-- `**[packages/runtime/src/framework/kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts)**`: Remove `canHandle` case
+- `**[libs/types/src/types/runtime-protocol.types.ts](libs/types/src/types/runtime-protocol.types.ts)**`: Remove `canHandle` command and `canHandleResult` response
+- `**[packages/runtime/src/framework/runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts)**`: Remove `canHandle()` method and `pendingCanHandle` state
+- `**[packages/runtime/src/framework/runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts)**`: Remove `canHandle` case
 - `**[packages/runtime/src/framework/kernel-worker.ts](packages/runtime/src/framework/kernel-worker.ts)**`: Modify `renderEntry` to return `{ success: false, issues: [...] }` when no kernel matches
 - `**[apps/ui/app/machines/kernel.machine.ts](apps/ui/app/machines/kernel.machine.ts)**`: Remove the `canHandle` call before `render`
 
@@ -436,7 +436,7 @@ The `canHandle` method remains **internal** to `KernelRuntimeWorker` for kernel 
 
 ---
 
-## 5. KernelFileSystem (Node.js-Compatible Primitives)
+## 5. RuntimeFileSystem (Node.js-Compatible Primitives)
 
 ### Design rationale
 
@@ -447,7 +447,7 @@ MessagePort performance is not a concern for batch operations: `Promise.all(path
 ### Interface
 
 ```typescript
-type KernelFileSystem = {
+type RuntimeFileSystem = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array | string): Promise<void>;
@@ -498,18 +498,18 @@ await client.connect({ fileSystem });
 
 ### MessagePort bridge changes
 
-`[packages/runtime/src/framework/kernel-worker-filemanager-bridge.ts](packages/runtime/src/framework/kernel-worker-filemanager-bridge.ts)` is refactored to proxy only the 8 `KernelFileSystem` methods. The 12+ extra methods (`rename`, `rmdir`, `copyDirectory`, `getZippedDirectory`, `reconfigure`, `setDirectoryHandle`, `readBackendFileTree`, etc.) are removed -- they were app-level operations that leaked into the kernel contract.
+`[packages/runtime/src/framework/kernel-worker-filemanager-bridge.ts](packages/runtime/src/framework/kernel-worker-filemanager-bridge.ts)` is refactored to proxy only the 8 `RuntimeFileSystem` methods. The 12+ extra methods (`rename`, `rmdir`, `copyDirectory`, `getZippedDirectory`, `reconfigure`, `setDirectoryHandle`, `readBackendFileTree`, etc.) are removed -- they were app-level operations that leaked into the kernel contract.
 
 ---
 
 ## 6. Transport Abstraction
 
-### KernelTransport interface
+### RuntimeTransport interface
 
 ```typescript
-type KernelTransport = {
-  send(message: KernelCommand, transferables?: Transferable[]): void;
-  onMessage(handler: (message: KernelResponse) => void): void;
+type RuntimeTransport = {
+  send(message: RuntimeCommand, transferables?: Transferable[]): void;
+  onMessage(handler: (message: RuntimeResponse) => void): void;
   close(): void;
 };
 ```
@@ -517,38 +517,38 @@ type KernelTransport = {
 ### Built-in: WorkerTransport
 
 ```typescript
-function createWorkerTransport(workerUrl: string): KernelTransport;
+function createWorkerTransport(workerUrl: string): RuntimeTransport;
 ```
 
 - Internally creates `new Worker(workerUrl, { type: 'module' })`
-- Wraps `postMessage`/`addEventListener` as `KernelTransport`
-- The existing `KernelMessagePort` adapter becomes an implementation detail of this transport
+- Wraps `postMessage`/`addEventListener` as `RuntimeTransport`
+- The existing `RuntimeMessagePort` adapter becomes an implementation detail of this transport
 
 ### Advanced usage
 
 ```typescript
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 import { createWorkerTransport } from '@taucad/runtime/transport';
 
 const transport = createWorkerTransport(myCustomWorkerUrl);
-const client = createKernelClient({ transport, kernels: [...] });
+const client = createRuntimeClient({ transport, kernels: [...] });
 ```
 
 ### Future transports (not implemented now, but the interface supports them)
 
 ```typescript
 // WebSocket transport for remote kernel servers
-function createWebSocketTransport(url: string): KernelTransport;
+function createWebSocketTransport(url: string): RuntimeTransport;
 
 // HTTP + SSE transport for serverless kernel endpoints
-function createHttpTransport(endpoint: string): KernelTransport;
+function createHttpTransport(endpoint: string): RuntimeTransport;
 ```
 
 ### Files
 
-- `[packages/runtime/src/transport/kernel-transport.ts](packages/runtime/src/transport/kernel-transport.ts)` (new) -- `KernelTransport` type
+- `[packages/runtime/src/transport/kernel-transport.ts](packages/runtime/src/transport/kernel-transport.ts)` (new) -- `RuntimeTransport` type
 - `[packages/runtime/src/transport/worker-transport.ts](packages/runtime/src/transport/worker-transport.ts)` (new) -- `createWorkerTransport()`
-- Refactor `[packages/runtime/src/framework/kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts)` to accept `KernelTransport` instead of raw `Worker`
+- Refactor `[packages/runtime/src/framework/runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts)` to accept `RuntimeTransport` instead of raw `Worker`
 
 ---
 
@@ -557,23 +557,23 @@ function createHttpTransport(endpoint: string): KernelTransport;
 ### Reorganized subpath exports
 
 ```
-@taucad/runtime                -- createKernelClient, presets, defineKernel, defineBundler,
-                                  fromNodeFS, fromMemoryFS, KernelClient type, KernelFileSystem type
+@taucad/runtime                -- createRuntimeClient, presets, defineKernel, defineBundler,
+                                  fromNodeFS, fromMemoryFS, RuntimeClient type, RuntimeFileSystem type
 @taucad/runtime/kernels        -- replicad(), zoo(), openscad(), jscad(), tau() plugin factories
 @taucad/runtime/middleware     -- defineMiddleware(), parameterCache(), geometryCache(),
                                   gltfCoordinateTransform(), gltfEdgeDetection() plugin factories
 @taucad/runtime/bundler        -- defineBundler(), esbuild() plugin factory
-@taucad/runtime/transport      -- KernelTransport type, createWorkerTransport()
+@taucad/runtime/transport      -- RuntimeTransport type, createWorkerTransport()
 @taucad/runtime/testing        -- createTestWorker, mocks, geometry helpers
 ```
 
 ### Naming changes
 
-- `createKernelMiddleware()` → `defineMiddleware()` (aligns with `defineKernel`/`defineBundler`)
-- `createDefaultConfig()` → removed from public API (internal to `createKernelClient`)
-- `KernelFileManager` → `KernelFileSystem` (8 methods, Node.js-compatible)
+- `createRuntimeMiddleware()` → `defineMiddleware()` (aligns with `defineKernel`/`defineBundler`)
+- `createDefaultConfig()` → removed from public API (internal to `createRuntimeClient`)
+- `KernelFileManager` → `RuntimeFileSystem` (8 methods, Node.js-compatible)
 - `createFileManagerPort()` → internal (handled by `client.connect()`)
-- `KernelWorkerClient` → still exported from `@taucad/runtime/transport` for advanced use
+- `RuntimeWorkerClient` → still exported from `@taucad/runtime/transport` for advanced use
 
 ---
 
@@ -593,7 +593,7 @@ export const runtimeWorkerUrl = baseConfig.workerUrl;
 
 // kernel.machine.ts -- manual Worker creation, canHandle round-trip
 const rawWorker = new Worker(runtimeWorkerUrl, { type: 'module' });
-const client = new KernelWorkerClient(rawWorker, onLog, onTelemetry);
+const client = new RuntimeWorkerClient(rawWorker, onLog, onTelemetry);
 const port = createFileManagerPort(wrappedFileManager);
 await client.initialize({ kernelModules, bundlerConfig }, port, middlewareConfig, bundlerConfig);
 const canHandle = await client.canHandle(file);
@@ -629,7 +629,7 @@ export const debugKernelConfig = {
 };
 
 // kernel.machine.ts -- simple client usage
-const client = createKernelClient(context.kernelConfig);
+const client = createRuntimeClient(context.kernelConfig);
 
 const off1 = client.on('log', (entry) => parentRef.send({ type: 'kernelLog', ...entry }));
 const off2 = client.on('progress', (phase) => parentRef.send({ type: 'kernelProgress', phase }));
@@ -689,15 +689,15 @@ Distilled from Clerk JS codebase analysis:
 - Plugin factories return plain objects, not class instances
 - No optional interface methods -- all required, framework builds higher-level ops internally
 
-### `[docs/policy/kernel-architecture-policy.md](docs/policy/kernel-architecture-policy.md)` (update)
+### `[docs/policy/runtime-architecture-policy.md](docs/policy/runtime-architecture-policy.md)` (update)
 
 Update entity model for v2:
 
-- **KernelClient** -- High-level facade. Lazy, Promise-based, event-subscribable. What consumers use.
-- **KernelTransport** -- Event-driven message channel. What custom transport authors implement.
-- **KernelWorkerClient** -- Protocol client that wraps a Transport with request/response correlation. Advanced API.
+- **RuntimeClient** -- High-level facade. Lazy, Promise-based, event-subscribable. What consumers use.
+- **RuntimeTransport** -- Event-driven message channel. What custom transport authors implement.
+- **RuntimeWorkerClient** -- Protocol client that wraps a Transport with request/response correlation. Advanced API.
 - **KernelRuntimeWorker** -- Worker-side orchestrator. Kernel selection, middleware chain, bundler management.
-- **KernelFileSystem** -- 8-method Node.js-compatible filesystem interface. What consumers implement or use helpers for.
+- **RuntimeFileSystem** -- 8-method Node.js-compatible filesystem interface. What consumers implement or use helpers for.
 - **KernelDefinition** -- Kernel plugin contract (`defineKernel`). Implemented by kernel authors.
 - **BundlerDefinition** -- Bundler plugin contract (`defineBundler`). Implemented by bundler authors.
 - **KernelMiddleware** -- Middleware plugin contract (`defineMiddleware`). Implemented by middleware authors.
@@ -760,8 +760,8 @@ pnpm install -d eslint-plugin-jsdoc
 
 ```typescript
 // Client
-type KernelClient = {
-  connect(options: { fileSystem: KernelFileSystem }): Promise<void>;
+type RuntimeClient = {
+  connect(options: { fileSystem: RuntimeFileSystem }): Promise<void>;
   render(file: GeometryFile, parameters: Record<string, unknown>): Promise<CreateGeometryResultCompleted>;
   export(format: ExportFormat, meshConfig?: MeshConfig): Promise<ExportGeometryResult>;
   notifyFileChanged(paths: string[]): void;
@@ -773,7 +773,7 @@ type KernelClient = {
 };
 
 // Filesystem
-type KernelFileSystem = {
+type RuntimeFileSystem = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array | string): Promise<void>;
@@ -808,20 +808,20 @@ type BundlerPlugin = {
 };
 
 // Client options
-type KernelClientOptions = {
+type RuntimeClientOptions = {
   kernels: KernelPlugin[];
   middleware?: MiddlewarePlugin[];
   bundlers?: BundlerPlugin[];
-  transport?: KernelTransport;
+  transport?: RuntimeTransport;
 };
 ```
 
 ### Transport types (exported from `@taucad/runtime/transport`)
 
 ```typescript
-type KernelTransport = {
-  send(message: KernelCommand, transferables?: Transferable[]): void;
-  onMessage(handler: (message: KernelResponse) => void): void;
+type RuntimeTransport = {
+  send(message: RuntimeCommand, transferables?: Transferable[]): void;
+  onMessage(handler: (message: RuntimeResponse) => void): void;
   close(): void;
 };
 ```

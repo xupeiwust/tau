@@ -8,7 +8,7 @@
  * to a polling/timeout-based approach.
  */
 
-import { waitAsyncPollIntervalMs } from '#framework/kernel-framework.constants.js';
+import { waitAsyncPollIntervalMs } from '#framework/runtime-framework.constants.js';
 
 /**
  * Wait for a slot in a SharedArrayBuffer to change from an expected value.

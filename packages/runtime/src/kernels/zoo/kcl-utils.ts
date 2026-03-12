@@ -11,7 +11,7 @@ import type { Configuration } from '@taucad/kcl-wasm-lib/bindings/Configuration'
 import type { System } from '@taucad/kcl-wasm-lib/bindings/ModelingCmd';
 import type { Context } from '@taucad/kcl-wasm-lib';
 import type { Models } from '@kittycad/lib';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { EngineConnection, MockEngineConnection } from '#kernels/zoo/engine-connection.js';
 import type { WasmModule } from '#kernels/zoo/engine-connection.js';
 import type { FileSystemManager } from '#kernels/zoo/filesystem-manager.js';
@@ -104,7 +104,7 @@ const splitErrors = (input: CompilationError[]): { errors: CompilationError[]; w
 };
 
 // Dynamic import function to load WASM module
-async function loadWasmModule(tracer?: KernelSpanTracer): Promise<WasmModule> {
+async function loadWasmModule(tracer?: RuntimeSpanTracer): Promise<WasmModule> {
   try {
     const wasmModule = await import('@taucad/kcl-wasm-lib');
 
@@ -279,7 +279,7 @@ export class KclUtilities {
    *
    * @param tracer - optional span tracer for performance instrumentation
    */
-  public async initializeWasm(tracer?: KernelSpanTracer): Promise<void> {
+  public async initializeWasm(tracer?: RuntimeSpanTracer): Promise<void> {
     if (this.isWasmInitialized) {
       return;
     }

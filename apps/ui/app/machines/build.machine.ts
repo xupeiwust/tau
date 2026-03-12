@@ -2,7 +2,7 @@ import { assign, assertEvent, setup, emit, enqueueActions } from 'xstate';
 import type { ActorRefFrom, AnyStateMachine } from 'xstate';
 import { produce } from 'immer';
 import type { Build } from '@taucad/types';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { isBrowser } from '#constants/browser.constants.js';
 import type { GraphicsViewSettings } from '#constants/editor.constants.js';
 import { defaultGraphicsSettings } from '#constants/editor.constants.js';
@@ -22,7 +22,7 @@ export type BuildContext = {
   error: Error | undefined;
   isLoading: boolean;
   shouldLoadModelOnStart: boolean;
-  kernelOptions: KernelClientOptions;
+  kernelOptions: RuntimeClientOptions;
   fileManagerRef: ActorRefFrom<typeof fileManagerMachine>;
   gitRef: ActorRefFrom<typeof gitMachine>;
   /** Per-viewer-panel graphics machines, keyed by Dockview panel ID */
@@ -41,7 +41,7 @@ type BuildInput = {
   buildId: string;
   shouldLoadModelOnStart?: boolean;
   fileManagerRef: ActorRefFrom<typeof fileManagerMachine>;
-  kernelOptions: KernelClientOptions;
+  kernelOptions: RuntimeClientOptions;
 };
 
 // Define the actors that the machine can invoke

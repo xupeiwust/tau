@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { createActor, waitFor } from 'xstate';
 import type { Build } from '@taucad/types';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { buildMachine } from '#machines/build.machine.js';
 import type { BuildContext } from '#machines/build.machine.js';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
@@ -72,7 +72,7 @@ function createTestActor(options?: {
   });
 
   const fileManagerRef = mock<BuildContext['fileManagerRef']>({ send: vi.fn() });
-  const kernelOptions = mock<KernelClientOptions>();
+  const kernelOptions = mock<RuntimeClientOptions>();
 
   return createActor(machine, {
     input: {
@@ -132,7 +132,7 @@ describe('buildMachine', () => {
         },
       });
       const fileManagerRef = mock<BuildContext['fileManagerRef']>({ send: vi.fn() });
-      const kernelOptions = mock<KernelClientOptions>();
+      const kernelOptions = mock<RuntimeClientOptions>();
       const actor = createActor(machine, {
         input: { buildId: 'b', fileManagerRef, kernelOptions },
       });

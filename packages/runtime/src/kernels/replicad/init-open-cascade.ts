@@ -2,7 +2,7 @@
 /// <reference types="emscripten" />
 
 import type { OpenCascadeInstance } from 'replicad-opencascadejs/src/replicad_single.js';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { compileWasmStreaming } from '#framework/wasm-loader.js';
 
 /**
@@ -20,7 +20,7 @@ type InitOpenCascadeOptions = {
   /** Optional callback to handle stderr messages. Defaults to no-op (silences logs). */
   printErr?: (text: string) => void;
   /** Optional span tracer for hierarchy-aware telemetry */
-  tracer?: KernelSpanTracer;
+  tracer?: RuntimeSpanTracer;
 };
 
 // oxlint-disable-next-line @typescript-eslint/no-empty-function -- Intentional no-op to silence logs

@@ -4,7 +4,7 @@
  * Kernel Integration Test
  *
  * Reproduces the exact production wiring between FileService, the filesystem
- * bridge, createKernelClient, and multi-kernel selection to deterministically
+ * bridge, createRuntimeClient, and multi-kernel selection to deterministically
  * demonstrate the empty-geometry failure.
  *
  * Uses Node vitest environment for MessageChannel/MessagePort support and WASM
@@ -20,8 +20,8 @@ import {
   FileService,
 } from '@taucad/filesystem';
 import { createBridgeServer, createBridgeProxy } from '@taucad/runtime/filesystem';
-import { createKernelClient } from '@taucad/runtime';
-import type { KernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
+import type { RuntimeClient } from '@taucad/runtime';
 import { replicad, tau } from '@taucad/runtime/kernels';
 import { esbuild } from '@taucad/runtime/bundler';
 import { createInProcessTransport } from '@taucad/runtime/transport';
@@ -68,7 +68,7 @@ async function createFileService(): Promise<FileService> {
 }
 
 describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () => {
-  let client: KernelClient | undefined;
+  let client: RuntimeClient | undefined;
 
   afterEach(() => {
     client?.terminate();
@@ -116,7 +116,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
   });
 
   // ---------------------------------------------------------------------------
-  // Layer 2: KernelClient + FileService Bridge (render)
+  // Layer 2: RuntimeClient + FileService Bridge (render)
   // ---------------------------------------------------------------------------
 
   it('connects via FileService-backed port and renders non-empty geometry', async () => {
@@ -124,7 +124,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
 
     await fileService.writeFile('/builds/bld_hollow_box/main.ts', hollowBoxSource);
 
-    client = createKernelClient({
+    client = createRuntimeClient({
       kernels: [replicad({ withBrepEdges: true }), tau()],
       bundlers: [esbuild()],
       transport: createInProcessTransport(),
@@ -153,7 +153,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
 
     await fileService.writeFile('/builds/bld_hollow_box/main.ts', hollowBoxSource);
 
-    client = createKernelClient({
+    client = createRuntimeClient({
       kernels: [replicad({ withBrepEdges: true }), tau()],
       bundlers: [esbuild()],
       transport: createInProcessTransport(),
@@ -182,7 +182,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
   // ---------------------------------------------------------------------------
 
   it('renders hollow box via inline code path (control)', async () => {
-    client = createKernelClient({
+    client = createRuntimeClient({
       kernels: [replicad({ withBrepEdges: true }), tau()],
       bundlers: [esbuild()],
       transport: createInProcessTransport(),

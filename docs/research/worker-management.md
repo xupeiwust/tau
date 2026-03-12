@@ -73,8 +73,8 @@ Component unmount
 **Files**:
 
 - `packages/runtime/src/transport/worker-transport.ts` — Worker creation and `close()`
-- `packages/runtime/src/client/kernel-client.ts` — `terminate()` method
-- `packages/runtime/src/framework/kernel-worker-client.ts` — `cleanup()` + `terminate()`
+- `packages/runtime/src/client/runtime-client.ts` — `terminate()` method
+- `packages/runtime/src/framework/runtime-worker-client.ts` — `cleanup()` + `terminate()`
 - `apps/ui/app/machines/kernel.machine.ts` — `destroyWorkers` action, `initKernelActor`, `renderActor`
 
 ### 2. File Manager Worker
@@ -154,14 +154,14 @@ Component unmount
 
 ### 6. Kernel Model View Worker (Docs)
 
-| Property           | Value                                                         |
-| ------------------ | ------------------------------------------------------------- |
-| **Creation**       | `createKernelClient()` inside `IntersectionObserver` callback |
-| **Entry module**   | Same kernel-runtime-worker                                    |
-| **Size**           | 120+ MB                                                       |
-| **Termination**    | `clientRef.current?.terminate()` in `useEffect` cleanup       |
-| **Owner**          | `kernel-model-view.tsx` component via `useRef`                |
-| **Expected count** | 0-N (one per visible model in docs)                           |
+| Property           | Value                                                          |
+| ------------------ | -------------------------------------------------------------- |
+| **Creation**       | `createRuntimeClient()` inside `IntersectionObserver` callback |
+| **Entry module**   | Same kernel-runtime-worker                                     |
+| **Size**           | 120+ MB                                                        |
+| **Termination**    | `clientRef.current?.terminate()` in `useEffect` cleanup        |
+| **Owner**          | `kernel-model-view.tsx` component via `useRef`                 |
+| **Expected count** | 0-N (one per visible model in docs)                            |
 
 **Risk**: Race condition between `IntersectionObserver` triggering creation and component unmount. If the component unmounts while `initializeAndRender` is in-flight, the worker may be created after the cleanup ran.
 
@@ -181,7 +181,7 @@ CadPreviewProvider mount / BuildProvider mount
     → cadMachine spawns kernelMachine as kernelRef
       → kernelMachine starts in 'initializing'
         → 'initializeKernel' event → 'connectingKernel' state
-          → invoke: initKernelActor (creates KernelClient + Worker)
+          → invoke: initKernelActor (creates RuntimeClient + Worker)
             → onDone → 'ready' state
               → 'createGeometry' event → 'rendering' state
                 → invoke: renderActor (AbortSignal-cancellable)
@@ -233,7 +233,7 @@ ProjectCard → toggle preview ON
     → CadPreviewProvider mounts
       → cadRef = useActorRef(cadMachine)
       → cadPreviewMachine orchestrates file writing + kernel init
-        → kernel worker created
+        → runtime worker created
 
 ProjectCard → toggle preview OFF
   → setVisible(false) (CadPreviewProvider stays mounted due to activated state)
@@ -242,7 +242,7 @@ ProjectCard → toggle preview OFF
 Page navigation away from project grid
   → ProjectCard unmounts
     → CadPreviewProvider unmounts (if activated)
-      → useActorRef cleanup → cadRef.stop() → kernel worker terminated (SHOULD work)
+      → useActorRef cleanup → cadRef.stop() → runtime worker terminated (SHOULD work)
 ```
 
 ---
@@ -257,13 +257,13 @@ BuildProvider (useActorRef)
        ├─ compilationUnits: Map<string, cadMachine> (spawned)
        │   └─ cadMachine
        │       └─ kernelMachine (spawned)
-       │           └─ KernelClient → Web Worker (manual lifecycle)
+       │           └─ RuntimeClient → Web Worker (manual lifecycle)
        └─ viewGraphics: Map<string, graphicsMachine> (spawned)
 
 CadPreviewProvider (useActorRef)
   ├─ cadMachine (standalone, NOT spawned by buildMachine)
   │   └─ kernelMachine (spawned)
-  │       └─ KernelClient → Web Worker
+  │       └─ RuntimeClient → Web Worker
   ├─ graphicsMachine (standalone)
   └─ cadPreviewMachine (standalone, sends events to cadRef)
 
@@ -406,7 +406,7 @@ Observed memory distribution from a typical session with preview usage:
 
 The kernel runtime workers dominate memory consumption due to WASM heap allocations (OpenCASCADE, esbuild). Each worker maintains its own V8 isolate (~1.5 MB baseline) plus the WASM linear memory (up to 256 MB for OpenCASCADE).
 
-**Mobile impact**: On iOS Safari, total page memory is limited to ~100-300 MB depending on device. A single kernel worker at 120 MB is already near the limit. Multiple workers will cause tab crashes.
+**Mobile impact**: On iOS Safari, total page memory is limited to ~100-300 MB depending on device. A single runtime worker at 120 MB is already near the limit. Multiple workers will cause tab crashes.
 
 ---
 

@@ -1,12 +1,12 @@
 // @vitest-environment node
 /**
  * Tests for GeometryAnalysisService using real GLB data generated
- * by the replicad kernel via createKernelClient + createInProcessTransport.
+ * by the replicad kernel via createRuntimeClient + createInProcessTransport.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 import { createInProcessTransport } from '@taucad/runtime/transport';
 import { replicad } from '@taucad/runtime/kernels';
 import { esbuild } from '@taucad/runtime/bundler';
@@ -18,7 +18,7 @@ import { GeometryAnalysisService } from '#api/analysis/geometry-analysis.service
 // =============================================================================
 
 async function renderGlb(filename: string, code: string): Promise<Uint8Array<ArrayBuffer>> {
-  const client = createKernelClient({
+  const client = createRuntimeClient({
     kernels: [replicad()],
     bundlers: [esbuild()],
     transport: createInProcessTransport(),

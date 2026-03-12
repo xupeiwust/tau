@@ -51,7 +51,7 @@ flowchart TB
     end
 
     subgraph kernelWorker ["Kernel Worker"]
-        KFS["KernelFileSystem"]
+        KFS["RuntimeFileSystem"]
         GeoCache["Geometry Cache"]
         ParamCache["Parameter Cache"]
         Bundler["esbuild Bundler"]
@@ -61,7 +61,7 @@ flowchart TB
     Hook --> Machine
     Machine -->|"createBridgeProxy&lt;FileManagerProtocol&gt;"| Bridge
     Monaco -->|"via Hook"| Machine
-    KernelMachine -->|"createBridgeProxy&lt;KernelFileSystemBase&gt;"| Bridge
+    KernelMachine -->|"createBridgeProxy&lt;RuntimeFileSystemBase&gt;"| Bridge
 
     Bridge --> FileService
     FileService --> WriteQueue
@@ -79,12 +79,12 @@ flowchart TB
 
 ### 2.2 Core design decisions
 
-**Single worker, multiple ports.** One file manager worker serves all consumers. Each consumer (main thread, kernel worker) gets its own MessagePort via `createFileSystemBridge` → `MessageChannel` → `createBridgeProxy`. The worker maintains a single ZenFS instance and serialization queue, eliminating cross-worker corruption.
+**Single worker, multiple ports.** One file manager worker serves all consumers. Each consumer (main thread, runtime worker) gets its own MessagePort via `createFileSystemBridge` → `MessageChannel` → `createBridgeProxy`. The worker maintains a single ZenFS instance and serialization queue, eliminating cross-worker corruption.
 
 **Unified bridge, narrowed types (ISP).** Both the main thread and kernel workers use the exact same bridge mechanism (`createBridgeProxy` over `MessagePort`). The only difference is the TypeScript type parameter:
 
 - Main thread: `createBridgeProxy<FileManagerProtocol>` — full API (reconfigure, diagnostics, higher-level ops)
-- Kernel worker: `createBridgeProxy<KernelFileSystemBase>` — 11 base primitives only
+- Kernel worker: `createBridgeProxy<RuntimeFileSystemBase>` — 11 base primitives only
 
 Both talk to the same worker, same `fileManager` object, same bridge server. The kernel's narrower type enforces ISP — kernels cannot call `reconfigure()` or `getZippedDirectory()` even though the underlying handler would accept it.
 
@@ -271,7 +271,7 @@ type FileSystemProvider = {
 
 ### 3.5 Layer 5: Kernel Filesystem
 
-Kernel workers access the filesystem via their own `MessagePort` to the file manager worker, using **the same bridge mechanism** as the main thread (`createFileSystemBridge` → `MessageChannel` → `createBridgeProxy<KernelFileSystemBase>`). The `KernelFileSystemBase` interface provides 11 primitives plus batch helpers — a deliberate narrowing of the full `FileManagerProtocol` per ISP.
+Kernel workers access the filesystem via their own `MessagePort` to the file manager worker, using **the same bridge mechanism** as the main thread (`createFileSystemBridge` → `MessageChannel` → `createBridgeProxy<RuntimeFileSystemBase>`). The `RuntimeFileSystemBase` interface provides 11 primitives plus batch helpers — a deliberate narrowing of the full `FileManagerProtocol` per ISP.
 
 ```mermaid
 flowchart LR
@@ -283,7 +283,7 @@ flowchart LR
     end
 
     subgraph bridge ["MessagePort Bridge"]
-        KFS["KernelFileSystem Proxy"]
+        KFS["RuntimeFileSystem Proxy"]
     end
 
     subgraph fmWorker ["File Manager Worker"]
@@ -347,7 +347,7 @@ sequenceDiagram
 sequenceDiagram
     participant CAD as CAD Machine
     participant Kernel as Kernel Worker
-    participant KFS as KernelFileSystem (port)
+    participant KFS as RuntimeFileSystem (port)
     participant FMW as FM Worker
     participant ZenFS as ZenFS
 
@@ -570,7 +570,7 @@ flowchart TB
     end
 
     subgraph kernelWorker ["Kernel Worker (Current)"]
-        KFS["createBridgeProxy (KernelFileSystemBase)"]
+        KFS["createBridgeProxy (RuntimeFileSystemBase)"]
     end
 
     Hook -->|"proxy"| Expose
@@ -771,7 +771,7 @@ Components to build in sequence, each delivering incremental value. Each phase c
 | Lazy tree loading                        | O(1) initial load vs O(n) full traversal                                                                                       | Virtual scrolling with eager load (still loads all data)                                    |
 | Provider abstraction (target)            | Clean separation, testability, future backend extensibility                                                                    | Monolithic fileManager (current, works but rigid)                                           |
 | Promise-based RPC (`await`)              | FS ops are one-shot request/response; matches VS Code `channel.call()`                                                         | Event-driven fire-and-forget (kernel pattern; adds complexity without FS benefit)           |
-| ISP-narrowed proxy types                 | Kernels get 11 primitives via `KernelFileSystemBase`; main thread gets full `FileManagerProtocol`                              | Single shared type (exposes management ops to kernels unnecessarily)                        |
+| ISP-narrowed proxy types                 | Kernels get 11 primitives via `RuntimeFileSystemBase`; main thread gets full `FileManagerProtocol`                             | Single shared type (exposes management ops to kernels unnecessarily)                        |
 | XState for FS orchestration              | Excellent for lifecycle states (create→init→ready→error), backend coordination, and emitting events; poor for unbounded caches | Custom state machine (more code, less tooling), Redux (less structured for async workflows) |
 | Extract `openFiles` from XState          | Machine context is snapshot-serialized; unbounded Maps degrade devtools and memory                                             | Keep in context (current; works but unbounded growth)                                       |
 | Read-only standalone FS instances        | Safe: TOCTOU only affects concurrent writers; stale reads handled by try/catch                                                 | Always use main mount (blocks on write queue for reads)                                     |

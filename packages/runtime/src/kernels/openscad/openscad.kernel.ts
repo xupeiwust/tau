@@ -18,15 +18,15 @@ import type { GeometryGltf, LogLevel } from '@taucad/types';
 import { logLevels, createExportFile } from '@taucad/types/constants';
 import { asBuffer } from '@taucad/utils/file';
 import { joinPath } from '@taucad/utils/path';
-import type { KernelIssue } from '#types/kernel.types.js';
-import type { KernelFileSystem, KernelLogger } from '#types/kernel-worker.types.js';
-import { defineKernel } from '#types/kernel-worker.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
+import type { RuntimeFileSystem, RuntimeLogger } from '#types/runtime-kernel.types.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
 import type { OpenScadParameterExport } from '#kernels/openscad/parse-parameters.js';
 import { processOpenScadParameters, flattenParametersForInjection } from '#kernels/openscad/parse-parameters.js';
 import { convertOffToGltf } from '#utils/off-to-gltf.js';
 import { convertOffToStl } from '#utils/off-to-stl.js';
 import { convertOffTo3mf } from '#utils/off-to-3mf.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 import type { AddErrorFunction, GetFileContentsFunction } from '#kernels/openscad/parse-output.js';
 import { OpenScadStderrParser } from '#kernels/openscad/parse-output.js';
 
@@ -115,8 +115,8 @@ function resolveIncludePath(baseFilePath: string, relativePath: string): string 
 async function getReferencedScadFiles(options: {
   mainFile: string;
   basePath: string;
-  filesystem: KernelFileSystem;
-  logger: KernelLogger;
+  filesystem: RuntimeFileSystem;
+  logger: RuntimeLogger;
 }): Promise<string[]> {
   const { mainFile, basePath, filesystem, logger } = options;
   const visited = new Set<string>();
@@ -174,7 +174,7 @@ function parseLogLevel(message: string): LogLevel {
 }
 
 async function createInstance(options: {
-  logger: KernelLogger;
+  logger: RuntimeLogger;
   addError?: AddErrorFunction;
   getFileContents?: GetFileContentsFunction;
   mainFilePath?: string;
@@ -228,8 +228,8 @@ async function mountFileSystem(
   options: {
     mainFile: string;
     basePath: string;
-    filesystem: KernelFileSystem;
-    logger: KernelLogger;
+    filesystem: RuntimeFileSystem;
+    logger: RuntimeLogger;
     fileContentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>;
     fileContentsCache?: Map<string, string>;
   },
@@ -274,7 +274,7 @@ async function mountFileSystem(
   }
 }
 
-async function mountFonts(instance: OpenSCAD, context: OpenScadContext, logger: KernelLogger): Promise<void> {
+async function mountFonts(instance: OpenSCAD, context: OpenScadContext, logger: RuntimeLogger): Promise<void> {
   try {
     if (context.fontCache.size === 0) {
       logger.debug('Fetching fonts (first time)');
@@ -321,8 +321,8 @@ async function getParametersFromFile(
   filePath: string,
   options: {
     basePath: string;
-    filesystem: KernelFileSystem;
-    logger: KernelLogger;
+    filesystem: RuntimeFileSystem;
+    logger: RuntimeLogger;
     fileContentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>;
     fontCache: Map<string, Uint8Array<ArrayBuffer>>;
   },

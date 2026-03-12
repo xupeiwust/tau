@@ -7,7 +7,7 @@ import type {
   GetDependenciesInput,
   GetParametersInput,
   CreateGeometryInput,
-} from '#types/kernel-worker.types.js';
+} from '#types/runtime-kernel.types.js';
 import { createMockKernelRuntime } from '#testing/kernel-testing.utils.js';
 import tauKernel from '#kernels/tau/tau.kernel.js';
 

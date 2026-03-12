@@ -5,12 +5,12 @@
  * Runs a set of benchmark cases against a kernel, capturing telemetry
  * and computing performance statistics (mean, median, p95, p99, stddev).
  *
- * Uses the public createKernelClient API with createInProcessTransport
+ * Uses the public createRuntimeClient API with createInProcessTransport
  * to dogfood the same API path as production consumers.
  */
 
-import type { PerformanceEntryData } from '#types/kernel-protocol.types.js';
-import { createKernelClient, fromMemoryFS } from '#index.js';
+import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import { createRuntimeClient, fromMemoryFS } from '#index.js';
 import { createInProcessTransport } from '#transport/in-process-transport.js';
 import { replicad } from '#plugins/kernel-factories.js';
 import { esbuild } from '#plugins/bundler-factories.js';
@@ -180,7 +180,7 @@ export async function runBenchmarks(
     const kernelOptions = { ocTracing, wasm };
 
     const fileSystem = fromMemoryFS(absoluteFiles);
-    const client = createKernelClient({
+    const client = createRuntimeClient({
       kernels: [replicad(kernelOptions)],
       bundlers: [esbuild()],
       fileSystem,

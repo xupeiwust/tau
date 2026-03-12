@@ -164,13 +164,13 @@ deep Proxy that satisfies the full interface, auto-stubbing methods with
 import { mock } from 'vitest-mock-extended';
 
 // CORRECT: typed mock with overrides
-const client = mock<KernelClient>({ terminate: vi.fn() });
-const options = mock<KernelClientOptions>();
+const client = mock<RuntimeClient>({ terminate: vi.fn() });
+const options = mock<RuntimeClientOptions>();
 const ref = mock<BuildContext['fileManagerRef']>({ send: vi.fn() });
 
 // INCORRECT: bypasses type system
-const client = {} as unknown as KernelClient;
-const options = {} as unknown as KernelClientOptions;
+const client = {} as unknown as RuntimeClient;
+const options = {} as unknown as RuntimeClientOptions;
 ```
 
 For deeply nested mocks (NestJS services, complex interfaces), use `mockDeep<T>()`:
@@ -309,15 +309,15 @@ CORRECT:
 ```typescript
 import { mock } from 'vitest-mock-extended';
 
-const client = mock<KernelClient>({ terminate: vi.fn() });
-const options = mock<KernelClientOptions>();
+const client = mock<RuntimeClient>({ terminate: vi.fn() });
+const options = mock<RuntimeClientOptions>();
 ```
 
 INCORRECT:
 
 ```typescript
-const client = {} as unknown as KernelClient;
-const options = {} as unknown as KernelClientOptions;
+const client = {} as unknown as RuntimeClient;
+const options = {} as unknown as RuntimeClientOptions;
 ```
 
 ## Summary Checklist

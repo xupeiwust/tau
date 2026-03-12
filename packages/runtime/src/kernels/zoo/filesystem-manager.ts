@@ -1,5 +1,5 @@
 import { joinPath } from '@taucad/utils/path';
-import type { KernelFileSystem } from '#types/kernel-worker.types.js';
+import type { RuntimeFileSystem } from '#types/runtime-kernel.types.js';
 
 /**
  * Stateless adapter that provides filesystem operations to the WASM context.
@@ -7,11 +7,11 @@ import type { KernelFileSystem } from '#types/kernel-worker.types.js';
  */
 export class FileSystemManager {
   /* oxlint-disable-next-line @typescript-eslint/parameter-properties -- parameter properties are non-erasable TypeScript */
-  private readonly filesystem: KernelFileSystem;
+  private readonly filesystem: RuntimeFileSystem;
   /* oxlint-disable-next-line @typescript-eslint/parameter-properties -- parameter properties are non-erasable TypeScript */
   private readonly basePath: string;
 
-  public constructor(filesystem: KernelFileSystem, basePath: string) {
+  public constructor(filesystem: RuntimeFileSystem, basePath: string) {
     this.filesystem = filesystem;
     this.basePath = basePath;
   }

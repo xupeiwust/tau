@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { KernelIssue } from '#types/kernel.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
 import type { GetFileContentsFunction } from '#kernels/openscad/parse-output.js';
 import { parseStderrLine, OpenScadStderrParser } from '#kernels/openscad/parse-output.js';
 

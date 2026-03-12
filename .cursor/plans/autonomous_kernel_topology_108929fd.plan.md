@@ -1,15 +1,15 @@
 ---
 name: Autonomous Kernel Topology
-overview: Transform the kernel worker from a command-driven render slave into an autonomous reactive render service. The filesystem watch infrastructure (completed) provides the foundation; this plan adds worker-internal render scheduling, cooperative WASM abort via SharedArrayBuffer, KernelClient API modernization, and machine consolidation -- eliminating ~900 lines of orchestration code and removing the main thread from the render hot path entirely. Incorporates modern ECMA 2026 performance primitives (GrowableSharedArrayBuffer, Atomics.waitAsync, FinalizationRegistry, ArrayBuffer.transfer, native Set methods, AbortSignal.any/timeout, Promise.withResolvers, Iterator helpers).
+overview: Transform the runtime worker from a command-driven render slave into an autonomous reactive render service. The filesystem watch infrastructure (completed) provides the foundation; this plan adds worker-internal render scheduling, cooperative WASM abort via SharedArrayBuffer, RuntimeClient API modernization, and machine consolidation -- eliminating ~900 lines of orchestration code and removing the main thread from the render hot path entirely. Incorporates modern ECMA 2026 performance primitives (GrowableSharedArrayBuffer, Atomics.waitAsync, FinalizationRegistry, ArrayBuffer.transfer, native Set methods, AbortSignal.any/timeout, Promise.withResolvers, Iterator helpers).
 todos:
   - id: transfer-bugfix
-    content: "Fix export path missing transferables in kernel-worker-dispatcher.ts. Add extractTransferables to exported response (matching the existing render path). Fix: zero-copy transfer for export payloads (~45x speedup for large exports)."
+    content: "Fix export path missing transferables in runtime-worker-dispatcher.ts. Add extractTransferables to exported response (matching the existing render path). Fix: zero-copy transfer for export payloads (~45x speedup for large exports)."
     status: completed
   - id: protocol-evolution
-    content: Add setFile, setParameters commands and stateChanged response to kernel-protocol.types.ts. Add RenderAbortedError. Keep existing commands for backward compat.
+    content: Add setFile, setParameters commands and stateChanged response to runtime-protocol.types.ts. Add RenderAbortedError. Keep existing commands for backward compat.
     status: completed
   - id: abort-channel
-    content: "Allocate GrowableSharedArrayBuffer(16, { maxByteLength: 64 }) in KernelWorkerClient. Layout: bytes 0-3 abort generation (main->worker), bytes 4-7 worker state enum (worker->main), bytes 8-11 progress percent (worker->main), bytes 12-15 render phase (worker->main). Transfer during initialize. Wire Atomics.store into setFile/setParameters. Wire Atomics.waitAsync on main thread for state monitoring."
+    content: "Allocate GrowableSharedArrayBuffer(16, { maxByteLength: 64 }) in RuntimeWorkerClient. Layout: bytes 0-3 abort generation (main->worker), bytes 4-7 worker state enum (worker->main), bytes 8-11 progress percent (worker->main), bytes 12-15 render phase (worker->main). Transfer during initialize. Wire Atomics.store into setFile/setParameters. Wire Atomics.waitAsync on main thread for state monitoring."
     status: completed
   - id: oc-proxy-abort
     content: Add Atomics.load abort check to oc-tracing.ts Proxy wrappers (wrapOcForExceptions, wrapOcWithTracing, createEmscriptenWrapper). Add setAbortContext/clearAbortContext.
@@ -18,7 +18,7 @@ todos:
     content: "Implement worker-internal render loop: handleSetFile, handleSetParameters, scheduleRender, executeRender with generation counter, async boundary abort checks, scheduler.yield() with Safari fallback between phases. Use AbortSignal.any() + AbortSignal.timeout() for cooperative cancellation. Use Set.difference() for watch subscription diffing. Add FinalizationRegistry safety net for WASM native handles. Use ArrayBuffer.transfer() for explicit buffer ownership."
     status: completed
   - id: kernel-client-api
-    content: Add setFile(), setParameters() to KernelWorkerClient and KernelClient with Atomics.store before postMessage. Add event emitter pattern. Handle stateChanged via Atomics.waitAsync. Use Promise.withResolvers() for inline-mode response correlation.
+    content: Add setFile(), setParameters() to RuntimeWorkerClient and RuntimeClient with Atomics.store before postMessage. Add event emitter pattern. Handle stateChanged via Atomics.waitAsync. Use Promise.withResolvers() for inline-mode response correlation.
     status: completed
   - id: machine-consolidation
     content: Rewrite cadMachine to 4-state display machine (~150 lines). Delete kernel.machine.ts. Update use-build.tsx and use-cad-preview.tsx for new API.
@@ -49,7 +49,7 @@ All 15 todos verified in codebase. Key infrastructure in place:
 
 **One deviation**: `fileChanged` command retained in protocol for inline code mode -- this is correct and intentional.
 
-### Gap to Target (kernel-topology.md)
+### Gap to Target (runtime-topology.md)
 
 ```mermaid
 flowchart LR
@@ -112,7 +112,7 @@ Watch events originate from the file manager worker, not the main thread. They a
 
 ### 3. Inline code mode coexistence
 
-The inline code path (`KernelClient.render({ code })`) uses an in-memory FS and explicit `notifyFileChanged`. This path must continue working. The solution: keep `render()` on `KernelClient` for inline mode, add `setFile()`/`setParameters()` for filesystem mode. The worker dispatcher handles both command shapes.
+The inline code path (`RuntimeClient.render({ code })`) uses an in-memory FS and explicit `notifyFileChanged`. This path must continue working. The solution: keep `render()` on `RuntimeClient` for inline mode, add `setFile()`/`setParameters()` for filesystem mode. The worker dispatcher handles both command shapes.
 
 ### 4. OpenSCAD abort gap
 
@@ -124,7 +124,7 @@ If export is requested while a render is in-progress, the worker should either: 
 
 ### 6. Multiple compilation units with overlapping dependencies
 
-Each compilation unit has its own cadMachine + kernel worker. Overlapping file watches are deduplicated by `WatchRegistry` at the FileService level. A single file edit fires one watch event to the FileService, which fans out to all matching subscriptions. Each kernel worker independently debounces and re-renders. This is correct and efficient.
+Each compilation unit has its own cadMachine + runtime worker. Overlapping file watches are deduplicated by `WatchRegistry` at the FileService level. A single file edit fires one watch event to the FileService, which fans out to all matching subscriptions. Each runtime worker independently debounces and re-renders. This is correct and efficient.
 
 ### 7. `scheduler.yield()` for worker responsiveness
 
@@ -157,7 +157,7 @@ Geometry data (large payloads) still uses postMessage with transfer list -- Atom
 
 ### 9. Export transfer bug (pre-existing)
 
-The render path in [kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts) correctly transfers geometry `ArrayBuffer`s via `extractGltfTransferables()`. The export path does NOT -- export payloads (`ExportFile[]` with `bytes: Uint8Array`) are structured-cloned. For a 30MB STEP file, this is ~302ms clone vs ~6.6ms transfer (45x penalty). Must be fixed.
+The render path in [runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts) correctly transfers geometry `ArrayBuffer`s via `extractGltfTransferables()`. The export path does NOT -- export payloads (`ExportFile[]` with `bytes: Uint8Array`) are structured-cloned. For a 30MB STEP file, this is ~302ms clone vs ~6.6ms transfer (45x penalty). Must be fixed.
 
 ### 10. FinalizationRegistry for WASM handle safety
 
@@ -187,7 +187,7 @@ Not yet available (Safari missing): `using`/`await using` (explicit resource man
 
 ### Phase 0: Export Transfer Bugfix (independent, do first)
 
-**[kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts):**
+**[runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts):**
 
 The render path correctly uses `extractGltfTransferables()` to transfer geometry `ArrayBuffer`s. The export path does NOT -- export payloads (`ExportFile[]` with `bytes: Uint8Array`) are structured-cloned. For a 30MB STEP file this is ~302ms clone vs ~6.6ms transfer (45x penalty).
 
@@ -199,17 +199,17 @@ The render path correctly uses `extractGltfTransferables()` to transfer geometry
 
 Add new command/response types alongside existing ones. No behavioral changes yet.
 
-**[kernel-protocol.types.ts](packages/runtime/src/types/kernel-protocol.types.ts):**
+**[runtime-protocol.types.ts](packages/runtime/src/types/runtime-protocol.types.ts):**
 
 - Add `SetFileCommand = { type: 'setFile'; file: GeometryFile; parameters: Record<string, unknown>; tessellation?: Tessellation }`
 - Add `SetParametersCommand = { type: 'setParameters'; parameters: Record<string, unknown> }`
 - Add `StateChangedResponse = { type: 'stateChanged'; state: 'idle' | 'rendering' | 'error'; detail?: string }`
-- Add `RenderAbortedError` class to [kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts)
+- Add `RenderAbortedError` class to [runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts)
 - Keep existing `render`, `cancel`, `fileChanged` commands for backward compatibility during migration
 
 ### Phase 2: GrowableSharedArrayBuffer Bidirectional Channel
 
-**[kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts):**
+**[runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts):**
 
 - Allocate `GrowableSharedArrayBuffer`:
 
@@ -232,7 +232,7 @@ const signalView = new Int32Array(signalBuffer);
 - Add `incrementGeneration()` method: `Atomics.store(signalView, 0, ++generation)`
 - Add `monitorWorkerState()` using `Atomics.waitAsync(signalView, 1, currentState)` -- resolves when worker writes a new state, re-arms automatically. Falls back to polling via `stateChanged` postMessage if `Atomics.waitAsync` is unavailable.
 
-**[kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts):**
+**[runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts):**
 
 - Receive `signalBuffer` from `initialize` command
 - Create `Int32Array` view, pass to `KernelWorker` constructor/init
@@ -330,15 +330,15 @@ const yieldToEventLoop = globalThis.scheduler?.yield
 - Call `scheduleRender(500)` instead of `onFilesChanged`
 - Still push `filesChanged` response for backward compat during migration
 
-**[kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts):**
+**[runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts):**
 
 - Handle `setFile` -> `worker.handleSetFile()`
 - Handle `setParameters` -> `worker.handleSetParameters()`
 - Results pushed via callbacks (not request/response): `onGeometryComputed`, `onStateChanged`, `onParametersResolved`, `onProgress`, `onError`
 
-### Phase 5: KernelClient API Modernization
+### Phase 5: RuntimeClient API Modernization
 
-**[kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts):**
+**[runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts):**
 
 - Add `setFile(file, params, tessellation?)`:
   - `Atomics.store(signalView, 0, ++generation)` (abort in-flight render instantly)
@@ -375,7 +375,7 @@ return promise;
 
 - Keep `render()` for inline code mode backward compat
 
-**[kernel-client.ts](packages/runtime/src/client/kernel-client.ts):**
+**[kernel-client.ts](packages/runtime/src/client/runtime-client.ts):**
 
 - Add `setFile()` and `setParameters()` methods that delegate to the worker client
 - Keep `render()` for inline code mode
@@ -389,7 +389,7 @@ return promise;
 states: connecting | idle | rendering | error
 ```
 
-- `connecting`: Invoke promise actor that creates `KernelClient`, creates filesystem bridge, connects, subscribes to events, returns `{ client, cleanups }`
+- `connecting`: Invoke promise actor that creates `RuntimeClient`, creates filesystem bridge, connects, subscribes to events, returns `{ client, cleanups }`
 - `idle`: Waiting. On `setFile` -> `client.setFile()` (no state change until `stateChanged('rendering')` arrives). On `setParameters` -> `client.setParameters()`. On `exportGeometry` -> `client.export()`.
 - `rendering`: Display state only. Reflects `stateChanged('rendering')` from worker (via `Atomics.waitAsync` or postMessage fallback). On `geometryComputed` -> update context + transition to `idle`. On `setFile`/`setParameters` -> forward to client (worker handles abort internally).
 - `error`: Reflects `stateChanged('error')` or `error` event. Recovery via `setFile`.
@@ -418,12 +418,12 @@ states: connecting | idle | rendering | error
 - Remove `createGeometry` action
 - Remove `kernelFilesChanged` event (worker debounces internally; no main-thread relay)
 - Remove `renderTimeout` timer from cadMachine (replaced by `AbortSignal.timeout()` in worker)
-- Clean up `KernelWorkerClient.render()` to only be used for inline code mode
+- Clean up `RuntimeWorkerClient.render()` to only be used for inline code mode
 - Remove old `pendingRender` promise tracking for filesystem mode (replaced by `Promise.withResolvers` pattern)
 
 ### Phase 8: Tests
 
-**Unit tests (new file: `kernel-render-loop.test.ts`):**
+**Unit tests (new file: `runtime-render-loop.test.ts`):**
 
 - Worker `handleSetFile` -> immediate render -> `geometryComputed` pushed
 - Worker `handleSetParameters` -> 50ms debounce -> render
@@ -548,7 +548,7 @@ flowchart TD
 
 ## Risk Assessment
 
-- **Inline code mode regression**: Mitigated by keeping `render()` method on KernelClient for inline mode. Filesystem mode uses `setFile()`/`setParameters()`.
+- **Inline code mode regression**: Mitigated by keeping `render()` method on RuntimeClient for inline mode. Filesystem mode uses `setFile()`/`setParameters()`.
 - **OpenSCAD uninterruptible render**: Mitigated by generation counter (correctness guaranteed, UX suboptimal). JSPI is the long-term fix.
 - **SharedArrayBuffer COOP/COEP**: Already required for OpenCASCADE pthreads. No new requirements. GrowableSharedArrayBuffer inherits the same COOP/COEP requirement.
 - **cadMachine rewrite scope**: Large but mechanical. The new machine is dramatically simpler (4 states vs 7, ~150 lines vs ~761).

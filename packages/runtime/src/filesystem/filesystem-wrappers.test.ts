@@ -5,8 +5,8 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { fromMemoryFS } from '#filesystem/from-memory-fs.js';
-import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
-import { createBridgeProxy } from '#framework/kernel-filesystem-bridge.js';
+import type { RuntimeFileSystemBase } from '#types/runtime-kernel.types.js';
+import { createBridgeProxy } from '#framework/runtime-filesystem-bridge.js';
 import { exposeFileSystem, createFileSystemBridge } from '#filesystem/filesystem-bridge.js';
 
 describe('filesystem high-level wrappers', () => {
@@ -25,7 +25,7 @@ describe('filesystem high-level wrappers', () => {
       activeHandle = exposeFileSystem(fs);
 
       const channel = new MessageChannel();
-      const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
+      const proxy = createBridgeProxy<RuntimeFileSystemBase>(channel.port2);
 
       self.dispatchEvent(
         new MessageEvent('message', {
@@ -46,7 +46,7 @@ describe('filesystem high-level wrappers', () => {
       const fs = fromMemoryFS({ '/early.txt': 'buffered' });
 
       const channel = new MessageChannel();
-      const proxy = createBridgeProxy<KernelFileSystemBase>(channel.port2);
+      const proxy = createBridgeProxy<RuntimeFileSystemBase>(channel.port2);
 
       // Send a request BEFORE exposeFileSystem processes the connect message.
       // The proxy sends immediately on port2; port1 isn't served yet.
@@ -113,7 +113,7 @@ describe('filesystem high-level wrappers', () => {
 
       // Custom type should work
       const channel2 = new MessageChannel();
-      const proxy2 = createBridgeProxy<KernelFileSystemBase>(channel2.port2);
+      const proxy2 = createBridgeProxy<RuntimeFileSystemBase>(channel2.port2);
 
       self.dispatchEvent(
         new MessageEvent('message', {

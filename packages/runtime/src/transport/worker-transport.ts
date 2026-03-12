@@ -1,18 +1,18 @@
 /**
- * WorkerTransport -- default KernelTransport implementation using Web Workers.
+ * WorkerTransport -- default RuntimeTransport implementation using Web Workers.
  *
  * Internally creates a Worker from the provided URL and wraps its
- * postMessage/addEventListener as a KernelTransport.
+ * postMessage/addEventListener as a RuntimeTransport.
  */
 
-import type { KernelCommand, KernelResponse } from '#types/kernel-protocol.types.js';
-import type { KernelTransport } from '#transport/kernel-transport.js';
+import type { RuntimeCommand, RuntimeResponse } from '#types/runtime-protocol.types.js';
+import type { RuntimeTransport } from '#transport/runtime-transport.js';
 
 /**
- * Create a KernelTransport backed by a Web Worker.
+ * Create a RuntimeTransport backed by a Web Worker.
  *
  * @param workerUrl - URL of the worker module (must be type: 'module')
- * @returns KernelTransport wrapping the Worker's message channel
+ * @returns RuntimeTransport wrapping the Worker's message channel
  *
  * @public
  *
@@ -24,13 +24,13 @@ import type { KernelTransport } from '#transport/kernel-transport.js';
  * transport.onMessage((response) => console.log(response.type));
  * ```
  */
-export function createWorkerTransport(workerUrl: string): KernelTransport & { worker: Worker } {
+export function createWorkerTransport(workerUrl: string): RuntimeTransport & { worker: Worker } {
   const worker = new Worker(workerUrl, { type: 'module' });
 
   return {
     worker,
 
-    send(message: KernelCommand, transferables?: Transferable[]): void {
+    send(message: RuntimeCommand, transferables?: Transferable[]): void {
       if (transferables && transferables.length > 0) {
         worker.postMessage(message, transferables);
       } else {
@@ -38,8 +38,8 @@ export function createWorkerTransport(workerUrl: string): KernelTransport & { wo
       }
     },
 
-    onMessage(handler: (message: KernelResponse) => void): void {
-      worker.addEventListener('message', (event: MessageEvent<KernelResponse>) => {
+    onMessage(handler: (message: RuntimeResponse) => void): void {
+      worker.addEventListener('message', (event: MessageEvent<RuntimeResponse>) => {
         handler(event.data);
       });
     },

@@ -11,8 +11,8 @@
  */
 
 import { joinPath } from '@taucad/utils/path';
-import type { GetParametersResult } from '#types/kernel.types.js';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
+import type { GetParametersResult } from '#types/runtime.types.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 
 /**
  * Get the cache file path for a given cache key.

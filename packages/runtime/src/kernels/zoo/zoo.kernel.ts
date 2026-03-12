@@ -16,11 +16,11 @@ import type { CompilationError } from '@taucad/kcl-wasm-lib/bindings/Compilation
 import { asBuffer } from '@taucad/utils/file';
 import { joinPath } from '@taucad/utils/path';
 import { createExportFile } from '@taucad/types/constants';
-import type { KernelErrorResult, KernelIssue } from '#types/kernel.types.js';
-import type { KernelFileSystem, KernelLogger } from '#types/kernel-worker.types.js';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import type { KernelErrorResult, KernelIssue } from '#types/runtime.types.js';
+import type { RuntimeFileSystem, RuntimeLogger } from '#types/runtime-kernel.types.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 import { KclUtilities } from '#kernels/zoo/kcl-utils.js';
 import { isKclError } from '#kernels/zoo/kcl-errors.js';
 import { convertKclErrorToKernelIssue, mapErrorToKclError } from '#kernels/zoo/error-mappers.js';
@@ -88,7 +88,7 @@ function handleError(error: unknown, code?: string, fileName?: string): KernelEr
   return convertKclErrorToKernelIssue(mappedError, code, fileName);
 }
 
-function logKernelIssues(errors: KernelIssue[], logger: KernelLogger): void {
+function logKernelIssues(errors: KernelIssue[], logger: RuntimeLogger): void {
   for (const kernelIssue of errors) {
     logger.error(kernelIssue.message);
   }
@@ -101,7 +101,7 @@ function logKernelIssues(errors: KernelIssue[], logger: KernelLogger): void {
 function ensureFileSystemManager(
   context: ZooContext,
   basePath: string,
-  filesystem: KernelFileSystem,
+  filesystem: RuntimeFileSystem,
 ): FileSystemManager {
   context.fileSystemManager = new FileSystemManager(filesystem, basePath);
   return context.fileSystemManager;
@@ -123,7 +123,7 @@ function getKclUtilitiesInstance(context: ZooContext): KclUtilities {
   return context.kclUtils;
 }
 
-async function getKclUtils(context: ZooContext, tracer?: KernelSpanTracer): Promise<KclUtilities> {
+async function getKclUtils(context: ZooContext, tracer?: RuntimeSpanTracer): Promise<KclUtilities> {
   const utils = getKclUtilitiesInstance(context);
   await utils.initializeWasm(tracer);
   return utils;

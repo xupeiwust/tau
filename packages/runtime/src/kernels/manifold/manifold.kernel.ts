@@ -12,10 +12,10 @@ import { createExportFile } from '@taucad/types/constants';
 import { asBuffer } from '@taucad/utils/file';
 import { jsonSchemaFromJson } from '@taucad/utils/schema';
 import { z } from 'zod';
-import type { KernelIssue } from '#types/kernel.types.js';
-import type { KernelRuntime } from '#types/kernel-worker.types.js';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import type { KernelIssue } from '#types/runtime.types.js';
+import type { KernelRuntime } from '#types/runtime-kernel.types.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 import { initManifoldWasm } from '#kernels/manifold/init-manifold.js';
 import { parseStackTrace, resolveSourcePath, deriveLocationFromFrames } from '#framework/error-enrichment.js';
 

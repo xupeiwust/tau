@@ -6,10 +6,10 @@ todos:
     content: "Update docs/policy/filesystem-policy.md with watcher best practices (Rule 18-21): watch API design, dependency-driven watching, server-side filtering, lifecycle management"
     status: pending
   - id: arch-doc
-    content: "Create docs/architecture/kernel-editor.md documenting the reactive kernel-filesystem integration, watch-based dependency graph, incremental tree model, and compilation unit lifecycle"
+    content: "Create docs/architecture/runtime-editor.md documenting the reactive kernel-filesystem integration, watch-based dependency graph, incremental tree model, and compilation unit lifecycle"
     status: pending
   - id: watch-api
-    content: "Implement first-class watch() API: FileService.watch(paths, handler), bridge watch/unwatch protocol, proxy.watch() on KernelFileSystemBase and FileManagerProtocol"
+    content: "Implement first-class watch() API: FileService.watch(paths, handler), bridge watch/unwatch protocol, proxy.watch() on RuntimeFileSystemBase and FileManagerProtocol"
     status: pending
   - id: kernel-reactive
     content: "Kernel reactive rendering: worker watches dependency graph after first render, auto-invalidates caches on change, sends filesChanged to main thread, updates watch set on dependency changes; remove use-build.tsx relay and notifyFileChanged command"
@@ -66,7 +66,7 @@ sequenceDiagram
     participant UseBuild as use-build.tsx
     participant CadMachine
     participant KernelMachine
-    participant KernelClient
+    participant RuntimeClient
     participant KernelWorker
 
     Editor->>Editor: writeFile()
@@ -74,9 +74,9 @@ sequenceDiagram
     UseBuild->>CadMachine: setFile + changedPath (for EACH compilation unit)
     Note over CadMachine: debounce 500ms
     CadMachine->>KernelMachine: createGeometry + changedPaths
-    KernelMachine->>KernelClient: render(file, params, changedPaths)
-    KernelClient->>KernelWorker: notifyFileChanged(paths) command
-    KernelClient->>KernelWorker: render command
+    KernelMachine->>RuntimeClient: render(file, params, changedPaths)
+    RuntimeClient->>KernelWorker: notifyFileChanged(paths) command
+    RuntimeClient->>KernelWorker: render command
     KernelWorker->>KernelWorker: invalidate caches (only now)
 ```
 
@@ -99,7 +99,7 @@ sequenceDiagram
     CadMachine->>KernelWorker: render command (no changedPaths needed)
 ```
 
-The kernel worker is **directly wired to the filesystem**. No main thread involvement in the change detection path.
+The runtime worker is **directly wired to the filesystem**. No main thread involvement in the change detection path.
 
 ---
 
@@ -114,7 +114,7 @@ Each kernel already knows its dependencies. The watch set is derived from these:
 | KCL/Zoo | KCL AST import resolution | `discoverKclDependencies()` result paths |
 | Tau (converter) | Main file + siblings | `[filePath]` + `readdir(directory)` entries |
 
-After each render, the kernel worker knows exactly which files it depends on. It watches those paths. When a watched file changes, caches are invalidated and the main thread is notified to trigger a re-render.
+After each render, the runtime worker knows exactly which files it depends on. It watches those paths. When a watched file changes, caches are invalidated and the main thread is notified to trigger a re-render.
 
 ---
 
@@ -165,11 +165,11 @@ Document `FileSystemObserver` (Chrome 133+, Edge 133+) as the future replacement
 
 ## Todo 2: Architecture Document
 
-Create [`docs/architecture/kernel-editor.md`](docs/architecture/kernel-editor.md) documenting:
+Create [`docs/architecture/runtime-editor.md`](docs/architecture/runtime-editor.md) documenting:
 
 1. **System overview**: Editor, filesystem worker, kernel workers as a reactive system
 2. **Watch-based dependency graph**: How kernels discover deps, set watches, react to changes
-3. **Event pipeline**: `FileService.watch()` -> ChangeEventBus -> bridge event -> kernel worker
+3. **Event pipeline**: `FileService.watch()` -> ChangeEventBus -> bridge event -> runtime worker
 4. **Kernel rendering lifecycle**: init -> first render -> resolve deps -> watch deps -> file change -> invalidate -> re-render -> update watch set
 5. **Incremental tree model**: Per-directory cache, on-demand loading, push updates
 6. **Compilation unit lifecycle**: How builds manage multiple entry files and their kernel workers
@@ -227,7 +227,7 @@ export type WatchEvent =
 
 ### 3b. Bridge watch/unwatch protocol
 
-Extend the wire schema in [`kernel-filesystem-bridge.ts`](packages/runtime/src/framework/kernel-filesystem-bridge.ts):
+Extend the wire schema in [`runtime-filesystem-bridge.ts`](packages/runtime/src/framework/runtime-filesystem-bridge.ts):
 
 ```typescript
 type BridgeWatch = { type: 'watch'; watchId: string; paths: string[] };
@@ -262,12 +262,12 @@ async watch(paths: string[], handler: (event: WatchEvent) => void): Promise<() =
 }
 ```
 
-### 3c. Add `watch` to `KernelFileSystemBase`
+### 3c. Add `watch` to `RuntimeFileSystemBase`
 
-Update [`kernel-worker.types.ts`](packages/runtime/src/types/kernel-worker.types.ts) to include `watch`:
+Update [`runtime-kernel.types.ts`](packages/runtime/src/types/runtime-kernel.types.ts) to include `watch`:
 
 ```typescript
-export type KernelFileSystemBase = {
+export type RuntimeFileSystemBase = {
   // ... existing 11 primitives ...
 
   /** Watch paths for changes. Returns unsubscribe function. */
@@ -324,13 +324,13 @@ Call `updateWatchSet()` after every successful render with the resolved dependen
 
 ### 4b. Kernel protocol: `filesChanged` response
 
-Add to `KernelResponse` in [`kernel-protocol.types.ts`](packages/runtime/src/types/kernel-protocol.types.ts):
+Add to `RuntimeResponse` in [`runtime-protocol.types.ts`](packages/runtime/src/types/runtime-protocol.types.ts):
 
 ```typescript
 | { type: 'filesChanged'; paths: string[] }
 ```
 
-The `onFilesChangedCallback` is passed via `initialize()` input (following the `onLog` pattern). In [`kernel-worker-dispatcher.ts`](packages/runtime/src/framework/kernel-worker-dispatcher.ts):
+The `onFilesChangedCallback` is passed via `initialize()` input (following the `onLog` pattern). In [`runtime-worker-dispatcher.ts`](packages/runtime/src/framework/runtime-worker-dispatcher.ts):
 
 ```typescript
 const onFilesChanged = (paths: string[]) => {
@@ -338,9 +338,9 @@ const onFilesChanged = (paths: string[]) => {
 };
 ```
 
-### 4c. KernelClient and machine handling
+### 4c. RuntimeClient and machine handling
 
-In [`kernel-worker-client.ts`](packages/runtime/src/framework/kernel-worker-client.ts), handle `filesChanged`:
+In [`runtime-worker-client.ts`](packages/runtime/src/framework/runtime-worker-client.ts), handle `filesChanged`:
 
 ```typescript
 case 'filesChanged':
@@ -373,7 +373,7 @@ kernelFilesChanged: {
 - **Remove** `use-build.tsx` `useEffect` (lines 148-167) that forwards `fileWritten` to compilation units
 - **Remove** `notifyFileChanged(changedPaths)` call in `kernel-client.ts` render path (lines 462-464) -- caches are now invalidated reactively by the watch handler
 - **Remove** `changedPaths` from `createGeometry` event, `renderActor` input, and `CadMachine` context -- no longer needed for cache invalidation
-- **Remove** `fileChanged` command type from `KernelCommand` (replaced by watch)
+- **Remove** `fileChanged` command type from `RuntimeCommand` (replaced by watch)
 
 ---
 
@@ -432,7 +432,7 @@ Import `joinPath`, `normalizePath` from `#utils/path.utils.js`. Move `parentDire
 ## Todo 9: Tests
 
 - **Watch API unit tests** (`file-service.test.ts`): `watch()` fires for matching paths, ignores non-matching, handles rename/delete/reset, unsubscribe works
-- **Bridge watch integration tests** (`kernel-filesystem-bridge-events.test.ts`): Watch registration over MessagePort, event delivery, unwatch cleanup, disconnect cleanup
+- **Bridge watch integration tests** (`runtime-filesystem-bridge-events.test.ts`): Watch registration over MessagePort, event delivery, unwatch cleanup, disconnect cleanup
 - **Kernel watch integration tests**: Worker subscribes to deps, cache invalidation on change, `filesChanged` response sent, watch set updated after re-render
 - **Provider integration tests** (`memory-provider.test.ts`): Full CRUD lifecycle
 - **FileService unit tests** (`file-service.test.ts`): `readDirectory` cache read-through, incremental invalidation
@@ -448,7 +448,7 @@ Import `joinPath`, `normalizePath` from `#utils/path.utils.js`. Move `parentDire
 - Remove `notifyFileChanged` from kernel render path
 - Remove `changedPaths` tracking from `CadMachine` context
 - Remove `use-build.tsx` `fileWritten` -> compilation unit forwarding `useEffect`
-- Remove `fileChanged` command from `KernelCommand` type
+- Remove `fileChanged` command from `RuntimeCommand` type
 - Clean up `eventCleanups: (() => void)[]` in kernel machine -> `DisposableStore` per library-api-policy
 
 ---

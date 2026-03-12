@@ -1,7 +1,7 @@
 // oxlint-disable-next-line @typescript-eslint/triple-slash-reference -- required for emscripten ambient type declaration
 /// <reference types="emscripten" />
 
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { compileWasmStreaming } from '#framework/wasm-loader.js';
 
 /**
@@ -23,7 +23,7 @@ type InitOpenCascadeOptions = {
   /** Handler for C++ `stderr` messages. Defaults to a no-op. */
   printErr?: (text: string) => void;
   /** Optional span tracer for instrumenting compilation and instantiation steps. */
-  tracer?: KernelSpanTracer;
+  tracer?: RuntimeSpanTracer;
 };
 
 const noop = (): void => {

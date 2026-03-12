@@ -14,7 +14,7 @@ import { esbuild } from '#plugins/bundler-factories.js';
 
 /**
  * Client options shape returned by preset functions.
- * Contains the full set of plugins required to configure a kernel client.
+ * Contains the full set of plugins required to configure a runtime client.
  * @public
  */
 export type PresetOptions = {
@@ -40,9 +40,9 @@ export const presets = {
    *
    * @example <caption>Zero-config full setup</caption>
    * ```typescript
-   * import { createKernelClient, presets } from '@taucad/runtime';
+   * import { createRuntimeClient, presets } from '@taucad/runtime';
    *
-   * const client = createKernelClient(presets.all());
+   * const client = createRuntimeClient(presets.all());
    * ```
    */
   all(): PresetOptions {

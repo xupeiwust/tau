@@ -9,10 +9,10 @@
 
 import { importToGlb, exportFromGlb, supportedImportFormats } from '@taucad/converter';
 import type { SupportedImportFormat, SupportedExportFormat, FileResolver } from '@taucad/converter';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import type { KernelFileSystem } from '#types/kernel-worker.types.js';
-import type { KernelIssue } from '#types/kernel.types.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import type { RuntimeFileSystem } from '#types/runtime-kernel.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 
 function getFileExtension(filename: string): string {
   const lastDotIndex = filename.lastIndexOf('.');
@@ -51,7 +51,7 @@ function resolveToRelative(absolutePath: string, basePath: string): string {
  * @param directory - the directory path to pre-load
  * @returns a synchronous file resolver backed by the cached directory contents
  */
-async function createDirectoryResolver(filesystem: KernelFileSystem, directory: string): Promise<FileResolver> {
+async function createDirectoryResolver(filesystem: RuntimeFileSystem, directory: string): Promise<FileResolver> {
   const fileCache = new Map<string, Uint8Array<ArrayBuffer>>();
 
   try {

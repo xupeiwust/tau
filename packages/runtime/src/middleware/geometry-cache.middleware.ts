@@ -21,9 +21,9 @@ import { encode as msgpackEncode, decode as msgpackDecode } from '@msgpack/msgpa
 import type { GeometryResponse } from '@taucad/types';
 import { z } from 'zod';
 import { joinPath } from '@taucad/utils/path';
-import type { KernelFileSystem } from '#types/kernel-worker.types.js';
-import type { KernelSuccessResult } from '#types/kernel.types.js';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
+import type { RuntimeFileSystem } from '#types/runtime-kernel.types.js';
+import type { KernelSuccessResult } from '#types/runtime.types.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 
 /**
  * Cache entry structure for MessagePack serialization.
@@ -126,7 +126,7 @@ async function cleanupOldCacheEntries({
   maxEntries,
 }: {
   /** The filesystem for file operations */
-  filesystem: KernelFileSystem;
+  filesystem: RuntimeFileSystem;
   /** The cache directory path */
   cacheDirectory: string;
   /** Maximum age in milliseconds for cache entries */

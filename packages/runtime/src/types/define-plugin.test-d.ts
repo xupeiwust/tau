@@ -11,13 +11,13 @@
 
 import { describe, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import type { KernelDefinition } from '#types/kernel-worker.types.js';
-import { defineBundler } from '#types/kernel-bundler.types.js';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
-import type { KernelMiddleware } from '#middleware/kernel-middleware.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
-import type { KernelSuccessResult } from '#types/kernel.types.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import type { KernelDefinition } from '#types/runtime-kernel.types.js';
+import { defineBundler } from '#types/runtime-bundler.types.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
+import type { KernelMiddleware } from '#middleware/runtime-middleware.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
+import type { KernelSuccessResult } from '#types/runtime.types.js';
 import { createKernelPlugin, createMiddlewarePlugin, createBundlerPlugin } from '#plugins/plugin-helpers.js';
 import type { KernelPlugin, MiddlewarePlugin, BundlerPlugin } from '#plugins/plugin-types.js';
 

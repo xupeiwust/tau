@@ -10,7 +10,7 @@ import { extractGltfFromResult } from '#testing/kernel-geometry-testing.utils.js
 // Test Utilities
 // =============================================================================
 
-/** Create an OpenScad kernel worker for testing with the provided files. */
+/** Create an OpenScad runtime worker for testing with the provided files. */
 async function createWorker(files: Record<string, string>): ReturnType<typeof createTestWorker> {
   return createTestWorker(openscadKernel, files);
 }

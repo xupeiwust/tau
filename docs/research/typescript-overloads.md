@@ -65,15 +65,15 @@ and `ReturnType<T>` internally. When `T` is an overloaded function:
 3. The mock is NOT structurally assignable to an interface with overloads.
 
 ```typescript
-// KernelFileSystemBase has overloaded readFile:
+// RuntimeFileSystemBase has overloaded readFile:
 //   readFile(path: string, encoding: 'utf8'): Promise<string>;
 //   readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
 
-const mock = vi.fn<KernelFileSystem['readFile']>();
+const mock = vi.fn<RuntimeFileSystem['readFile']>();
 // mock only satisfies: (path: string) => Promise<Uint8Array<ArrayBuffer>>
 // mock does NOT satisfy: (path: string, encoding: 'utf8') => Promise<string>
 
-// Result: `as KernelFileSystem` assertion required.
+// Result: `as RuntimeFileSystem` assertion required.
 ```
 
 ---
@@ -98,7 +98,7 @@ type FileSystem = {
 | Exponential growth risk | ✗ — each new param variant doubles signatures |
 
 **Best for:** Public APIs consumed by humans, where call-site ergonomics
-outweigh generic-utility compat. _(This is our `KernelFileSystemBase` case.)_
+outweigh generic-utility compat. _(This is our `RuntimeFileSystemBase` case.)_
 
 ### 2. Conditional Return Type (generic single signature)
 
@@ -153,7 +153,7 @@ consumed and narrowed by the caller.
 
 ### Keep overloads on the interface
 
-The `KernelFileSystemBase.readFile` overloads provide excellent DX at call sites
+The `RuntimeFileSystemBase.readFile` overloads provide excellent DX at call sites
 across 20+ files in the runtime package. Every usage is either
 `readFile(path, 'utf8')` (expects `string`) or `readFile(path)` (expects `Uint8Array`).
 Replacing overloads with a union return would regress DX in every kernel, middleware,
@@ -177,7 +177,7 @@ async function readFile(path: string, encoding?: 'utf8') {
 
 This wrapper satisfies the overloaded type while the underlying `readFileFn`
 mock remains untyped (accepting any args and returning any value). The wrapper
-IS structurally assignable to `KernelFileSystemBase` because it declares both
+IS structurally assignable to `RuntimeFileSystemBase` because it declares both
 overload signatures.
 
 **Rule:** All test files should use the shared `createMockFileSystem()` utility.
@@ -282,7 +282,7 @@ flows from the caller's input.
 ```typescript
 // ✗ BAD — Mock<Constructable | Procedure> does not satisfy overloaded methods
 type MockFileSystem = {
-  [K in keyof KernelFileSystem]: ReturnType<typeof vi.fn>;
+  [K in keyof RuntimeFileSystem]: ReturnType<typeof vi.fn>;
 };
 ```
 
@@ -290,13 +290,13 @@ type MockFileSystem = {
 that includes a constructor variant. This is never assignable to an overloaded
 function type.
 
-### 2. Inline `as KernelFileSystem` at every call site
+### 2. Inline `as RuntimeFileSystem` at every call site
 
 ```typescript
 // ✗ BAD — assertion scattered across every test file
 const plugin = createVfsPlugin({
-  filesystem: filesystem as KernelFileSystem,
-  moduleManager: new ModuleManager(filesystem as KernelFileSystem),
+  filesystem: filesystem as RuntimeFileSystem,
+  moduleManager: new ModuleManager(filesystem as RuntimeFileSystem),
 });
 ```
 
@@ -304,7 +304,7 @@ const plugin = createVfsPlugin({
 
 ```typescript
 // ✗ BAD — suppresses ALL type checking, hides real bugs
-const fs = mockObj as unknown as KernelFileSystem;
+const fs = mockObj as unknown as RuntimeFileSystem;
 ```
 
 ---
@@ -316,7 +316,7 @@ const fs = mockObj as unknown as KernelFileSystem;
 import { createMockFileSystem } from '#testing/kernel-testing.utils.js';
 
 const filesystem = createMockFileSystem();
-// filesystem satisfies KernelFileSystem ✓
+// filesystem satisfies RuntimeFileSystem ✓
 // filesystem.mocks.readFile gives access to the vi.fn() for assertions ✓
 
 const plugin = createVfsPlugin({

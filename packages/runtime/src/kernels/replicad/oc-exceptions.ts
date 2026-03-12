@@ -10,7 +10,7 @@
 
 import type { OpenCascadeInstance } from 'replicad-opencascadejs/src/replicad_single.js';
 import type { OpenCascadeInstance as OpenCascadeWithExceptions } from 'replicad-opencascadejs/src/replicad_with_exceptions.js';
-import type { KernelIssue, KernelStackFrame, ErrorLocation } from '#types/kernel.types.js';
+import type { KernelIssue, KernelStackFrame, ErrorLocation } from '#types/runtime.types.js';
 import { OcKernelError, formatOcExceptionMessage } from '#kernels/replicad/oc-kernel-error.js';
 
 // =============================================================================

@@ -27,10 +27,10 @@ Use `createX()` factory functions for consumer-facing instances. Keep class inte
 
 ```typescript
 // CORRECT: factory returns an opaque interface
-const client = createKernelClient({ kernels: [replicad()] });
+const client = createRuntimeClient({ kernels: [replicad()] });
 
 // INCORRECT: exposing class constructors
-const client = new KernelWorkerClient(worker, onLog); // leaks implementation
+const client = new RuntimeWorkerClient(worker, onLog); // leaks implementation
 ```
 
 **Why**: Factories allow lazy initialization, hide constructor complexity, and support return-type narrowing without exposing class hierarchies.
@@ -77,7 +77,7 @@ Maximum **3 positional parameters**. Prefer fewer. Each positional parameter mus
 
 ```typescript
 // CORRECT: single object -- self-documenting, easy to extend
-createKernelClient({ kernels: [replicad()], transport: workerTransport });
+createRuntimeClient({ kernels: [replicad()], transport: workerTransport });
 render({ file, parameters, tessellation });
 
 // INCORRECT: positional args for same-concern data
@@ -214,7 +214,7 @@ Each naming prefix signals a specific role:
 
 | Prefix     | Role                            | Examples                                            |
 | ---------- | ------------------------------- | --------------------------------------------------- |
-| `create`\* | Factory function                | `createKernelClient`, `createBridgePort`            |
+| `create`\* | Factory function                | `createRuntimeClient`, `createBridgePort`           |
 | `define*`  | Plugin definition               | `defineKernel`, `defineMiddleware`, `defineBundler` |
 | `is*`      | Type guard                      | `isGeometryFile`, `isKernelPlugin`                  |
 | `from*`    | Conversion constructor          | `fromNodeFS`, `fromMemoryFS`, `fromFsLike`          |
@@ -245,11 +245,11 @@ protected abstract onCreateGeometry(input, runtime): Promise<Result>;
 Organize `package.json` exports by what each audience needs, not by internal file structure.
 
 ```text
-@taucad/runtime                -- createKernelClient, presets, types (consumer)
+@taucad/runtime                -- createRuntimeClient, presets, types (consumer)
 @taucad/runtime/kernel         -- replicad(), openscad() factories (consumer)
 @taucad/runtime/middleware     -- defineMiddleware(), cache factories (author + consumer)
 @taucad/runtime/bundler        -- defineBundler(), esbuild() factory (author + consumer)
-@taucad/runtime/transport      -- KernelTransport, createWorkerTransport (advanced)
+@taucad/runtime/transport      -- RuntimeTransport, createWorkerTransport (advanced)
 @taucad/runtime/testing        -- test utilities (testing)
 ```
 
@@ -317,7 +317,7 @@ export function replicad(options?: ReplicadOptions): KernelPlugin {
 Defer Worker creation, WASM loading, and network connections until first use. The factory call itself should be instant.
 
 ```typescript
-const client = createKernelClient({ ... }); // instant, no Worker created
+const client = createRuntimeClient({ ... }); // instant, no Worker created
 await client.connect({ fileSystem });        // Worker created here
 await client.render({ file, params });        // auto-connects if needed
 ```
@@ -328,7 +328,7 @@ Expose a simple high-level API for 90% of users. Export the lower-level primitiv
 
 ```typescript
 // High-level (most users)
-import { createKernelClient } from '@taucad/runtime';
+import { createRuntimeClient } from '@taucad/runtime';
 
 // Low-level (custom transport authors)
 import { createWorkerTransport } from '@taucad/runtime/transport';
@@ -340,7 +340,7 @@ All methods on a contract interface should be required. If a method is optional,
 
 ```typescript
 // CORRECT: all required, framework builds ensureDirectoryExists internally
-type KernelFileSystem = {
+type RuntimeFileSystem = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   writeFile(path: string, data: string | Uint8Array): Promise<void>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
@@ -348,7 +348,7 @@ type KernelFileSystem = {
 };
 
 // INCORRECT: optional methods that need fallback logic everywhere
-type KernelFileSystem = {
+type RuntimeFileSystem = {
   readFile(path: string): Promise<string>;
   mkdir?(path: string): Promise<void>; // optional = complexity
   ensureDirectoryExists?(path: string): void; // maybe exists, maybe not
@@ -401,9 +401,9 @@ Use `package.json` export conditions for environment-specific code:
 Provide preset configurations that cover common use cases. Let advanced users compose their own.
 
 ```typescript
-import { createKernelClient, presets } from '@taucad/runtime';
+import { createRuntimeClient, presets } from '@taucad/runtime';
 
-const client = createKernelClient(presets.all());
+const client = createRuntimeClient(presets.all());
 ```
 
 ## 16. ES Module Asset Injection
@@ -444,7 +444,7 @@ Error messages should tell the developer what to do, not just what went wrong:
 // CORRECT: actionable
 throw new Error(
   `Kernel "${id}" not found. Available kernels: ${available.join(', ')}. ` +
-    'Make sure you included it in the `kernels` array when calling createKernelClient().',
+    'Make sure you included it in the `kernels` array when calling createRuntimeClient().',
 );
 
 // INCORRECT: describes the problem without guidance

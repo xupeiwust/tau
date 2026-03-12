@@ -3,10 +3,10 @@ name: Filesystem watch-based overhaul
 overview: "Complete the filesystem architecture overhaul with a production-grade watch() API: kernel workers watch their dependency graph directly via the filesystem bridge with dedup/coalescing/overflow semantics, auto-invalidate caches, and trigger re-renders reactively -- eliminating the 6-hop main thread relay chain. Includes incremental tree caching, debounced refresh with overflow/resync, DRY providers following library-api-policy, and exhaustive unit/integration/stress tests for every filesystem capability. Implementation must continue until all todos and validation gates are complete."
 todos:
   - id: policy-arch-docs
-    content: Align docs/policy/filesystem-policy.md (Rules 18-30 already written) and create docs/architecture/kernel-editor.md documenting the reactive kernel-filesystem integration, watch-based dependency graph, event pipeline, incremental tree model, and compilation unit lifecycle
+    content: Align docs/policy/filesystem-policy.md (Rules 18-30 already written) and create docs/architecture/runtime-editor.md documenting the reactive kernel-filesystem integration, watch-based dependency graph, event pipeline, incremental tree model, and compilation unit lifecycle
     status: completed
   - id: watch-contract-types
-    content: Add first-class WatchRequest/WatchEvent types (paths, recursive, includes, excludes, filter, correlationId, reset/overflow events) in filesystem/types.ts, kernel-worker.types.ts, file-manager.machine.types.ts, and kernel-protocol.types.ts
+    content: Add first-class WatchRequest/WatchEvent types (paths, recursive, includes, excludes, filter, correlationId, reset/overflow events) in filesystem/types.ts, runtime-kernel.types.ts, file-manager.machine.types.ts, and runtime-protocol.types.ts
     status: completed
   - id: watch-registry-dedup
     content: Implement worker-side watch registry in FileService with request hashing, ref-counted subscriptions, per-port/session ownership tracking, and cleanup on disconnect/reconfigure
@@ -18,10 +18,10 @@ todos:
     content: Extend bridge wire protocol with watch/unwatch control messages and correlation-aware event delivery; implement proxy.watch() on client side with unsubscribe return; ensure disconnect safety cleans up all watches for that port
     status: completed
   - id: kernel-reactive-watch
-    content: Wire kernel worker direct filesystem watch subscription after render; implement incremental dependency watch-set diffing (add new/remove stale/keep unchanged); invalidate fileHashCache/fileContentCache/bundleResultCache on change; emit filesChanged response; add self-churn exclusions (.tau/cache/**)
+    content: Wire runtime worker direct filesystem watch subscription after render; implement incremental dependency watch-set diffing (add new/remove stale/keep unchanged); invalidate fileHashCache/fileContentCache/bundleResultCache on change; emit filesChanged response; add self-churn exclusions (.tau/cache/**)
     status: completed
   - id: remove-relay-chain
-    content: Remove use-build.tsx fileWritten fanout relay (lines 148-167), notifyFileChanged command in render path, changedPaths from CadMachine context and createGeometry event, fileChanged command type from KernelCommand; add kernelFilesChanged event in cad.machine.ts -> bufferingFile
+    content: Remove use-build.tsx fileWritten fanout relay (lines 148-167), notifyFileChanged command in render path, changedPaths from CadMachine context and createGeometry event, fileChanged command type from RuntimeCommand; add kernelFilesChanged event in cad.machine.ts -> bufferingFile
     status: completed
   - id: incremental-tree
     content: Implement readDirectory(path) read-through on FileService/DirectoryTreeCache; on mutations re-read only parent directory; machine watches build root and patches fileTree incrementally; getDirectoryStat preserved for startup-only hydration; no mutation-triggered full recursive scans
@@ -75,10 +75,10 @@ This is the **Vite pattern adapted for browser-based CAD**: file watcher + depen
 ### Current: 6-hop command relay
 
 ```
-Editor -> use-build.tsx (subscribes fileWritten) -> CadMachine (debounce) -> KernelMachine -> KernelClient.render(changedPaths) -> KernelWorker.notifyFileChanged() -> invalidate caches -> render
+Editor -> use-build.tsx (subscribes fileWritten) -> CadMachine (debounce) -> KernelMachine -> RuntimeClient.render(changedPaths) -> KernelWorker.notifyFileChanged() -> invalidate caches -> render
 ```
 
-`use-build.tsx` manually forwards `fileWritten` events to every compilation unit. `KernelClient` sends a `notifyFileChanged` command before every render. Main thread is heavily involved.
+`use-build.tsx` manually forwards `fileWritten` events to every compilation unit. `RuntimeClient` sends a `notifyFileChanged` command before every render. Main thread is heavily involved.
 
 ### Target: Direct watch with hardened event pipeline
 
@@ -157,7 +157,7 @@ VS Code's `FileService` (repos/vscode) uses battle-tested patterns we adopt:
 
 ### Todo 1: Policy and Architecture Documents
 
-Ensure [docs/policy/filesystem-policy.md](docs/policy/filesystem-policy.md) Rules 18-30 (already written) are complete. Create [docs/architecture/kernel-editor.md](docs/architecture/kernel-editor.md) documenting:
+Ensure [docs/policy/filesystem-policy.md](docs/policy/filesystem-policy.md) Rules 18-30 (already written) are complete. Create [docs/architecture/runtime-editor.md](docs/architecture/runtime-editor.md) documenting:
 
 1. System overview (editor, filesystem worker, kernel workers as reactive system)
 2. Two watch planes (kernel fast path + UI tree path)
@@ -197,9 +197,9 @@ type WatchEvent =
   | { type: 'overflow'; correlationId?: string };
 ```
 
-Add `{ type: 'filesChanged'; paths: string[] }` to `KernelResponse` in [kernel-protocol.types.ts](packages/runtime/src/types/kernel-protocol.types.ts).
+Add `{ type: 'filesChanged'; paths: string[] }` to `RuntimeResponse` in [runtime-protocol.types.ts](packages/runtime/src/types/runtime-protocol.types.ts).
 
-Add `watch` method signature to `KernelFileSystemBase` in [kernel-worker.types.ts](packages/runtime/src/types/kernel-worker.types.ts) and `FileManagerProtocol` in [file-manager.machine.types.ts](apps/ui/app/machines/file-manager.machine.types.ts).
+Add `watch` method signature to `RuntimeFileSystemBase` in [runtime-kernel.types.ts](packages/runtime/src/types/runtime-kernel.types.ts) and `FileManagerProtocol` in [file-manager.machine.types.ts](apps/ui/app/machines/file-manager.machine.types.ts).
 
 ### Todo 3: Watch Registry with Dedup
 
@@ -225,7 +225,7 @@ Worker-side pipeline before delivery:
 
 ### Todo 5: Bridge Watch Protocol
 
-Extend [kernel-filesystem-bridge.ts](packages/runtime/src/framework/kernel-filesystem-bridge.ts) wire protocol:
+Extend [runtime-filesystem-bridge.ts](packages/runtime/src/framework/runtime-filesystem-bridge.ts) wire protocol:
 
 - `{ type: 'watch', watchId, request: WatchRequest }` -- client registers watch
 - `{ type: 'unwatch', watchId }` -- client unregisters
@@ -246,9 +246,9 @@ After `render()` completes, call `updateWatchSet(dependencies)`:
 - Handler: invalidate `fileHashCache`, `fileContentCache`, `bundleResultCache` for changed path; call `onFilesChanged(paths)` callback
 - On `overflow`/`reset` event: clear all dependency caches and set flag for fresh dependency pass on next render
 
-In [kernel-worker-dispatcher.ts](packages/runtime/src/framework/kernel-worker-dispatcher.ts): Pass `onFilesChanged` callback that calls `respond({ type: 'filesChanged', paths })` following existing `log`/`telemetry` fire-and-forget pattern.
+In [runtime-worker-dispatcher.ts](packages/runtime/src/framework/runtime-worker-dispatcher.ts): Pass `onFilesChanged` callback that calls `respond({ type: 'filesChanged', paths })` following existing `log`/`telemetry` fire-and-forget pattern.
 
-In [kernel-worker-client.ts](packages/runtime/src/framework/kernel-worker-client.ts): Handle `filesChanged` response -> emit event.
+In [runtime-worker-client.ts](packages/runtime/src/framework/runtime-worker-client.ts): Handle `filesChanged` response -> emit event.
 
 In [kernel.machine.ts](apps/ui/app/machines/kernel.machine.ts): Subscribe `client.on('filesChanged')` -> send `kernelFilesChanged` to parent.
 
@@ -259,7 +259,7 @@ In [cad.machine.ts](apps/ui/app/machines/cad.machine.ts): Handle `kernelFilesCha
 - Remove `use-build.tsx` lines 148-167 (fileWritten forwarding useEffect)
 - Remove `notifyFileChanged(changedPaths)` command call in kernel-client render path
 - Remove `changedPaths` from CadMachine context and `createGeometry` event type
-- Remove `fileChanged` command type from `KernelCommand` in kernel-protocol.types.ts
+- Remove `fileChanged` command type from `RuntimeCommand` in runtime-protocol.types.ts
 - Verify all compilation unit re-rendering now flows through kernel watch -> `filesChanged` -> `kernelFilesChanged` -> `bufferingFile`
 
 ### Todo 8: Incremental Tree Cache
@@ -279,7 +279,7 @@ Replace dead `scheduleDebouncedRefresh` with XState `raise({ type: 'pollFileSyst
 Implement overflow/resync behavior:
 
 - On `overflow`/`reset` watch event in file manager machine: trigger targeted parent/subtree rescan (not blind full tree)
-- On `overflow`/`reset` in kernel worker: clear dependency caches, request fresh dep pass on next render
+- On `overflow`/`reset` in runtime worker: clear dependency caches, request fresh dep pass on next render
 - No silent event drops allowed -- every drop path must emit an explicit overflow event
 
 ### Todo 10: DRY Providers
@@ -329,7 +329,7 @@ Write unit/integration tests covering **every filesystem capability**:
 - Kernel cache reset/recovery path
 - Tree resync path without silent drops
 
-**Bridge tests** in `kernel-filesystem-bridge.test.ts`:
+**Bridge tests** in `runtime-filesystem-bridge.test.ts`:
 
 - RPC/event interleaving
 - Watch/unwatch routing with correlation

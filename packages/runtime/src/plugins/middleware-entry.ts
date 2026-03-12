@@ -1,5 +1,5 @@
 /* oxlint-disable no-barrel-files/no-barrel-files -- package subpath entry point */
-export { defineMiddleware } from '#middleware/kernel-middleware.js';
+export { defineMiddleware } from '#middleware/runtime-middleware.js';
 export {
   parameterCache,
   geometryCache,

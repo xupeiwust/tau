@@ -9,7 +9,7 @@
  */
 
 import { SourceMapConsumer } from 'source-map-js';
-import type { KernelStackFrame, FrameContext, ErrorLocation } from '#types/kernel.types.js';
+import type { KernelStackFrame, FrameContext, ErrorLocation } from '#types/runtime.types.js';
 import { named } from '#framework/named.js';
 import { vfsNamespacePrefix } from '#bundler/esbuild.constants.js';
 

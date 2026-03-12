@@ -54,14 +54,14 @@ When an object has a meaningful semantic cleanup name, it exposes **both** the s
 
 ```typescript
 // Transport: close() is the semantic API, dispose() adapts
-type KernelTransport = Disposable & {
-  send(message: KernelCommand): void;
-  onMessage(handler: (message: KernelResponse) => void): void;
+type RuntimeTransport = Disposable & {
+  send(message: RuntimeCommand): void;
+  onMessage(handler: (message: RuntimeResponse) => void): void;
   close(): void;
 };
 
 // Implementation: dispose delegates to close
-function createWorkerTransport(worker: Worker): KernelTransport {
+function createWorkerTransport(worker: Worker): RuntimeTransport {
   return {
     send(message) {
       worker.postMessage(message);
@@ -78,8 +78,8 @@ function createWorkerTransport(worker: Worker): KernelTransport {
   };
 }
 
-// KernelClient: terminate() is the semantic API, dispose() adapts
-type KernelClient = Disposable & {
+// RuntimeClient: terminate() is the semantic API, dispose() adapts
+type RuntimeClient = Disposable & {
   render(input: RenderInput): Promise<void>;
   terminate(): void;
 };
@@ -199,12 +199,12 @@ Usage in practice:
 // XState machine context: one store replaces multiple ad-hoc arrays
 type KernelMachineContext = {
   resources: DisposableStore;
-  kernelClient?: KernelClient;
+  kernelClient?: RuntimeClient;
 };
 
 // During initialization: add heterogeneous resources to one store
 const store = context.resources;
-store.add(client); // KernelClient (has dispose → terminate)
+store.add(client); // RuntimeClient (has dispose → terminate)
 store.add(bridge); // BridgeHandle (has dispose)
 store.add(toDisposable(client.on('progress', handler))); // wrapped subscription
 store.add(toDisposable(client.on('log', handler))); // wrapped subscription
@@ -293,7 +293,7 @@ Store the **resource handle** (which is `Disposable`), not a bare cleanup functi
 type MachineContext = {
   bridge?: BridgeHandle; // Disposable, also has .port
   resources: DisposableStore; // bulk cleanup for subscriptions + handles
-  kernelClient?: KernelClient; // Disposable, also has .render(), .terminate()
+  kernelClient?: RuntimeClient; // Disposable, also has .render(), .terminate()
 };
 
 // CORRECT: add to store during setup
@@ -327,7 +327,7 @@ Migrate existing `cleanup` methods:
 - `BundlerDefinition.cleanup?()` → `BundlerDefinition.onDispose?()`
 - `KernelWorker.cleanup()` → `KernelWorker.dispose()`
 - `KernelWorker.onCleanup()` → `KernelWorker.onDispose()`
-- `KernelWorkerClient.cleanup()` → `KernelWorkerClient.dispose()`
+- `RuntimeWorkerClient.cleanup()` → `RuntimeWorkerClient.dispose()`
 - `ErrorTrap.cleanup` → `ErrorTrap.dispose`
 - `EngineConnection.cleanup()` → `EngineConnection.dispose()`
 

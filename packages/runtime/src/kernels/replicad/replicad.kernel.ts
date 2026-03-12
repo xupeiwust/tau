@@ -20,11 +20,11 @@ import { SourceMapConsumer } from 'source-map-js';
 import { asBuffer } from '@taucad/utils/file';
 import { jsonSchemaFromJson } from '@taucad/utils/schema';
 import { createExportFile } from '@taucad/types/constants';
-import { defineKernel } from '#types/kernel-worker.types.js';
-import type { KernelRuntime } from '#types/kernel-worker.types.js';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
-import type { KernelIssue, KernelStackFrame, ErrorLocation } from '#types/kernel.types.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import type { KernelRuntime } from '#types/runtime-kernel.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
+import type { KernelIssue, KernelStackFrame, ErrorLocation } from '#types/runtime.types.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 import { named } from '#framework/named.js';
 import { isNode, resolveFileUrl } from '#framework/environment.js';
 import { initOpenCascade } from '#kernels/replicad/init-open-cascade.js';
@@ -82,7 +82,7 @@ type WasmOption = string | { wasmUrl: string; wasmBindingsUrl: string };
  * @param tracer - optional span tracer for performance instrumentation
  * @returns the resolved WASM URL and bindings factory
  */
-async function resolveWasm(wasm: WasmOption, tracer?: KernelSpanTracer): Promise<ResolvedWasm> {
+async function resolveWasm(wasm: WasmOption, tracer?: RuntimeSpanTracer): Promise<ResolvedWasm> {
   const span = tracer?.startSpan('replicad.resolve-bindings', {
     variant: typeof wasm === 'string' ? wasm : 'custom',
   });

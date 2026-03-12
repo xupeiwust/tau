@@ -38,7 +38,7 @@ function ExampleCard({ name, description, code }: ExampleCardProps): React.JSX.E
 
 /**
  * Interactive reference page showing Replicad examples with code and live 3D views.
- * Each example gets its own kernel client, and all views share a single WebGL context
+ * Each example gets its own runtime client, and all views share a single WebGL context
  * via SharedRendererProvider.
  */
 export function ReplicadReference(): React.JSX.Element {

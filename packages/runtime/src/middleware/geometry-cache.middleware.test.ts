@@ -5,10 +5,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
-import type { CreateGeometryResult, KernelIssue } from '#types/kernel.types.js';
-import type { CreateGeometryHandler, KernelMiddlewareRuntime } from '#types/kernel-middleware.types.js';
-import type { Dependency } from '#types/kernel-dependency.types.js';
-import type { CreateGeometryInput } from '#types/kernel-worker.types.js';
+import type { CreateGeometryResult, KernelIssue } from '#types/runtime.types.js';
+import type { CreateGeometryHandler, KernelMiddlewareRuntime } from '#types/runtime-middleware.types.js';
+import type { Dependency } from '#types/runtime-dependency.types.js';
+import type { CreateGeometryInput } from '#types/runtime-kernel.types.js';
 import { geometryCacheMiddleware } from '#middleware/geometry-cache.middleware.js';
 import {
   createMockRuntime,

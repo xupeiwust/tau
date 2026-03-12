@@ -1,24 +1,24 @@
 import { toFileStat } from '@taucad/types/constants';
-import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
+import type { RuntimeFileSystemBase } from '#types/runtime-kernel.types.js';
 
 /**
- * Create a KernelFileSystem from Node.js `fs.promises`.
+ * Create a RuntimeFileSystem from Node.js `fs.promises`.
  * Wraps the standard Node.js filesystem API in ~10 lines.
  *
  * @param basePath - Root path for all filesystem operations
- * @returns KernelFileSystemBase backed by Node.js fs
+ * @returns RuntimeFileSystemBase backed by Node.js fs
  *
  * @public
  *
  * @example <caption>Server-side Node.js filesystem</caption>
  * ```typescript
- * import { createKernelClient } from '@taucad/runtime';
+ * import { createRuntimeClient } from '@taucad/runtime';
  * import { fromNodeFS } from '@taucad/runtime/filesystem';
  * import { replicad } from '@taucad/runtime/kernels';
  * import { esbuild } from '@taucad/runtime/bundler';
  * import { createInProcessTransport } from '@taucad/runtime/transport';
  *
- * const client = createKernelClient({
+ * const client = createRuntimeClient({
  *   kernels: [replicad()],
  *   bundlers: [esbuild()],
  *   transport: createInProcessTransport(),
@@ -26,7 +26,7 @@ import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
  * });
  * ```
  */
-export function fromNodeFS(basePath: string): KernelFileSystemBase {
+export function fromNodeFS(basePath: string): RuntimeFileSystemBase {
   // oxlint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module, @typescript-eslint/consistent-type-imports -- dynamic require avoids bundling Node.js builtins in browser builds
   const fs = require('node:fs/promises') as typeof import('node:fs/promises');
   // oxlint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module, @typescript-eslint/consistent-type-imports -- dynamic require avoids bundling Node.js builtins in browser builds

@@ -37,15 +37,15 @@ Add `@public` or `@internal` as the last line of the description section, before
 
 ````typescript
 /**
- * Create a kernel client with plugin-based configuration.
+ * Create a runtime client with plugin-based configuration.
  *
  * @public
  * @param options - Client configuration
- * @returns A configured KernelClient instance
+ * @returns A configured RuntimeClient instance
  *
  * @example <caption>Basic usage</caption>
  * ```typescript
- * import { createKernelClient } from '@taucad/runtime';
+ * import { createRuntimeClient } from '@taucad/runtime';
  * ```
  */
 ````
@@ -63,9 +63,9 @@ Using `text` instead of `ts` for internal TypeScript examples sacrifices DX: dev
 
 ### 1. Examples Must Show Real-World Usage
 
-Write the code a developer would actually write. If a function is always composed inside another (e.g., `replicad()` inside `createKernelClient`), the example must show that composition.
+Write the code a developer would actually write. If a function is always composed inside another (e.g., `replicad()` inside `createRuntimeClient`), the example must show that composition.
 
-**Why**: An example of `replicad()` called in isolation is never how it is used — it only appears inside `createKernelClient({ kernels: [replicad()] })`.
+**Why**: An example of `replicad()` called in isolation is never how it is used — it only appears inside `createRuntimeClient({ kernels: [replicad()] })`.
 
 ### 2. No Synthetic Stubs
 
@@ -143,14 +143,14 @@ CORRECT:
 
 ````typescript
 /**
- * Create a kernel client.
+ * Create a runtime client.
  *
  * @public
  *
  * @example <caption>Browser setup</caption>
  * ```typescript
- * import { createKernelClient } from '@taucad/runtime';
- * const client = createKernelClient({ kernels: [replicad()] });
+ * import { createRuntimeClient } from '@taucad/runtime';
+ * const client = createRuntimeClient({ kernels: [replicad()] });
  * ```
  */
 ````
@@ -159,12 +159,12 @@ INCORRECT:
 
 ````typescript
 /**
- * Create a kernel client.
+ * Create a runtime client.
  *
  * @example Browser setup
  * ```typescript
- * import { createKernelClient } from '@taucad/runtime';
- * const client = createKernelClient({ kernels: [replicad()] });
+ * import { createRuntimeClient } from '@taucad/runtime';
+ * const client = createRuntimeClient({ kernels: [replicad()] });
  * ```
  */
 ````

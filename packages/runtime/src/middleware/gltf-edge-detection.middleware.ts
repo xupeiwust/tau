@@ -4,7 +4,7 @@ import { createNodeIo } from '@taucad/converter';
 import type { GeometryGltf } from '@taucad/types';
 import { z } from 'zod';
 import { detectEdges } from '#utils/edge-detection.js';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 
 /**
  * Edge color in RGBA format (normalized 0-1).

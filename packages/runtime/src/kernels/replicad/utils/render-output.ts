@@ -1,7 +1,7 @@
 import type { AnyShape, Drawing } from 'replicad';
 import type { SetRequired } from 'type-fest';
 import type { GeometrySvg } from '@taucad/types';
-import type { Tessellation } from '#types/kernel-worker.types.js';
+import type { Tessellation } from '#types/runtime-kernel.types.js';
 import { normalizeColor } from '#kernels/replicad/utils/normalize-color.js';
 import type { GeometryReplicad } from '#kernels/replicad/replicad.types.js';
 

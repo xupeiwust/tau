@@ -1,5 +1,5 @@
 import { asBuffer } from '@taucad/utils/file';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { isNode, resolveFileUrl } from '#framework/environment.js';
 
 /**
@@ -15,7 +15,7 @@ import { isNode, resolveFileUrl } from '#framework/environment.js';
  * @returns A promise that resolves to a compiled WebAssembly module
  * @throws Error if the WASM binary cannot be loaded or compiled
  */
-export async function compileWasmStreaming(url: string, tracer?: KernelSpanTracer): Promise<WebAssembly.Module> {
+export async function compileWasmStreaming(url: string, tracer?: RuntimeSpanTracer): Promise<WebAssembly.Module> {
   const span = tracer?.startSpan('wasm.compile', { url });
   try {
     const module = await WebAssembly.compileStreaming(fetch(url));

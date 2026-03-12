@@ -1,4 +1,4 @@
-import type { KernelFileSystemBase } from '#types/kernel-worker.types.js';
+import type { RuntimeFileSystemBase } from '#types/runtime-kernel.types.js';
 
 function enoent(message: string): Error {
   const error = new Error(message);
@@ -7,22 +7,22 @@ function enoent(message: string): Error {
 }
 
 /**
- * Create a KernelFileSystem backed by an in-memory Map.
+ * Create a RuntimeFileSystem backed by an in-memory Map.
  * Useful for testing and for passing file content directly.
  *
  * @param files - Initial file contents (path -> content string)
- * @returns KernelFileSystem backed by an in-memory store
+ * @returns RuntimeFileSystem backed by an in-memory store
  *
  * @public
  *
  * @example <caption>In-memory filesystem with inline source</caption>
  * ```typescript
- * import { createKernelClient, fromMemoryFS } from '@taucad/runtime';
+ * import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
  * import { replicad } from '@taucad/runtime/kernels';
  * import { esbuild } from '@taucad/runtime/bundler';
  * import { createInProcessTransport } from '@taucad/runtime/transport';
  *
- * const client = createKernelClient({
+ * const client = createRuntimeClient({
  *   kernels: [replicad()],
  *   bundlers: [esbuild()],
  *   transport: createInProcessTransport(),
@@ -32,7 +32,7 @@ function enoent(message: string): Error {
  * });
  * ```
  */
-export function fromMemoryFS(files?: Record<string, string>): KernelFileSystemBase {
+export function fromMemoryFS(files?: Record<string, string>): RuntimeFileSystemBase {
   const store = new Map<string, Uint8Array<ArrayBuffer> | string>();
   const directories = new Set<string>();
 

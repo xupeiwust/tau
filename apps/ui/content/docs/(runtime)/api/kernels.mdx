@@ -1,0 +1,55 @@
+---
+title: Kernel Factories
+description: Factory functions for Replicad, Manifold, OpenSCAD, JSCAD, Zoo, and Tau kernel plugins.
+icon: lucide:cog
+---
+
+# Kernel Factories
+
+Use kernel factories when registering CAD engines with `createRuntimeClient`. Each factory returns a `KernelPlugin` that the client uses for kernel selection and worker loading.
+
+## Types
+
+<auto-type-table path='./props/kernels.ts' name='KernelPlugin' />
+
+<auto-type-table path='./props/kernels.ts' name='ReplicadOptions' />
+
+<auto-type-table path='./props/kernels.ts' name='ManifoldOptions' />
+
+<auto-type-table path='./props/kernels.ts' name='ZooOptions' />
+
+## Factories
+
+| Factory              | Extensions | Purpose                                           |
+| -------------------- | ---------- | ------------------------------------------------- |
+| `replicad(options?)` | `ts`, `js` | OpenCASCADE-based parametric BRep                 |
+| `manifold(options?)` | `ts`, `js` | Mesh-first manifold modeling with robust booleans |
+| `openscad()`         | `scad`     | CSG modeling                                      |
+| `jscad()`            | `ts`, `js` | @jscad/modeling parametric CSG                    |
+| `zoo(options)`       | `kcl`      | KCL via Zoo API                                   |
+| `tau()`              | `*`        | Catch-all for STEP, STL, 3MF                      |
+
+## Usage
+
+```typescript
+import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
+import { replicad, manifold, openscad, jscad, zoo, tau } from '@taucad/runtime/kernels';
+
+const client = createRuntimeClient({
+  kernels: [
+    replicad({ withBrepEdges: true }),
+    manifold(),
+    openscad(),
+    jscad(),
+    zoo({ baseUrl: 'wss://example.com/v1/kernels/zoo' }),
+    tau(),
+  ],
+  bundlers: [],
+  fileSystem: fromMemoryFS(),
+});
+```
+
+## Related
+
+- [Choosing a Kernel](/docs/guides/choosing-a-kernel)
+- [Plugin System](/docs/concepts/plugin-system)

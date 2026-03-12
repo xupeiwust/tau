@@ -53,7 +53,7 @@ export type GeometryWebRtc = {
 };
 
 /**
- * The type of geometry that is returned by the kernel worker.
+ * The type of geometry that is returned by the runtime worker.
  *
  * One of:
  * - `GeometrySvg`

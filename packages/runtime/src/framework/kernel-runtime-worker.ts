@@ -21,7 +21,7 @@ import type {
   ExportGeometryResult,
   GetParametersResult,
   KernelIssue,
-} from '#types/kernel.types.js';
+} from '#types/runtime.types.js';
 import type {
   CanHandleInput,
   CreateGeometryInput,
@@ -30,12 +30,12 @@ import type {
   GetParametersInput,
   KernelDefinition,
   KernelRuntime,
-} from '#types/kernel-worker.types.js';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+} from '#types/runtime-kernel.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { KernelWorker } from '#framework/kernel-worker.js';
 import { preserveMethodNames } from '#framework/named.js';
-import { isWorkerContext, getWorkerMessagePort } from '#framework/kernel-message-adapter.js';
-import { createWorkerDispatcher } from '#framework/kernel-worker-dispatcher.js';
+import { isWorkerContext, getWorkerMessagePort } from '#framework/runtime-message-adapter.js';
+import { createWorkerDispatcher } from '#framework/runtime-worker-dispatcher.js';
 
 /**
  * Configuration for a kernel module within the runtime worker.
@@ -250,7 +250,7 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
     return selection.kernel;
   }
 
-  private async loadKernelModule(config: KernelModuleEntry, tracer: KernelSpanTracer): Promise<LoadedKernel> {
+  private async loadKernelModule(config: KernelModuleEntry, tracer: RuntimeSpanTracer): Promise<LoadedKernel> {
     const existing = this.loadedKernels.get(config.id);
     if (existing) {
       return existing;

@@ -22,11 +22,11 @@ Add a new first-party CAD kernel to Tau following the `@taucad/runtime` plugin a
 
 **File:** `packages/runtime/src/kernels/<id>/<id>.kernel.ts`
 
-Use `defineKernel({...})` from `#types/kernel-worker.types.js`:
+Use `defineKernel({...})` from `#types/runtime-kernel.types.js`:
 
 ```typescript
-import { defineKernel } from '#types/kernel-worker.types.js';
-import { createKernelError, createKernelSuccess } from '#framework/kernel-helpers.js';
+import { defineKernel } from '#types/runtime-kernel.types.js';
+import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
 
 export default defineKernel({
   name: '<Name>Kernel',
@@ -81,8 +81,8 @@ All kernel tests MUST use helpers from `#testing/kernel-testing.utils.js`. Do NO
 | `createTestWorker(definition, files, options?)`   | Integration tests via `KernelRuntimeWorker` with seeded filesystem                |
 | `createGeometryFile(filename, basePath?)`         | Build `GeometryFile` for worker methods                                           |
 | `createGeometryTestHelpers()`                     | GLTF validation (`expectValidGltf`, `expectVertexCount`, `expectBoundingBoxSize`) |
-| `createMockLogger()`                              | Mock `KernelLogger` with vitest mocks for all log levels                          |
-| `createMockFileSystem(options?)`                  | Mock `KernelFileSystem` with vitest mocks and `.mocks` property                   |
+| `createMockLogger()`                              | Mock `RuntimeLogger` with vitest mocks for all log levels                         |
+| `createMockFileSystem(options?)`                  | Mock `RuntimeFileSystem` with vitest mocks and `.mocks` property                  |
 | `assertSuccess(result)` / `assertFailure(result)` | Type-narrowing assertions on `KernelResult`                                       |
 
 ### Test structure example
@@ -90,7 +90,7 @@ All kernel tests MUST use helpers from `#testing/kernel-testing.utils.js`. Do NO
 ```typescript
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
-import type { KernelRuntime, CanHandleInput, CreateGeometryInput } from '#types/kernel-worker.types.js';
+import type { KernelRuntime, CanHandleInput, CreateGeometryInput } from '#types/runtime-kernel.types.js';
 import { createMockKernelRuntime } from '#testing/kernel-testing.utils.js';
 import myKernel from '#kernels/my-kernel/my-kernel.kernel.js';
 
@@ -286,8 +286,8 @@ Use existing configs (replicad/jscad/zoo/openscad) as templates.
 
 At minimum update:
 
-- `docs/policy/kernel-architecture-policy.md`
-- Kernel docs site pages under `apps/ui/content/docs/(kernels)/...`:
+- `docs/policy/runtime-architecture-policy.md`
+- Kernel docs site pages under `apps/ui/content/docs/(runtime)/...`:
   - index, choosing-a-kernel, installation, api/kernels, concepts/plugin-system, guides/bundler-configuration
 
 Update all kernel lists/comparison tables, examples, and selection priority references.

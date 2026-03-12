@@ -30,7 +30,7 @@ todos:
     content: "Phase 2e: Rewrite file-manager.worker.ts to instantiate FileService + rewrite file-manager.ts"
     status: completed
   - id: bridge-events
-    content: "Phase 3: Extend kernel-filesystem-bridge with listen()/emit() event channel for push notifications"
+    content: "Phase 3: Extend runtime-filesystem-bridge with listen()/emit() event channel for push notifications"
     status: completed
   - id: machine-overhaul
     content: "Phase 4: Overhaul fileManagerMachine — BoundedFileCache in context, debounced refresh (300ms), incremental tree updates"
@@ -445,7 +445,7 @@ The current [file-manager.ts](apps/ui/app/machines/file-manager.ts) (542 lines) 
 
 ## Phase 3: Bridge Event Channel Extension
 
-**File:** `packages/runtime/src/framework/kernel-filesystem-bridge.ts`
+**File:** `packages/runtime/src/framework/runtime-filesystem-bridge.ts`
 
 Extend the existing bridge with a `listen()` mechanism alongside `call()`:
 
@@ -502,7 +502,7 @@ The `ChangeEventBus` in `FileService` uses the server `emit()` to push `treeChan
 - Disconnect message received while calls are pending (must reject all pending)
 - Rapid `listen()` subscribe/unsubscribe cycles
 
-Tests: Extend `kernel-filesystem-bridge.test.ts` with event channel + interleaving + disconnect tests.
+Tests: Extend `runtime-filesystem-bridge.test.ts` with event channel + interleaving + disconnect tests.
 
 ---
 
@@ -661,13 +661,13 @@ function exposeFileSystem(handlers, options?): { cleanup: () => void; activePort
 
 ### 7b. Disconnect protocol
 
-**File:** `packages/runtime/src/framework/kernel-filesystem-bridge.ts`
+**File:** `packages/runtime/src/framework/runtime-filesystem-bridge.ts`
 
 - `createBridgeProxy.dispose()` sends `{ type: 'disconnect' }` before closing port
 - Server side listens for disconnect and removes port from active set
 - Fallback: heartbeat timeout (30s) for unclean disconnects
 
-Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
+Tests: Add port lifecycle tests to `runtime-filesystem-bridge.test.ts`.
 
 ---
 
@@ -727,7 +727,7 @@ Tests: Add port lifecycle tests to `kernel-filesystem-bridge.test.ts`.
 ### Existing tests to update
 
 - `apps/ui/app/machines/file-manager.test.ts` — Update to test `WriteCoordinator` directly
-- `packages/runtime/src/framework/kernel-filesystem-bridge.test.ts` — Add event channel + interleaving + port lifecycle tests
+- `packages/runtime/src/framework/runtime-filesystem-bridge.test.ts` — Add event channel + interleaving + port lifecycle tests
 - `packages/runtime/src/filesystem/filesystem-wrappers.test.ts` — Update if `exposeFileSystem` signature changes
 
 ---

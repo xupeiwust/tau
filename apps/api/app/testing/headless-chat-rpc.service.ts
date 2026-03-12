@@ -15,7 +15,7 @@ import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
  *
  * Instead of sending RPC requests over WebSocket to a browser client,
  * this service dispatches them directly to a local RpcDispatcher
- * backed by in-memory filesystem and kernel worker.
+ * backed by in-memory filesystem and runtime worker.
  */
 @Injectable()
 export class HeadlessChatRpcService extends ChatRpcService {

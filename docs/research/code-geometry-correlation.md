@@ -315,12 +315,12 @@ graph TD
         FM[FileManager Machine<br/>file writes/reads]
         BM[BuildMachine<br/>compilation units + view graphics]
         CM[CadMachine<br/>per entry file, 500ms debounce]
-        KM[KernelMachine<br/>spawns kernel worker]
+        KM[KernelMachine<br/>spawns runtime worker]
         GM[GraphicsMachine<br/>per viewer panel]
     end
 
     subgraph Kernel Layer
-        KC[KernelClient<br/>MessagePort to Worker]
+        KC[RuntimeClient<br/>MessagePort to Worker]
         KW[Kernel Worker<br/>bundles + executes code]
         RK[Replicad Kernel<br/>OpenCASCADE WASM]
         ZK[Zoo Kernel<br/>KCL WASM + Engine]

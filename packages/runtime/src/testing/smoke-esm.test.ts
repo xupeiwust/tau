@@ -10,7 +10,7 @@ describe('ESM import smoke tests', () => {
     const module_ = await import('#index.js');
     expect(module_).toBeDefined();
     expect(module_.presets).toBeDefined();
-    expect(module_.KernelWorkerClient).toBeTypeOf('function');
+    expect(module_.RuntimeWorkerClient).toBeTypeOf('function');
     expect(module_.createBridgePort).toBeTypeOf('function');
     expect(module_.fromFsLike).toBeTypeOf('function');
     expect(module_.createKernelSuccess).toBeTypeOf('function');
@@ -30,7 +30,7 @@ describe('ESM import smoke tests', () => {
   });
 
   it('should resolve the middleware entry point', async () => {
-    const module_ = await import('#middleware/kernel-middleware.js');
+    const module_ = await import('#middleware/runtime-middleware.js');
     expect(module_).toBeDefined();
     expect(module_.defineMiddleware).toBeTypeOf('function');
     expect(module_.createMiddlewareRuntime).toBeTypeOf('function');

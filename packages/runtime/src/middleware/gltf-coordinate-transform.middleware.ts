@@ -1,6 +1,6 @@
 import { createCoordinateTransform, createNodeIo, createScalingTransform } from '@taucad/converter';
 import type { GeometryGltf } from '@taucad/types';
-import { defineMiddleware } from '#middleware/kernel-middleware.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 
 /**
  * Transform a single GLTF geometry from Y-up/meters to Z-up/millimeters.

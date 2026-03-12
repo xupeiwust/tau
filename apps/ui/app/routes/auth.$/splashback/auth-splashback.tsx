@@ -4,7 +4,7 @@ import { useActorRef, useSelector } from '@xstate/react';
 import { Check } from 'lucide-react';
 import { jscad } from '@taucad/runtime/kernels';
 import { parameterCache, geometryCache, gltfCoordinateTransform } from '@taucad/runtime/middleware';
-import type { KernelClientOptions } from '@taucad/runtime';
+import type { RuntimeClientOptions } from '@taucad/runtime';
 import { authSplashbackMachine, timing as machineTiming } from '#routes/auth.$/splashback/auth-splashback.machine.js';
 import { UnifiedSplashbackViewer } from '#routes/auth.$/splashback/unified-splashback-viewer.js';
 import type { SplashbackPhase } from '#routes/auth.$/splashback/unified-splashback-viewer.js';
@@ -18,7 +18,7 @@ import {
   assemblySplitRatio as defaultAssemblySplitRatio,
 } from '#routes/auth.$/splashback/auth-splashback.constants.js';
 
-const splashbackKernelOptions: KernelClientOptions = {
+const splashbackKernelOptions: RuntimeClientOptions = {
   kernels: [jscad()],
   middleware: [parameterCache(), geometryCache(), gltfCoordinateTransform()],
 };

@@ -234,7 +234,7 @@ rendering: {
 // Instead of mutating context inside ensureKernelClient:
 invoke: {
   src: fromPromise(async ({ input }) => {
-    const client = createKernelClient(input.kernelOptions);
+    const client = createRuntimeClient(input.kernelOptions);
     const bridge = createFileSystemBridge(input.worker);
     await client.connect({ port: bridge.port });
     return { client, bridgeDispose: bridge.dispose };

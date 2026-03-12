@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { createActor, waitFor } from 'xstate';
-import type { KernelClient, KernelClientOptions, KernelIssue, PerformanceEntryData } from '@taucad/runtime';
+import type { RuntimeClient, RuntimeClientOptions, KernelIssue, PerformanceEntryData } from '@taucad/runtime';
 import { createMockKernelClient } from '@taucad/runtime/testing';
 import type { Geometry, GeometryFile } from '@taucad/types';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
@@ -19,7 +19,7 @@ const noop = () => {
 function createTestActor(options?: {
   connectResult?: () => Promise<{
     type: 'kernelConnected';
-    client: KernelClient;
+    client: RuntimeClient;
     cleanups: Array<() => void>;
   }>;
   connectError?: Error;
@@ -46,7 +46,7 @@ function createTestActor(options?: {
     },
   });
 
-  const kernelOptions = mock<KernelClientOptions>();
+  const kernelOptions = mock<RuntimeClientOptions>();
 
   const actor = createActor(machine, {
     input: {
@@ -215,7 +215,7 @@ describe('cadMachine', () => {
   // State: idle
   // =========================================================================
   describe('idle', () => {
-    it('should forward setFile to kernel client', async () => {
+    it('should forward setFile to runtime client', async () => {
       const { actor, mockClient } = await startAndConnect();
 
       actor.send({ type: 'setFile', file: stubFile });
@@ -224,7 +224,7 @@ describe('cadMachine', () => {
       actor.stop();
     });
 
-    it('should forward setParameters to kernel client', async () => {
+    it('should forward setParameters to runtime client', async () => {
       const { actor, mockClient } = await startAndConnect();
 
       actor.send({ type: 'setParameters', parameters: { height: 20 } });
@@ -233,7 +233,7 @@ describe('cadMachine', () => {
       actor.stop();
     });
 
-    it('should forward initializeModel as setFile to kernel client', async () => {
+    it('should forward initializeModel as setFile to runtime client', async () => {
       const { actor, mockClient } = await startAndConnect();
 
       actor.send({
@@ -684,7 +684,7 @@ describe('cadMachine', () => {
       actor.stop();
     });
 
-    it('should store kernel client in context after connection', async () => {
+    it('should store runtime client in context after connection', async () => {
       const { actor } = await startAndConnect();
 
       expect(actor.getSnapshot().context.kernelClient).toBeDefined();

@@ -1,6 +1,6 @@
 ---
 title: 'Kernel Architecture Policy'
-description: 'CAD kernel worker architecture from editor to geometry computation. Covers BuildMachine, CadMachine, KernelClient, plugin model, transport, and lifecycle.'
+description: 'CAD runtime worker architecture from editor to geometry computation. Covers BuildMachine, CadMachine, RuntimeClient, plugin model, transport, and lifecycle.'
 status: active
 created: '2026-02-18'
 updated: '2026-03-05'
@@ -8,7 +8,7 @@ updated: '2026-03-05'
 
 # Kernel Architecture Policy
 
-Internal reference for the CAD kernel worker architecture: from editor to geometry computation.
+Internal reference for the CAD runtime worker architecture: from editor to geometry computation.
 
 ## Rationale
 
@@ -26,7 +26,7 @@ Route (builds_.$id)
        └─ CompilationUnits: Map<entryFile, CadMachine>
             └─ CadMachine (1 per entry file, headless computation)
                  └─ KernelMachine (1 per CadMachine)
-                      └─ KernelClient → KernelTransport → Worker
+                      └─ RuntimeClient → RuntimeTransport → Worker
                            └─ KernelRuntimeWorker (1 Web Worker per KernelMachine)
                                 ├─ Loaded kernel modules (via defineKernel)
                                 ├─ Loaded bundler modules (via defineBundler, routed by extension)
@@ -39,36 +39,36 @@ The kernel API follows a three-layer design. Each layer has a distinct audience 
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│  KernelClient (consumer-facing)                        │
+│  RuntimeClient (consumer-facing)                        │
 │  Promise-based, lazy initialization, event subscription│
 ├────────────────────────────────────────────────────────┤
-│  KernelTransport (framework-level)                     │
+│  RuntimeTransport (framework-level)                     │
 │  Event-driven, transport-agnostic, zero Promises       │
 ├────────────────────────────────────────────────────────┤
-│  KernelCommand / KernelResponse (protocol)             │
+│  RuntimeCommand / RuntimeResponse (protocol)             │
 │  Typed discriminated unions, requestId correlation      │
 └────────────────────────────────────────────────────────┘
 ```
 
-**Why both Client and Transport?** Transport is the primitive -- pure messages with zero abstraction overhead. Client adds Promise correlation (~1μs overhead vs 100ms–10s render times). Both are exposed: consumers use `KernelClient`, framework authors use `KernelTransport` directly.
+**Why both Client and Transport?** Transport is the primitive -- pure messages with zero abstraction overhead. Client adds Promise correlation (~1μs overhead vs 100ms–10s render times). Both are exposed: consumers use `RuntimeClient`, framework authors use `RuntimeTransport` directly.
 
 ## Entity Model
 
-| Entity                  | Purpose                                                                                                                                                                                                                                                           | Layer         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| **KernelClient**        | High-level facade. Lazy, Promise-based, event-subscribable. Supports inline code rendering (`CodeInput`) and filesystem rendering (`FileInput`). Emits `geometry` event on render completion. Auto-cancels superseded renders. Created by `createKernelClient()`. | Consumer      |
-| **KernelTransport**     | Event-driven message channel between realms. Default: `createWorkerTransport()`.                                                                                                                                                                                  | Framework     |
-| **KernelWorkerClient**  | Protocol client wrapping a Transport with request/response correlation and typed callbacks.                                                                                                                                                                       | Framework     |
-| **KernelRuntimeWorker** | Worker-side orchestrator. Manages kernel selection, middleware chain, bundler routing.                                                                                                                                                                            | Worker        |
-| **KernelFileSystem**    | 10-method Node.js `fs.promises`-compatible interface. Bridged from main thread → worker via MessagePort.                                                                                                                                                          | Consumer      |
-| **KernelDefinition**    | Kernel plugin contract (author API, via `defineKernel`). Runs in worker.                                                                                                                                                                                          | Plugin Author |
-| **BundlerDefinition**   | Bundler plugin contract (author API, via `defineBundler`). Declares supported `extensions`.                                                                                                                                                                       | Plugin Author |
-| **KernelMiddleware**    | Middleware plugin contract (author API, via `defineMiddleware`). Wraps kernel operations.                                                                                                                                                                         | Plugin Author |
-| **KernelPlugin**        | Registration object returned by consumer factory functions like `replicad()`. Runs on main thread.                                                                                                                                                                | Consumer      |
-| **MiddlewarePlugin**    | Registration object returned by consumer factory functions like `parameterCache()`.                                                                                                                                                                               | Consumer      |
-| **BundlerPlugin**       | Registration object returned by consumer factory functions like `esbuild()`.                                                                                                                                                                                      | Consumer      |
-| **KernelRuntime**       | Services injected into kernel methods: filesystem, logger, bundler, tracer.                                                                                                                                                                                       | Plugin Author |
-| **Realm**               | Execution environment: main thread, Web Worker, Node.js `worker_threads`, remote server.                                                                                                                                                                          | Conceptual    |
+| Entity                  | Purpose                                                                                                                                                                                                                                                            | Layer         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| **RuntimeClient**       | High-level facade. Lazy, Promise-based, event-subscribable. Supports inline code rendering (`CodeInput`) and filesystem rendering (`FileInput`). Emits `geometry` event on render completion. Auto-cancels superseded renders. Created by `createRuntimeClient()`. | Consumer      |
+| **RuntimeTransport**    | Event-driven message channel between realms. Default: `createWorkerTransport()`.                                                                                                                                                                                   | Framework     |
+| **RuntimeWorkerClient** | Protocol client wrapping a Transport with request/response correlation and typed callbacks.                                                                                                                                                                        | Framework     |
+| **KernelRuntimeWorker** | Worker-side orchestrator. Manages kernel selection, middleware chain, bundler routing.                                                                                                                                                                             | Worker        |
+| **RuntimeFileSystem**   | 10-method Node.js `fs.promises`-compatible interface. Bridged from main thread → worker via MessagePort.                                                                                                                                                           | Consumer      |
+| **KernelDefinition**    | Kernel plugin contract (author API, via `defineKernel`). Runs in worker.                                                                                                                                                                                           | Plugin Author |
+| **BundlerDefinition**   | Bundler plugin contract (author API, via `defineBundler`). Declares supported `extensions`.                                                                                                                                                                        | Plugin Author |
+| **KernelMiddleware**    | Middleware plugin contract (author API, via `defineMiddleware`). Wraps kernel operations.                                                                                                                                                                          | Plugin Author |
+| **KernelPlugin**        | Registration object returned by consumer factory functions like `replicad()`. Runs on main thread.                                                                                                                                                                 | Consumer      |
+| **MiddlewarePlugin**    | Registration object returned by consumer factory functions like `parameterCache()`.                                                                                                                                                                                | Consumer      |
+| **BundlerPlugin**       | Registration object returned by consumer factory functions like `esbuild()`.                                                                                                                                                                                       | Consumer      |
+| **KernelRuntime**       | Services injected into kernel methods: filesystem, logger, bundler, tracer.                                                                                                                                                                                        | Plugin Author |
+| **Realm**               | Execution environment: main thread, Web Worker, Node.js `worker_threads`, remote server.                                                                                                                                                                           | Conceptual    |
 
 ## API Audiences
 
@@ -106,8 +106,8 @@ Multiple bundlers can be registered simultaneously. Each bundler declares the fi
 | FileManagerMachine  | 1                       | --                     | Shared across all units                        |
 | CadMachine          | 1 per unique entry file | --                     | Shared when multiple panels view the same file |
 | KernelMachine       | 1 per CadMachine        | --                     | Always 1:1 with CadMachine                     |
-| KernelClient        | 1 per KernelMachine     | --                     | Manages Worker lifecycle                       |
-| KernelRuntimeWorker | 1 per KernelClient      | --                     | Single worker, loads kernel on demand          |
+| RuntimeClient       | 1 per KernelMachine     | --                     | Manages Worker lifecycle                       |
+| KernelRuntimeWorker | 1 per RuntimeClient     | --                     | Single worker, loads kernel on demand          |
 | GraphicsMachine     | --                      | 1                      | WebGL renderer per panel                       |
 
 ### Memory Impact
@@ -123,10 +123,10 @@ With the single-worker-per-CU architecture, only the WASM runtime for the select
 
 Previously, all 5 kernels were loaded eagerly (~90 MB per CadMachine).
 
-## KernelClient Lifecycle
+## RuntimeClient Lifecycle
 
 ```
-1. createKernelClient(options)                          → KernelClient created, no Worker yet
+1. createRuntimeClient(options)                          → RuntimeClient created, no Worker yet
 2. client.on('geometry', handler)                       → Subscribe to render results (any time)
 3. client.render({ code: { 'box.ts': '...' } })        → Auto-creates filesystem, auto-connects, renders
 4. client.render({ file, parameters, changedPaths })    → Invalidates caches, renders from filesystem
@@ -150,7 +150,7 @@ When any render completes (success or failure), the `geometry` event fires with 
 
 When `render()` is called while a previous render is in-flight, the previous render is cancelled via `cancelPendingRender()`. The cancelled render's Promise rejects with `RenderSupersededError`. Only the latest render's result fires the `geometry` event. For pull consumers (CLI), renders are sequential so cancellation never triggers.
 
-## KernelFileSystem
+## RuntimeFileSystem
 
 10 required methods matching Node.js `fs.promises.*`. All paths are absolute.
 
@@ -179,14 +179,14 @@ Convenience constructors: `fromNodeFS(basePath)`, `fromMemoryFS()`, `fromFsLike(
 ## Transport Abstraction
 
 ```typescript
-type KernelTransport = {
-  send(message: KernelCommand, transferables?: Transferable[]): void;
-  onMessage(handler: (message: KernelResponse) => void): void;
+type RuntimeTransport = {
+  send(message: RuntimeCommand, transferables?: Transferable[]): void;
+  onMessage(handler: (message: RuntimeResponse) => void): void;
   close(): void;
 };
 ```
 
-**Built-in:** `createWorkerTransport(workerUrl)` wraps a Web Worker as a `KernelTransport`.
+**Built-in:** `createWorkerTransport(workerUrl)` wraps a Web Worker as a `RuntimeTransport`.
 
 **Future transports:** WebSocket (remote kernel server), HTTP + SSE (serverless endpoints), `worker_threads` (Node.js).
 
@@ -206,9 +206,9 @@ type KernelTransport = {
 5. CadMachine enters rendering state → sends createGeometry to KernelMachine
    │
 6. KernelMachine pipeline:
-   │  ├─ Lazily creates KernelClient (ensureKernelClient)
+   │  ├─ Lazily creates RuntimeClient (ensureKernelClient)
    │  ├─ Subscribes to geometry/progress/parametersResolved events once
-   │  ├─ KernelClient creates Worker + Transport on first connect
+   │  ├─ RuntimeClient creates Worker + Transport on first connect
    │  ├─ Worker selects kernel via three-pass detection
    │  ├─ render: unified pipeline (deps → params → geometry)
    │  ├─ changedPaths passed to render() for cache invalidation (no separate notifyFileChanged)
@@ -233,11 +233,11 @@ type KernelTransport = {
 
 ### Lazy Initialization
 
-The KernelClient creates the Worker lazily on first `connect()` or `render()`:
+The RuntimeClient creates the Worker lazily on first `connect()` or `render()`:
 
-1. `createKernelClient(options)` — returns client, no Worker yet
+1. `createRuntimeClient(options)` — returns client, no Worker yet
 2. `client.connect({ fileSystem })` — creates Worker via `createWorkerTransport(workerUrl)`
-3. `KernelWorkerClient.initialize()` sends kernel config, middleware config, and bundler config
+3. `RuntimeWorkerClient.initialize()` sends kernel config, middleware config, and bundler config
 4. Worker loads bundler modules via `import(bundlerModuleUrl)` for matching extensions
 5. Kernel module loading is deferred until `selectKernel()` determines which kernel is needed
 
@@ -343,7 +343,7 @@ Kernel modules define geometry computation logic. Each kernel is an ES module lo
 
 ### MessagePort Protocol
 
-The kernel machine communicates with the worker via typed MessagePort events through the `KernelTransport` interface:
+The kernel machine communicates with the worker via typed MessagePort events through the `RuntimeTransport` interface:
 
 - All request/response commands carry a `requestId` for correlation
 - Fire-and-forget commands (`fileChanged`, `configureMiddleware`, `cleanup`) have no requestId
@@ -368,11 +368,11 @@ During detection, bare specifiers appear as external imports in `metafile.output
 ## Package Exports
 
 ```
-@taucad/runtime          → createKernelClient, types, presets, fromNodeFS, fromMemoryFS, fromFsLike
+@taucad/runtime          → createRuntimeClient, types, presets, fromNodeFS, fromMemoryFS, fromFsLike
 @taucad/runtime/kernels  → replicad(), manifold(), zoo(), openscad(), jscad(), tau()
 @taucad/runtime/middleware → parameterCache(), geometryCache(), gltfCoordinateTransform(), gltfEdgeDetection()
 @taucad/runtime/bundler  → esbuild()
-@taucad/runtime/transport → KernelTransport, createWorkerTransport()
+@taucad/runtime/transport → RuntimeTransport, createWorkerTransport()
 @taucad/runtime/testing  → Testing utilities (createTestFilesystem, mocks)
 ```
 
@@ -395,10 +395,10 @@ type Tessellation = {
 
 Tessellation can be configured at two levels, with per-call overrides taking precedence:
 
-1. **Client-level defaults** — set once in `createKernelClient(options)`:
+1. **Client-level defaults** — set once in `createRuntimeClient(options)`:
 
 ```typescript
-createKernelClient({
+createRuntimeClient({
   tessellation: {
     preview: { linearTolerance: 0.1, angularTolerance: 30 }, // Faster, lower quality
     export: { linearTolerance: 0.01, angularTolerance: 30 }, // Slower, higher quality
@@ -441,10 +441,10 @@ If no tessellation is specified at any level, each kernel applies its own intern
 ### Threading Path
 
 ```
-KernelClient.render({ file, parameters, tessellation?, changedPaths? })
+RuntimeClient.render({ file, parameters, tessellation?, changedPaths? })
   → resolves: input.tessellation ?? options.tessellation.preview
-    → KernelWorkerClient.render(..., tessellation?)
-      → KernelCommand { type: 'render', tessellation? }
+    → RuntimeWorkerClient.render(..., tessellation?)
+      → RuntimeCommand { type: 'render', tessellation? }
         → dispatcher → KernelWorker.render(..., tessellation?)
           → KernelWorker.createGeometry(..., tessellation?)
             → CreateGeometryInput { tessellation? }
@@ -487,9 +487,9 @@ Consumer-facing input uses `options` naming; validated output uses `config` inte
 
 ### Problem: Render Interleaving on the Worker
 
-The worker-side dispatcher (`kernel-worker-dispatcher.ts`) does not serialize render operations. When rapid parameter changes trigger back-to-back renders, the event loop processes the second render's `postMessage` at an `await` yield point of the first render. Both renders share mutable worker state (tracer, caches, `onProgress` callback), causing corruption.
+The worker-side dispatcher (`runtime-worker-dispatcher.ts`) does not serialize render operations. When rapid parameter changes trigger back-to-back renders, the event loop processes the second render's `postMessage` at an `await` yield point of the first render. Both renders share mutable worker state (tracer, caches, `onProgress` callback), causing corruption.
 
-The tracer crash is fixed by epoch-scoped spans (see `KernelTracer`), but the broader interleaving problem remains: stale renders waste compute time running the full geometry pipeline even when superseded. The `cancel` command sent by `KernelWorkerClient.cancelPendingRender()` is currently a no-op on the worker side.
+The tracer crash is fixed by epoch-scoped spans (see `RuntimeTracer`), but the broader interleaving problem remains: stale renders waste compute time running the full geometry pipeline even when superseded. The `cancel` command sent by `RuntimeWorkerClient.cancelPendingRender()` is currently a no-op on the worker side.
 
 ### Proposed Architecture: Dispatcher Serialization with Cooperative Cancellation
 

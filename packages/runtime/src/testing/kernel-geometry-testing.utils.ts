@@ -12,7 +12,7 @@ import { inspect } from '@gltf-transform/functions';
 import type { PartialDeep } from 'type-fest';
 import { expect } from 'vitest';
 import type { GeometryResponse } from '@taucad/types';
-import type { CreateGeometryResult } from '#types/kernel.types.js';
+import type { CreateGeometryResult } from '#types/runtime.types.js';
 
 // =============================================================================
 // Types

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { KernelCommand } from '#types/kernel-protocol.types.js';
+import type { RuntimeCommand } from '#types/runtime-protocol.types.js';
 import { createWorkerTransport } from '#transport/worker-transport.js';
 
 type MessageHandler = (event: { data: unknown }) => void;
@@ -70,7 +70,7 @@ describe('createWorkerTransport', () => {
   it('should delegate send to worker.postMessage without transferables', () => {
     const transport = createWorkerTransport('https://example.com/worker.js');
     // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- plain object required for postMessage serialization
-    const command = { type: 'initialize', requestId: '1' } as KernelCommand;
+    const command = { type: 'initialize', requestId: '1' } as RuntimeCommand;
 
     transport.send(command);
 
@@ -81,7 +81,7 @@ describe('createWorkerTransport', () => {
   it('should delegate send to worker.postMessage with transferables', () => {
     const transport = createWorkerTransport('https://example.com/worker.js');
     // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- plain object required for postMessage serialization
-    const command = { type: 'initialize', requestId: '1' } as KernelCommand;
+    const command = { type: 'initialize', requestId: '1' } as RuntimeCommand;
     const buffer = new ArrayBuffer(8);
     const transferables = [buffer];
 

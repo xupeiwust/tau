@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { GetParametersResult } from '#types/kernel.types.js';
-import type { Dependency } from '#types/kernel-dependency.types.js';
+import type { GetParametersResult } from '#types/runtime.types.js';
+import type { Dependency } from '#types/runtime-dependency.types.js';
 import { parameterCacheMiddleware } from '#middleware/parameter-cache.middleware.js';
 import {
   createMockRuntime,

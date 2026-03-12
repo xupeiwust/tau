@@ -492,7 +492,7 @@ The application already implements worker pooling **within a build session**.
 The architecture in `apps/ui/app/hooks/use-build.tsx` and
 `apps/ui/app/machines/build.machine.ts` manages "compilation units" — each
 a `cadMachine` actor that owns a `kernelMachine` actor, which owns the Web
-Worker and `KernelClient`. Within a build:
+Worker and `RuntimeClient`. Within a build:
 
 - **File changes**: trigger `setFile` on the existing compilation unit — the
   worker stays alive and reprocesses with the warm WASM instance.

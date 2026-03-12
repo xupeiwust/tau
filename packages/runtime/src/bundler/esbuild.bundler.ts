@@ -15,8 +15,8 @@
 
 import * as esbuild from 'esbuild-wasm';
 import type { BuildOptions } from 'esbuild-wasm';
-import type { KernelIssue } from '#types/kernel.types.js';
-import { defineBundler } from '#types/kernel-bundler.types.js';
+import type { KernelIssue } from '#types/runtime.types.js';
+import { defineBundler } from '#types/runtime-bundler.types.js';
 import type { BuiltinModule } from '#bundler/module-manager.js';
 import {
   EsbuildBundler,

@@ -14,10 +14,10 @@
  */
 
 import type { OpenCascadeInstance } from 'replicad-opencascadejs';
-import type { KernelSpanTracer } from '#types/kernel-tracer.types.js';
+import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { OcKernelError } from '#kernels/replicad/oc-kernel-error.js';
-import { RenderAbortedError } from '#framework/kernel-worker-client.js';
-import { signalSlot } from '#types/kernel-protocol.types.js';
+import { RenderAbortedError } from '#framework/runtime-worker-client.js';
+import { signalSlot } from '#types/runtime-protocol.types.js';
 import { named } from '#framework/named.js';
 
 // =============================================================================
@@ -267,13 +267,13 @@ export function wrapOcForExceptions(oc: OpenCascadeInstance): OpenCascadeInstanc
  * Also handles exception conversion via the shared helpers.
  *
  * @param oc - The OC instance (raw or already exception-wrapped)
- * @param tracer - KernelSpanTracer for creating spans
+ * @param tracer - RuntimeSpanTracer for creating spans
  * @param config - Tracing configuration (mode selection)
  * @returns The traced instance and a summary handle for flushing
  */
 export function wrapOcWithTracing(
   oc: OpenCascadeInstance,
-  tracer: KernelSpanTracer,
+  tracer: RuntimeSpanTracer,
   config: OcTracingConfig,
 ): OcTracingResult {
   const stats = new Map<string, ClassStats>();

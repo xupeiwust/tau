@@ -39,7 +39,7 @@ All `@taucad/*` packages follow [SemVer 2.0.0](https://semver.org/) with [semver
 
 | Bump      | Trigger                                                                                                                        | Examples                                                                                |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| **Major** | Breaking API changes, removal of deprecated features, minimum Node.js or TypeScript version bumps                              | Rename `createKernelClient` → `createClient`, drop Node 22, remove `v2_*` future flags  |
+| **Major** | Breaking API changes, removal of deprecated features, minimum Node.js or TypeScript version bumps                              | Rename `createRuntimeClient` → `createClient`, drop Node 22, remove `v2_*` future flags |
 | **Minor** | New features, new kernel/middleware additions, new export formats, stabilization of `unstable_*` APIs, deprecation annotations | Add `opencascade()` kernel, stabilize `unstable_streamingExport`, deprecate `onCleanup` |
 | **Patch** | Bug fixes, performance improvements, dependency updates without API changes                                                    | Fix WASM init race condition, improve tessellation performance                          |
 
@@ -79,7 +79,7 @@ Experimental APIs use the `unstable_` prefix in both code and configuration. The
 ```typescript
 import { unstable_streamingExport } from '@taucad/runtime';
 
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [replicad()],
   future: {
     unstable_parallelTessellation: true,
@@ -115,7 +115,7 @@ The deprecated alias is kept for one major cycle, then removed. A codemod handle
 Future flags are **stabilized breaking changes** that consumers opt into before the next major release. They allow gradual migration instead of big-bang upgrades.
 
 ```typescript
-const client = createKernelClient({
+const client = createRuntimeClient({
   kernels: [replicad()],
   future: {
     v2_middlewareApi: true,

@@ -10,7 +10,7 @@ import { createTestWorker, createGeometryFile } from '#testing/kernel-testing.ut
 // =============================================================================
 
 /**
- * Initialize a Zoo kernel worker for parameter extraction.
+ * Initialize a Zoo runtime worker for parameter extraction.
  * Seeds the filesystem with provided files before creating the worker.
  *
  * Note: createGeometry requires a cloud websocket connection and is not tested here.

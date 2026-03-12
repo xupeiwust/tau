@@ -48,7 +48,7 @@ export function useViewSettingsSync({
   // Pinned measurements for persistence
   const measurements = useSelector(graphicsRef, (s) => s.context.measurements);
 
-  // Render timeout is now managed internally by the autonomous kernel worker
+  // Render timeout is now managed internally by the autonomous runtime worker
 
   useEffect(() => {
     // Extract pinned measurements for persistence

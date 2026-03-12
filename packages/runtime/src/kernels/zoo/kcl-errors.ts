@@ -1,6 +1,6 @@
 import type { SourceRange } from '@taucad/kcl-wasm-lib/bindings/SourceRange';
 import type { KclError as WasmKclError } from '@taucad/kcl-wasm-lib/bindings/KclError';
-import type { KernelStackFrame } from '#types/kernel.types.js';
+import type { KernelStackFrame } from '#types/runtime.types.js';
 import { sourceRangeToLineColumn } from '#kernels/zoo/source-range-utils.js';
 
 /**
