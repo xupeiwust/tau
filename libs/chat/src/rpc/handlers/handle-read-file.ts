@@ -2,6 +2,7 @@ import type { ReadFileRpcInput, ReadFileRpcResult } from '#schemas/rpc.schema.js
 import type { RpcFileSystem } from '#rpc/rpc-dependencies.js';
 import { toRpcError } from '#rpc/rpc-error.js';
 
+/** @public */
 export async function handleReadFile(input: ReadFileRpcInput, fileSystem: RpcFileSystem): Promise<ReadFileRpcResult> {
   try {
     const text = await fileSystem.readFile(input.targetFile);

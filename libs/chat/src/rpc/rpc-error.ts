@@ -8,12 +8,15 @@ import type { RpcHandlerError } from '#rpc/rpc-dependencies.js';
  * ZenFS (kerium Exception), Node.js (ErrnoException), and the kernel filesystem
  * bridge all set `error.code` to these POSIX strings.
  */
+/* eslint-disable @typescript-eslint/naming-convention -- POSIX errno codes are uppercase by convention */
 const errnoToRpcCode: Record<string, RpcClientErrorCode> = {
   ENOENT: 'FILE_NOT_FOUND',
   EACCES: 'PERMISSION_DENIED',
   EPERM: 'PERMISSION_DENIED',
 };
+/* eslint-enable @typescript-eslint/naming-convention -- end POSIX errno block */
 
+/** @public */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -22,6 +25,7 @@ export function getErrorMessage(error: unknown): string {
   return 'Unknown error';
 }
 
+/** @public */
 export function getErrorCode(error: unknown): RpcClientErrorCode {
   if (error instanceof Error) {
     const errno = (error as { code?: string }).code;
@@ -48,6 +52,7 @@ export function getErrorCode(error: unknown): RpcClientErrorCode {
   return 'UNKNOWN';
 }
 
+/** @public */
 export function toRpcError(error: unknown): RpcHandlerError {
   return {
     success: false,

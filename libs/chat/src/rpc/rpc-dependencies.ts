@@ -18,6 +18,7 @@ import type {
 /**
  * Abstract filesystem for RPC handlers.
  * Implementations can wrap browser fileManager, KernelFileSystem (fromMemoryFS/fromNodeFS), etc.
+ * @public
  */
 export type RpcFileSystem = {
   readFile(path: string): Promise<string>;
@@ -31,6 +32,7 @@ export type RpcFileSystem = {
 /**
  * Abstract kernel client for getting compilation results.
  * Browser impl wraps buildRef (XState actor); headless impl wraps kernel worker directly.
+ * @public
  */
 export type RpcKernelClient = {
   getKernelResult(targetFile: string): Promise<GetKernelResultRpcResult>;
@@ -39,6 +41,7 @@ export type RpcKernelClient = {
 /**
  * Abstract graphics client for capturing observations (screenshots).
  * Only available in browser environments with a mounted 3D view.
+ * @public
  */
 export type RpcGraphicsClient = {
   captureObservations(): Promise<CaptureObservationsRpcResult>;
@@ -50,6 +53,7 @@ export type RpcGraphicsClient = {
  * Dependencies required by RPC handlers.
  * `graphics` is optional -- headless mode omits it, and handlers
  * return an error if a graphics operation is requested without it.
+ * @public
  */
 export type RpcDependencies = {
   fileSystem: RpcFileSystem;
@@ -59,6 +63,7 @@ export type RpcDependencies = {
 
 /**
  * Structured error returned by RPC handlers on failure.
+ * @public
  */
 export type RpcHandlerError = {
   success: false;

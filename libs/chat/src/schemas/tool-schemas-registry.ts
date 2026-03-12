@@ -14,6 +14,7 @@ import type { EditFileOutput } from '#schemas/tools/edit-file.tool.schema.js';
  * since validation happens upstream via the ChatRpc service).
  *
  * Includes both client tools and server-orchestrated tools that produce trimmable output.
+ * @public
  */
 export type ToolOutputRegistry = {
   [toolName.testModel]: TestModelOutput;

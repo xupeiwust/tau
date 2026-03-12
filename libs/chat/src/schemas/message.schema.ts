@@ -180,6 +180,7 @@ const toolPartSchemas = [
   ...createEmptyInputToolSchemas(toolName.transferBackToSupervisor, z.string()),
 ];
 
+/** @public */
 export const uiMessagesSchema: z.ZodType<MyUIMessage[]> = z
   .array(
     z.object({

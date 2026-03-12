@@ -22,6 +22,7 @@ async function collectFilePaths(fileSystem: RpcFileSystem, basePath: string): Pr
   return paths;
 }
 
+/** @public */
 export async function handleGrep(input: GrepRpcInput, fileSystem: RpcFileSystem): Promise<GrepRpcResult> {
   const matches: Array<{ file: string; line: number; content: string }> = [];
 

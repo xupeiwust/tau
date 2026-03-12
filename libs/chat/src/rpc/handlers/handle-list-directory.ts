@@ -2,6 +2,7 @@ import type { ListDirectoryRpcInput, ListDirectoryRpcResult } from '#schemas/rpc
 import type { RpcFileSystem } from '#rpc/rpc-dependencies.js';
 import { toRpcError } from '#rpc/rpc-error.js';
 
+/** @public */
 export async function handleListDirectory(
   input: ListDirectoryRpcInput,
   fileSystem: RpcFileSystem,

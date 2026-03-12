@@ -37,6 +37,7 @@ import type {
 
 /**
  * Structured error returned to LLM when tool execution times out.
+ * @public
  */
 export type ToolTimeoutError = {
   errorCode: 'TOOL_EXECUTION_TIMEOUT';
@@ -47,6 +48,7 @@ export type ToolTimeoutError = {
 
 /**
  * Structured error returned to LLM when client disconnects during tool execution.
+ * @public
  */
 export type ToolDisconnectedError = {
   errorCode: 'CLIENT_DISCONNECTED';
@@ -57,6 +59,7 @@ export type ToolDisconnectedError = {
 
 /**
  * Structured error returned to LLM when no client is connected.
+ * @public
  */
 export type ToolNoConnectionError = {
   errorCode: 'NO_CLIENT_CONNECTION';
@@ -68,6 +71,7 @@ export type ToolNoConnectionError = {
 /**
  * Structured validation error returned to LLM when tool input validation fails.
  * The LLM can use this information to understand what went wrong and potentially retry.
+ * @public
  */
 export type ToolInputValidationError = {
   errorCode: 'TOOL_INPUT_VALIDATION_FAILED';
@@ -81,6 +85,7 @@ export type ToolInputValidationError = {
 /**
  * Structured validation error returned to LLM when tool output validation fails.
  * The LLM can use this information to understand what went wrong and potentially retry.
+ * @public
  */
 export type ToolOutputValidationError = {
   errorCode: 'TOOL_OUTPUT_VALIDATION_FAILED';
@@ -93,12 +98,14 @@ export type ToolOutputValidationError = {
 
 /**
  * Combined validation error type for both input and output validation failures.
+ * @public
  */
 export type ToolValidationError = ToolInputValidationError | ToolOutputValidationError;
 
 /**
  * Generic tool execution error for unexpected failures.
  * Used when a tool throws an error that doesn't fit other categories.
+ * @public
  */
 export type ToolGenericExecutionError = {
   errorCode: 'TOOL_EXECUTION_ERROR';
@@ -110,6 +117,7 @@ export type ToolGenericExecutionError = {
 /**
  * Structured error for when the user interrupts a tool mid-execution.
  * Used on both client (finalizeInterruptedToolParts) and server (orphaned tool call sanitizer).
+ * @public
  */
 export type ToolUserInterruptedError = {
   errorCode: 'USER_INTERRUPTED';
@@ -122,6 +130,7 @@ export type ToolUserInterruptedError = {
  * Structured error for when a tool completes successfully but returns no results.
  * Common with web extraction (blocked pages, JS-rendered content, auth-gated sites).
  * Treated as a recoverable, expected case rather than a failure.
+ * @public
  */
 export type ToolNoResultsError = {
   errorCode: 'TOOL_NO_RESULTS';
@@ -133,6 +142,7 @@ export type ToolNoResultsError = {
 /**
  * All possible structured tool errors including validation errors.
  * These are returned to the LLM so it can reason about errors.
+ * @public
  */
 export type ToolExecutionError =
   | ToolTimeoutError
@@ -147,6 +157,7 @@ export type ToolExecutionError =
 // Tool Name Types
 // =============================================================================
 
+/** @public */
 export type ToolName = (typeof toolName)[keyof typeof toolName];
 
 /**
@@ -155,14 +166,17 @@ export type ToolName = (typeof toolName)[keyof typeof toolName];
  * - auto: Let AI decide which tools to use
  * - any: Require tool use (all available)
  * - custom: Make these tools available
+ * @public
  */
 export type ToolMode = (typeof toolMode)[keyof typeof toolMode];
 
 /**
  * The tool selection is either a tool mode or an array of tool names.
+ * @public
  */
 export type ToolSelection = ToolMode | ToolName[];
 
+/** @public */
 export type MyTools = InferUITools<{
   [toolName.editFile]: AiTool<EditFileInput, EditFileOutput>;
   [toolName.testModel]: AiTool<TestModelInput, TestModelOutput>;
@@ -187,6 +201,7 @@ export type MyTools = InferUITools<{
  * Wraps UIToolInvocation with the correct input/output types from MyTools.
  *
  * Usage: ToolInvocation<typeof toolName.readFile>
+ * @public
  */
 export type ToolInvocation<T extends keyof MyTools> = UIToolInvocation<MyTools[T]>;
 
@@ -195,22 +210,23 @@ export type ToolInvocation<T extends keyof MyTools> = UIToolInvocation<MyTools[T
  * or a ToolExecutionError. This is used for all chat tools that communicate
  * with the client via WebSocket, where errors can occur during execution.
  *
+ * @public
  * @template SchemaT - The Zod schema type for the tool input
  * @template SchemaOutputT - The parsed output type from the schema (usually z.infer<SchemaT>)
  * @template SchemaInputT - The input type to the schema (usually same as SchemaOutputT)
  * @template SuccessOutputT - The success output type of the tool
  * @template NameT - The literal string type of the tool name
  *
- * @example
- * ```ts
- * export const myTool: ChatTool<
- *   typeof myInputSchema,
- *   MyInput,
- *   MyOutput,
- *   typeof toolName.myTool
- * > = tool(async (args, runtime) => {
- *   // ...
- * }, myToolDefinition);
+ * @example <caption>Defining a typed tool</caption>
+ * ```typescript
+ * import type { ChatTool } from '@taucad/chat';
+ * import { z } from 'zod';
+ *
+ * const schema = z.object({ file: z.string() });
+ * type Input = z.infer<typeof schema>;
+ * type Output = { content: string };
+ *
+ * type MyTool = ChatTool<typeof schema, Input, Output, 'my_tool'>;
  * ```
  */
 export type ChatTool<

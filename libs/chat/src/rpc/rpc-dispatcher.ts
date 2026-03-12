@@ -12,6 +12,7 @@ import { handleCaptureObservations } from '#rpc/handlers/handle-capture-observat
 import { handleFetchGeometry } from '#rpc/handlers/handle-fetch-geometry.js';
 import { handleCaptureScreenshot } from '#rpc/handlers/handle-capture-screenshot.js';
 
+/** @public */
 export type RpcDispatcher = {
   dispatch(rpcCall: RpcCall): Promise<unknown>;
 };
@@ -25,6 +26,7 @@ export type RpcDispatcher = {
  * Used by:
  * - Browser: backed by fileManager, XState actors, WebGL
  * - Headless tests: backed by in-memory filesystem, kernel worker
+ * @public
  */
 export function createRpcDispatcher(deps: RpcDependencies): RpcDispatcher {
   return {

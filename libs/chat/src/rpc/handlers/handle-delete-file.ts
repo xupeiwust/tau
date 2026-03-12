@@ -2,6 +2,7 @@ import type { DeleteFileRpcInput, DeleteFileRpcResult } from '#schemas/rpc.schem
 import type { RpcFileSystem } from '#rpc/rpc-dependencies.js';
 import { toRpcError } from '#rpc/rpc-error.js';
 
+/** @public */
 export async function handleDeleteFile(
   input: DeleteFileRpcInput,
   fileSystem: RpcFileSystem,

@@ -3,6 +3,7 @@ import z from 'zod';
 
 /**
  * Schema for per-turn usage data.
+ * @public
  */
 export const usageDataSchema = z.object({
   type: z.literal('usage'),
@@ -20,10 +21,12 @@ export const usageDataSchema = z.object({
   totalCost: z.number(),
 });
 
+/** @public */
 export type UsageData = z.infer<typeof usageDataSchema>;
 
 /**
  * Schema for custom data parts in UI messages.
+ * @public
  */
 export const dataPartSchema = z.object({
   usage: usageDataSchema,

@@ -8,10 +8,12 @@
 import type { RpcName } from '#types/rpc.types.js';
 import type { wsCloseCode } from '#constants/websocket.constants.js';
 
+/** @public */
 export type WsCloseCode = (typeof wsCloseCode)[keyof typeof wsCloseCode];
 
 /**
  * Server -> Client: Request to execute an RPC operation on the client.
+ * @public
  */
 export type RpcRequest = {
   type: 'rpc_request';
@@ -29,6 +31,7 @@ export type RpcRequest = {
 
 /**
  * Client -> Server: Result of an RPC operation execution.
+ * @public
  */
 export type RpcResponse = {
   type: 'rpc_response';
@@ -44,6 +47,7 @@ export type RpcResponse = {
 
 /**
  * Client -> Server: Register connection for a specific chat.
+ * @public
  */
 export type WsConnectMessage = {
   type: 'connect';
@@ -53,6 +57,7 @@ export type WsConnectMessage = {
 
 /**
  * Server -> Client: Acknowledgment of successful connection registration.
+ * @public
  */
 export type WsConnectedMessage = {
   type: 'connected';
@@ -62,6 +67,7 @@ export type WsConnectedMessage = {
 
 /**
  * Server -> Client: Error message.
+ * @public
  */
 export type WsErrorMessage = {
   type: 'error';
@@ -73,10 +79,12 @@ export type WsErrorMessage = {
 
 /**
  * All possible messages from server to client.
+ * @public
  */
 export type ServerToClientMessage = RpcRequest | WsConnectedMessage | WsErrorMessage;
 
 /**
  * All possible messages from client to server.
+ * @public
  */
 export type ClientToServerMessage = RpcResponse | WsConnectMessage;

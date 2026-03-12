@@ -5,6 +5,7 @@ import { isRpcExecutionError, isRpcClientError } from '#types/rpc.types.js';
 
 /**
  * All possible tool execution error codes.
+ * @public
  */
 export const toolErrorCodes = [
   'TOOL_EXECUTION_TIMEOUT',
@@ -17,11 +18,13 @@ export const toolErrorCodes = [
   'TOOL_NO_RESULTS',
 ] as const;
 
+/** @public */
 export type ToolErrorCode = (typeof toolErrorCodes)[number];
 
 /**
  * Type guard to check if a value is a ToolExecutionError.
  * Use in tool component output-available case before accessing typed properties.
+ * @public
  */
 export function isToolExecutionError(value: unknown): value is ToolExecutionError {
   return (
@@ -38,18 +41,24 @@ export function isToolExecutionError(value: unknown): value is ToolExecutionErro
  * Use this in tool implementations to convert RPC-layer errors to tool-layer errors
  * that can be returned to the LLM.
  *
+ * @public
  * @param rpcError - The RPC execution error or validation error from ChatRpcService
  * @param toolName - The name of the tool (for error attribution)
  * @param toolCallId - The tool call ID (for tracking)
  * @returns A ToolExecutionError that can be returned to the LLM
  *
- * @example
+ * @example <caption>Converting an RPC error</caption>
  * ```typescript
- * const result = await chatRpcService.sendRpcRequest(chatId, toolCallId, rpcName, args);
+ * import { rpcErrorToToolError } from '@taucad/chat/utils';
+ * import type { RpcExecutionError } from '@taucad/chat';
  *
- * if (isRpcExecutionError(result)) {
- *   return rpcErrorToToolError(result, toolName.readFile, toolCallId);
- * }
+ * const rpcError: RpcExecutionError = {
+ *   errorCode: 'TIMEOUT',
+ *   message: 'Operation timed out',
+ *   rpcName: 'read_file',
+ * };
+ *
+ * const toolError = rpcErrorToToolError(rpcError, 'read_file', 'call-123');
  * ```
  */
 export function rpcErrorToToolError(
@@ -123,6 +132,7 @@ export function rpcErrorToToolError(
 
 /**
  * Get a user-friendly error title for each error code.
+ * @public
  */
 export function getToolErrorTitle(errorCode: ToolErrorCode): string {
   switch (errorCode) {
@@ -162,6 +172,7 @@ export function getToolErrorTitle(errorCode: ToolErrorCode): string {
 
 /**
  * Get a user-friendly description for each error code.
+ * @public
  */
 export function getToolErrorDescription(errorCode: ToolErrorCode): string {
   switch (errorCode) {
@@ -206,6 +217,7 @@ export function getToolErrorDescription(errorCode: ToolErrorCode): string {
  *
  * @param errorText - The error text from the tool invocation's output-error state
  * @returns The parsed ToolExecutionError if valid, undefined otherwise
+ * @public
  */
 export function parseToolErrorText(errorText: string): ToolExecutionError | undefined {
   try {
@@ -228,8 +240,12 @@ export function parseToolErrorText(errorText: string): ToolExecutionError | unde
  * Error class for tool execution failures.
  * Carries structured error data that middleware can extract.
  *
- * @example
+ * @public
+ *
+ * @example <caption>Throwing a structured tool error</caption>
  * ```typescript
+ * import { ToolError } from '@taucad/chat/utils';
+ *
  * throw new ToolError({
  *   errorCode: 'TOOL_EXECUTION_ERROR',
  *   message: 'Cannot read file',
@@ -260,27 +276,18 @@ export class ToolError extends Error {
  * Use this when you need to handle client errors specially (e.g., FILE_NOT_FOUND
  * should use default content instead of failing).
  *
+ * @public
  * @param result - The RPC result to check
  * @param toolName - The name of the tool (for error attribution)
  * @param toolCallId - The tool call ID (for tracking)
  * @throws ToolError if result is an RpcExecutionError or RpcValidationError
  *
- * @example
+ * @example <caption>Guarding against execution errors</caption>
  * ```typescript
- * const result = await chatRpcService.sendRpcRequest(...);
+ * import { assertRpcExecution } from '@taucad/chat/utils';
  *
- * assertRpcExecution(result, toolName.editTests, toolCallId);
- *
- * // Now result is narrowed to RpcClientError | SuccessType
- * if (isRpcClientError(result)) {
- *   if (result.errorCode === 'FILE_NOT_FOUND') {
- *     // Handle gracefully - use default content
- *   } else {
- *     throw new ToolError({...});
- *   }
- * }
- *
- * // Use result.content
+ * const result = { success: true, data: 'hello' };
+ * assertRpcExecution(result, 'readFile', 'call-1');
  * ```
  */
 export function assertRpcExecution<T>(
@@ -296,6 +303,7 @@ export function assertRpcExecution<T>(
 /**
  * Resolver for client error messages.
  * Can be a static string or a function that receives the error for dynamic messages.
+ * @public
  */
 export type ClientErrorMessageResolver = string | ((error: RpcClientError) => string);
 
@@ -305,6 +313,7 @@ export type ClientErrorMessageResolver = string | ((error: RpcClientError) => st
  *
  * Use this for the common case where any error should fail the tool.
  *
+ * @public
  * @param result - The RPC result to check
  * @param options - Context for error attribution
  * @param options.toolName - The name of the tool (for error attribution)
@@ -313,19 +322,16 @@ export type ClientErrorMessageResolver = string | ((error: RpcClientError) => st
  *   Can be a string or a function that receives the RpcClientError for dynamic messages.
  * @throws ToolError if result is any kind of error
  *
- * @example
+ * @example <caption>Asserting full RPC success</caption>
  * ```typescript
- * // Static message
- * assertRpcSuccess(result, { toolName: toolName.readFile, toolCallId, clientErrorMessage: 'Cannot read file' });
+ * import { assertRpcSuccess } from '@taucad/chat/utils';
  *
- * // Dynamic message based on error code
+ * const result = { success: true, content: 'file contents' };
  * assertRpcSuccess(result, {
- *   toolName: toolName.readFile,
- *   toolCallId,
- *   clientErrorMessage: (error) => {
- *     if (error.errorCode === 'FILE_NOT_FOUND') {
- *       return 'File not found';
- *     }
+ *   toolName: 'readFile',
+ *   toolCallId: 'call-1',
+ *   clientErrorMessage(error) {
+ *     if (error.errorCode === 'FILE_NOT_FOUND') return 'File not found';
  *     return 'Cannot read file';
  *   },
  * });

@@ -19,6 +19,7 @@ const fileTreeEntrySchema = z.object({
 /**
  * Schema for the editor context snapshot.
  * Provides the LLM with awareness of what the user is currently working on.
+ * @public
  */
 export const snapshotSchema = z.object({
   /** Array of file entries representing the project filesystem */
@@ -41,6 +42,7 @@ export const snapshotSchema = z.object({
     .optional(),
 });
 
+/** @public */
 export const messageMetadataSchema = z.object({
   toolChoice: z
     .union([

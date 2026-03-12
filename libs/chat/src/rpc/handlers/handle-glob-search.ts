@@ -20,6 +20,7 @@ async function collectFilePaths(fileSystem: RpcFileSystem, basePath: string): Pr
   return paths;
 }
 
+/** @public */
 export async function handleGlobSearch(
   input: GlobSearchRpcInput,
   fileSystem: RpcFileSystem,
