@@ -206,6 +206,7 @@ export function KernelModelView({ code, className }: KernelModelViewProps): Reac
 
     return () => {
       aborted = true;
+      hasInitializedRef.current = false;
       observer.disconnect();
       clientRef.current?.terminate();
       clientRef.current = undefined;
