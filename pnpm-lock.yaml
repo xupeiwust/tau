@@ -246,9 +246,6 @@ catalogs:
     nx:
       specifier: 22.5.2
       version: 22.5.2
-    opencascade.js:
-      specifier: /Users/rifont/git/tau/tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz
-      version: 2.0.0-beta.b5ff984
     openscad-wasm-prebuilt:
       specifier: ^1.2.0
       version: 1.2.0
@@ -273,12 +270,6 @@ catalogs:
     react-router:
       specifier: 7.12.0
       version: 7.12.0
-    replicad:
-      specifier: /Users/rifont/git/tau/tarballs/replicad-0.21.0-v8.7.tgz
-      version: 0.21.0-v8.7
-    replicad-opencascadejs:
-      specifier: /Users/rifont/git/tau/tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
-      version: 0.21.0-v8.25
     source-map-js:
       specifier: ^1.2.1
       version: 1.2.1
@@ -727,7 +718,7 @@ importers:
         specifier: ^4.104.0
         version: 4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6)
       opencascade.js:
-        specifier: 'catalog:'
+        specifier: file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz
         version: file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz(ws@8.19.0)
       openscad-wasm-prebuilt:
         specifier: 'catalog:'
@@ -802,10 +793,10 @@ importers:
         specifier: ^2.0.4
         version: 2.0.4(react-router@7.12.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       replicad:
-        specifier: 'catalog:'
+        specifier: file:tarballs/replicad-0.21.0-v8.7.tgz
         version: file:tarballs/replicad-0.21.0-v8.7.tgz(patch_hash=83c51cf5db7014b104df4408837733ecb92cf034437415c095e9ab327dcca320)
       replicad-opencascadejs:
-        specifier: 'catalog:'
+        specifier: file:tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
         version: file:tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
       rxjs:
         specifier: ^7.8.2
@@ -843,6 +834,9 @@ importers:
       three-viewport-gizmo:
         specifier: https://codeload.github.com/taucad/three-viewport-gizmo/tar.gz/d5ae66010e7f5f067931aaeb6a74880a73d23b5d
         version: https://codeload.github.com/taucad/three-viewport-gizmo/tar.gz/d5ae66010e7f5f067931aaeb6a74880a73d23b5d(three@0.179.1)
+      tslib:
+        specifier: 'catalog:'
+        version: 2.8.1
       typescript-eslint:
         specifier: 'catalog:'
         version: 8.56.1(eslint@9.32.0(jiti@2.6.1))(typescript@5.9.3)
@@ -1084,9 +1078,6 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.15.12(@arethetypeswrong/core@0.18.2)(@typescript/native-preview@7.0.0-dev.20260223.1)(oxc-resolver@11.18.0)(publint@0.3.17)(typescript@5.9.3)
-      tslib:
-        specifier: 'catalog:'
-        version: 2.8.1
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -1357,16 +1348,16 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
       opencascade.js:
-        specifier: 'catalog:'
+        specifier: file:../../tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz
         version: file:tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz(ws@8.19.0)
       openscad-wasm-prebuilt:
         specifier: 'catalog:'
         version: 1.2.0
       replicad:
-        specifier: 'catalog:'
+        specifier: file:../../tarballs/replicad-0.21.0-v8.7.tgz
         version: file:tarballs/replicad-0.21.0-v8.7.tgz(patch_hash=83c51cf5db7014b104df4408837733ecb92cf034437415c095e9ab327dcca320)
       replicad-opencascadejs:
-        specifier: 'catalog:'
+        specifier: file:../../tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
         version: file:tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
       source-map-js:
         specifier: 'catalog:'

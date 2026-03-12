@@ -85,7 +85,6 @@ catalog:
   manifold-3d: 3.3.2
   mermaid: ^11.12.3
   nx: 22.5.2
-  opencascade.js: /Users/rifont/git/tau/tarballs/opencascade.js-2.0.0-beta.b5ff984.tgz
   openscad-wasm-prebuilt: ^1.2.0
   oxfmt: ^0.36.0
   oxlint: ^1.51.0
@@ -94,8 +93,6 @@ catalog:
   react: ^19.2.4
   react-dom: ^19.2.4
   react-router: 7.12.0
-  replicad: /Users/rifont/git/tau/tarballs/replicad-0.21.0-v8.7.tgz
-  replicad-opencascadejs: /Users/rifont/git/tau/tarballs/replicad-opencascadejs-0.21.0-v8.26.tgz
   source-map-js: ^1.2.1
   tsdown: ^0.15.12
   tslib: ^2.8.1
