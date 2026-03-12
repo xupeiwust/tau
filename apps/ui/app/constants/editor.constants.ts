@@ -67,6 +67,7 @@ export const allotmentPanelOrder = [
   'parameters',
   'editor',
   'converter',
+  'git',
   'details',
 ] as const;
 
