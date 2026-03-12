@@ -264,7 +264,7 @@ describe('GeometryAnalysisService', () => {
       expect(result.failures[0]!.reason).not.toContain('size.y');
     });
 
-    it('should pass vacuously when expected has no size or center fields', async () => {
+    it('should fail when expected has no size or center fields', async () => {
       const requirement: MeasurementTestRequirement = {
         id: 'bb1',
         description: 'no size or center',
@@ -273,11 +273,27 @@ describe('GeometryAnalysisService', () => {
         expected: { notValid: true },
       };
 
-      // Both size and center are optional in the schema, so an object with
-      // neither is valid but results in no actual checks → vacuous pass.
       const result = await service.runMeasurementTests(boxGlb, [requirement]);
 
-      expect(result.passed).toBe(1);
+      expect(result.passed).toBe(0);
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0]!.reason).toContain('requires at least size or center');
+    });
+
+    it('should fail when expected is an empty object', async () => {
+      const requirement: MeasurementTestRequirement = {
+        id: 'bb_empty',
+        description: 'empty expected',
+        type: 'measurement',
+        check: 'boundingBox',
+        expected: {},
+      };
+
+      const result = await service.runMeasurementTests(boxGlb, [requirement]);
+
+      expect(result.passed).toBe(0);
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0]!.reason).toContain('requires at least size or center');
     });
   });
 
@@ -359,15 +375,17 @@ describe('GeometryAnalysisService', () => {
     });
 
     it('should produce more vertices for a sphere than a box', async () => {
-      const boxResult = await service.runMeasurementTests(boxGlb, [
-        vertexCountRequirement({ id: 'vc1', description: 'box', count: 0, tolerance: 999_999 }),
-      ]);
-      const sphereResult = await service.runMeasurementTests(sphereGlb, [
-        vertexCountRequirement({ id: 'vc1', description: 'sphere', count: 0, tolerance: 999_999 }),
-      ]);
+      const probe = vertexCountRequirement({ id: 'vc1', description: 'probe', count: 0, tolerance: 0 });
 
-      expect(boxResult.passed).toBe(1);
-      expect(sphereResult.passed).toBe(1);
+      const boxResult = await service.runMeasurementTests(boxGlb, [probe]);
+      const sphereResult = await service.runMeasurementTests(sphereGlb, [probe]);
+
+      const extractVertexCount = (reason: string): number => Number(/got (\d+)/.exec(reason)?.[1]);
+
+      const boxVertices = extractVertexCount(boxResult.failures[0]!.reason);
+      const sphereVertices = extractVertexCount(sphereResult.failures[0]!.reason);
+
+      expect(sphereVertices).toBeGreaterThan(boxVertices);
     });
   });
 

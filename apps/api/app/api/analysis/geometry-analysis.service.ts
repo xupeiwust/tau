@@ -197,6 +197,16 @@ export class GeometryAnalysisService {
     }
 
     const expected: BoundingBoxExpected = parseResult.data;
+
+    // oxlint-disable-next-line unicorn/explicit-length-check -- false positive, oxlint matched on Set.prototype.size
+    if (!expected.size && !expected.center) {
+      return {
+        passed: false,
+        reason: 'Bounding box check requires at least size or center',
+        suggestion: 'Provide size and/or center constraints in the expected parameter.',
+      };
+    }
+
     const reasons: string[] = [];
 
     // oxlint-disable-next-line unicorn/explicit-length-check -- false positive check against Set.prototype.entries
