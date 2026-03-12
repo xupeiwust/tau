@@ -14,14 +14,20 @@
 # - CONTEXT: Deploy context (production, deploy-preview, branch-deploy)
 # - NETLIFY: Set to "true" when building on Netlify
 # - NODE_ENV: Set below per context
+#
+# NX_PREFER_NODE_STRIP_TYPES: NODE_ENV=production causes pnpm to skip
+# devDependencies (including @swc/core). Nx needs a TS transpiler to load
+# plugin config files (e.g. playwright.config.ts) during project graph
+# construction. This env var tells Nx to use Node's native type stripping
+# instead of SWC/ts-node, which requires no additional packages.
 
 [build]
-command = "pnpm nx build ui"
+command = "NX_PREFER_NODE_STRIP_TYPES=true pnpm nx build ui"
 publish = "apps/ui/build/client"
 
 # Production context (main branch)
 [context.production]
-command = "pnpm nx build ui"
+command = "NX_PREFER_NODE_STRIP_TYPES=true pnpm nx build ui"
 [context.production.environment]
 NODE_ENV = "production"
 TAU_API_URL = "https://api.tau.new"
@@ -30,7 +36,7 @@ TAU_WEBSOCKET_URL = "wss://api.tau.new"
 
 # Deploy preview context (pull requests)
 [context.deploy-preview]
-command = "pnpm nx build ui"
+command = "NX_PREFER_NODE_STRIP_TYPES=true pnpm nx build ui"
 [context.deploy-preview.environment]
 NODE_ENV = "production"
 TAU_API_URL = "https://api.tau.new"
@@ -39,7 +45,7 @@ TAU_WEBSOCKET_URL = "wss://api.tau.new"
 
 # Branch deploy context (non-production branches)
 [context.branch-deploy]
-command = "pnpm nx build ui"
+command = "NX_PREFER_NODE_STRIP_TYPES=true pnpm nx build ui"
 [context.branch-deploy.environment]
 NODE_ENV = "production"
 TAU_API_URL = "https://api.tau.new"
