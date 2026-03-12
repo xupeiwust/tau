@@ -291,7 +291,7 @@ export function SplitMorphingPoints({
       delta,
       animationSpeed,
       onComplete() {
-        onMorphComplete?.(0);
+        onMorphComplete?.(sharedRotationRef?.current ?? 0);
       },
     });
 

@@ -156,6 +156,10 @@ function getIconConfig(extension: string): IconConfig | undefined {
   return undefined;
 }
 
+/**
+ * Renders an icon based on a file's extension, using branded SVG icons for known
+ * languages and 3D format badges for CAD file types, with a generic file icon fallback.
+ */
 export function FileExtensionIcon({
   filename,
   className,
