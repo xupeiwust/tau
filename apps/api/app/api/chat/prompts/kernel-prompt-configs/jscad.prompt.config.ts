@@ -1,6 +1,8 @@
-import { jscadModelingTypes } from '@taucad/api-extractor';
+import { jscadModelingTypesMap } from '@taucad/api-extractor';
 import type { KernelConfig } from '#api/chat/prompts/kernel-prompt-configs/kernel.prompt.config.types.js';
 import canonicalExample from '#api/chat/prompts/kernel-prompt-configs/jscad.prompt.example.ts?raw';
+
+const jscadModelingTypes = Object.values(JSON.parse(jscadModelingTypesMap) as Record<string, string>).join('\n\n');
 
 export const jscadConfig: KernelConfig = {
   fileExtension: '.ts',
