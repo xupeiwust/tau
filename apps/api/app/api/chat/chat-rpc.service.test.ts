@@ -563,6 +563,44 @@ describe('ChatRpcService', () => {
       });
       expect(socket.emit).toHaveBeenCalledWith('rpc_request', expect.objectContaining({ rpcName: 'read_file' }));
     });
+
+    it('should cancel previous cleanup timer when scheduling a new one for the same chatId', async () => {
+      const socket = createMockSocket('s1');
+      service.registerConnection('chat_1', socket);
+
+      const c1 = new AbortController();
+      c1.abort();
+      service.registerAbortSignal('chat_1', c1.signal);
+
+      vi.advanceTimersByTime(2000);
+
+      const c2 = new AbortController();
+      c2.abort();
+      service.registerAbortSignal('chat_1', c2.signal);
+
+      // At t=5s — original Timer A would fire here if not properly cancelled,
+      // prematurely clearing the abort entry. Timer B should still be active.
+      vi.advanceTimersByTime(3000);
+
+      const result = await service.sendRpcRequest({
+        chatId: 'chat_1',
+        toolCallId: 'call_1',
+        rpcName: 'read_file',
+        args: { targetFile: 'a.txt' },
+      });
+      expect(result).toMatchObject({ errorCode: 'CLIENT_DISCONNECTED' });
+
+      // At t=7s — Timer B fires (5s after t=2s registration)
+      vi.advanceTimersByTime(2000);
+
+      void service.sendRpcRequest({
+        chatId: 'chat_1',
+        toolCallId: 'call_2',
+        rpcName: 'read_file',
+        args: { targetFile: 'a.txt' },
+      });
+      expect(socket.emit).toHaveBeenCalledWith('rpc_request', expect.objectContaining({ rpcName: 'read_file' }));
+    });
   });
 
   // ---------------------------------------------------------------------------

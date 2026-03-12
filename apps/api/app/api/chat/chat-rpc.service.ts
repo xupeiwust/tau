@@ -489,6 +489,7 @@ export class ChatRpcService implements OnModuleDestroy {
    * if a new signal is registered for the same chatId.
    */
   private scheduleAbortCleanup(chatId: string): void {
+    this.cancelAbortCleanupTimer(chatId);
     const timerId = setTimeout(() => {
       this.abortedChats.delete(chatId);
       this.abortCleanupTimers.delete(chatId);
