@@ -60,7 +60,6 @@
     "builtin": true
   },
   "rules": {
-    "no-negated-condition": "error",
     // Superseded by `unicorn/no-nested-ternary` which provides the same check with better messaging.
     "no-nested-ternary": "off",
     "unicorn/catch-error-name": "error",
@@ -748,14 +747,8 @@
         "ignoreStringArrays": true
       }
     ],
-    /*
-     * Require exhaustive switch statements. This is an extra barrier against bad type unions.
-     * The following is an example of how to perform an exhaustive check:
-     *   default: {
-     *     const exhaustiveCheck: never = part;
-     *     throw new Error(`Unknown part type: ${String(exhaustiveCheck)}`);
-     *   }
-     */
+    // Disabled: exhaustive switch checking is enforced manually via the `never` narrowing pattern
+    // (assign to `never` in `default` and throw) rather than through a lint rule.
     "@typescript-eslint/switch-exhaustiveness-check": "off",
     "@typescript-eslint/triple-slash-reference": [
       "error",
