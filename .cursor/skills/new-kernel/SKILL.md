@@ -246,23 +246,25 @@ All kernels use the same **JSON map approach**: `buildBundledTypes()` returns `R
 
 3. **Export from `@taucad/api-extractor`:** `libs/api-extractor/src/index.ts`
 
+   Import the raw JSON string, parse it via `parseTypesMap`, and export a typed `KernelTypesMap` object. Add it to the `kernelTypeMaps` array:
+
    ```typescript
-   export { default as <id>TypesMap } from '#generated/<id>/<id>.bundled.json?raw';
+   import <id>Raw from '#generated/<id>/<id>.bundled.json?raw';
+
+   export const <id>Types: KernelTypesMap = parseTypesMap(<id>Raw);
+
+   // Add to the kernelTypeMaps array:
+   export const kernelTypeMaps: readonly KernelTypesMap[] = [
+     // ...existing entries...
+     <id>Types,
+   ];
    ```
+
+   Consumers import the typed object directly — no `JSON.parse` or type assertions needed.
 
 4. **Register in Monaco:** `apps/ui/app/lib/javascript-contribution.ts`
 
-   Add the imported map to the `kernelTypeMaps` array. The existing `flatMap` loop handles parsing and registration automatically:
-
-   ```typescript
-   const kernelTypeMaps = [
-     opencascadeTypesMap,
-     replicadTypesMap,
-     jscadModelingTypesMap,
-     manifoldTypesMap,
-     <id>TypesMap,
-   ];
-   ```
+   No changes needed — the `kernelTypeMaps` array from `@taucad/api-extractor` is already iterated and registered automatically.
 
 5. **Add type-level tests:** `libs/api-extractor/src/generated/<id>/<id>.bundled.test-d.ts`
 

@@ -562,8 +562,8 @@ The editor provides IntelliSense (autocompletion, hover, diagnostics) for kernel
 Kernel package .d.ts files
   → extract-<id>-types.ts (extraction script)
     → <id>.bundled.json (JSON map: module path → raw .d.ts content)
-      → @taucad/api-extractor export (raw string via ?raw import)
-        → javascript-contribution.ts (JSON.parse → addExtraLib per entry)
+      → @taucad/api-extractor (parses JSON internally, exports typed KernelTypesMap)
+        → javascript-contribution.ts (iterates typed maps → addExtraLib per entry)
           → Monaco TypeScript language service
 ```
 
@@ -574,14 +574,15 @@ Each kernel exports a JSON map of `Record<string, string>` where keys are module
 - **Module identity = file path**: Monaco's TypeScript service resolves `import { cube } from '@jscad/modeling/primitives'` by looking for a virtual file at `file:///node_modules/@jscad/modeling/primitives/index.d.ts`. Each subpath export needs its own `addExtraLib` registration.
 - **No `declare module` wrappers**: Earlier versions wrapped content in `declare module '<pkg>' { ... }` blocks. This caused TS1038 errors (`'declare' modifier cannot be used in an already ambient context`) because the source `.d.ts` files already use `export declare`. Raw module files registered at the correct virtual path avoid this entirely.
 - **Uniform consumer code**: Every kernel uses the same format regardless of whether it has one entry point (replicad) or fifteen (JSCAD). The consumer in `javascript-contribution.ts` is a single `flatMap` over all kernel type maps.
+- **Typed exports**: `@taucad/api-extractor` parses the JSON internally and exports typed `KernelTypesMap` objects plus a pre-built `kernelTypeMaps` array. Consumers use these directly — no `JSON.parse` or type assertions needed.
 
 ### Adding Types for a New Kernel
 
 1. Create `libs/api-extractor/src/extract-<id>-types.ts` with a `buildBundledTypes(): Record<string, string>` function
 2. Write output to `libs/api-extractor/src/generated/<id>/<id>.bundled.json`
 3. Also write individual `.d.ts` files under `generated/<id>/modules/` for type-level testing
-4. Export from `libs/api-extractor/src/index.ts` as `<id>TypesMap` via `?raw` import
-5. Add the exported map to the `kernelTypeMaps` array in `apps/ui/app/lib/javascript-contribution.ts`
+4. In `libs/api-extractor/src/index.ts`: import the raw JSON, parse it via `parseTypesMap`, export as a typed `KernelTypesMap`, and add it to the `kernelTypeMaps` array
+5. No changes needed in `javascript-contribution.ts` — it imports `kernelTypeMaps` which already includes all kernels
 6. Add `.test-d.ts` type-level tests under `generated/<id>/` using `tsconfig.typetest.json` path mappings
 
 ### Type-Level Testing
