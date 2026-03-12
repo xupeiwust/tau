@@ -246,6 +246,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (values.compare) {
+    console.error('--compare requires exactly 2 file paths.');
+    process.exit(1);
+  }
+
   await runSuite();
 }
 
