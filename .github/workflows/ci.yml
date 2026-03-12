@@ -30,6 +30,10 @@ jobs:
 
       - name: Check formatting
         # TODO: replace with `pnpm dlx oxfmt@catalog: --check` once pnpm/pnpm#10594 is fixed
+        # NOTE: awk extraction is fragile — it assumes oxfmt appears as a top-level catalog
+        # entry in pnpm-workspace.yaml. If the YAML structure changes (e.g. nested catalogs,
+        # renamed keys), this will silently break. A more robust alternative would be to read
+        # the version from a dedicated file or package.json field.
         run: |
           version=$(awk '/^  oxfmt:/{gsub(/["'"'"']/, "", $2); print $2}' pnpm-workspace.yaml)
           pnpm dlx "oxfmt@${version}" --check
