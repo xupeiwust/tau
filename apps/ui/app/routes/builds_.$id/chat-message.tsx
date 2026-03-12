@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { messageRole } from '@taucad/chat/constants';
 import type { UsageData } from '@taucad/chat';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
@@ -75,6 +76,47 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
   }
 
   const isUser = message.role === messageRole.user;
+  const isCollapsedUserMessage = isUser && !isEditing;
+  const shouldVirtualizeCollapsedUserMessage = isCollapsedUserMessage && fileParts.length === 0;
+
+  const collapsedUserRows = useMemo(() => {
+    if (!shouldVirtualizeCollapsedUserMessage) {
+      return [];
+    }
+
+    const rows: string[] = [];
+    for (const part of displayMessage.parts) {
+      if (part.type !== 'text') {
+        continue;
+      }
+
+      const normalizedText = part.text.replaceAll('\r\n', '\n');
+      for (const line of normalizedText.split('\n')) {
+        if (line.length === 0) {
+          rows.push('');
+          continue;
+        }
+
+        for (let start = 0; start < line.length; start += 220) {
+          rows.push(line.slice(start, start + 220));
+        }
+      }
+    }
+
+    return rows.length > 0 ? rows : [''];
+  }, [displayMessage.parts, shouldVirtualizeCollapsedUserMessage]);
+
+  const renderCollapsedUserRow = useCallback(
+    (index: number) => {
+      const row = collapsedUserRows[index];
+      if (typeof row !== 'string') {
+        return null;
+      }
+
+      return <p className='text-sm leading-relaxed wrap-break-word whitespace-pre-wrap text-foreground/90'>{row}</p>;
+    },
+    [collapsedUserRows],
+  );
 
   const handleEditClick = () => {
     if (!isUser) {
@@ -136,133 +178,146 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
                 ))}
               </div>
             ) : null}
-            {/* oxlint-disable-next-line complexity -- This is a complex switch statement, we want to keep it simple. */}
-            {displayMessage.parts.map((part, index) => {
-              switch (part.type) {
-                case 'text': {
-                  return (
-                    <ChatMessageText
-                      // oxlint-disable-next-line react/no-array-index-key -- Index is stable
-                      key={`${displayMessage.id}-message-part-${index}`}
-                      part={part}
-                    />
-                  );
-                }
+            {shouldVirtualizeCollapsedUserMessage ? (
+              <Virtuoso
+                className='h-58.5'
+                totalCount={collapsedUserRows.length}
+                itemContent={renderCollapsedUserRow}
+                components={{
+                  List: (properties) => <div {...properties} className='flex flex-col gap-1 pr-1' />,
+                  Header: () => <div className='h-0.5' />,
+                  Footer: () => <div className='h-0.5' />,
+                }}
+              />
+            ) : (
+              /* oxlint-disable-next-line complexity -- This is a complex switch statement, we want to keep it simple. */
+              displayMessage.parts.map((part, index) => {
+                switch (part.type) {
+                  case 'text': {
+                    return (
+                      <ChatMessageText
+                        // oxlint-disable-next-line react/no-array-index-key -- Index is stable
+                        key={`${displayMessage.id}-message-part-${index}`}
+                        part={part}
+                      />
+                    );
+                  }
 
-                case 'reasoning': {
-                  const hasPartsAfter = index < displayMessage.parts.length - 1;
-                  return (
-                    <ChatMessageReasoning
-                      // oxlint-disable-next-line react/no-array-index-key -- Index is stable
-                      key={`${displayMessage.id}-message-part-${index}`}
-                      part={part}
-                      hasContent={hasPartsAfter}
-                    />
-                  );
-                }
+                  case 'reasoning': {
+                    const hasPartsAfter = index < displayMessage.parts.length - 1;
+                    return (
+                      <ChatMessageReasoning
+                        // oxlint-disable-next-line react/no-array-index-key -- Index is stable
+                        key={`${displayMessage.id}-message-part-${index}`}
+                        part={part}
+                        hasContent={hasPartsAfter}
+                      />
+                    );
+                  }
 
-                case 'step-start': {
-                  // We are not rendering step-start parts.
+                  case 'step-start': {
+                    // We are not rendering step-start parts.
 
-                  return null;
-                }
+                    return null;
+                  }
 
-                case 'file': {
-                  // Files are rendered at the top of the message
-                  return null;
-                }
+                  case 'file': {
+                    // Files are rendered at the top of the message
+                    return null;
+                  }
 
-                case 'dynamic-tool': {
-                  return <ChatMessagePartUnknown key={part.toolCallId} part={part} />;
-                }
+                  case 'dynamic-tool': {
+                    return <ChatMessagePartUnknown key={part.toolCallId} part={part} />;
+                  }
 
-                case 'source-url': {
-                  throw new Error('Source URL rendering is not implemented');
-                }
+                  case 'source-url': {
+                    throw new Error('Source URL rendering is not implemented');
+                  }
 
-                case 'source-document': {
-                  throw new Error('Source document rendering is not implemented');
-                }
+                  case 'source-document': {
+                    throw new Error('Source document rendering is not implemented');
+                  }
 
-                // TOOLS
-                case 'tool-web_search': {
-                  const hasPartsAfter = index < displayMessage.parts.length - 1;
-                  return <ChatMessageToolWebSearch key={part.toolCallId} part={part} hasContent={hasPartsAfter} />;
-                }
+                  // TOOLS
+                  case 'tool-web_search': {
+                    const hasPartsAfter = index < displayMessage.parts.length - 1;
+                    return <ChatMessageToolWebSearch key={part.toolCallId} part={part} hasContent={hasPartsAfter} />;
+                  }
 
-                case 'tool-web_browser': {
-                  const hasPartsAfter = index < displayMessage.parts.length - 1;
-                  return <ChatMessageToolWebBrowser key={part.toolCallId} part={part} hasContent={hasPartsAfter} />;
-                }
+                  case 'tool-web_browser': {
+                    const hasPartsAfter = index < displayMessage.parts.length - 1;
+                    return <ChatMessageToolWebBrowser key={part.toolCallId} part={part} hasContent={hasPartsAfter} />;
+                  }
 
-                case 'tool-edit_file': {
-                  return <ChatMessageToolFileEdit key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-edit_file': {
+                    return <ChatMessageToolFileEdit key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-test_model': {
-                  return <ChatMessageToolTestModel key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-test_model': {
+                    return <ChatMessageToolTestModel key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-edit_tests': {
-                  return <ChatMessageToolEditTests key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-edit_tests': {
+                    return <ChatMessageToolEditTests key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-transfer_to_cad_expert': {
-                  return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-transfer_to_cad_expert': {
+                    return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-transfer_to_research_expert': {
-                  return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-transfer_to_research_expert': {
+                    return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-transfer_back_to_supervisor': {
-                  return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-transfer_back_to_supervisor': {
+                    return <ChatMessageToolTransfer key={part.toolCallId} part={part} />;
+                  }
 
-                // FILESYSTEM TOOLS
-                case 'tool-read_file': {
-                  return <ChatMessageToolReadFile key={part.toolCallId} part={part} />;
-                }
+                  // FILESYSTEM TOOLS
+                  case 'tool-read_file': {
+                    return <ChatMessageToolReadFile key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-list_directory': {
-                  return <ChatMessageToolListDirectory key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-list_directory': {
+                    return <ChatMessageToolListDirectory key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-create_file': {
-                  return <ChatMessageToolCreateFile key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-create_file': {
+                    return <ChatMessageToolCreateFile key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-delete_file': {
-                  return <ChatMessageToolDeleteFile key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-delete_file': {
+                    return <ChatMessageToolDeleteFile key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-grep': {
-                  return <ChatMessageToolGrep key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-grep': {
+                    return <ChatMessageToolGrep key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-glob_search': {
-                  return <ChatMessageToolGlobSearch key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-glob_search': {
+                    return <ChatMessageToolGlobSearch key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-get_kernel_result': {
-                  return <ChatMessageToolGetKernelResult key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-get_kernel_result': {
+                    return <ChatMessageToolGetKernelResult key={part.toolCallId} part={part} />;
+                  }
 
-                case 'tool-screenshot': {
-                  return <ChatMessageToolScreenshot key={part.toolCallId} part={part} />;
-                }
+                  case 'tool-screenshot': {
+                    return <ChatMessageToolScreenshot key={part.toolCallId} part={part} />;
+                  }
 
-                case 'data-usage': {
-                  // Usage data parts are rendered separately in the footer
-                  return null;
-                }
+                  case 'data-usage': {
+                    // Usage data parts are rendered separately in the footer
+                    return null;
+                  }
 
-                default: {
-                  const unknownPart: never = part;
-                  return <ChatMessagePartUnknown key={String(unknownPart)} part={unknownPart} />;
+                  default: {
+                    const unknownPart: never = part;
+                    return <ChatMessagePartUnknown key={String(unknownPart)} part={unknownPart} />;
+                  }
                 }
-              }
-            })}
+              })
+            )}
           </div>
         </When>
         <ChatMessagePlanning messageId={messageId} />
@@ -285,7 +340,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
-                <DropdownMenuContent align='start' side='top' className='min-w-[200px]'>
+                <DropdownMenuContent align='start' side='top' className='min-w-50'>
                   <DropdownMenuLabel>Switch model</DropdownMenuLabel>
                   <ChatModelSelector
                     popoverProperties={{ side: 'right', align: 'start' }}
