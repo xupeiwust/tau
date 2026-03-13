@@ -239,7 +239,7 @@ function applyFillets(
           ),
       );
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.warn(
       'A fillet operation failed. The model might have sharp edges. Error: ' +
         (error instanceof Error ? error.message : String(error)),

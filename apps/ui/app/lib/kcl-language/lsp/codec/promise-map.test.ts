@@ -67,7 +67,7 @@ describe('PromiseMap', () => {
       try {
         map.delete(1);
         await promise;
-      } catch (error: unknown) {
+      } catch (error) {
         caught = error;
       }
 
@@ -81,7 +81,7 @@ describe('PromiseMap', () => {
       try {
         map.delete(1, new Error('custom'));
         await promise;
-      } catch (error: unknown) {
+      } catch (error) {
         caught = error;
       }
 
@@ -116,7 +116,7 @@ describe('PromiseMap', () => {
 
       try {
         await promise;
-      } catch (error: unknown) {
+      } catch (error) {
         caught = error;
       }
 
@@ -145,7 +145,7 @@ describe('PromiseMap', () => {
 
       try {
         await promise;
-      } catch (error: unknown) {
+      } catch (error) {
         caught = error;
       }
 
@@ -169,7 +169,7 @@ describe('PromiseMap', () => {
       try {
         map.delete(1);
         await promise;
-      } catch (error: unknown) {
+      } catch (error) {
         caught = error;
       }
 

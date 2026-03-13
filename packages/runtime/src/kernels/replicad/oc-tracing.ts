@@ -133,7 +133,7 @@ function createRethrowFunction(decoder: ExceptionDecoder | undefined): (error: u
         const kernelError = new OcKernelError(typeName, rawMessage);
         (Error as V8ErrorConstructor).captureStackTrace?.(kernelError, rethrowIfWasmException);
         throw kernelError;
-      } catch (decodeError: unknown) {
+      } catch (decodeError) {
         if (decodeError instanceof OcKernelError) {
           throw decodeError;
         }
@@ -175,7 +175,7 @@ function createEmscriptenWrapper(rethrowIfWasmException: (error: unknown) => nev
           checkAbort();
           try {
             return wrapEmscriptenResult(Reflect.apply(member, target, methodArguments));
-          } catch (error: unknown) {
+          } catch (error) {
             return rethrowIfWasmException(error);
           }
         };
@@ -232,7 +232,7 @@ export function wrapOcForExceptions(oc: OpenCascadeInstance): OpenCascadeInstanc
                 string,
                 unknown
               >;
-            } catch (error: unknown) {
+            } catch (error) {
               return rethrowIfWasmException(error);
             }
           },
@@ -241,7 +241,7 @@ export function wrapOcForExceptions(oc: OpenCascadeInstance): OpenCascadeInstanc
             checkAbort();
             try {
               return wrapEmscriptenResult(Reflect.apply(applyTarget, thisArg, args));
-            } catch (error: unknown) {
+            } catch (error) {
               return rethrowIfWasmException(error);
             }
           },
@@ -301,7 +301,7 @@ export function wrapOcWithTracing(
           const result: unknown = Reflect.construct(target, args, newTarget);
           recordSummaryCall(className, performance.now() - start);
           return wrapEmscriptenResult(result) as Record<string, unknown>;
-        } catch (error: unknown) {
+        } catch (error) {
           recordSummaryCall(className, performance.now() - start);
           return rethrowIfWasmException(error);
         }
@@ -313,7 +313,7 @@ export function wrapOcWithTracing(
           const result: unknown = Reflect.apply(target, thisArgument, args);
           recordSummaryCall(className, performance.now() - start);
           return wrapEmscriptenResult(result);
-        } catch (error: unknown) {
+        } catch (error) {
           recordSummaryCall(className, performance.now() - start);
           return rethrowIfWasmException(error);
         }
@@ -330,7 +330,7 @@ export function wrapOcWithTracing(
         });
         try {
           return wrapEmscriptenResult(Reflect.construct(target, args, newTarget)) as Record<string, unknown>;
-        } catch (error: unknown) {
+        } catch (error) {
           return rethrowIfWasmException(error);
         } finally {
           span.end();
@@ -341,7 +341,7 @@ export function wrapOcWithTracing(
         const span = tracer.startSpan(`oc.${className}`, { method: 'apply' });
         try {
           return wrapEmscriptenResult(Reflect.apply(target, thisArgument, args));
-        } catch (error: unknown) {
+        } catch (error) {
           return rethrowIfWasmException(error);
         } finally {
           span.end();

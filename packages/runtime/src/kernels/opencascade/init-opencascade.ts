@@ -61,7 +61,7 @@ export async function initOpenCascade(
           const wasmInstance = await WebAssembly.instantiate(compiledModule, imports);
           instSpan?.end();
           successCallback(wasmInstance);
-        } catch (error: unknown) {
+        } catch (error) {
           instSpan?.end();
           throw error instanceof Error ? error : new Error(String(error));
         }

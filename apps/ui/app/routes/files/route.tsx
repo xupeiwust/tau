@@ -722,7 +722,7 @@ export default function FilesRoute(): React.JSX.Element {
       // Reload webaccess tree
       setLoadedDirectories((previous) => ({ ...previous, webaccess: new Map() }));
       void loadColumnTree('webaccess');
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }

@@ -16,7 +16,7 @@ describe('getWorkerMessagePort', () => {
     try {
       getWorkerMessagePort();
       expect.fail('should have thrown');
-    } catch (error: unknown) {
+    } catch (error) {
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toBe('getWorkerMessagePort() must be called from a worker context');
     }

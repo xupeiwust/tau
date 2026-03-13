@@ -93,7 +93,7 @@ export function useGeometryExport(options: UseGeometryExportOptions): UseGeometr
           const blob = new Blob([asBuffer(file.bytes.buffer)]);
           downloadBlob(blob, fullFilename);
           onSuccess?.(fullFilename);
-        } catch (error: unknown) {
+        } catch (error) {
           onError?.(error);
         } finally {
           setIsExporting(false);

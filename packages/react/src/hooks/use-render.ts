@@ -58,8 +58,7 @@ const emptyParameters: Record<string, unknown> = {};
  * Headless hook for transient, in-memory CAD rendering.
  *
  * Creates a `RuntimeClient` internally, calls `client.render({ code })` reactively
- * when inputs change, and returns geometry results. Uses an in-memory filesystem —
- * no IndexedDB, ZenFS, or FileManagerProvider required.
+ * when inputs change, and returns geometry results. Uses an in-memory filesystem.
  *
  * @param options - Render configuration including code, kernels, and parameters
  * @returns Reactive render state including geometries, status, error, and parameter schema
@@ -143,7 +142,7 @@ export function useRender(options: UseRenderOptions): UseRenderResult {
           setError(new Error(firstIssue?.message ?? 'Render failed'));
           setStatus('error');
         }
-      } catch (error: unknown) {
+      } catch (error) {
         // oxlint-disable-next-line eslint/no-constant-condition, typescript/no-unnecessary-condition -- cancelled is mutated by cleanup after await
         if (cancelled) {
           return;

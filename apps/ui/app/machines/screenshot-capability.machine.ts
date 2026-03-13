@@ -678,7 +678,7 @@ export const screenshotCapabilityMachine = setup({
         try {
           const dataUrls = await captureScreenshots({ gl, scene, camera, options });
           sendBack({ type: 'screenshotCompleted', dataUrls, requestId });
-        } catch (error: unknown) {
+        } catch (error) {
           sendBack({
             type: 'screenshotFailed',
             error: error instanceof Error ? error.message : 'Screenshot failed',
@@ -719,7 +719,7 @@ export const screenshotCapabilityMachine = setup({
             dataUrls: [compositeDataUrl],
             requestId,
           });
-        } catch (error: unknown) {
+        } catch (error) {
           sendBack({
             type: 'screenshotFailed',
             error: error instanceof Error ? error.message : 'Composite screenshot failed',
@@ -745,7 +745,7 @@ export const screenshotCapabilityMachine = setup({
         try {
           const dataUrls = await captureSvgScreenshots(svgElement, options);
           sendBack({ type: 'screenshotCompleted', dataUrls, requestId });
-        } catch (error: unknown) {
+        } catch (error) {
           sendBack({
             type: 'screenshotFailed',
             error: error instanceof Error ? error.message : 'SVG screenshot failed',
@@ -782,7 +782,7 @@ export const screenshotCapabilityMachine = setup({
             dataUrls: [compositeDataUrl],
             requestId,
           });
-        } catch (error: unknown) {
+        } catch (error) {
           sendBack({
             type: 'screenshotFailed',
             error: error instanceof Error ? error.message : 'SVG composite screenshot failed',

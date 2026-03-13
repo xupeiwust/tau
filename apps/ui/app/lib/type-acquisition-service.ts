@@ -456,7 +456,7 @@ export class TypeAcquisitionService {
       this.failedPackages.delete(packageName);
 
       ataLog('fetched:', packageName, `(${typesContent.length} chars)`);
-    } catch (error: unknown) {
+    } catch (error) {
       // Don't record AbortError as a failure (it's intentional)
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;

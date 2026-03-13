@@ -67,7 +67,7 @@ export function FileSystemSettings(): React.JSX.Element {
       await storeDirectoryHandle(handle);
       setWorkspaceDirectoryName(handle.name);
       setIsWorkspaceConnected(true);
-    } catch (error: unknown) {
+    } catch (error) {
       // User cancelled the directory picker
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;

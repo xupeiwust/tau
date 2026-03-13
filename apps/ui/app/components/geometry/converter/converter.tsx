@@ -78,7 +78,7 @@ export function Converter({
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled, rethrow to stop the export
         throw error;

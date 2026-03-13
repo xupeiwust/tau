@@ -91,7 +91,7 @@ export function UploadCard({
     try {
       const handle = await globalThis.window.showDirectoryPicker({ mode: 'read' });
       onDirectoryHandleSelected(handle);
-    } catch (error: unknown) {
+    } catch (error) {
       // User cancelled the directory picker
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;

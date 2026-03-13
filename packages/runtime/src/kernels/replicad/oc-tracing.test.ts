@@ -371,7 +371,7 @@ describe('in-flight cooperative abort', () => {
 
         proxied.step3();
         expect.fail('should have thrown RenderAbortedError');
-      } catch (error: unknown) {
+      } catch (error) {
         workerState = isRenderAbortedError(error) ? 'idle' : 'error';
       }
 
@@ -386,7 +386,7 @@ describe('in-flight cooperative abort', () => {
 
       try {
         throw new Error('Compilation failed');
-      } catch (error: unknown) {
+      } catch (error) {
         workerState = isRenderAbortedError(error) ? 'idle' : 'error';
         expect((error as Error).message).toBe('Compilation failed');
       }

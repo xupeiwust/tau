@@ -221,7 +221,7 @@ async function runKclLsp(token: string, apiBaseUrl: string): Promise<void> {
 
     await lsp_run_kcl(config, token, apiBaseUrl);
     log.debug('LSP server exited normally');
-  } catch (error: unknown) {
+  } catch (error) {
     log.error('LSP server error:', error);
     // Even on error, mark as ready so pending requests don't hang forever
     isWasmReady = true;
@@ -247,7 +247,7 @@ async function handleInitEvent(eventData: KclLspWorkerOptions): Promise<void> {
     // Wait for the LSP to be ready before processing more messages
     await wasmReadyPromise;
     log.debug('LSP initialization complete');
-  } catch (error: unknown) {
+  } catch (error) {
     log.error('Failed to initialize WASM:', error);
     isWasmReady = true;
     resolveWasmReady();
@@ -278,7 +278,7 @@ async function handleCallEvent(data: Uint8Array<ArrayBuffer>): Promise<void> {
       const encoded = encodeMessage(response as JSONRPCResponse);
       globalThis.postMessage(encoded);
       log.debug('Response sent to client');
-    } catch (error: unknown) {
+    } catch (error) {
       log.error('Error getting response:', error);
       // Send JSON-RPC error response back to client per spec
       const errorResponse: JSONRPCResponse = {

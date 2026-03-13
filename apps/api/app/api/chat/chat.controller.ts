@@ -205,7 +205,7 @@ export class ChatController {
       }
 
       throw new Error('Failed to create UI message stream response');
-    } catch (error: unknown) {
+    } catch (error) {
       // When the client disconnects, we abort with a branded ChatAbortError
       // reason. Check signal.reason for our brand — this is a definitive match
       // regardless of what error LangGraph/node-fetch actually throws.

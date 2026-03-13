@@ -94,7 +94,7 @@ export const PreviewDesktop = memo(function (): React.JSX.Element {
       });
 
       await navigate(`/builds/${createdBuild.id}`);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Failed to remix build:', error);
       toast.error('Failed to remix build');
       setIsCloning(false);

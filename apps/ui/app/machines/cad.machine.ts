@@ -362,7 +362,7 @@ export const cadMachine = setup({
           } else {
             self.send({ type: 'geometryExportFailed', errors: result.issues });
           }
-        } catch (error: unknown) {
+        } catch (error) {
           self.send({
             type: 'geometryExportFailed',
             errors: [

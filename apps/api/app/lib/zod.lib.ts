@@ -22,7 +22,7 @@ export const jsonCodec = <T extends z.core.$ZodType>(schema: T) =>
     decode(jsonString, context) {
       try {
         return JSON.parse(jsonString) as z.input<T>;
-      } catch (error: unknown) {
+      } catch (error) {
         context.issues.push({
           code: 'invalid_format',
           format: 'json',

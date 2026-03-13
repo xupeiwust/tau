@@ -86,7 +86,7 @@ export abstract class BaseLoader<ParseResult = unknown, Options extends BaseLoad
       try {
         const result = parser();
         resolve(result);
-      } catch (error: unknown) {
+      } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         reject(new Error(`Failed to parse with ${this.constructor.name}: ${errorMessage}`));
       }
