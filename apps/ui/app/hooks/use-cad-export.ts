@@ -3,7 +3,7 @@ import { useActorRef, useSelector } from '@xstate/react';
 import type { ExportFormat } from '@taucad/types';
 import { fileExtensionFromExportFormat } from '@taucad/types/constants';
 import { exportGeometryMachine } from '#machines/export-geometry.machine.js';
-import { downloadBlob } from '#utils/file.utils.js';
+import { downloadBlob } from '@taucad/utils/file';
 import { toast } from '#components/ui/sonner.js';
 import { useCadPreview } from '#hooks/use-cad-preview.js';
 
