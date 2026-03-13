@@ -15,6 +15,7 @@ Release workflow for the `@taucad/*` npm packages using Nx Release with Version 
 | `@taucad/converter`   | `packages/converter`   | CAD file format conversion |
 | `@taucad/json-schema` | `packages/json-schema` | JSON to JSON Schema        |
 | `@taucad/js`          | `packages/js`          | Tau JavaScript API         |
+| `@taucad/react`       | `packages/react`       | React hooks for runtime    |
 
 All packages use fixed versioning (same version across all packages).
 
