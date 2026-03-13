@@ -107,6 +107,15 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
   const client = createRuntimeClient(kernelOptions);
   const cleanups: Array<() => void> = [];
 
+  const teardown = () => {
+    for (const cleanup of cleanups) {
+      cleanup();
+    }
+    client.terminate();
+  };
+
+  signal.addEventListener('abort', teardown, { once: true });
+
   cleanups.push(
     client.on('geometry', (result: HashedGeometryResult) => {
       console.log('[CadMachine] geometry event received', {
@@ -161,6 +170,8 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
   cleanups.push(dispose);
   console.log('[CadMachine] connectKernelActor: connecting client...');
   await client.connect({ port });
+
+  signal.removeEventListener('abort', teardown);
   console.log('[CadMachine] connectKernelActor: connected successfully');
 
   return { type: 'kernelConnected', client, cleanups };
