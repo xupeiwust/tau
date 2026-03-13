@@ -134,11 +134,14 @@ export function CadPreviewProvider({
   const previewRef = useActorRef(
     cadPreviewMachine.provide({
       actors: {
-        prepareFiles: fromSafeAsync(async ({ input }) => {
+        prepareFiles: fromSafeAsync(async ({ input, signal }) => {
           if (input.files) {
             const firstFilePath = Object.keys(input.files)[0];
+
+            signal.throwIfAborted();
             const alreadyExists = firstFilePath && (await exists(joinPath('/builds', input.buildId, firstFilePath)));
 
+            signal.throwIfAborted();
             if (!alreadyExists) {
               const buildFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
               for (const [path, file] of Object.entries(input.files)) {
