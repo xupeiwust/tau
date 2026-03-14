@@ -2,11 +2,16 @@ import { loader } from '@monaco-editor/react';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
-import { shikiToMonaco } from '@shikijs/monaco';
+import { shikiToMonaco, textmateThemeToMonacoTheme } from '@shikijs/monaco';
 import { registerCompletion } from 'monacopilot';
 import type { CompletionRegistration, CompletionCopilot } from 'monacopilot';
 import type * as Monaco from 'monaco-editor';
 import { ENV } from '#environment.config.js';
+import {
+  createJsonTokensProvider,
+  generateJsonBracketHighlightColors,
+  generateJsonThemeRules,
+} from '#lib/monaco-json.lib.js';
 import { highlighter } from '#lib/shiki.lib.js';
 import { registry } from '#lib/monaco-language-registry.js';
 import { monacoLanguages } from '#lib/monaco.constants.js';
@@ -71,8 +76,28 @@ export const configureMonaco = async (): Promise<void> => {
   // Languages
   await import('monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js');
   await import('monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js');
-  await import('monaco-editor/esm/vs/language/json/monaco.contribution.js');
+  // Capture jsonDefaults to disable the built-in JSON tokenizer below.
+  // Monaco's ESM .d.ts for this contribution declares only `export {}`, but
+  // the module exposes `jsonDefaults` at runtime.
+  // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- empty .d.ts from third-party
+  const { jsonDefaults } = (await import('monaco-editor/esm/vs/language/json/monaco.contribution.js')) as unknown as {
+    jsonDefaults: {
+      readonly modeConfiguration: Record<string, boolean>;
+      setModeConfiguration(config: Record<string, boolean>): void;
+    };
+  };
   await import('monaco-editor/esm/vs/language/typescript/monaco.contribution.js');
+
+  // Disable Monaco's built-in JSON tokenizer. The JSON mode contribution
+  // lazily calls setupMode → registerProviders on first language encounter
+  // (via `languages.onLanguage("json", ...)`), which registers a competing
+  // tokenizer via setTokensProvider when `tokens: true`. This overrides our
+  // Shiki-based tokenizer asynchronously, causing a visible flicker from
+  // correct colors back to the default palette.
+  jsonDefaults.setModeConfiguration({
+    ...jsonDefaults.modeConfiguration,
+    tokens: false,
+  });
 
   // Phase 1: Register language metadata for all contributions (idempotent)
   registry.registerAll(monaco);
@@ -81,6 +106,24 @@ export const configureMonaco = async (): Promise<void> => {
   // this only runs once, preventing monkey-patch wrapper multiplication on
   // monaco.editor.create and monaco.editor.setTheme.
   shikiToMonaco(highlighter, monaco);
+
+  // Override Shiki's JSON tokenizer to preserve TextMate scope granularity
+  // and add depth-based key colorization.
+  const jsonGrammar = highlighter.getLanguage('json');
+  monaco.languages.setTokensProvider('json', createJsonTokensProvider(jsonGrammar));
+
+  // Augment GitHub themes with JSON-specific depth and value rules
+  // derived from each theme's own scope colors.
+  for (const themeId of ['github-dark', 'github-light'] as const) {
+    const shikiTheme = highlighter.getTheme(themeId);
+    // MonacoTheme extends monaco-editor-core's IStandaloneThemeData which is
+    // structurally identical to monaco-editor's but TypeScript can't unify
+    // the two package namespaces.
+    const monacoTheme = textmateThemeToMonacoTheme(shikiTheme) as unknown as Monaco.editor.IStandaloneThemeData;
+    monacoTheme.rules.push(...generateJsonThemeRules(shikiTheme));
+    Object.assign(monacoTheme.colors, generateJsonBracketHighlightColors(shikiTheme));
+    monaco.editor.defineTheme(themeId, monacoTheme);
+  }
 };
 
 /**
