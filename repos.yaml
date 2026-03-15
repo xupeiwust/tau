@@ -59,6 +59,8 @@ groups:
       - react-router
       - vaul
       - type-fest
+      - xyflow
+      - shiki
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -327,3 +329,9 @@ repos:
   type-fest:
     upstream: sindresorhus/type-fest
     description: A collection of essential TypeScript types
+  xyflow:
+    upstream: xyflow/xyflow
+    description: "React Flow |\_Svelte Flow - Powerful open source libraries for building node-based UIs with React (https://reactflow.dev) or Svelte (https://svelteflow.dev). Ready out-of-the-box and infinitely customizable."
+  shiki:
+    upstream: shikijs/shiki
+    description: A beautiful yet powerful syntax highlighter
