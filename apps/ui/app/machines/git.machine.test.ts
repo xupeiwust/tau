@@ -64,7 +64,7 @@ const mockFileManagerRef = {
 // Factory helpers
 // ---------------------------------------------------------------------------
 
-function createTestActor(options?: { accessToken?: string; buildId?: string; throwOnClone?: boolean }) {
+function createTestActor(options?: { accessToken?: string; projectId?: string; throwOnClone?: boolean }) {
   const machine = gitMachine.provide({
     actors: {
       // oxlint-disable-next-line no-empty-function -- mock stub
@@ -76,13 +76,13 @@ function createTestActor(options?: { accessToken?: string; buildId?: string; thr
       }),
       stageFileActor: fromSafeAsync<
         { type: 'fileStaged'; path: string },
-        GitActorInput & { buildId: string; path: string }
+        GitActorInput & { projectId: string; path: string }
       >(async ({ input }) => {
         return { type: 'fileStaged', path: input.path };
       }),
       unstageFileActor: fromSafeAsync<
         { type: 'fileUnstaged'; path: string },
-        GitActorInput & { buildId: string; path: string }
+        GitActorInput & { projectId: string; path: string }
       >(async ({ input }) => {
         return { type: 'fileUnstaged', path: input.path };
       }),
@@ -101,14 +101,14 @@ function createTestActor(options?: { accessToken?: string; buildId?: string; thr
 
   return createActor(machine, {
     input: {
-      buildId: options?.buildId ?? 'test-build',
+      projectId: options?.projectId ?? 'test-build',
       fileManagerRef: mockFileManagerRef,
     },
   });
 }
 
 async function connectAndAuthenticate(actor: ReturnType<typeof createTestActor>) {
-  actor.send({ type: 'connect', buildId: 'test-build' });
+  actor.send({ type: 'connect', projectId: 'test-build' });
   actor.send({
     type: 'authenticate',
     accessToken: 'token-123',
@@ -142,10 +142,10 @@ describe('gitMachine', () => {
     });
 
     it('should have correct context defaults', () => {
-      const actor = createTestActor({ buildId: 'my-build' });
+      const actor = createTestActor({ projectId: 'my-build' });
       actor.start();
       const { context } = actor.getSnapshot();
-      expect(context.buildId).toBe('my-build');
+      expect(context.projectId).toBe('my-build');
       expect(context.accessToken).toBeUndefined();
       expect(context.provider).toBeUndefined();
       expect(context.repository).toBeUndefined();
@@ -164,7 +164,7 @@ describe('gitMachine', () => {
     it('should transition to checkingAuthentication on connect', () => {
       const actor = createTestActor();
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       // CheckingAuthentication is a transient state — it immediately transitions
       // to authenticating when no access token is present
       expect(actor.getSnapshot().value).toBe('authenticating');
@@ -174,7 +174,7 @@ describe('gitMachine', () => {
     it('should go to authenticating when no access token', () => {
       const actor = createTestActor();
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       expect(actor.getSnapshot().value).toBe('authenticating');
       actor.stop();
     });
@@ -182,7 +182,7 @@ describe('gitMachine', () => {
     it('should set authentication on authenticate event', () => {
       const actor = createTestActor();
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       actor.send({
         type: 'authenticate',
         accessToken: 'token-123',
@@ -240,7 +240,7 @@ describe('gitMachine', () => {
     it('should transition to error on clone failure', async () => {
       const actor = createTestActor({ throwOnClone: true });
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       actor.send({
         type: 'authenticate',
         accessToken: 'token-123',
@@ -275,7 +275,7 @@ describe('gitMachine', () => {
           cloneRepositoryActor: fromSafeAsync(async () => {}),
           stageFileActor: fromSafeAsync<
             { type: 'fileStaged'; path: string },
-            GitActorInput & { buildId: string; path: string }
+            GitActorInput & { projectId: string; path: string }
           >(async ({ input }) => {
             return { type: 'fileStaged', path: input.path };
           }),
@@ -301,7 +301,7 @@ describe('gitMachine', () => {
       });
 
       const actor = createActor(machine, {
-        input: { buildId: 'test-build', fileManagerRef: mockFileManagerRef },
+        input: { projectId: 'test-build', fileManagerRef: mockFileManagerRef },
       });
       actor.start();
       await connectAuthAndClone(actor);
@@ -326,7 +326,7 @@ describe('gitMachine', () => {
     it('should handle disconnect from authenticating', () => {
       const actor = createTestActor();
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       expect(actor.getSnapshot().value).toBe('authenticating');
       actor.send({ type: 'disconnect' });
       expect(actor.getSnapshot().value).toBe('disconnected');
@@ -358,7 +358,7 @@ describe('gitMachine', () => {
     it('should handle disconnect from error', async () => {
       const actor = createTestActor({ throwOnClone: true });
       actor.start();
-      actor.send({ type: 'connect', buildId: 'test-build' });
+      actor.send({ type: 'connect', projectId: 'test-build' });
       actor.send({
         type: 'authenticate',
         accessToken: 'token-123',

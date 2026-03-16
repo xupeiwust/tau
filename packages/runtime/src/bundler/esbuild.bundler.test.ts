@@ -331,8 +331,8 @@ describe('extractProjectDependencies', () => {
       outputs: {},
     };
 
-    const result = extractProjectDependencies(metafile, '/builds/project');
-    expect(result).toEqual(['/builds/project/main.ts', '/builds/project/utils/helpers.ts']);
+    const result = extractProjectDependencies(metafile, '/projects/project');
+    expect(result).toEqual(['/projects/project/main.ts', '/projects/project/utils/helpers.ts']);
   });
 
   it('should exclude node_modules paths that start with /', () => {
@@ -344,8 +344,8 @@ describe('extractProjectDependencies', () => {
       outputs: {},
     };
 
-    const result = extractProjectDependencies(metafile, '/builds/project');
-    expect(result).toEqual(['/builds/project/main.ts']);
+    const result = extractProjectDependencies(metafile, '/projects/project');
+    expect(result).toEqual(['/projects/project/main.ts']);
   });
 
   it('should exclude non-vfs namespace entries', () => {
@@ -358,12 +358,12 @@ describe('extractProjectDependencies', () => {
       outputs: {},
     };
 
-    const result = extractProjectDependencies(metafile, '/builds/project');
-    expect(result).toEqual(['/builds/project/main.ts']);
+    const result = extractProjectDependencies(metafile, '/projects/project');
+    expect(result).toEqual(['/projects/project/main.ts']);
   });
 
   it('should return empty array for undefined metafile', () => {
-    const result = extractProjectDependencies(undefined, '/builds/project');
+    const result = extractProjectDependencies(undefined, '/projects/project');
     expect(result).toEqual([]);
   });
 
@@ -375,7 +375,7 @@ describe('extractProjectDependencies', () => {
       outputs: {},
     };
 
-    const result = extractProjectDependencies(metafile, '/builds/project');
+    const result = extractProjectDependencies(metafile, '/projects/project');
     expect(result).toEqual([]);
   });
 
@@ -387,8 +387,8 @@ describe('extractProjectDependencies', () => {
       outputs: {},
     };
 
-    const result = extractProjectDependencies(metafile, '/builds/project/');
-    expect(result).toEqual(['/builds/project/main.ts']);
+    const result = extractProjectDependencies(metafile, '/projects/project/');
+    expect(result).toEqual(['/projects/project/main.ts']);
   });
 });
 

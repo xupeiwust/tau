@@ -24,7 +24,7 @@ import { AuthConfigProvider } from '#providers/auth-provider.js';
 import { globalStylesLinks } from '#styles/global.styles.js';
 import type { Handle } from '#types/matches.types.js';
 import { RootCommandPaletteItems } from '#root-command-items.js';
-import { BuildManagerProvider } from '#hooks/use-build-manager.js';
+import { ProjectManagerProvider } from '#hooks/use-project-manager.js';
 import { FileManagerProvider } from '#hooks/use-file-manager.js';
 import { AnalyticsProvider } from '#hooks/use-analytics.js';
 import { ChatRpcSocketProvider } from '#hooks/use-chat-rpc-socket.js';
@@ -97,7 +97,7 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
       <QueryClientProvider client={queryClient}>
         <AnalyticsProvider>
           <FileManagerProvider rootDirectory='/'>
-            <BuildManagerProvider>
+            <ProjectManagerProvider>
               <ChatRpcSocketProvider>
                 <ThemeProvider specifiedTheme={ssrTheme} themeAction='/action/set-theme'>
                   <ColorProvider>
@@ -113,7 +113,7 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
                   </ColorProvider>
                 </ThemeProvider>
               </ChatRpcSocketProvider>
-            </BuildManagerProvider>
+            </ProjectManagerProvider>
           </FileManagerProvider>
         </AnalyticsProvider>
       </QueryClientProvider>

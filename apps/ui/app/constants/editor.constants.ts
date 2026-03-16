@@ -18,7 +18,7 @@ export const panelMinSizeEditor = 400;
 /** Minimum width for the Viewer/center panel (main 3D CAD visualization area) */
 export const panelMinSizeViewer = 416;
 
-/** Mobile drawer snap points for the builds interface */
+/** Mobile drawer snap points for the projects interface */
 export const mobileDrawerSnapPoints: Array<number | string> = [0.7, 1];
 
 /**
@@ -180,7 +180,7 @@ export type PanelId = (typeof panelIds)[number];
 export type DesktopPanelId = (typeof desktopPanelIds)[number];
 
 /**
- * Default panel state for new builds or when no stored state exists.
+ * Default panel state for new projects or when no stored state exists.
  */
 export const defaultPanelState = {
   openPanels: {

@@ -189,21 +189,21 @@ To ensure V8 bytecode caching works reliably across browsers and cache configura
 
 ## WASM Module Reuse Across Workers
 
-### Current: within-build worker pooling (already implemented)
+### Current: within-project worker pooling (already implemented)
 
-The application already keeps kernel workers alive within a build session. The `BuildProvider` → `buildMachine` → `cadMachine` → `kernelMachine` hierarchy reuses the same worker across file changes, parameter changes, and re-renders. The WASM init cost is paid **once per build session**, not per render.
+The application already keeps kernel workers alive within a project session. The `ProjectProvider` → `projectMachine` → `cadMachine` → `kernelMachine` hierarchy reuses the same worker across file changes, parameter changes, and re-renders. The WASM init cost is paid **once per project session**, not per render.
 
 This is the same "object pooling" approach used by [PSPDFKit](https://pspdfkit.com/blog/2018/optimize-webassembly-startup-performance/) for their 8 MB+ WASM backend — they pool initialized worker instances and recycle them across document opens.
 
-### Per-worker-creation cost (on build switches)
+### Per-worker-creation cost (on project switches)
 
-When the user navigates to a different build (project), workers are destroyed and recreated. With V8's caching layers working correctly, the init cost is modest:
+When the user navigates to a different project (project), workers are destroyed and recreated. With V8's caching layers working correctly, the init cost is modest:
 
-| Cost                       | Duration (warm caches) | Cause                                                                                                   |
-| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| `wasm.compile`             | ~20-30ms               | Streaming pipeline: HTTP cache fetch via Mojo IPC + NativeModuleCache lookup + TurboFan deserialization |
-| `wasm.emscripten-init`     | ~27-30ms               | C++ global constructors + Emscripten FS setup                                                           |
-| **Total per build switch** | **~50-60ms**           | Negligible compared to geometry computation (100-500ms+)                                                |
+| Cost                         | Duration (warm caches) | Cause                                                                                                   |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `wasm.compile`               | ~20-30ms               | Streaming pipeline: HTTP cache fetch via Mojo IPC + NativeModuleCache lookup + TurboFan deserialization |
+| `wasm.emscripten-init`       | ~27-30ms               | C++ global constructors + Emscripten FS setup                                                           |
+| **Total per project switch** | **~50-60ms**           | Negligible compared to geometry computation (100-500ms+)                                                |
 
 V8's caching layers handle compilation efficiently:
 
@@ -211,17 +211,17 @@ V8's caching layers handle compilation efficiently:
 - **GeneratedCodeCache** (disk): Persists TurboFan-optimized code across browser sessions. Deserialization takes ~8ms.
 - **`compileStreaming(fetch(url))`** leverages both caches automatically. The remaining ~20-30ms is the irreducible cost of the HTTP cache fetch IPC and streaming finalization — not recompilation.
 
-### Future: cross-build worker pooling (low priority)
+### Future: cross-project worker pooling (low priority)
 
-When switching between builds that use the same kernel type, the worker could be kept alive instead of terminated. The build machine would detach and reattach compilation units rather than destroying them.
+When switching between projects that use the same kernel type, the worker could be kept alive instead of terminated. The project machine would detach and reattach compilation units rather than destroying them.
 
 **Emscripten constraint**: C++ global constructors only run once per instance. OpenCASCADE's global state is initialized during these constructors and cannot be re-run. State cleanup must happen at the application level (e.g., deleting shapes), not by re-creating the Emscripten instance.
 
 This is low priority because:
 
 - The ~56ms init cost only occurs on project navigation, not during the iterative edit→render loop
-- The cost is small relative to build loading, file system initialization, and geometry computation that follow
-- The existing within-build pooling already covers the primary workflow
+- The cost is small relative to project loading, file system initialization, and geometry computation that follow
+- The existing within-project pooling already covers the primary workflow
 
 ### Future: transfer pre-compiled modules via `postMessage` (deferred)
 
@@ -261,4 +261,4 @@ If `wasm.compile` costs grow (e.g., larger WASM binaries or degraded cache behav
 - **Assuming CJS works with browser `import()`** -- it does not; only Node.js handles CJS via `import()`
 - **`assetsInlineLimit` returning `true` for WASM files** -- inlines multi-MB binaries into JS, breaking V8 bytecode cache and disabling streaming compilation
 - **JS chunks > 20 MB containing inlined binary data** -- exceeds Chrome's `GeneratedCodeCache` per-entry limit, causing silent cache rejection and full recompilation on every page load
-- **Terminating workers within a build session** -- destroys the V8 isolate and forces full WASM re-init (~56ms); keep workers alive across file/parameter changes (already implemented). Cross-build termination is acceptable given the low cost with warm caches
+- **Terminating workers within a project session** -- destroys the V8 isolate and forces full WASM re-init (~56ms); keep workers alive across file/parameter changes (already implemented). Cross-build termination is acceptable given the low cost with warm caches

@@ -122,7 +122,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
   it('connects via FileService-backed port and renders non-empty geometry', async () => {
     const fileService = await createFileService();
 
-    await fileService.writeFile('/builds/bld_hollow_box/main.ts', hollowBoxSource);
+    await fileService.writeFile('/projects/proj_hollow_box/main.ts', hollowBoxSource);
 
     client = createRuntimeClient({
       kernels: [replicad({ withBrepEdges: true }), tau()],
@@ -135,7 +135,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
     await client.connect({ port: channel.port2 });
 
     const result = await client.render({
-      file: { path: '/builds/bld_hollow_box', filename: 'main.ts' },
+      file: { path: '/projects/proj_hollow_box', filename: 'main.ts' },
     });
 
     expect(result.success).toBe(true);
@@ -151,7 +151,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
   it('produces non-empty geometry via setFile event callback', async () => {
     const fileService = await createFileService();
 
-    await fileService.writeFile('/builds/bld_hollow_box/main.ts', hollowBoxSource);
+    await fileService.writeFile('/projects/proj_hollow_box/main.ts', hollowBoxSource);
 
     client = createRuntimeClient({
       kernels: [replicad({ withBrepEdges: true }), tau()],
@@ -167,7 +167,7 @@ describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () =
       client!.on('geometry', resolve);
     });
 
-    client.setFile({ path: '/builds/bld_hollow_box', filename: 'main.ts' }, {});
+    client.setFile({ path: '/projects/proj_hollow_box', filename: 'main.ts' }, {});
 
     const result = await geometryPromise;
 

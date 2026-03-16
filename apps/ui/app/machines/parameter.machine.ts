@@ -4,7 +4,7 @@ import type { LengthSymbol } from '@taucad/units';
 import { convertLength } from '@taucad/units/converter';
 import { parseLengthInput } from '@taucad/units/parser';
 import { roundToSignificantFigures, formatUnitDisplay } from '#utils/number.utils.js';
-import type { MeasurementDescriptor } from '#constants/build-parameters.js';
+import type { MeasurementDescriptor } from '#constants/project-parameters.js';
 import { keydownListener } from '#machines/keydown.actor.js';
 import { focusListener } from '#machines/focus.actor.js';
 import { arrowKeyListener } from '#machines/arrow-key.actor.js';

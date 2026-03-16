@@ -21,7 +21,7 @@ type SummaryStats = {
 
 function calculateStats(records: UsageRecord[]): SummaryStats {
   const modelSet = new Set<string>();
-  const buildSet = new Set<string>();
+  const projectSet = new Set<string>();
 
   let totalCost = 0;
   let inputTokens = 0;
@@ -34,7 +34,7 @@ function calculateStats(records: UsageRecord[]): SummaryStats {
     outputTokens += record.outputTokens;
     cacheTokens += record.cacheReadTokens + record.cacheWriteTokens;
     modelSet.add(record.model);
-    buildSet.add(record.buildId);
+    projectSet.add(record.projectId);
   }
 
   return {
@@ -44,7 +44,7 @@ function calculateStats(records: UsageRecord[]): SummaryStats {
     outputTokens,
     cacheTokens,
     uniqueModels: modelSet.size,
-    uniqueBuilds: buildSet.size,
+    uniqueBuilds: projectSet.size,
   };
 }
 
@@ -95,12 +95,12 @@ export function UsageSummaryCards({ records }: UsageSummaryCardsProps): React.JS
 
       <Card>
         <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-          <CardTitle className='text-sm font-medium'>Builds</CardTitle>
+          <CardTitle className='text-sm font-medium'>Projects</CardTitle>
           <Folder className='size-4 text-muted-foreground' />
         </CardHeader>
         <CardContent>
           <div className='text-2xl font-bold'>{stats.uniqueBuilds}</div>
-          <p className='text-xs text-muted-foreground'>Builds with usage</p>
+          <p className='text-xs text-muted-foreground'>Projects with usage</p>
         </CardContent>
       </Card>
     </div>

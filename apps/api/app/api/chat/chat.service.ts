@@ -13,7 +13,7 @@ import { messageLoggingMiddleware } from '#api/chat/middleware/message-logging.m
 import { toolErrorHandlerMiddleware } from '#api/chat/middleware/tool-error-handler.middleware.js';
 import { createCachedSystemMessage } from '#api/chat/utils/create-cached-system-message.js';
 import { ToolService } from '#api/tools/tool.service.js';
-import { buildNameGenerationSystemPrompt } from '#api/chat/prompts/cad-name.prompt.js';
+import { projectNameGenerationSystemPrompt } from '#api/chat/prompts/cad-name.prompt.js';
 import { commitMessageGenerationSystemPrompt } from '#api/chat/prompts/git-commit.prompt.js';
 import { getCadSystemPrompt } from '#api/chat/prompts/cad-agent.prompt.js';
 import { toolResultTrimmerMiddleware } from '#api/chat/middleware/tool-result-trimmer.middleware.js';
@@ -33,7 +33,7 @@ export class ChatService {
     return streamText({
       model: openai('gpt-4o-mini'),
       messages: coreMessages,
-      system: buildNameGenerationSystemPrompt,
+      system: projectNameGenerationSystemPrompt,
     });
   }
 

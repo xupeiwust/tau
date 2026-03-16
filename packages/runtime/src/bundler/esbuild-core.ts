@@ -54,7 +54,7 @@ export type BundleResult = {
 export type BundlerOptions = {
   /** Filesystem interface for reading/writing files */
   filesystem: RuntimeFileSystem;
-  /** Base path for the project (e.g., /builds/project) */
+  /** Base path for the project (e.g., /projects/project) */
   projectPath: string;
   /** Built-in modules to use as fallback */
   builtinModules: Map<string, BuiltinModule>;

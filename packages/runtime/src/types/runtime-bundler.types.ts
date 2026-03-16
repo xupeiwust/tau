@@ -85,7 +85,7 @@ export type KernelBundler = {
 export type BundlerInitOptions = {
   /** Filesystem interface for reading project files */
   filesystem: RuntimeFileSystem;
-  /** Base path for the project (e.g., /builds/project) */
+  /** Base path for the project (e.g., /projects/project) */
   projectPath: string;
 };
 

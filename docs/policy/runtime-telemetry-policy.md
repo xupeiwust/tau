@@ -218,5 +218,5 @@ kernel.compute
 | `KernelWorker`              | `packages/runtime/src/framework/kernel-worker.ts`             | Framework span instrumentation             |
 | `KernelRuntimeWorker`       | `packages/runtime/src/framework/kernel-runtime-worker.ts`     | Kernel selection spans                     |
 | `wrapOcWithTracing`         | `packages/runtime/src/kernels/replicad/oc-tracing.ts`         | OC API call tracing proxy                  |
-| `buildSpanTree`             | `apps/ui/app/routes/builds_.$id/chat-kernel.tsx`              | UI tree reconstruction                     |
+| `buildSpanTree`             | `apps/ui/app/routes/projects_.$id/chat-kernel.tsx`            | UI tree reconstruction                     |
 | `createTelemetryAggregator` | `apps/ui/app/machines/kernel.machine.ts`                      | Main-thread forwarding                     |

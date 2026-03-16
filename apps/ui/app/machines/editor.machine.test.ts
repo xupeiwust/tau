@@ -10,7 +10,7 @@ import { fromSafeAsync } from '#lib/xstate.lib.js';
 // ---------------------------------------------------------------------------
 
 const stubEditorState: EditorState = {
-  buildId: 'test-build',
+  projectId: 'test-build',
   openFiles: [
     { path: 'src/main.ts', name: 'main.ts' },
     { path: 'src/utils.ts', name: 'utils.ts' },
@@ -31,7 +31,7 @@ const stubEditorState: EditorState = {
 function createTestActor(options?: {
   loadResult?: EditorState | undefined | (() => Promise<EditorState | undefined>);
   saveResult?: () => Promise<void>;
-  buildId?: string;
+  projectId?: string;
 }) {
   const loadResult = options?.loadResult;
   const loadFunction = typeof loadResult === 'function' ? loadResult : async () => loadResult;
@@ -53,7 +53,7 @@ function createTestActor(options?: {
   });
 
   return createActor(machine, {
-    input: { buildId: options?.buildId ?? 'test-build' },
+    input: { projectId: options?.projectId ?? 'test-build' },
   });
 }
 
@@ -310,17 +310,17 @@ describe('editorMachine', () => {
   // State: ready – reload
   // =========================================================================
   describe('ready – reload', () => {
-    it('should reload with new buildId', async () => {
-      const loadResults = [stubEditorState, { ...stubEditorState, buildId: 'new-build', openFiles: [] }];
+    it('should reload with new projectId', async () => {
+      const loadResults = [stubEditorState, { ...stubEditorState, projectId: 'new-build', openFiles: [] }];
       let loadIndex = 0;
       const actor = await startAndLoad({
         loadResult: async () => loadResults[loadIndex++],
       });
 
-      expect(actor.getSnapshot().context.buildId).toBe('test-build');
-      actor.send({ type: 'reload', buildId: 'new-build' });
+      expect(actor.getSnapshot().context.projectId).toBe('test-build');
+      actor.send({ type: 'reload', projectId: 'new-build' });
       await waitFor(actor, (s) => s.matches({ ready: {} }));
-      expect(actor.getSnapshot().context.buildId).toBe('new-build');
+      expect(actor.getSnapshot().context.projectId).toBe('new-build');
       expect(actor.getSnapshot().context.openFiles).toEqual([]);
       actor.stop();
     });

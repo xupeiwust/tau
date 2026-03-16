@@ -94,25 +94,25 @@ const SharedWorkerContext = createContext<Worker | undefined>(undefined);
 export function FileManagerProvider({
   children,
   rootDirectory,
-  buildId,
+  projectId,
   shouldInitializeOnStart = true,
 }: {
   readonly children: ReactNode;
   readonly rootDirectory: string;
   /** When provided, the per-build backend config is read from the config store. */
-  readonly buildId?: string;
+  readonly projectId?: string;
   readonly shouldInitializeOnStart?: boolean;
 }): React.JSX.Element {
   const [backendCookie] = useCookie(cookieName.filesystemBackend, 'indexeddb' as FileSystemBackend);
   const parentWorker = useContext(SharedWorkerContext);
 
-  // Use per-build config when buildId is provided; resolved async during machine init
+  // Use per-build config when projectId is provided; resolved async during machine init
   const fileManagerRef = useActorRef(fileManagerMachine, {
     input: {
       rootDirectory,
       shouldInitializeOnStart,
       initialBackend: backendCookie,
-      buildId,
+      projectId,
       sharedWorker: parentWorker,
     },
   });
@@ -121,16 +121,16 @@ export function FileManagerProvider({
   const rootDirectoryRef = useRef(rootDirectory);
   rootDirectoryRef.current = rootDirectory;
 
-  // Handle root directory or buildId changes (e.g., navigating between builds).
+  // Handle root directory or projectId changes (e.g., navigating between projects).
   // The machine's isRootChanged guard ensures same-value events are no-ops,
   // so this is safe to send unconditionally on every render cycle.
   useEffect(() => {
-    fileManagerRef.send({ type: 'setRoot', path: rootDirectory, buildId });
-  }, [fileManagerRef, rootDirectory, buildId]);
+    fileManagerRef.send({ type: 'setRoot', path: rootDirectory, projectId });
+  }, [fileManagerRef, rootDirectory, projectId]);
 
   /**
    * Wait for the file manager to be ready and return the proxy.
-   * This follows the established buildManagerMachine pattern.
+   * This follows the established projectManagerMachine pattern.
    */
   const getReadiedWorker = useCallback(async (): Promise<FileManagerProxy> => {
     const snapshot = await waitFor(

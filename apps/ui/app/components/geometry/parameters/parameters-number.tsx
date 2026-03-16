@@ -3,7 +3,7 @@ import { useSelector, useActorRef } from '@xstate/react';
 import { Slider } from '#components/ui/slider.js';
 import { ParametersInputNumber } from '#components/geometry/parameters/parameters-input-number.js';
 import { parameterMachine } from '#machines/parameter.machine.js';
-import type { MeasurementDescriptor } from '#constants/build-parameters.js';
+import type { MeasurementDescriptor } from '#constants/project-parameters.js';
 import { cn } from '#utils/ui.utils.js';
 import type { Units } from '#components/geometry/parameters/rjsf-context.js';
 

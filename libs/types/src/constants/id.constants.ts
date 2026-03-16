@@ -17,9 +17,9 @@ export const idPrefix = {
    */
   chat: 'chat',
   /**
-   * A build ID.
+   * A project ID.
    */
-  build: 'bld',
+  project: 'proj',
   /**
    * An LLM chat tool call ID.
    */

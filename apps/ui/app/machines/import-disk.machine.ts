@@ -22,7 +22,7 @@ export type ImportDiskContext = {
   selectedMainFile: string | undefined;
   error: Error | undefined;
   progress: { processed: number; total: number };
-  buildId: string | undefined;
+  projectId: string | undefined;
 };
 
 /**
@@ -56,7 +56,7 @@ type ImportDiskEmitted =
 
 // Actor output types
 type FilesReadResult = { type: 'filesRead'; files: FileMap; importName: string };
-type BuildCreatedResult = { type: 'buildCreated'; buildId: string };
+type ProjectCreatedResult = { type: 'projectCreated'; projectId: string };
 
 /**
  * Read files actor - reads files from FileList
@@ -132,23 +132,24 @@ const readDirectoryHandleActor = fromSafeAsync<
 });
 
 /**
- * Create build actor - placeholder that should be provided by the route
+ * Create project actor - placeholder that should be provided by the route
  */
-const createBuildActor = fromSafeAsync<BuildCreatedResult, { importName: string; mainFile: string; files: FileMap }>(
-  async () => {
-    throw new Error('createBuildActor must be provided by the route');
-  },
-);
+const createProjectActor = fromSafeAsync<
+  ProjectCreatedResult,
+  { importName: string; mainFile: string; files: FileMap }
+>(async () => {
+  throw new Error('createProjectActor must be provided by the route');
+});
 
 const importDiskActors = {
   readFilesActor,
   readDataTransferActor,
   readDirectoryHandleActor,
   extractZipActor,
-  createBuildActor,
+  createProjectActor,
 } as const;
 
-type ImportDiskEvent = ImportDiskEventInternal | FilesReadResult | BuildCreatedResult;
+type ImportDiskEvent = ImportDiskEventInternal | FilesReadResult | ProjectCreatedResult;
 
 /**
  * Import Disk Machine
@@ -160,7 +161,7 @@ type ImportDiskEvent = ImportDiskEventInternal | FilesReadResult | BuildCreatedR
  * - reading: Reading files from File API
  * - extracting: Extracting files from ZIP archive
  * - selectingMainFile: User selects the main file
- * - creating: Creating the build
+ * - creating: Creating the project
  * - success: Import completed successfully
  * - error: An error occurred during import
  */
@@ -227,10 +228,10 @@ export const importDiskMachine = setup({
         return event.file;
       },
     }),
-    setBuildId: assign({
-      buildId({ event }) {
-        assertEvent(event, 'buildCreated');
-        return event.buildId;
+    setProjectId: assign({
+      projectId({ event }) {
+        assertEvent(event, 'projectCreated');
+        return event.projectId;
       },
     }),
     reset: assign({
@@ -239,7 +240,7 @@ export const importDiskMachine = setup({
       selectedMainFile: undefined,
       error: undefined,
       progress: { processed: 0, total: 0 },
-      buildId: undefined,
+      projectId: undefined,
     }),
     emitProgress: emit(({ context }) => ({
       type: 'progress',
@@ -265,7 +266,7 @@ export const importDiskMachine = setup({
     selectedMainFile: undefined,
     error: undefined,
     progress: { processed: 0, total: 0 },
-    buildId: undefined,
+    projectId: undefined,
   }),
   initial: 'idle',
   states: {
@@ -429,7 +430,7 @@ export const importDiskMachine = setup({
     },
     creating: {
       invoke: {
-        src: 'createBuildActor',
+        src: 'createProjectActor',
         input: ({ context }) => ({
           importName: context.importName,
           mainFile: context.selectedMainFile!,
@@ -444,8 +445,8 @@ export const importDiskMachine = setup({
         },
       },
       on: {
-        buildCreated: {
-          actions: 'setBuildId',
+        projectCreated: {
+          actions: 'setProjectId',
         },
       },
     },

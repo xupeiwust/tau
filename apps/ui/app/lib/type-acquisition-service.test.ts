@@ -766,7 +766,7 @@ describe('TypeAcquisitionService', () => {
 
       // Session change
       mockFetch.mockClear();
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Re-trigger scan
       vi.advanceTimersByTime(100); // RequestIdleCallback deferred
@@ -818,7 +818,7 @@ describe('TypeAcquisitionService', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       // Change session
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Resolve the stale fetch
       resolveFetch?.({
@@ -863,7 +863,7 @@ describe('TypeAcquisitionService', () => {
         .value as MockDisposable;
 
       // Session change
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       expect(tsDisposable.dispose).toHaveBeenCalled();
       expect(jsDisposable.dispose).toHaveBeenCalled();
@@ -873,7 +873,7 @@ describe('TypeAcquisitionService', () => {
       const tsDisposable = mockMonaco.monaco.typescript.typescriptDefaults.addExtraLib.mock.results[0]!
         .value as MockDisposable;
 
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Static type disposable should NOT be disposed
       expect(tsDisposable.dispose).not.toHaveBeenCalled();
@@ -962,7 +962,7 @@ describe('TypeAcquisitionService', () => {
 
       // Session change to clear acquiredTypes (but failedPackages timestamp remains)
       mockFetch.mockClear();
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Advance past retry delay
       vi.advanceTimersByTime(61_000);
@@ -970,7 +970,7 @@ describe('TypeAcquisitionService', () => {
       vi.advanceTimersByTime(600);
       await vi.advanceTimersByTimeAsync(10);
 
-      // FailedPackages was cleared by onBuildSessionChange, so it should retry
+      // FailedPackages was cleared by onProjectSessionChange, so it should retry
       expect(mockFetch).toHaveBeenCalled();
     });
   });
@@ -1067,7 +1067,7 @@ describe('TypeAcquisitionService', () => {
         ok: true,
         headers: { get: () => null },
       });
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Retry should work immediately (AbortError doesn't count as failure)
       fireContentChange();
@@ -1330,7 +1330,7 @@ describe('TypeAcquisitionService', () => {
       expect(cdnUrlCall).toBeDefined();
 
       // Session change should dispose CDN alias libs
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // The CDN URL lib disposable should have been disposed
       const cdnUrlCallIndex = tsDefaults.addExtraLib.mock.calls.indexOf(cdnUrlCall!);
@@ -1570,7 +1570,7 @@ describe('TypeAcquisitionService', () => {
 
       // Session change
       mockFetch.mockClear();
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Re-trigger scan
       vi.advanceTimersByTime(100);
@@ -1658,7 +1658,7 @@ describe('TypeAcquisitionService', () => {
       await vi.advanceTimersByTimeAsync(50);
 
       // Source fetch is in-flight -- change session
-      service.onBuildSessionChange();
+      service.onProjectSessionChange();
 
       // Resolve the stale source fetch
       resolveSourceFetch?.({

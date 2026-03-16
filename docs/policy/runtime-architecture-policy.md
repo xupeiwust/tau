@@ -1,6 +1,6 @@
 ---
 title: 'Kernel Architecture Policy'
-description: 'CAD runtime worker architecture from editor to geometry computation. Covers BuildMachine, CadMachine, RuntimeClient, plugin model, transport, and lifecycle.'
+description: 'CAD runtime worker architecture from editor to geometry computation. Covers ProjectMachine, CadMachine, RuntimeClient, plugin model, transport, and lifecycle.'
 status: active
 created: '2026-02-18'
 updated: '2026-03-05'
@@ -17,10 +17,10 @@ A layered kernel API (Client, Transport, Protocol) separates consumer convenienc
 ## Architecture Overview
 
 ```text
-Route (builds_.$id)
-  └─ BuildMachine (1 per build)
-       ├─ FileManagerMachine (1 per build, shared)
-       ├─ EditorMachine (1 per build, UI state)
+Route (projects_.$id)
+  └─ ProjectMachine (1 per project)
+       ├─ FileManagerMachine (1 per project, shared)
+       ├─ EditorMachine (1 per project, UI state)
        ├─ ViewGraphics: Map<viewId, GraphicsMachine>
        │    └─ GraphicsMachine (1 per viewer panel, WebGL rendering)
        └─ CompilationUnits: Map<entryFile, CadMachine>
@@ -100,9 +100,9 @@ Multiple bundlers can be registered simultaneously. Each bundler declares the fi
 
 ### Machine Multiplicity
 
-| Component           | Per-build count         | Per-viewer-panel count | Notes                                          |
+| Component           | Per-project count       | Per-viewer-panel count | Notes                                          |
 | ------------------- | ----------------------- | ---------------------- | ---------------------------------------------- |
-| BuildMachine        | 1                       | --                     | Root state machine                             |
+| ProjectMachine      | 1                       | --                     | Root state machine                             |
 | FileManagerMachine  | 1                       | --                     | Shared across all units                        |
 | CadMachine          | 1 per unique entry file | --                     | Shared when multiple panels view the same file |
 | KernelMachine       | 1 per CadMachine        | --                     | Always 1:1 with CadMachine                     |
@@ -197,7 +197,7 @@ type RuntimeTransport = {
    │
 2. FileManager writes file → emits fileWritten event
    │
-3. use-build.tsx iterates all compilationUnits with changed path (absolute)
+3. use-project.tsx iterates all compilationUnits with changed path (absolute)
    │
 4. Each CadMachine receives setFile event
    │  ├─ Different file → immediate render
@@ -246,7 +246,7 @@ Only the WASM runtime for the selected kernel is ever loaded.
 ### Cleanup Chain
 
 ```
-BuildMachine.stopStatefulActors()
+ProjectMachine.stopStatefulActors()
   → enqueue.stopChild(cadMachine)
     → CadMachine stops
       → KernelMachine exit action: destroyWorkers()

@@ -24,7 +24,7 @@ import { generatePrefixedId } from '@taucad/utils/id';
 import { parentDirectory } from '@taucad/utils/path';
 import { screenshotRequestMachine, orthographicViews } from '#machines/screenshot-request.machine.js';
 import type { graphicsMachine } from '#machines/graphics.machine.js';
-import type { buildMachine } from '#machines/build.machine.js';
+import type { projectMachine } from '#machines/project.machine.js';
 import { decodeTextFile, encodeTextFile } from '#utils/filesystem.utils.js';
 
 /** Source of file write operations */
@@ -40,7 +40,7 @@ export type RpcHandlerDependencies = {
     deleteFile: (path: string, options: { source: FileWriteSource }) => Promise<void>;
   };
   graphicsRef: ActorRefFrom<typeof graphicsMachine> | undefined;
-  buildRef: ActorRefFrom<typeof buildMachine>;
+  projectRef: ActorRefFrom<typeof projectMachine>;
   fileTree: Map<string, FileEntry>;
   screenshotQuality: number;
 };
@@ -98,20 +98,20 @@ function createBrowserRpcFileSystem(
   };
 }
 
-function createBrowserRuntimeClient(buildRef: ActorRefFrom<typeof buildMachine>): RpcRuntimeClient {
+function createBrowserRuntimeClient(projectRef: ActorRefFrom<typeof projectMachine>): RpcRuntimeClient {
   return {
     async getKernelResult(targetFile: string): Promise<GetKernelResultRpcResult> {
       try {
-        const buildSnapshot = buildRef.getSnapshot();
-        const { compilationUnits } = buildSnapshot.context;
+        const projectSnapshot = projectRef.getSnapshot();
+        const { compilationUnits } = projectSnapshot.context;
         let cadUnit = compilationUnits.get(targetFile);
 
         if (!cadUnit) {
-          buildRef.send({
+          projectRef.send({
             type: 'createCompilationUnit',
             entryFile: targetFile,
           });
-          const refreshed = buildRef.getSnapshot();
+          const refreshed = projectRef.getSnapshot();
           cadUnit = refreshed.context.compilationUnits.get(targetFile);
         }
 
@@ -147,14 +147,14 @@ function createBrowserRuntimeClient(buildRef: ActorRefFrom<typeof buildMachine>)
 
 function createBrowserGraphicsClient(
   graphicsRef: ActorRefFrom<typeof graphicsMachine>,
-  buildRef: ActorRefFrom<typeof buildMachine>,
+  projectRef: ActorRefFrom<typeof projectMachine>,
   screenshotQuality: number,
 ): RpcGraphicsClient {
   return {
     async fetchGeometry(): Promise<FetchGeometryRpcResult> {
       try {
-        const buildSnapshot = buildRef.getSnapshot();
-        const { compilationUnits, mainEntryFile } = buildSnapshot.context;
+        const projectSnapshot = projectRef.getSnapshot();
+        const { compilationUnits, mainEntryFile } = projectSnapshot.context;
         const mainUnit = compilationUnits.get(mainEntryFile);
 
         if (!mainUnit) {
@@ -309,12 +309,12 @@ export type RpcHandlers = {
  * to createRpcDispatcher from @taucad/chat/rpc.
  */
 export function createRpcHandlers(deps: RpcHandlerDependencies): RpcHandlers {
-  const { fileManager, graphicsRef, buildRef, fileTree, screenshotQuality } = deps;
+  const { fileManager, graphicsRef, projectRef, fileTree, screenshotQuality } = deps;
 
   const rpcDeps: RpcDependencies = {
     fileSystem: createBrowserRpcFileSystem(fileManager, fileTree),
-    kernelClient: createBrowserRuntimeClient(buildRef),
-    graphics: graphicsRef ? createBrowserGraphicsClient(graphicsRef, buildRef, screenshotQuality) : undefined,
+    kernelClient: createBrowserRuntimeClient(projectRef),
+    graphics: graphicsRef ? createBrowserGraphicsClient(graphicsRef, projectRef, screenshotQuality) : undefined,
   };
 
   const dispatcher = createRpcDispatcher(rpcDeps);

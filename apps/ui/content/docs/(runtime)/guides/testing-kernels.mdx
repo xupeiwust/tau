@@ -69,7 +69,7 @@ describe('Replicad kernel', () => {
     });
 
     const result = await worker.createGeometry({
-      file: { filename: 'main.ts', path: '/builds/test' },
+      file: { filename: 'main.ts', path: '/projects/test' },
       parameters: {},
     });
 
@@ -90,7 +90,7 @@ import { KernelRuntimeWorker } from '@taucad/runtime/worker';
 import { initializeWorkerForTesting, seedTestFileSystem } from '@taucad/runtime/testing';
 
 await seedTestFileSystem({
-  '/builds/test/main.ts': `export default function main() { return null; }`,
+  '/projects/test/main.ts': `export default function main() { return null; }`,
 });
 
 const worker = new KernelRuntimeWorker();
@@ -113,8 +113,8 @@ import { seedTestFileSystem, clearTestFileSystem } from '@taucad/runtime/testing
 
 beforeEach(async () => {
   await seedTestFileSystem({
-    '/builds/test/main.ts': 'export default function main() { return null; }',
-    '/builds/test/lib/utils.ts': 'export const x = 1;',
+    '/projects/test/main.ts': 'export default function main() { return null; }',
+    '/projects/test/lib/utils.ts': 'export const x = 1;',
   });
 });
 
@@ -150,7 +150,7 @@ const runtime = createMockRuntime({
   dependencyHash: 'abc123',
 });
 
-const input = createMockInput({ filePath: '/builds/test/main.ts' });
+const input = createMockInput({ filePath: '/projects/test/main.ts' });
 const handler = createMockCreateGeometryHandler(createSuccessResult([]));
 
 const result = await myMiddleware.wrapCreateGeometry(input, handler, runtime);

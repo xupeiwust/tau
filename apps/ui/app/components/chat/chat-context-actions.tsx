@@ -7,7 +7,7 @@ import type { CodeIssue } from '@taucad/types';
 import type { KernelIssue } from '@taucad/runtime';
 import { TooltipTrigger, TooltipContent, Tooltip } from '#components/ui/tooltip.js';
 import { Button } from '#components/ui/button.js';
-import { useBuild, useMainGraphics } from '#hooks/use-build.js';
+import { useProject, useMainGraphics } from '#hooks/use-project.js';
 import { toast } from '#components/ui/sonner.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
 import { orthographicViews, screenshotRequestMachine } from '#machines/screenshot-request.machine.js';
@@ -49,7 +49,7 @@ export function ChatContextActions({
   className,
   ...properties
 }: ChatContextActionsProperties): React.JSX.Element {
-  const { compilationUnits, mainEntryFile, viewGraphics, editorRef } = useBuild();
+  const { compilationUnits, mainEntryFile, viewGraphics, editorRef } = useProject();
   const mainGraphicsRef = useMainGraphics();
   const cadActor = compilationUnits.get(mainEntryFile);
 

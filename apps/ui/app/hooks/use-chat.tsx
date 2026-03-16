@@ -24,7 +24,7 @@ import { inspect } from '#machines/inspector.js';
 import { ENV } from '#environment.config.js';
 import { parseErrorForPersistence } from '#utils/error.utils.js';
 import { finalizeInterruptedToolParts } from '#utils/chat.utils.js';
-import type { ChatMode } from '#routes/builds_.$id/chat-mode-selector.js';
+import type { ChatMode } from '#routes/projects_.$id/chat-mode-selector.js';
 
 type UseChatReturn = ReturnType<typeof useChat<MyUIMessage>>;
 
@@ -69,7 +69,7 @@ export function ChatProvider({
   // and processed in onFinish after the old request fully completes.
   const pendingMessageRef = useRef<PendingMessage | undefined>(undefined);
 
-  // Create draft machine with provided actors (like use-build.tsx pattern)
+  // Create draft machine with provided actors (like use-project.tsx pattern)
   const draftActorRef = useActorRef(
     draftMachine.provide({
       actors: {

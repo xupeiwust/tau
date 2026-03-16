@@ -42,7 +42,7 @@ export type ImportGitHubContext = {
   unzipRef: ActorRefFrom<UnzipMachineActor> | undefined;
   unzipSubscription: { unsubscribe: () => void } | undefined;
   files: Map<string, { filename: string; content: Uint8Array<ArrayBuffer> }>;
-  buildId: string | undefined;
+  projectId: string | undefined;
   error: Error | undefined;
   fetchErrors: {
     metadata: Error | undefined;
@@ -147,7 +147,7 @@ type ImportGitHubEvent =
   | BranchesResult
   | FilesResult
   | DownloadResult
-  | BuildCreatedResult;
+  | ProjectCreatedResult;
 
 // Actor output types
 type DownloadResult = { type: 'downloaded'; blob: Blob };
@@ -323,10 +323,10 @@ const downloadZipActor = fromSafeAsync<
   }
 });
 
-type BuildCreatedResult = { type: 'buildCreated'; buildId: string };
+type ProjectCreatedResult = { type: 'projectCreated'; projectId: string };
 
-const createBuildActor = fromSafeAsync<
-  BuildCreatedResult,
+const createProjectActor = fromSafeAsync<
+  ProjectCreatedResult,
   {
     owner: string;
     repo: string;
@@ -343,19 +343,19 @@ const importGitHubActors = {
   getBranchesActor,
   getFilesActor,
   downloadZipActor,
-  createBuildActor,
+  createProjectActor,
 } as const;
 
 /**
  * Import GitHub Machine
  *
- * Manages importing a GitHub repository as a build.
+ * Manages importing a GitHub repository as a project.
  *
  * States:
  * - downloading: Downloading ZIP from GitHub with progress tracking
  * - extracting: Extracting files from ZIP with progress tracking
  * - selectingMainFile: User reviews files and selects main file
- * - creating: Creating the build with selected main file
+ * - creating: Creating the project with selected main file
  * - success: Import completed successfully
  * - error: An error occurred during import
  *
@@ -563,10 +563,10 @@ export const importGitHubMachine = setup({
         return { processed: event.processed, total: event.total };
       },
     }),
-    setBuildId: assign({
-      buildId({ event }) {
-        assertEvent(event, 'buildCreated');
-        return event.buildId;
+    setProjectId: assign({
+      projectId({ event }) {
+        assertEvent(event, 'projectCreated');
+        return event.projectId;
       },
     }),
     initializeSelectedMainFile: assign({
@@ -791,7 +791,7 @@ export const importGitHubMachine = setup({
     unzipRef: undefined,
     unzipSubscription: undefined,
     files: new Map(),
-    buildId: undefined,
+    projectId: undefined,
     error: undefined,
     fetchErrors: {
       metadata: undefined,
@@ -1232,7 +1232,7 @@ export const importGitHubMachine = setup({
     },
     creating: {
       invoke: {
-        src: 'createBuildActor',
+        src: 'createProjectActor',
         input: ({ context }) => ({
           owner: context.owner,
           repo: context.repo,
@@ -1249,8 +1249,8 @@ export const importGitHubMachine = setup({
         },
       },
       on: {
-        buildCreated: {
-          actions: 'setBuildId',
+        projectCreated: {
+          actions: 'setProjectId',
         },
       },
     },

@@ -54,11 +54,11 @@ export const myMachine = setup({
 
 ### Machine naming
 
-- **Machine ID**: `kebab-case` (e.g., `'file-manager'`, `'kernel'`, `'build'`)
+- **Machine ID**: `kebab-case` (e.g., `'file-manager'`, `'kernel'`, `'project'`)
 - **States**: Nouns or adjectives (`idle`, `loading`, `ready`, `error`, `rendering`, `exporting`)
-- **Events**: `camelCase` verbs (e.g., `createGeometry`, `loadBuild`, `setParameters`)
-- **Actions**: `camelCase` verb phrases (e.g., `registerParentRef`, `destroyWorkers`, `emitBuildLoaded`)
-- **Guards**: `camelCase` predicates (e.g., `isLoggedIn`, `hasValidData`, `isBuildIdChanging`)
+- **Events**: `camelCase` verbs (e.g., `createGeometry`, `loadProject`, `setParameters`)
+- **Actions**: `camelCase` verb phrases (e.g., `registerParentRef`, `destroyWorkers`, `emitProjectLoaded`)
+- **Guards**: `camelCase` predicates (e.g., `isLoggedIn`, `hasValidData`, `isProjectIdChanging`)
 
 > **Note on `dot.case`**: XState v5 recommends `dot.case` for event names to enable wildcard transitions (`'kernel.*'`). The current codebase uses `camelCase`. New machines may adopt `dot.case` if wildcard matching provides clear value, but consistency within a machine is more important than convention.
 
@@ -507,18 +507,18 @@ function MyComponent(): React.JSX.Element {
 ```typescript
 // Send events when props change
 useEffect(() => {
-  actorRef.send({ type: 'loadBuild', buildId });
-}, [actorRef, buildId]);
+  actorRef.send({ type: 'loadProject', projectId });
+}, [actorRef, projectId]);
 ```
 
 ### Use `key` prop for identity-based remounting
 
-When a component wraps a machine whose identity changes (e.g., different build ID), use a React `key` prop to force unmount/remount:
+When a component wraps a machine whose identity changes (e.g., different project ID), use a React `key` prop to force unmount/remount:
 
 ```typescript
-<BuildProvider key={buildId} buildId={buildId}>
+<ProjectProvider key={projectId} projectId={projectId}>
   {children}
-</BuildProvider>
+</ProjectProvider>
 ```
 
 This ensures:
@@ -532,9 +532,9 @@ Pass actor references via React context or props, not by reaching into parent ma
 
 ```typescript
 // CORRECT: Provider exposes actor ref via context
-<BuildContext.Provider value={{ buildRef: actorRef }}>
+<ProjectContext.Provider value={{ projectRef: actorRef }}>
   {children}
-</BuildContext.Provider>
+</ProjectContext.Provider>
 
 // INCORRECT: Reaching into parent machine internals
 const kernelRef = parentActor.getSnapshot().context.kernelRef;
@@ -589,13 +589,13 @@ Use `emit` for events that parent components observe via `.on()` subscriptions, 
 
 ```typescript
 // Machine emits
-emitBuildLoaded: (emit(({ event }) => ({
-  type: 'buildLoaded',
-  build: event.output,
+emitProjectLoaded: (emit(({ event }) => ({
+  type: 'projectLoaded',
+  project: event.output,
 })),
   // React component subscribes
   useEffect(() => {
-    const sub = actorRef.on('buildLoaded', (event) => {
+    const sub = actorRef.on('projectLoaded', (event) => {
       // Handle event
     });
     return () => sub.unsubscribe();
@@ -661,16 +661,16 @@ Export guard and action functions for direct unit testing:
 
 ```typescript
 // In machine file
-export function isBuildIdChanging({ context, event }: GuardArgs): boolean {
-  return event.buildId !== context.buildId;
+export function isProjectIdChanging({ context, event }: GuardArgs): boolean {
+  return event.projectId !== context.projectId;
 }
 
 // In test file
-test('isBuildIdChanging returns true for different IDs', () => {
+test('isProjectIdChanging returns true for different IDs', () => {
   expect(
-    isBuildIdChanging({
-      context: { buildId: 'a' },
-      event: { type: 'loadBuild', buildId: 'b' },
+    isProjectIdChanging({
+      context: { projectId: 'a' },
+      event: { type: 'loadProject', projectId: 'b' },
     }),
   ).toBe(true);
 });

@@ -34,11 +34,11 @@ However, several anti-patterns have been identified that contribute to resource 
 
 | Machine                 | File                               | States         | Exit Actions                       | Key Actors                                                                      |
 | ----------------------- | ---------------------------------- | -------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
-| `build`                 | `build.machine.ts`                 | 6+ (parallel)  | `stopStatefulActors`               | `spawn('git')`, `spawn('cad')`, `spawn('logs')`, `spawn('graphics')`            |
+| `build`                 | `project.machine.ts`               | 6+ (parallel)  | `stopStatefulActors`               | `spawn('git')`, `spawn('cad')`, `spawn('logs')`, `spawn('graphics')`            |
 | `cad`                   | `cad.machine.ts`                   | 8              | **None**                           | `spawn(kernelMachine)`                                                          |
 | `kernel`                | `kernel.machine.ts`                | 5              | `destroyWorkers`                   | `invoke(initKernelActor)`, `invoke(renderActor)`, `invoke(exportGeometryActor)` |
 | `file-manager`          | `file-manager.machine.ts`          | 4              | `stopFileWatcher`, `destroyWorker` | `spawnChild('readDirectoryActor')`, `spawnChild('fileWatcherActor')`            |
-| `build-manager`         | `build-manager.machine.ts`         | 4              | `destroyWorker`                    | `invoke(initializeWorkerActor)`                                                 |
+| `build-manager`         | `project-manager.machine.ts`       | 4              | `destroyWorker`                    | `invoke(initializeWorkerActor)`                                                 |
 | `graphics`              | `graphics.machine.ts`              | 15+ (parallel) | **None**                           | —                                                                               |
 | `editor`                | `editor.machine.ts`                | 5              | **None**                           | `invoke(loadEditorStateActor)`, `invoke(saveEditorStateActor)`                  |
 | `git`                   | `git.machine.ts`                   | 15+            | **None**                           | `invoke(initGitActor, cloneRepositoryActor, ...)`, `buildListenerActor`         |
@@ -60,7 +60,7 @@ However, several anti-patterns have been identified that contribute to resource 
 | `chat-mode`             | `chat-mode.machine.ts`             | 3              | **None**                           | —                                                                               |
 | `auth-splashback`       | `auth-splashback.machine.ts`       | 3              | **None**                           | —                                                                               |
 
-**Key observation**: Only **5 of 25 machines** have exit actions for cleanup (4 original + `buildMachine` added). The rest rely on XState's built-in `stopChildren` behavior. All cleanup chains are now error-isolated via `safeDispose()` from `@taucad/utils/dispose`.
+**Key observation**: Only **5 of 25 machines** have exit actions for cleanup (4 original + `projectMachine` added). The rest rely on XState's built-in `stopChildren` behavior. All cleanup chains are now error-isolated via `safeDispose()` from `@taucad/utils/dispose`.
 
 ---
 
@@ -91,7 +91,7 @@ export const kernelMachine = setup({
 The codebase consistently uses `useActorRef` (not `useMachine`) paired with `useSelector` for fine-grained re-render control:
 
 ```typescript
-const actorRef = useActorRef(buildMachine, { input: { ... } });
+const actorRef = useActorRef(projectMachine, { input: { ... } });
 const compilationUnits = useSelector(actorRef, (state) => state.context.compilationUnits);
 ```
 
@@ -103,14 +103,14 @@ Build and preview providers correctly use `.provide()` to inject environment-spe
 
 ```typescript
 const actorRef = useActorRef(
-  buildMachine.provide({
+  projectMachine.provide({
     actors: {
-      loadBuildActor: fromPromise(async ({ input }) => {
+      loadProjectActor: fromPromise(async ({ input }) => {
         /* ... */
       }),
     },
   }),
-  { input: { buildId } },
+  { input: { projectId } },
 );
 ```
 
@@ -119,9 +119,9 @@ const actorRef = useActorRef(
 Machines use `emit()` for parent-facing events rather than tight coupling:
 
 ```typescript
-emitBuildLoaded: emit(({ event }) => ({
-  type: 'buildLoaded' as const,
-  build: event.output,
+emitProjectLoaded: emit(({ event }) => ({
+  type: 'projectLoaded' as const,
+  project: event.output,
 })),
 ```
 
@@ -221,7 +221,7 @@ rendering: {
 - `file-manager.machine.ts:92-94` — `context.worker`, `context.proxy`, `context.bridgeDispose` (inside `fromPromise` output)
 - `file-manager.machine.ts:331-343` — `context.proxy`, `context.bridgeDispose`, `context.worker` in `destroyWorker`
 - `camera-capability.machine.ts:56` — `context.resetFunction = event.reset`
-- `build-manager.machine.ts:31-32` — `context.worker`, `context.wrappedWorker`
+- `project-manager.machine.ts:31-32` — `context.worker`, `context.wrappedWorker`
 - `logs.machine.ts:40,57` — `context.logBuffer.push(...)` inside `assign`
 
 **Problem**: XState docs explicitly state: "Do not mutate the context object." Direct mutation bypasses XState's immutability model, can cause issues with devtools inspection, state persistence, and the `stopRootWithRehydration` pattern in `@xstate/react` (which captures and restores snapshots).
@@ -248,11 +248,11 @@ invoke: {
 }
 ```
 
-### AP-3: ~~Missing Exit Actions on `buildMachine`~~ (RESOLVED)
+### AP-3: ~~Missing Exit Actions on `projectMachine`~~ (RESOLVED)
 
-**Location**: `build.machine.ts`
+**Location**: `project.machine.ts`
 
-**Problem**: The `buildMachine` spawns `gitRef`, `compilationUnits` (cad machines), and `viewGraphics` (graphics machines) but has **no `exit` action**. Cleanup only happens via `stopStatefulActors` when a `loadBuild` event with `isBuildIdChanging` fires. If the machine stops for any other reason (component unmount), cleanup depends entirely on XState's internal `stopChildren` behavior.
+**Problem**: The `projectMachine` spawns `gitRef`, `compilationUnits` (cad machines), and `viewGraphics` (graphics machines) but has **no `exit` action**. Cleanup only happens via `stopStatefulActors` when a `loadProject` event with `isProjectIdChanging` fires. If the machine stops for any other reason (component unmount), cleanup depends entirely on XState's internal `stopChildren` behavior.
 
 The XState v5 source contains a TODO comment:
 
@@ -347,7 +347,7 @@ const [state, send, actorRef] = useMachine(authSplashbackMachine);
 Several `invoke` configurations only handle the `onDone` path, not `onError`:
 
 - `file-manager.machine.ts`: `readDirectoryActor` uses `onDone` with guard-based error routing
-- `build-manager.machine.ts`: `initializeWorkerActor` uses `onDone` with guard-based error routing
+- `project-manager.machine.ts`: `initializeWorkerActor` uses `onDone` with guard-based error routing
 
 **Mitigating factor**: These use `onDone` with guards that check for error outputs, which is a valid pattern for `fromPromise` actors that catch errors internally and return error objects.
 
@@ -423,11 +423,11 @@ test('kernel machine terminates worker on stop', async () => {
 
 ### P0: Critical (Resource Leaks / Correctness) — ALL RESOLVED
 
-| ID       | Issue                                           | Location            | Status                                                             |
-| -------- | ----------------------------------------------- | ------------------- | ------------------------------------------------------------------ |
-| ~~AP-1~~ | ~~Fire-and-forget async in `fireRender`~~       | `kernel.machine.ts` | **Resolved** — converted to invoked `renderActor` with AbortSignal |
-| ~~AP-2~~ | ~~Direct context mutation in `destroyWorkers`~~ | `kernel.machine.ts` | **Resolved** — uses `assign()` + `safeDispose()`                   |
-| ~~AP-3~~ | ~~Missing exit actions on `buildMachine`~~      | `build.machine.ts`  | **Resolved** — added `exit: ['stopStatefulActors']`                |
+| ID       | Issue                                           | Location             | Status                                                             |
+| -------- | ----------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| ~~AP-1~~ | ~~Fire-and-forget async in `fireRender`~~       | `kernel.machine.ts`  | **Resolved** — converted to invoked `renderActor` with AbortSignal |
+| ~~AP-2~~ | ~~Direct context mutation in `destroyWorkers`~~ | `kernel.machine.ts`  | **Resolved** — uses `assign()` + `safeDispose()`                   |
+| ~~AP-3~~ | ~~Missing exit actions on `projectMachine`~~    | `project.machine.ts` | **Resolved** — added `exit: ['stopStatefulActors']`                |
 
 ### P1: High (Correctness / Robustness) — ALL RESOLVED
 
@@ -459,7 +459,7 @@ All critical and high-priority anti-patterns have been resolved:
 - **`initKernelActor`**: Client initialization extracted into a proper invoked actor with `connectingKernel` state
 - **`renderActor`**: Fire-and-forget `fireRender` replaced with XState-managed invoke + AbortSignal
 - **`destroyWorkers` as `assign()`**: Cleanup is now pure context assignment
-- **`buildMachine` exit action**: Root `exit: ['stopStatefulActors']` ensures spawned children are stopped
+- **`projectMachine` exit action**: Root `exit: ['stopStatefulActors']` ensures spawned children are stopped
 - **`parentRef!` guards**: All 9 non-null assertions replaced with `enqueueActions` + guard checks
 - **`cameraCapability!` guard**: Same pattern in `graphics.machine.ts`
 - **`useMachine` → `useActorRef`**: `auth-splashback.tsx` migrated

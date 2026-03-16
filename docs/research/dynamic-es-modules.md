@@ -36,7 +36,7 @@ statically bundling them into a single worker), the kernel startup time in produ
 builds regressed from fast (~200ms total) to consistently slow (~1.3s), with
 `kernel.select` alone taking ~1s on every page reload.
 
-### Observed Telemetry (5 consecutive reloads, same build assets)
+### Observed Telemetry (5 consecutive reloads, same project assets)
 
 | Span                            | Time           |
 | ------------------------------- | -------------- |
@@ -488,11 +488,11 @@ bootstrap:
 
 ### 8.4 Existing Worker Pooling
 
-The application already implements worker pooling **within a build session**.
-The architecture in `apps/ui/app/hooks/use-build.tsx` and
-`apps/ui/app/machines/build.machine.ts` manages "compilation units" — each
+The application already implements worker pooling **within a project session**.
+The architecture in `apps/ui/app/hooks/use-project.tsx` and
+`apps/ui/app/machines/project.machine.ts` manages "compilation units" — each
 a `cadMachine` actor that owns a `kernelMachine` actor, which owns the Web
-Worker and `RuntimeClient`. Within a build:
+Worker and `RuntimeClient`. Within a project:
 
 - **File changes**: trigger `setFile` on the existing compilation unit — the
   worker stays alive and reprocesses with the warm WASM instance.
@@ -501,18 +501,18 @@ Worker and `RuntimeClient`. Within a build:
   for the entry file (`compilationUnits.has(mainFile)` check in
   `initializeKernelIfNeeded`).
 
-This means the ~56ms WASM init cost is paid **once per build session**, not
+This means the ~56ms WASM init cost is paid **once per project session**, not
 per render. During iterative development (the primary workflow), the worker
 stays alive and `wasm.compile` + `wasm.emscripten-init` cost is zero.
 
 ### 8.5 When Worker Recreation Occurs
 
-Workers are destroyed and recreated when **switching between builds**
-(projects). The build machine's `loadBuild` transition with a different
-`buildId` triggers:
+Workers are destroyed and recreated when **switching between projects**
+(projects). The project machine's `loadProject` transition with a different
+`projectId` triggers:
 
 ```
-build.machine (loadBuild, isBuildIdChanging)
+project.machine (loadProject, isProjectIdChanging)
   → stopStatefulActors: stop all compilation units (enqueue.stopChild)
   → respawnStatefulActors: compilationUnits = new Map()
 
@@ -521,26 +521,26 @@ cadMachine stopped → kernelMachine exit → destroyWorkers
     → worker.terminate()  ← V8 isolate destroyed, WASM state lost
 ```
 
-When the new build loads, `initializeKernelIfNeeded` spawns a fresh
+When the new project loads, `initializeKernelIfNeeded` spawns a fresh
 `cadMachine` → `kernelMachine` → new Worker → full WASM init (~56ms with
 warm caches).
 
 ### 8.6 Optimization Strategies
 
-**Strategy 1: Keep workers alive across build switches (future improvement)**
+**Strategy 1: Keep workers alive across project switches (future improvement)**
 
-Instead of destroying compilation units when the `buildId` changes, the
-build machine could detach and reattach them. When the new build uses the
+Instead of destroying compilation units when the `projectId` changes, the
+project machine could detach and reattach them. When the new project uses the
 same kernel type (e.g., Replicad), the existing worker stays alive and
 only the file/parameters are updated. `KernelRuntimeWorker` already loads
 kernels lazily and caches them; the missing piece is not destroying the
-worker at the `build.machine` level.
+worker at the `project.machine` level.
 
 This would eliminate the ~56ms WASM init cost on project switches. Given
 that this cost is small relative to geometry computation (100-500ms+) and
 only occurs once per project switch (not per render), this is a low-priority
 future improvement. The primary workflow — iterating on files within a
-single build — already benefits from the existing within-build pooling.
+single project — already benefits from the existing within-project pooling.
 
 Expected: `wasm.compile` (24ms) + `wasm.emscripten-init` (30ms) → **0ms**.
 
@@ -588,8 +588,8 @@ When a worker is terminated and recreated, the in-isolate compiled instance
 is lost. V8 must deserialize from disk cache (3-11ms) or NativeModuleCache
 (0.02-1.3ms) and re-run the streaming pipeline. With warm caches, this
 totals ~20-30ms for `wasm.compile` — fast enough that the primary
-optimization lever is keeping the worker alive (either within-build pooling,
-which we already do, or cross-build pooling as a future improvement).
+optimization lever is keeping the worker alive (either within-project pooling,
+which we already do, or cross-project pooling as a future improvement).
 
 ---
 
@@ -756,21 +756,21 @@ this is not yet available in browsers and does not help short-term.
 
 | Strategy                                      | Savings                           | Industry Validation                                 | Status                       |
 | --------------------------------------------- | --------------------------------- | --------------------------------------------------- | ---------------------------- |
-| **Within-build worker pooling**               | Full WASM init avoided per render | PSPDFKit object pooling, web.dev "permanent worker" | **Already implemented**      |
-| **Cross-build worker pooling** (Strategy 1)   | ~56ms per project switch          | PSPDFKit object pooling                             | Future (low priority)        |
+| **Within-project worker pooling**             | Full WASM init avoided per render | PSPDFKit object pooling, web.dev "permanent worker" | **Already implemented**      |
+| **Cross-project worker pooling** (Strategy 1) | ~56ms per project switch          | PSPDFKit object pooling                             | Future (low priority)        |
 | **Pre-warm at app startup** (Strategy 3)      | First-load latency                | web.dev `<link rel="preload">`                      | Future (low-cost complement) |
 | **Transfer pre-compiled Module** (Strategy 2) | ~20-30ms theoretical              | web.dev "Good/Perfect" pattern                      | **Deferred** (see below)     |
 
 **Current state**: The application already keeps workers alive within a
-build session. File changes, parameter changes, and re-renders all reuse
+project session. File changes, parameter changes, and re-renders all reuse
 the same worker and WASM instance — the ~56ms init cost is paid once per
-build session, not per render. This is the most important optimization
+project session, not per render. This is the most important optimization
 and it is already in place.
 
-**Why Strategy 1 (cross-build) is low priority**: The ~56ms cost only
-occurs when the user navigates to a different project (build ID change).
+**Why Strategy 1 (cross-project) is low priority**: The ~56ms cost only
+occurs when the user navigates to a different project (project ID change).
 This is an infrequent navigation event, not part of the iterative
-edit→render loop. The cost is also small relative to the build loading,
+edit→render loop. The cost is also small relative to the project loading,
 file system initialization, and geometry computation that follow.
 
 **Why Strategy 2 is deferred**: With V8's NativeModuleCache and
@@ -800,18 +800,18 @@ With the one-line fix to `assetsInlineLimit`, kernel startup drops from 1.3s
 to ~229ms.
 
 The application already implements the most impactful optimization: **worker
-pooling within a build session**. The `BuildProvider` → `buildMachine` →
+pooling within a project session**. The `ProjectProvider` → `projectMachine` →
 `cadMachine` → `kernelMachine` hierarchy keeps the Web Worker alive across
 file changes, parameter changes, and re-renders. The ~56ms WASM init cost
 (24ms compile + 30ms emscripten init with warm caches) is paid once per
-build session, not per render.
+project session, not per render.
 
 Two low-priority future improvements exist:
 
-1. **Cross-build worker pooling** — keep workers alive when navigating between
+1. **Cross-project worker pooling** — keep workers alive when navigating between
    projects that use the same kernel type. Saves ~56ms per project switch,
    but this is an infrequent navigation event and the cost is small relative
-   to build loading and geometry computation.
+   to project loading and geometry computation.
 2. **Pre-compiled module transfer** via `postMessage` (web.dev's
    "Good/Perfect" pattern) — deferred because V8's caching layers already
    reduce `wasm.compile` to 20-30ms, and the main-thread round-trip overhead

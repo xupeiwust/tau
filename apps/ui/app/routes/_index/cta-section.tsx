@@ -7,31 +7,31 @@ import { KernelSelector } from '#components/chat/kernel-selector.js';
 import { Button } from '#components/ui/button.js';
 import { ChatProvider } from '#hooks/use-chat.js';
 import { toast } from '#components/ui/sonner.js';
-import { useBuildManager } from '#hooks/use-build-manager.js';
+import { useProjectManager } from '#hooks/use-project-manager.js';
 import { useKernel } from '#hooks/use-kernel.js';
 
 export function CtaSection(): React.JSX.Element {
   const navigate = useNavigate();
   const { kernel, setKernel } = useKernel();
-  const buildManager = useBuildManager();
+  const projectManager = useProjectManager();
 
   const onSubmit: ChatTextareaProperties['onSubmit'] = useCallback(
     async ({ content, model, metadata, imageUrls }) => {
       try {
-        const createdBuild = await buildManager.createBuild({
+        const createProject = await projectManager.createProject({
           kernel,
           initialMessage: { content, model, metadata, imageUrls },
           // Set initial panel state: chat open
           editorState: { panelState: { openPanels: { chat: true } } },
         });
 
-        await navigate(`/builds/${createdBuild.id}`);
+        await navigate(`/projects/${createProject.id}`);
       } catch (error) {
-        console.error('Failed to create build:', error);
-        toast.error('Failed to create build');
+        console.error('Failed to create project:', error);
+        toast.error('Failed to create project');
       }
     },
-    [kernel, buildManager, navigate],
+    [kernel, projectManager, navigate],
   );
 
   return (
@@ -67,8 +67,8 @@ export function CtaSection(): React.JSX.Element {
           {/* CTA Button */}
           <div className='mt-8 flex justify-center'>
             <Button asChild size='lg' className='gap-2'>
-              <Link to='/builds/new'>
-                Create New Build
+              <Link to='/projects/new'>
+                Create New Project
                 <ArrowRight className='size-4' />
               </Link>
             </Button>

@@ -8,33 +8,33 @@ import { Avatar, AvatarFallback, AvatarImage } from '#components/ui/avatar.js';
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '#components/ui/card.js';
 import { SvgIcon } from '#components/icons/svg-icon.js';
 import { Loader } from '#components/ui/loader.js';
-import { useBuildManager } from '#hooks/use-build-manager.js';
+import { useProjectManager } from '#hooks/use-project-manager.js';
 import { CadPreviewProvider } from '#hooks/use-cad-preview.js';
 import { CadPreviewViewer } from '#components/cad-preview.js';
-import type { BuildWithFiles } from '#constants/build-examples.js';
+import type { ProjectsWithFiles } from '#constants/project-examples.js';
 
-type CommunityBuildCardProperties = BuildWithFiles;
+type CommunityBuildCardProperties = ProjectsWithFiles;
 
 export type CommunityBuildGridProperties = {
-  readonly builds: BuildWithFiles[];
+  readonly projects: ProjectsWithFiles[];
   readonly hasMore?: boolean;
   readonly onLoadMore?: () => void;
   readonly limit?: number;
 };
 
-export function CommunityBuildGrid({
-  builds,
+export function CommunityProjectGrid({
+  projects: projects,
   hasMore,
   onLoadMore,
   limit,
 }: CommunityBuildGridProperties): React.JSX.Element {
-  const displayedBuilds = limit ? builds.slice(0, limit) : builds;
+  const displayedProjects = limit ? projects.slice(0, limit) : projects;
 
   return (
     <>
       <div className='grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'>
-        {displayedBuilds.map((build) => (
-          <ProjectCard key={build.id} {...build} />
+        {displayedProjects.map((project) => (
+          <ProjectCard key={project.id} {...project} />
         ))}
       </div>
 
@@ -62,7 +62,7 @@ function ProjectCard({
   const [activated, setActivated] = useState(false);
   const [visible, setVisible] = useState(false);
   const [isForking, setIsForking] = useState(false);
-  const buildManager = useBuildManager();
+  const projectManager = useProjectManager();
   const navigate = useNavigate();
 
   const kernels = useMemo(() => [], []);
@@ -80,8 +80,8 @@ function ProjectCard({
       setIsForking(true);
 
       try {
-        const createdBuild = await buildManager.createBuild({
-          build: {
+        const createProject = await projectManager.createProject({
+          project: {
             name: `${name} (Remixed)`,
             description,
             thumbnail,
@@ -92,12 +92,12 @@ function ProjectCard({
           },
           files,
         });
-        await navigate(`/builds/${createdBuild.id}`);
+        await navigate(`/projects/${createProject.id}`);
       } catch {
         setIsForking(false);
       }
     },
-    [isForking, name, description, thumbnail, author, tags, assets, id, buildManager, files, navigate],
+    [isForking, name, description, thumbnail, author, tags, assets, id, projectManager, files, navigate],
   );
 
   const handlePreviewToggle = useCallback((event: React.MouseEvent) => {
@@ -107,7 +107,7 @@ function ProjectCard({
   }, []);
 
   const handleCardClick = useCallback(() => {
-    void navigate(`/builds/${id}/preview`);
+    void navigate(`/projects/${id}/preview`);
   }, [navigate, id]);
 
   return (
@@ -119,7 +119,7 @@ function ProjectCard({
           )}
           {activated ? (
             <div className={visible ? 'size-full object-cover' : 'hidden'}>
-              <CadPreviewProvider buildId={id} mainFile={mainFile} files={files}>
+              <CadPreviewProvider projectId={id} mainFile={mainFile} files={files}>
                 <div
                   className='size-full'
                   onClick={(event) => {

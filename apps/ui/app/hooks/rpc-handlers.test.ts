@@ -105,7 +105,7 @@ function createMockCadUnit(options?: {
 function buildDeps(overrides?: {
   fileManager?: ReturnType<typeof createMockFileManager>;
   fileTree?: Map<string, FileEntry>;
-  buildRef?: ReturnType<typeof createMockBuildRef>;
+  projectRef?: ReturnType<typeof createMockBuildRef>;
   graphicsRef?: unknown;
   screenshotQuality?: number;
 }): RpcDependencies {
@@ -113,7 +113,7 @@ function buildDeps(overrides?: {
 
   createRpcHandlers({
     fileManager: (overrides?.fileManager ?? createMockFileManager()) as RpcHandlerDependencies['fileManager'],
-    buildRef: (overrides?.buildRef ?? createMockBuildRef()) as unknown as RpcHandlerDependencies['buildRef'],
+    projectRef: (overrides?.projectRef ?? createMockBuildRef()) as unknown as RpcHandlerDependencies['projectRef'],
     graphicsRef: (overrides?.graphicsRef ?? undefined) as RpcHandlerDependencies['graphicsRef'],
     fileTree: overrides?.fileTree ?? new Map<string, FileEntry>(),
     screenshotQuality: overrides?.screenshotQuality ?? 0.8,
@@ -350,8 +350,8 @@ describe('rpc-handlers', () => {
           geometries: [{ format: 'gltf', content: glbContent, hash: 'abc123' }],
         });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const projectRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -366,11 +366,11 @@ describe('rpc-handlers', () => {
       });
 
       it('should return error when no compilation unit exists for main entry', async () => {
-        const buildRef = createMockBuildRef({
+        const projectRef = createMockBuildRef({
           compilationUnits: new Map<string, unknown>(),
           mainEntryFile: 'main.scad',
         });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -385,8 +385,8 @@ describe('rpc-handlers', () => {
       it('should return error when no GLTF geometry is available', async () => {
         const cadUnit = createMockCadUnit({ geometries: [] });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const projectRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -407,8 +407,8 @@ describe('rpc-handlers', () => {
           ],
         });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const projectRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -425,8 +425,8 @@ describe('rpc-handlers', () => {
           geometries: [{ format: 'gltf', content: glbContent, hash: 'abc' }],
         });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const projectRef = createMockBuildRef({ compilationUnits, mainEntryFile: 'main.scad' });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -438,11 +438,11 @@ describe('rpc-handlers', () => {
       });
 
       it('should handle getSnapshot throwing by returning error', async () => {
-        const buildRef = createMockBuildRef();
-        buildRef.getSnapshot.mockImplementation(() => {
+        const projectRef = createMockBuildRef();
+        projectRef.getSnapshot.mockImplementation(() => {
           throw new Error('Actor not running');
         });
-        const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+        const deps = buildDeps({ projectRef, graphicsRef: projectRef });
         const graphics = deps.graphics!;
 
         const result = await graphics.fetchGeometry();
@@ -465,13 +465,13 @@ describe('rpc-handlers', () => {
       it('should return ready status when cad unit is idle with no errors', async () => {
         const cadUnit = createMockCadUnit({ value: 'idle' });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits });
+        const projectRef = createMockBuildRef({ compilationUnits });
         mockWaitFor.mockResolvedValue({
           value: 'idle',
           context: { kernelIssues: new Map<string, unknown[]>() },
         });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('main.scad');
 
         expect(result).toEqual({
@@ -486,13 +486,13 @@ describe('rpc-handlers', () => {
         const kernelIssues = new Map([['main.scad', issues]]);
         const cadUnit = createMockCadUnit({ value: 'idle', kernelIssues });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits });
+        const projectRef = createMockBuildRef({ compilationUnits });
         mockWaitFor.mockResolvedValue({
           value: 'idle',
           context: { kernelIssues },
         });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('main.scad');
 
         expect(result).toEqual({
@@ -505,13 +505,13 @@ describe('rpc-handlers', () => {
       it('should return error status when cad unit machine is in error state', async () => {
         const cadUnit = createMockCadUnit({ value: 'error' });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits });
+        const projectRef = createMockBuildRef({ compilationUnits });
         mockWaitFor.mockResolvedValue({
           value: 'error',
           context: { kernelIssues: new Map<string, unknown[]>() },
         });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('main.scad');
 
         expect(result).toEqual({
@@ -526,13 +526,13 @@ describe('rpc-handlers', () => {
         const kernelIssues = new Map([['main.scad', issues]]);
         const cadUnit = createMockCadUnit({ value: 'idle', kernelIssues });
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits });
+        const projectRef = createMockBuildRef({ compilationUnits });
         mockWaitFor.mockResolvedValue({
           value: 'idle',
           context: { kernelIssues },
         });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('main.scad');
 
         expect(result).toEqual({
@@ -546,8 +546,8 @@ describe('rpc-handlers', () => {
         const cadUnit = createMockCadUnit({ value: 'idle' });
         const emptyUnits = new Map<string, unknown>();
         const populatedUnits = new Map<string, unknown>([['new-file.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits: emptyUnits });
-        buildRef.getSnapshot
+        const projectRef = createMockBuildRef({ compilationUnits: emptyUnits });
+        projectRef.getSnapshot
           .mockReturnValueOnce({ context: { compilationUnits: emptyUnits, mainEntryFile: 'main.scad' } })
           .mockReturnValue({ context: { compilationUnits: populatedUnits, mainEntryFile: 'main.scad' } });
         mockWaitFor.mockResolvedValue({
@@ -555,10 +555,10 @@ describe('rpc-handlers', () => {
           context: { kernelIssues: new Map<string, unknown[]>() },
         });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('new-file.scad');
 
-        expect(buildRef.send).toHaveBeenCalledWith({
+        expect(projectRef.send).toHaveBeenCalledWith({
           type: 'createCompilationUnit',
           entryFile: 'new-file.scad',
         });
@@ -566,9 +566,9 @@ describe('rpc-handlers', () => {
       });
 
       it('should return error when compilation unit cannot be created', async () => {
-        const buildRef = createMockBuildRef({ compilationUnits: new Map<string, unknown>() });
+        const projectRef = createMockBuildRef({ compilationUnits: new Map<string, unknown>() });
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('impossible.scad');
 
         expect(result).toEqual({
@@ -581,10 +581,10 @@ describe('rpc-handlers', () => {
       it('should return error when waitFor rejects', async () => {
         const cadUnit = createMockCadUnit();
         const compilationUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
-        const buildRef = createMockBuildRef({ compilationUnits });
+        const projectRef = createMockBuildRef({ compilationUnits });
         mockWaitFor.mockRejectedValue(new Error('Actor stopped'));
 
-        const deps = buildDeps({ buildRef });
+        const deps = buildDeps({ projectRef });
         const result = await deps.kernelClient.getKernelResult('main.scad');
 
         expect(result).toEqual({
@@ -608,8 +608,8 @@ describe('rpc-handlers', () => {
     });
 
     it('should provide graphics when graphicsRef is defined', () => {
-      const buildRef = createMockBuildRef();
-      const deps = buildDeps({ buildRef, graphicsRef: buildRef });
+      const projectRef = createMockBuildRef();
+      const deps = buildDeps({ projectRef, graphicsRef: projectRef });
 
       expect(deps.graphics).toBeDefined();
     });
@@ -617,7 +617,7 @@ describe('rpc-handlers', () => {
     it('should return an object with executeRpcCall method', () => {
       const handlers = createRpcHandlers({
         fileManager: createMockFileManager() as RpcHandlerDependencies['fileManager'],
-        buildRef: createMockBuildRef() as unknown as RpcHandlerDependencies['buildRef'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
         graphicsRef: undefined as RpcHandlerDependencies['graphicsRef'],
         fileTree: new Map<string, FileEntry>(),
         screenshotQuality: 0.8,

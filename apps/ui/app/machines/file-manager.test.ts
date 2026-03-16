@@ -100,16 +100,16 @@ describe('ZenFS directory listing race condition (zen-fs/core#256)', () => {
   });
 
   it('should lose entries in nested directory writes without serialization', async () => {
-    // This simulates the real-world scenario: creating a build with multiple
-    // files in /builds/<id>/ -- all written concurrently.
-    const buildDirectory = '/builds/test-build-id';
+    // This simulates the real-world scenario: creating a project with multiple
+    // files in /projects/<id>/ -- all written concurrently.
+    const projectDirectory = '/projects/test-project-id';
 
     const files: Record<string, string> = {
-      [`${buildDirectory}/main.ts`]: 'export default {};',
-      [`${buildDirectory}/utils.ts`]: 'export function helper() {}',
-      [`${buildDirectory}/types.ts`]: 'export type Foo = {};',
-      [`${buildDirectory}/config.json`]: '{"key": "value"}',
-      [`${buildDirectory}/README.md`]: '# Test',
+      [`${projectDirectory}/main.ts`]: 'export default {};',
+      [`${projectDirectory}/utils.ts`]: 'export function helper() {}',
+      [`${projectDirectory}/types.ts`]: 'export type Foo = {};',
+      [`${projectDirectory}/config.json`]: '{"key": "value"}',
+      [`${projectDirectory}/README.md`]: '# Test',
     };
 
     // Write all files concurrently without serialization
@@ -117,7 +117,7 @@ describe('ZenFS directory listing race condition (zen-fs/core#256)', () => {
 
     await Promise.all(writes);
 
-    const entries = await fsp.readdir(buildDirectory);
+    const entries = await fsp.readdir(projectDirectory);
 
     console.log(
       `[nested-race-test] Without serialization: ${entries.length}/${Object.keys(files).length} files survived`,
@@ -129,14 +129,14 @@ describe('ZenFS directory listing race condition (zen-fs/core#256)', () => {
   });
 
   it('should preserve all entries in nested directory writes WITH serialization', async () => {
-    const buildDirectory = '/builds/test-build-id';
+    const projectDirectory = '/projects/test-project-id';
 
     const files: Record<string, string> = {
-      [`${buildDirectory}/main.ts`]: 'export default {};',
-      [`${buildDirectory}/utils.ts`]: 'export function helper() {}',
-      [`${buildDirectory}/types.ts`]: 'export type Foo = {};',
-      [`${buildDirectory}/config.json`]: '{"key": "value"}',
-      [`${buildDirectory}/README.md`]: '# Test',
+      [`${projectDirectory}/main.ts`]: 'export default {};',
+      [`${projectDirectory}/utils.ts`]: 'export function helper() {}',
+      [`${projectDirectory}/types.ts`]: 'export type Foo = {};',
+      [`${projectDirectory}/config.json`]: '{"key": "value"}',
+      [`${projectDirectory}/README.md`]: '# Test',
     };
 
     // Write all files through the serialization queue
@@ -146,7 +146,7 @@ describe('ZenFS directory listing race condition (zen-fs/core#256)', () => {
 
     await Promise.all(writes);
 
-    const entries = await fsp.readdir(buildDirectory);
+    const entries = await fsp.readdir(projectDirectory);
 
     console.log(
       `[nested-serial-test] With serialization: ${entries.length}/${Object.keys(files).length} files survived`,

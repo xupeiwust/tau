@@ -14,7 +14,7 @@ import { Button } from '#components/ui/button.js';
 import { Input } from '#components/ui/input.js';
 import { SvgIcon } from '#components/icons/svg-icon.js';
 import { formatFileSize } from '#components/geometry/converter/converter-utils.js';
-import { useBuildManager } from '#hooks/use-build-manager.js';
+import { useProjectManager } from '#hooks/use-project-manager.js';
 import { RepositoryCard } from '#routes/import.$/repository-card.js';
 import { BranchSelector } from '#routes/import.$/branch-selector.js';
 import { FileSelector } from '#components/files/file-selector.js';
@@ -86,7 +86,7 @@ type ImportMode = 'github' | 'disk';
 export default function ImportRoute(): React.JSX.Element {
   const { owner, repo, ref, mainFile } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const buildManager = useBuildManager();
+  const projectManager = useProjectManager();
 
   // Track active import mode
   const [activeMode, setActiveMode] = useState<ImportMode | undefined>(undefined);
@@ -95,14 +95,14 @@ export default function ImportRoute(): React.JSX.Element {
   const gitHubActorRef = useActorRef(
     importGitHubMachine.provide({
       actors: {
-        createBuildActor: fromSafeAsync(async ({ input }) => {
-          const buildFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
+        createProjectActor: fromSafeAsync(async ({ input }) => {
+          const projectFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
           for (const [path, file] of input.files) {
-            buildFiles[path] = { content: file.content };
+            projectFiles[path] = { content: file.content };
           }
 
-          const build = await buildManager.createBuild({
-            build: {
+          const project = await projectManager.createProject({
+            project: {
               name: `${input.owner}/${input.repo}`,
               description: `Imported from GitHub: https://github.com/${input.owner}/${input.repo}`,
               author: {
@@ -118,10 +118,10 @@ export default function ImportRoute(): React.JSX.Element {
                 },
               },
             },
-            files: buildFiles,
+            files: projectFiles,
           });
 
-          return { type: 'buildCreated', buildId: build.id };
+          return { type: 'projectCreated', projectId: project.id };
         }),
       },
     }),
@@ -140,14 +140,14 @@ export default function ImportRoute(): React.JSX.Element {
   const diskActorRef = useActorRef(
     importDiskMachine.provide({
       actors: {
-        createBuildActor: fromSafeAsync(async ({ input }) => {
-          const buildFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
+        createProjectActor: fromSafeAsync(async ({ input }) => {
+          const projectFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
           for (const [path, file] of input.files) {
-            buildFiles[path] = { content: file.content };
+            projectFiles[path] = { content: file.content };
           }
 
-          const build = await buildManager.createBuild({
-            build: {
+          const project = await projectManager.createProject({
+            project: {
               name: input.importName,
               description: `Imported from disk`,
               author: {
@@ -163,10 +163,10 @@ export default function ImportRoute(): React.JSX.Element {
                 },
               },
             },
-            files: buildFiles,
+            files: projectFiles,
           });
 
-          return { type: 'buildCreated', buildId: build.id };
+          return { type: 'projectCreated', projectId: project.id };
         }),
       },
     }),
@@ -187,7 +187,7 @@ export default function ImportRoute(): React.JSX.Element {
     (snapshot) => snapshot.context.extractProgress as { processed: number; total: number },
   );
   const gitHubError = useSelector(gitHubActorRef, (snapshot) => snapshot.context.error);
-  const gitHubBuildId = useSelector(gitHubActorRef, (snapshot) => snapshot.context.buildId);
+  const gitHubProjectId = useSelector(gitHubActorRef, (snapshot) => snapshot.context.projectId);
   const gitHubFiles = useSelector(gitHubActorRef, (snapshot) => snapshot.context.files);
   const gitHubSelectedMainFile = useSelector(gitHubActorRef, (snapshot) => snapshot.context.selectedMainFile);
   const requestedMainFile = useSelector(gitHubActorRef, (snapshot) => snapshot.context.requestedMainFile);
@@ -210,7 +210,7 @@ export default function ImportRoute(): React.JSX.Element {
   const diskSelectedMainFile = useSelector(diskActorRef, (snapshot) => snapshot.context.selectedMainFile);
   const diskProgress = useSelector(diskActorRef, (snapshot) => snapshot.context.progress);
   const diskError = useSelector(diskActorRef, (snapshot) => snapshot.context.error);
-  const diskBuildId = useSelector(diskActorRef, (snapshot) => snapshot.context.buildId);
+  const diskProjectId = useSelector(diskActorRef, (snapshot) => snapshot.context.projectId);
 
   // Track if this is the initial mount to avoid syncing on first render
   const isInitialMount = useRef(true);
@@ -290,19 +290,19 @@ export default function ImportRoute(): React.JSX.Element {
     };
   }, [gitHubActorRef]);
 
-  // Navigate when GitHub build is created
+  // Navigate when GitHub project is created
   useEffect(() => {
-    if (gitHubState.matches('success') && gitHubBuildId) {
-      void navigate(`/builds/${gitHubBuildId}`);
+    if (gitHubState.matches('success') && gitHubProjectId) {
+      void navigate(`/projects/${gitHubProjectId}`);
     }
-  }, [gitHubState, gitHubBuildId, navigate]);
+  }, [gitHubState, gitHubProjectId, navigate]);
 
-  // Navigate when Disk build is created
+  // Navigate when Disk project is created
   useEffect(() => {
-    if (diskState.matches('success') && diskBuildId) {
-      void navigate(`/builds/${diskBuildId}`);
+    if (diskState.matches('success') && diskProjectId) {
+      void navigate(`/projects/${diskProjectId}`);
     }
-  }, [diskState, diskBuildId, navigate]);
+  }, [diskState, diskProjectId, navigate]);
 
   // Disk import handlers
   const handleFilesSelected = useCallback(
@@ -395,8 +395,8 @@ export default function ImportRoute(): React.JSX.Element {
     const isExtracting = diskState.matches('extracting');
     const isCreating = diskState.matches('creating');
 
-    const title = isReading ? 'Reading Files' : isExtracting ? 'Extracting ZIP' : 'Creating Build';
-    const statusText = isReading ? 'Reading files...' : isExtracting ? 'Extracting files...' : 'Creating build...';
+    const title = isReading ? 'Reading Files' : isExtracting ? 'Extracting ZIP' : 'Creating Project';
+    const statusText = isReading ? 'Reading files...' : isExtracting ? 'Extracting files...' : 'Creating project...';
 
     return (
       <ImportProcessingView
@@ -842,7 +842,7 @@ export default function ImportRoute(): React.JSX.Element {
                   <div className='flex items-center justify-between text-sm'>
                     <span className='flex items-center gap-2 font-medium'>
                       <Loader />
-                      <span>Creating build...</span>
+                      <span>Creating project...</span>
                     </span>
                   </div>
                   <Progress value={100} className='h-2' />

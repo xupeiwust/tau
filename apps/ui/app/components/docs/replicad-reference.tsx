@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
-import { mockBuilds } from '@taucad/tau-examples';
+import { mockProjects } from '@taucad/tau-examples';
 import { SharedRendererProvider } from '#components/docs/shared-renderer.js';
 import { KernelModelView } from '#components/docs/kernel-model-view.js';
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { ClientOnly } from '#components/ui/utils/client-only.js';
 
-const selectedExampleIds = ['bld_hollow_box', 'bld_vase', 'bld_birdhouse', 'bld_cylindrical_gear', 'bld_ibeam'];
+const selectedExampleIds = ['proj_hollow_box', 'proj_vase', 'proj_birdhouse', 'proj_cylindrical_gear', 'proj_ibeam'];
 
 type ExampleCardProps = {
   readonly name: string;
@@ -45,8 +45,8 @@ export function ReplicadReference(): React.JSX.Element {
   const examples = useMemo(
     () =>
       selectedExampleIds
-        .map((id) => mockBuilds.find((build) => build.id === id))
-        .filter((build): build is (typeof mockBuilds)[number] => build !== undefined),
+        .map((id) => mockProjects.find((project) => project.id === id))
+        .filter((project): project is (typeof mockProjects)[number] => project !== undefined),
     [],
   );
 

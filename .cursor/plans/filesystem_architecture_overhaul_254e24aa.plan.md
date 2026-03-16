@@ -349,7 +349,7 @@ class ChangeEventBus {
 - Emits change events to all connected ports
 - Main thread subscribes to get tree change notifications (fixes Known Issue #7 by enabling push-based updates)
 - Replaces the need for explicit `spawnBackgroundRefresh` after every mutation
-- **Event scoping**: All events include `path` (absolute) and `backend`. The machine-side listener filters events by `rootDirectory` prefix — a machine scoped to `/builds/abc` ignores events for `/builds/xyz`. This prevents cross-build tree churn when a shared worker serves multiple `FileManagerProvider` instances.
+- **Event scoping**: All events include `path` (absolute) and `backend`. The machine-side listener filters events by `rootDirectory` prefix — a machine scoped to `/projects/abc` ignores events for `/projects/xyz`. This prevents cross-build tree churn when a shared worker serves multiple `FileManagerProvider` instances.
 - Edge case: `reconfigure` emits a special `{ type: 'backendChanged'; backend }` event so all listeners know to full-reset their tree state
 
 ### 2d. FileService
@@ -524,7 +524,7 @@ Key changes from current implementation (840 lines):
   - `use-chat-snapshot.ts` sends `fileTree` to the LLM for project context
   - `chat-editor-file-tree.tsx` builds the sidebar tree from `fileTree`
   - `chat-viewer.tsx`, `chat-viewer-dockview.tsx`, `dockview-open-file-action.tsx` all read `fileTree`
-  **Resolution**: Replace full recursive `getDirectoryStat` with a single-level `readShallowDirectory` for the root (e.g., `/builds/{id}/`) at startup, then subscribe to `treeChanged` events for incremental updates. The machine should NOT skip initial tree loading entirely — it must hydrate at least the root level before entering `ready`. Add a `hydrateTreeSnapshot` action that performs one shallow read + sets `fileTree` context.
+  **Resolution**: Replace full recursive `getDirectoryStat` with a single-level `readShallowDirectory` for the root (e.g., `/projects/{id}/`) at startup, then subscribe to `treeChanged` events for incremental updates. The machine should NOT skip initial tree loading entirely — it must hydrate at least the root level before entering `ready`. Add a `hydrateTreeSnapshot` action that performs one shallow read + sets `fileTree` context.
   - Test: "startup with zero writes" — machine enters `ready` with a populated `fileTree` containing at least root-level entries
   - Test: "startup with empty filesystem" — machine enters `ready` with empty `fileTree`, no errors
 - **External change detection (webaccess)**: The current `fileWatcherActor` polls `getDirectoryStat` every 2s (focused) / 10s (blurred) to detect changes made outside the app (e.g., user edits a file in VS Code while the directory is mounted via File System Access API). The push-based `ChangeEventBus` only captures writes that go through `FileService` — it cannot detect external OS-level changes. **The polling actor must be preserved for the `webaccess` backend**, adapted to use incremental tree diffing instead of full recursive `getDirectoryStat`. When the poll detects changes, it should emit synthetic `ChangeEvent`s so the rest of the pipeline (machine, Monaco) reacts consistently.
@@ -555,7 +555,7 @@ Test the XState machine in isolation:
 - **Startup hydration**: machine enters `ready` with populated `fileTree` (at least root-level entries)
 - **Event scoping**: machine ignores `ChangeEvent`s whose `path` does not start with `rootDirectory`
 - **External poll**: webaccess backend starts `fileWatcherActor` on `ready` entry, poll triggers incremental diff
-- **Rapid `setRoot`**: two rapid `setRoot` calls with different `buildId` — first init is aborted, second completes cleanly
+- **Rapid `setRoot`**: two rapid `setRoot` calls with different `projectId` — first init is aborted, second completes cleanly
 
 Mock the worker proxy via `vi.fn()` for all RPC methods.
 

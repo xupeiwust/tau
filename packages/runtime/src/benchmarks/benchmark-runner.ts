@@ -147,7 +147,7 @@ function extractOcSummary(
 // Runner
 // =============================================================================
 
-const basePath = '/builds/test';
+const basePath = '/projects/test';
 
 /**
  * Runs a set of benchmark cases against the Replicad kernel, capturing telemetry and computing statistics.

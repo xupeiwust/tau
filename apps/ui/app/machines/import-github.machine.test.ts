@@ -76,8 +76,8 @@ function createTestActor(options?: {
         }
         return { type: 'downloaded', blob: new Blob(['test']) };
       }),
-      createBuildActor: fromSafeAsync(async () => {
-        return { type: 'buildCreated', buildId: 'build_123' };
+      createProjectActor: fromSafeAsync(async () => {
+        return { type: 'projectCreated', projectId: 'proj_123' };
       }),
     },
     delays: {
@@ -118,7 +118,7 @@ describe('importGitHubMachine', () => {
       expect(context.repoMetadata).toBeUndefined();
       expect(context.branches).toEqual([]);
       expect(context.files.size).toBe(0);
-      expect(context.buildId).toBeUndefined();
+      expect(context.projectId).toBeUndefined();
       expect(context.error).toBeUndefined();
       actor.stop();
     });

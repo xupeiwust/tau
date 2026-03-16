@@ -8,7 +8,7 @@ import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetecti
 import { esbuild } from '@taucad/runtime/bundler';
 import { Parameters } from '#components/geometry/parameters/parameters.js';
 import { ModelViewer, RenderStatusOverlay } from '#components/model-viewer.js';
-import { useBuildManager } from '#hooks/use-build-manager.js';
+import { useProjectManager } from '#hooks/use-project-manager.js';
 import { useRender, useGeometryExport } from '@taucad/react';
 import { Button } from '#components/ui/button.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
@@ -50,7 +50,7 @@ const exportFormatOptions: ExportFormatOption[] = [
 
 export function HeroViewer(): React.JSX.Element {
   const navigate = useNavigate();
-  const buildManager = useBuildManager();
+  const projectManager = useProjectManager();
 
   const [currentParams, setCurrentParams] = useState<Record<string, unknown>>({});
   const [selectedFormat, setSelectedFormat] = useState<ExportFormatOption>(exportFormatOptions[0]!);
@@ -102,8 +102,8 @@ export function HeroViewer(): React.JSX.Element {
     setIsCreatingBuild(true);
 
     try {
-      const createdBuild = await buildManager.createBuild({
-        build: {
+      const createProject = await projectManager.createProject({
+        project: {
           name: 'QR Code Generator',
           description: 'A parametric QR code generator built with OpenSCAD',
           thumbnail: '/tau-desktop.jpg',
@@ -123,13 +123,13 @@ export function HeroViewer(): React.JSX.Element {
         files: { [heroMainFile]: { content: encodeTextFile(qrcodeScad) } },
       });
 
-      await navigate(`/builds/${createdBuild.id}`);
+      await navigate(`/projects/${createProject.id}`);
     } catch (error) {
-      console.error('Failed to create build:', error);
-      toast.error('Failed to create build');
+      console.error('Failed to create project:', error);
+      toast.error('Failed to create project');
       setIsCreatingBuild(false);
     }
-  }, [isCreatingBuild, currentParams, buildManager, navigate]);
+  }, [isCreatingBuild, currentParams, projectManager, navigate]);
 
   return (
     <div className='space-y-6'>

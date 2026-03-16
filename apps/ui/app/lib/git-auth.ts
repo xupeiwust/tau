@@ -14,7 +14,7 @@ export const githubRepoScopes = ['repo'];
  *
  * This function initiates an OAuth flow to request additional GitHub scopes
  * for repository access. It should be called when the user wants to connect
- * their build to a Git repository.
+ * their project to a Git repository.
  *
  * @returns Promise that resolves when the OAuth flow completes
  * @throws Error if the OAuth flow fails or is cancelled by the user

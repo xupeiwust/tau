@@ -27,7 +27,7 @@ export function normalizePath(path: string): string {
  * ```typescript
  * joinPath('/root', 'dir', 'file.txt') // '/root/dir/file.txt'
  * joinPath('/root', '/absolute', 'file.txt') // '/absolute/file.txt'
- * joinPath('/', '/builds/id/main.scad') // '/builds/id/main.scad'
+ * joinPath('/', '/projects/id/main.scad') // '/projects/id/main.scad'
  * joinPath('/root', '', 'file.txt') // '/root/file.txt'
  * ```
  */

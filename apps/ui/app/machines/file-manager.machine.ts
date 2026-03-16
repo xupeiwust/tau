@@ -5,7 +5,11 @@ import { createBridgeProxy, createFileSystemBridge } from '@taucad/runtime/files
 import { safeDispose } from '@taucad/utils/dispose';
 import { BoundedFileCache } from '@taucad/filesystem';
 import FileManagerWorker from '#machines/file-manager.worker.js?worker';
-import { getStoredDirectoryHandle, getBuildFileSystemConfig, checkHandlePermission } from '#filesystem/handle-store.js';
+import {
+  getStoredDirectoryHandle,
+  getProjectFileSystemConfig,
+  checkHandlePermission,
+} from '#filesystem/handle-store.js';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { normalizePath, joinPath } from '@taucad/utils/path';
 import type {
@@ -34,7 +38,7 @@ type FileManagerContext = {
   isWatching: boolean;
   backendType: FileSystemBackend;
   webAccessNeedsPermission: boolean;
-  buildId: string | undefined;
+  projectId: string | undefined;
   sharedWorker: Worker | undefined;
   /** Unsubscribe function for bridge event listener */
   eventUnsubscribe: (() => void) | undefined;
@@ -81,10 +85,10 @@ const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: F
     console.debug(`[FileManager] proxy created +${(performance.now() - initT0).toFixed(1)}ms`);
 
     let backend = context.backendType;
-    if (context.buildId) {
+    if (context.projectId) {
       signal.throwIfAborted();
-      const buildBackend = await getBuildFileSystemConfig(context.buildId);
-      backend = buildBackend ?? 'indexeddb';
+      const projectBackend = await getProjectFileSystemConfig(context.projectId);
+      backend = projectBackend ?? 'indexeddb';
     }
 
     if (backend === 'opfs') {
@@ -222,7 +226,7 @@ const fileManagerActors = {
 
 type FileManagerEventLifecycle =
   | { type: 'initialize' }
-  | { type: 'setRoot'; path: string; buildId?: string }
+  | { type: 'setRoot'; path: string; projectId?: string }
   | { type: 'setBackendType'; backendType: FileSystemBackend }
   | { type: 'startWatching' }
   | { type: 'stopWatching' }
@@ -248,7 +252,7 @@ type FileManagerInput = {
   rootDirectory: string;
   shouldInitializeOnStart?: boolean;
   initialBackend?: FileSystemBackend;
-  buildId?: string;
+  projectId?: string;
   sharedWorker?: Worker;
 };
 
@@ -299,9 +303,9 @@ export const fileManagerMachine = setup({
         assertEvent(event, 'setRoot');
         return event.path;
       },
-      buildId({ event }) {
+      projectId({ event }) {
         assertEvent(event, 'setRoot');
-        return event.buildId;
+        return event.projectId;
       },
       fileTree: () => new Map(),
       fileCache: () =>
@@ -495,7 +499,7 @@ export const fileManagerMachine = setup({
   guards: {
     isRootChanged({ context, event }) {
       assertEvent(event, 'setRoot');
-      return event.path !== context.rootDirectory || event.buildId !== context.buildId;
+      return event.path !== context.rootDirectory || event.projectId !== context.projectId;
     },
   },
 }).createMachine({
@@ -520,7 +524,7 @@ export const fileManagerMachine = setup({
     isWatching: false,
     backendType: input.initialBackend ?? 'indexeddb',
     webAccessNeedsPermission: false,
-    buildId: input.buildId,
+    projectId: input.projectId,
     sharedWorker: input.sharedWorker,
     eventUnsubscribe: undefined,
   }),

@@ -4,7 +4,7 @@ import { importToGlb, supportedImportFormats, supportedExportFormats, formatConf
 import type { SupportedImportFormat, SupportedExportFormat } from '@taucad/converter';
 import { Download, Upload, RotateCcw, Package, Code2 } from 'lucide-react';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
-import type { Geometry, Build } from '@taucad/types';
+import type { Geometry, Project } from '@taucad/types';
 import { Button } from '#components/ui/button.js';
 import { toast } from '#components/ui/sonner.js';
 import type { Handle } from '#types/matches.types.js';
@@ -43,12 +43,12 @@ import { SectionViewControl } from '#components/geometry/cad/section-view-contro
 import { MeasureControl } from '#components/geometry/cad/measure-control.js';
 import { ResetCameraControl } from '#components/geometry/cad/reset-camera-control.js';
 import { ViewerSettings } from '#components/geometry/cad/viewer-settings.js';
-import { ChatInterfaceGraphics } from '#routes/builds_.$id/chat-interface-graphics.js';
+import { ChatInterfaceGraphics } from '#routes/projects_.$id/chat-interface-graphics.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { cn } from '#utils/ui.utils.js';
 import { Loader } from '#components/ui/loader.js';
-import { BuildProvider, useBuild } from '#hooks/use-build.js';
+import { ProjectProvider, useProject } from '#hooks/use-project.js';
 import { GraphicsProvider, useGraphicsSelector } from '#hooks/use-graphics.js';
 import { metaConfig } from '#constants/meta.constants.js';
 import { SidebarOffset } from '#components/layout/sidebar-offset.js';
@@ -73,14 +73,14 @@ type UploadedFileInfo = {
 const converterViewId = 'converter-main';
 
 function ConverterContent(): React.JSX.Element {
-  const { buildRef, viewGraphics } = useBuild();
+  const { projectRef, viewGraphics } = useProject();
 
   useEffect(() => {
-    buildRef.send({ type: 'createViewGraphics', viewId: converterViewId });
+    projectRef.send({ type: 'createViewGraphics', viewId: converterViewId });
     return () => {
-      buildRef.send({ type: 'destroyViewGraphics', viewId: converterViewId });
+      projectRef.send({ type: 'destroyViewGraphics', viewId: converterViewId });
     };
-  }, [buildRef]);
+  }, [projectRef]);
 
   const graphicsRef = viewGraphics.get(converterViewId);
   if (!graphicsRef) {
@@ -454,12 +454,12 @@ function ConverterContentInner(): React.JSX.Element {
 }
 
 export default function ConverterRoute(): React.JSX.Element {
-  // Provide a minimal build context so downstream components can use graphics/cad state
+  // Provide a minimal project context so downstream components can use graphics/cad state
   const now = Date.now();
-  const converterBuild: Build = {
+  const converterProject: Project = {
     id: 'converter',
     name: 'Converter',
-    description: 'Transient build context for the converter page',
+    description: 'Transient project context for the converter page',
     author: {
       name: 'Tau',
       avatar: '',
@@ -472,18 +472,18 @@ export default function ConverterRoute(): React.JSX.Element {
   };
 
   return (
-    <BuildProvider
-      buildId={converterBuild.id}
+    <ProjectProvider
+      projectId={converterProject.id}
       input={{ shouldLoadModelOnStart: false }}
       provide={{
         actors: {
-          loadBuildActor: fromSafeAsync(async () => {
-            return { type: 'buildRetrieved', build: converterBuild };
+          loadProjectActor: fromSafeAsync(async () => {
+            return { type: 'projectRetrieved', project: converterProject };
           }),
         },
       }}
     >
       <ConverterContent />
-    </BuildProvider>
+    </ProjectProvider>
   );
 }

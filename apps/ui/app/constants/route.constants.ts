@@ -36,27 +36,27 @@ export const navRoutes: {
 } = {
   navMain: [
     {
-      title: 'Builds',
-      url: '/builds/library',
+      title: 'Projects',
+      url: '/projects/library',
       icon: Hammer,
       // Items: [
       //   {
       //     title: 'History',
-      //     url: '/builds/history',
+      //     url: '/projects/history',
       //   },
       //   {
       //     title: 'Starred',
-      //     url: '/builds/starred',
+      //     url: '/projects/starred',
       //   },
       //   {
       //     title: 'Settings',
-      //     url: '/builds/settings',
+      //     url: '/projects/settings',
       //   },
       // ],
     },
     {
       title: 'Community',
-      url: '/builds/community',
+      url: '/projects/community',
       icon: UsersRound,
     },
     {

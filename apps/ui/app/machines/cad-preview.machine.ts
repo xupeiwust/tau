@@ -9,12 +9,12 @@ import type { cadMachine } from '#machines/cad.machine.js';
  */
 export type PrepareFilesInput = {
   readonly files?: Record<string, { content: Uint8Array<ArrayBuffer> }>;
-  readonly buildId: string;
+  readonly projectId: string;
 };
 
 type CadPreviewContext = {
   cadRef: ActorRefFrom<typeof cadMachine>;
-  buildId: string;
+  projectId: string;
   mainFile: string;
   files?: Record<string, { content: Uint8Array<ArrayBuffer> }>;
   parameters: Record<string, unknown>;
@@ -23,7 +23,7 @@ type CadPreviewContext = {
 
 type CadPreviewInput = {
   cadRef: ActorRefFrom<typeof cadMachine>;
-  buildId: string;
+  projectId: string;
   mainFile: string;
   files?: Record<string, { content: Uint8Array<ArrayBuffer> }>;
   parameters?: Record<string, unknown>;
@@ -36,7 +36,7 @@ type CadPreviewEvent =
 
 /**
  * Default prepareFiles actor -- throws to enforce injection via `.provide()`.
- * Follows the same pattern as buildMachine's `loadBuildActor`.
+ * Follows the same pattern as projectMachine's `loadProjectActor`.
  */
 const prepareFilesActor = fromSafeAsync<void, PrepareFilesInput>(async () => {
   throw new Error('Not implemented. Supply via cadPreviewMachine.provide({ actors: { prepareFiles } }).');
@@ -50,7 +50,7 @@ const prepareFilesActor = fromSafeAsync<void, PrepareFilesInput>(async () => {
  *                    v
  *                  error  -->  (retry) --> preparingFiles
  *
- * File preparation is injected via `.provide()` (same pattern as buildMachine's loadBuildActor).
+ * File preparation is injected via `.provide()` (same pattern as projectMachine's loadProjectActor).
  * On successful preparation, sends `initializeModel` to the cadRef actor.
  */
 export const cadPreviewMachine = setup({
@@ -68,7 +68,7 @@ export const cadPreviewMachine = setup({
   actions: {
     initializeCadModel: enqueueActions(({ enqueue, context }) => {
       const file: GeometryFile = {
-        path: `/builds/${context.buildId}`,
+        path: `/projects/${context.projectId}`,
         filename: context.mainFile,
       };
 
@@ -95,7 +95,7 @@ export const cadPreviewMachine = setup({
   id: 'cadPreview',
   context: ({ input }) => ({
     cadRef: input.cadRef,
-    buildId: input.buildId,
+    projectId: input.projectId,
     mainFile: input.mainFile,
     files: input.files,
     parameters: input.parameters ?? {},
@@ -113,7 +113,7 @@ export const cadPreviewMachine = setup({
         src: 'prepareFiles',
         input: ({ context }): PrepareFilesInput => ({
           files: context.files,
-          buildId: context.buildId,
+          projectId: context.projectId,
         }),
         onDone: {
           target: 'active',

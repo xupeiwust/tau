@@ -52,7 +52,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files: { 'main.ts': { content: new Uint8Array([1, 2, 3]) } },
         parameters: { width: 42 },
@@ -66,7 +66,10 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     await waitFor(previewRef, (s) => s.value === 'active');
     await waitFor(cadRef, (s) => s.value === 'idle');
 
-    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/builds/bld_test', filename: 'main.ts' }, { width: 42 });
+    expect(mockClient.setFile).toHaveBeenCalledWith(
+      { path: '/projects/proj_test', filename: 'main.ts' },
+      { width: 42 },
+    );
 
     cadRef.stop();
     previewRef.stop();
@@ -109,7 +112,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files: { 'main.ts': { content: new Uint8Array([1, 2, 3]) } },
         parameters: { width: 42 },
@@ -141,8 +144,11 @@ describe('cadPreviewMachine + cadMachine integration', () => {
 
     const cadSnapshot = cadRef.getSnapshot();
     expect(cadSnapshot.value).toBe('idle');
-    expect(cadSnapshot.context.file).toEqual({ path: '/builds/bld_test', filename: 'main.ts' });
-    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/builds/bld_test', filename: 'main.ts' }, { width: 42 });
+    expect(cadSnapshot.context.file).toEqual({ path: '/projects/proj_test', filename: 'main.ts' });
+    expect(mockClient.setFile).toHaveBeenCalledWith(
+      { path: '/projects/proj_test', filename: 'main.ts' },
+      { width: 42 },
+    );
 
     cadRef.stop();
     previewRef.stop();
@@ -187,7 +193,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files: { 'main.ts': { content: new Uint8Array([1, 2, 3]) } },
       },
@@ -218,7 +224,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     await waitFor(previewRef, (s) => s.value === 'active', { timeout: 5000 });
 
     // InitializeModel should have been sent to cadRef (now in idle)
-    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/builds/bld_test', filename: 'main.ts' }, {});
+    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/projects/proj_test', filename: 'main.ts' }, {});
 
     cadRef.stop();
     previewRef.stop();
@@ -271,7 +277,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files: { 'main.ts': { content: new Uint8Array([1, 2, 3]) } },
         parameters: { width: 42 },
@@ -305,8 +311,11 @@ describe('cadPreviewMachine + cadMachine integration', () => {
 
     const cadSnapshot = cadRef.getSnapshot();
     expect(cadSnapshot.value).toBe('idle');
-    expect(cadSnapshot.context.file).toEqual({ path: '/builds/bld_test', filename: 'main.ts' });
-    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/builds/bld_test', filename: 'main.ts' }, { width: 42 });
+    expect(cadSnapshot.context.file).toEqual({ path: '/projects/proj_test', filename: 'main.ts' });
+    expect(mockClient.setFile).toHaveBeenCalledWith(
+      { path: '/projects/proj_test', filename: 'main.ts' },
+      { width: 42 },
+    );
 
     cadRef.stop();
     previewRef.stop();
@@ -385,7 +394,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files,
         parameters: { width: 42 },
@@ -428,8 +437,11 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     expect(previewRef.getSnapshot().context.initError).toBeUndefined();
 
     // CadRef should have the file
-    expect(cadRef.getSnapshot().context.file).toEqual({ path: '/builds/bld_test', filename: 'main.ts' });
-    expect(mockClient.setFile).toHaveBeenCalledWith({ path: '/builds/bld_test', filename: 'main.ts' }, { width: 42 });
+    expect(cadRef.getSnapshot().context.file).toEqual({ path: '/projects/proj_test', filename: 'main.ts' });
+    expect(mockClient.setFile).toHaveBeenCalledWith(
+      { path: '/projects/proj_test', filename: 'main.ts' },
+      { width: 42 },
+    );
 
     cadRef.stop();
     previewRef.stop();
@@ -476,7 +488,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
     const previewRef = createActor(providedPreviewMachine, {
       input: {
         cadRef,
-        buildId: 'bld_test',
+        projectId: 'proj_test',
         mainFile: 'main.ts',
         files: { 'main.ts': { content: new Uint8Array([1, 2, 3]) } },
         parameters: { width: 42 },
@@ -516,7 +528,7 @@ describe('cadPreviewMachine + cadMachine integration', () => {
 
     // After Strict Mode, cadRef should have the file (from the re-mounted prepareFiles)
     await waitFor(previewRef, (s) => s.value === 'active', { timeout: 5000 });
-    expect(cadRef.getSnapshot().context.file).toEqual({ path: '/builds/bld_test', filename: 'main.ts' });
+    expect(cadRef.getSnapshot().context.file).toEqual({ path: '/projects/proj_test', filename: 'main.ts' });
 
     cadRef.stop();
     previewRef.stop();

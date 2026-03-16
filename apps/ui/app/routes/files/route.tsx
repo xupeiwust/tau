@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router';
 import { Database, Download, FolderArchive, FolderOpen, MoreHorizontal, RefreshCw, Star, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { FileSystemBackend, Build } from '@taucad/types';
+import type { FileSystemBackend, Project } from '@taucad/types';
 import { ExternalLink } from '#components/external-link.js';
 import { Button } from '#components/ui/button.js';
 import { ComboBoxResponsive } from '#components/ui/combobox-responsive.js';
@@ -11,7 +11,7 @@ import { Tree, Folder, File } from '#components/magicui/file-tree.js';
 import type { TreeViewElement } from '#components/magicui/file-tree.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
-import { useBuilds } from '#hooks/use-builds.js';
+import { useProjects } from '#hooks/use-projects.js';
 import { cookieName } from '#constants/cookie.constants.js';
 import { isFileSystemAccessSupported } from '#constants/browser.constants.js';
 import type { Handle } from '#types/matches.types.js';
@@ -97,22 +97,22 @@ const folderActions: ItemAction[] = [
 ];
 
 /**
- * Extract build ID from a path that is exactly "/builds/bld_xxx" (not subfolders)
+ * Extract project ID from a path that is exactly "/projects/proj_xxx" (not subfolders)
  */
-function extractBuildId(path: string): string | undefined {
-  const match = /^\/builds\/([^/]+)$/.exec(path);
+function extractProjectId(path: string): string | undefined {
+  const match = /^\/projects\/([^/]+)$/.exec(path);
   return match?.[1];
 }
 
 /**
- * Link to a build page that opens in a new tab
+ * Link to a project page that opens in a new tab
  */
-function BuildLink({
-  buildId,
-  buildName,
+function ProjectLink({
+  projectId,
+  projectName,
 }: {
-  readonly buildId: string;
-  readonly buildName: string;
+  readonly projectId: string;
+  readonly projectName: string;
 }): React.JSX.Element {
   return (
     <span
@@ -124,11 +124,11 @@ function BuildLink({
       <ExternalLink
         withArrow
         isArrowOnHoverOnly
-        href={`/builds/${buildId}`}
+        href={`/projects/${projectId}`}
         className='text-xs text-muted-foreground max-md:hidden'
         arrowSize='xs'
       >
-        {buildName}
+        {projectName}
       </ExternalLink>
     </span>
   );
@@ -272,17 +272,17 @@ type TreeActionHandlers = {
   onDownloadFile: (path: string) => Promise<void>;
   onDeleteFolder: (path: string) => Promise<void>;
   onDownloadFolderZip: (path: string) => Promise<void>;
-  buildsMap: Map<string, Build>;
+  projectsMap: Map<string, Project>;
 };
 
 /**
- * Compose folder label with optional build link
+ * Compose folder label with optional project link
  */
-function FolderLabel({ name, build }: { readonly name: string; readonly build?: Build }): React.JSX.Element {
+function FolderLabel({ name, project }: { readonly name: string; readonly project?: Project }): React.JSX.Element {
   return (
     <span className='inline-flex items-center gap-2'>
       <span>{name}</span>
-      {build ? <BuildLink buildId={build.id} buildName={build.name} /> : undefined}
+      {project ? <ProjectLink projectId={project.id} projectName={project.name} /> : undefined}
     </span>
   );
 }
@@ -293,14 +293,14 @@ function FolderLabel({ name, build }: { readonly name: string; readonly build?: 
 function renderTree(elements: TreeViewElement[], handlers: TreeActionHandlers): React.ReactNode {
   return elements.map((element) => {
     if (element.children) {
-      // Check if this folder corresponds to a build
-      const buildId = extractBuildId(element.id);
-      const build = buildId ? handlers.buildsMap.get(buildId) : undefined;
+      // Check if this folder corresponds to a project
+      const projectId = extractProjectId(element.id);
+      const project = projectId ? handlers.projectsMap.get(projectId) : undefined;
 
       return (
         <Folder
           key={element.id}
-          element={<FolderLabel name={element.name} build={build} />}
+          element={<FolderLabel name={element.name} project={project} />}
           value={element.id}
           actions={
             <FolderActions
@@ -330,17 +330,17 @@ function renderTree(elements: TreeViewElement[], handlers: TreeActionHandlers): 
 }
 
 /**
- * Recursively count entries whose name starts with `bld_` (build directories).
+ * Recursively count entries whose name starts with `proj_` (project directories).
  */
-function countBuilds(elements: TreeViewElement[]): number {
+function countProjects(elements: TreeViewElement[]): number {
   let count = 0;
   for (const element of elements) {
-    if (element.name.startsWith('bld_')) {
+    if (element.name.startsWith('proj_')) {
       count += 1;
     }
 
     if (element.children) {
-      count += countBuilds(element.children);
+      count += countProjects(element.children);
     }
   }
 
@@ -348,17 +348,17 @@ function countBuilds(elements: TreeViewElement[]): number {
 }
 
 /**
- * Collect IDs of all folders named "builds" so they can be expanded by default.
+ * Collect IDs of all folders named "projects" so they can be expanded by default.
  */
-function findBuildsFolderIds(elements: TreeViewElement[]): string[] {
+function findProjectsFolderIds(elements: TreeViewElement[]): string[] {
   const ids: string[] = [];
   for (const element of elements) {
-    if (element.name === 'builds' && element.children) {
+    if (element.name === 'projects' && element.children) {
       ids.push(element.id);
     }
 
     if (element.children) {
-      ids.push(...findBuildsFolderIds(element.children));
+      ids.push(...findProjectsFolderIds(element.children));
     }
   }
 
@@ -418,9 +418,9 @@ function BackendColumn({
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
               <span className='text-sm font-medium'>{meta.label}</span>
-              {countBuilds(fileTree) > 0 ? (
+              {countProjects(fileTree) > 0 ? (
                 <span className='rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground'>
-                  {countBuilds(fileTree)}
+                  {countProjects(fileTree)}
                 </span>
               ) : undefined}
             </div>
@@ -491,7 +491,7 @@ function BackendColumn({
           ) : fileTree.length === 0 ? (
             <div className='flex h-32 items-center justify-center text-sm text-muted-foreground'>No files found</div>
           ) : (
-            <Tree elements={fileTree} initialExpandedItems={findBuildsFolderIds(fileTree)} onExpand={onExpand}>
+            <Tree elements={fileTree} initialExpandedItems={findProjectsFolderIds(fileTree)} onExpand={onExpand}>
               {renderTree(fileTree, treeActionHandlers)}
             </Tree>
           )}
@@ -544,7 +544,7 @@ function WebAccessDirectoryPanel({
 export default function FilesRoute(): React.JSX.Element {
   const [backendCookie, setBackendCookie] = useCookie(cookieName.filesystemBackend, 'indexeddb' as FileSystemBackend);
   const { fileManagerRef, readFile, deleteFile, getZippedDirectory, readShallowDirectory } = useFileManager();
-  const { builds } = useBuilds();
+  const { projects } = useProjects();
 
   // Loaded directories per backend: backend → (directoryPath → FileTreeNode[])
   const [loadedDirectories, setLoadedDirectories] = useState<Record<string, Map<string, FileTreeNode[]>>>({});
@@ -557,8 +557,8 @@ export default function FilesRoute(): React.JSX.Element {
     needsPermission: false,
   });
 
-  // Create a lookup map for builds by ID
-  const buildsMap = useMemo(() => new Map(builds.map((build) => [build.id, build])), [builds]);
+  // Create a lookup map for projects by ID
+  const projectsMap = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
   // Check WebAccess handle status on mount
   useEffect(() => {
@@ -611,7 +611,7 @@ export default function FilesRoute(): React.JSX.Element {
   );
 
   // Build a tree from loaded directories
-  const buildTreeFromDirectories = useCallback(
+  const projectTreeFromDirectories = useCallback(
     (backend: FileSystemBackend): TreeViewElement[] => {
       const directories = loadedDirectories[backend];
       if (!directories) {
@@ -837,7 +837,7 @@ export default function FilesRoute(): React.JSX.Element {
     onDownloadFile: handleDownloadFile,
     onDeleteFolder: handleDeleteFolder,
     onDownloadFolderZip: handleDownloadFolderZip,
-    buildsMap,
+    projectsMap,
   };
 
   return (
@@ -855,7 +855,7 @@ export default function FilesRoute(): React.JSX.Element {
             meta={column}
             isDefault={backendCookie === column.key}
             treeActionHandlers={treeActionHandlers}
-            fileTree={buildTreeFromDirectories(column.key)}
+            fileTree={projectTreeFromDirectories(column.key)}
             isLoading={rootLoading[column.key] ?? false}
             webAccessState={column.key === 'webaccess' ? webAccessState : undefined}
             onRefresh={() => {

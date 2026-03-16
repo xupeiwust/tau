@@ -31,7 +31,7 @@ export type RpcFileSystem = {
 
 /**
  * Abstract runtime client for getting compilation results.
- * Browser impl wraps buildRef (XState actor); headless impl wraps runtime worker directly.
+ * Browser impl wraps projectRef (XState actor); headless impl wraps runtime worker directly.
  * @public
  */
 export type RpcRuntimeClient = {

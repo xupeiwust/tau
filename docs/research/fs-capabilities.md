@@ -474,4 +474,4 @@ Use ZenFS's `CopyOnWrite` backend to layer an in-memory write cache over the Ind
 | 3   | Use ZenFS `PortFS` for main-thread proxy in `apps/ui`     | Medium   | Medium        | Medium |
 | 4   | Adopt `catchMessages` pattern for init safety             | Medium   | Low           | Small  |
 | 5   | Investigate `SharedArrayBuffer` + `SingleBuffer` for WASM | Low      | High (future) | Large  |
-| 6   | `CopyOnWrite` backend for build isolation                 | Low      | Low           | Medium |
+| 6   | `CopyOnWrite` backend for project isolation               | Low      | Low           | Medium |

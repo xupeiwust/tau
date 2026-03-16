@@ -520,8 +520,8 @@ export function assertFailure<T>(result: KernelResult<T>, context?: string): ass
  */
 export function createMockInput(overrides?: Partial<CreateGeometryInput>): CreateGeometryInput {
   return {
-    filePath: '/builds/test-build/test.kcl',
-    basePath: '/builds/test-build',
+    filePath: '/projects/test-build/test.kcl',
+    basePath: '/projects/test-build',
     parameters: {},
     ...overrides,
   };
@@ -531,11 +531,11 @@ export function createMockInput(overrides?: Partial<CreateGeometryInput>): Creat
  * Creates a GeometryFile for use with worker methods (canHandle, getParameters, createGeometry).
  *
  * @param filename - The file name (e.g. `'test.ts'`)
- * @param basePath - The project base path (defaults to `/builds/test`)
+ * @param basePath - The project base path (defaults to `/projects/test`)
  * @returns A GeometryFile pointing to the given filename and path
  * @public
  */
-export function createGeometryFile(filename: string, basePath = '/builds/test'): GeometryFile {
+export function createGeometryFile(filename: string, basePath = '/projects/test'): GeometryFile {
   return {
     filename,
     path: basePath,
@@ -630,7 +630,7 @@ export async function createTestWorker(
   files: Record<string, string>,
   options?: CreateTestWorkerOptions,
 ): Promise<KernelRuntimeWorker> {
-  const basePath = '/builds/test';
+  const basePath = '/projects/test';
 
   const absoluteFiles: Record<string, string> = {};
   for (const [path, content] of Object.entries(files)) {

@@ -3,7 +3,7 @@
  *
  * XState machine for managing draft and edit state with debounced persistence.
  * Actors are provided via machine.provide() in the consumer (use-chat.tsx)
- * following the pattern from use-build.tsx.
+ * following the pattern from use-project.tsx.
  */
 
 import { setup, assign } from 'xstate';

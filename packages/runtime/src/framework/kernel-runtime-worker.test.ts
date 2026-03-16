@@ -74,7 +74,7 @@ async function createMultiKernelWorker(
 // ===================================================================
 
 describe('KernelRuntimeWorker kernel selection', () => {
-  const basePath = '/builds/test';
+  const basePath = '/projects/test';
 
   beforeEach(async () => {
     await seedTestFileSystem({

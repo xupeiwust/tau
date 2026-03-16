@@ -36,7 +36,7 @@ function deepMergePanelState(current: PanelState, update: PartialDeep<PanelState
  * Editor state Machine Context
  */
 export type EditorStateContext = {
-  buildId: string;
+  projectId: string;
   openFiles: OpenFile[];
   activeFilePath: string | undefined;
   lastChatId: string | undefined;
@@ -58,7 +58,7 @@ export type EditorStateContext = {
  * Editor state Machine Input
  */
 type EditorStateMachineInput = {
-  buildId: string;
+  projectId: string;
 };
 
 /**
@@ -66,7 +66,7 @@ type EditorStateMachineInput = {
  */
 type EditorStateEvent =
   | { type: 'load' }
-  | { type: 'reload'; buildId: string }
+  | { type: 'reload'; projectId: string }
   // File operations (consolidated from fileExplorerMachine)
   | { type: 'openFile'; path: string; source: FileOpenSource; lineNumber?: number; column?: number }
   | { type: 'closeFile'; path: string }
@@ -100,7 +100,7 @@ type EditorStateEmitted =
 // Actors to be provided by the consumer
 const loadEditorStateActor = fromSafeAsync<
   { type: 'editorStateRetrieved'; state: EditorState | undefined },
-  { buildId: string }
+  { projectId: string }
 >(async () => {
   throw new Error('Not implemented. Please supply via provide.');
 });
@@ -117,7 +117,7 @@ const saveEditorStateActor = fromSafeAsync<void, { editorState: EditorStateInput
  * - Active file path
  * - Last active chat ID
  *
- * This machine is DECOUPLED from the build machine to keep the build machine
+ * This machine is DECOUPLED from the project machine to keep the project machine
  * clean for CLI/multi-frontend reuse.
  */
 export const editorMachine = setup({
@@ -206,10 +206,10 @@ export const editorMachine = setup({
       });
     }),
 
-    updateBuildId: assign(({ event }) => {
+    updateProjectId: assign(({ event }) => {
       assertEvent(event, 'reload');
       return {
-        buildId: event.buildId,
+        projectId: event.projectId,
         openFiles: [],
         activeFilePath: undefined,
         lastChatId: undefined,
@@ -466,9 +466,9 @@ export const editorMachine = setup({
     clearPendingChanges: assign({ hasPendingChanges: false }),
   },
   guards: {
-    isBuildIdChanging({ context, event }) {
+    isProjectIdChanging({ context, event }) {
       assertEvent(event, 'reload');
-      return context.buildId !== event.buildId;
+      return context.projectId !== event.projectId;
     },
     hasPendingChanges({ context }) {
       return context.hasPendingChanges;
@@ -481,7 +481,7 @@ export const editorMachine = setup({
   id: 'editor',
   context({ input }) {
     return {
-      buildId: input.buildId,
+      projectId: input.projectId,
       openFiles: [],
       activeFilePath: undefined,
       lastChatId: undefined,
@@ -504,7 +504,7 @@ export const editorMachine = setup({
         },
         reload: {
           target: 'loading',
-          actions: ['updateBuildId', 'setLoading'],
+          actions: ['updateProjectId', 'setLoading'],
         },
       },
     },
@@ -512,7 +512,7 @@ export const editorMachine = setup({
       entry: 'clearError',
       invoke: {
         src: 'loadEditorStateActor',
-        input: ({ context }) => ({ buildId: context.buildId }),
+        input: ({ context }) => ({ projectId: context.projectId }),
         onDone: {
           target: 'ready',
         },
@@ -527,7 +527,7 @@ export const editorMachine = setup({
         },
         reload: {
           target: 'loading',
-          actions: ['updateBuildId', 'setLoading'],
+          actions: ['updateProjectId', 'setLoading'],
           reenter: true,
         },
       },
@@ -588,7 +588,7 @@ export const editorMachine = setup({
             // Reload
             reload: {
               target: '#editor.loading',
-              actions: ['updateBuildId', 'setLoading'],
+              actions: ['updateProjectId', 'setLoading'],
             },
           },
         },
@@ -638,7 +638,7 @@ export const editorMachine = setup({
                 input({ context }) {
                   return {
                     editorState: {
-                      buildId: context.buildId,
+                      projectId: context.projectId,
                       openFiles: context.openFiles,
                       activeFilePath: context.activeFilePath,
                       lastChatId: context.lastChatId,

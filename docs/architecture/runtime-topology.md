@@ -14,7 +14,7 @@ The current kernel render pipeline uses a command-driven, main-thread-orchestrat
 Editor writes file
   → FileService.writeFile() [File Manager Worker]
   → fileManagerRef.send({ fileWritten }) [Main Thread]
-  → use-build.tsx fanout to ALL compilation units [Main Thread]
+  → use-project.tsx fanout to ALL compilation units [Main Thread]
   → cadMachine debounce (500ms) [Main Thread]
   → kernelMachine.createGeometry [Main Thread]
   → RuntimeClient.render({ changedPaths }) [Main Thread]
@@ -88,11 +88,11 @@ The protocol shifts from request/response to event-driven, with a shared-memory 
 
 **Main thread → Worker (commands, infrequent):**
 
-| Command                 | Trigger                      | Worker Behavior                                   |
-| ----------------------- | ---------------------------- | ------------------------------------------------- |
-| `setFile(file, params)` | User opens file, build loads | Render immediately, discover deps, start watching |
-| `setParameters(params)` | User adjusts slider/input    | Store params, debounce 50ms, re-render            |
-| `export(format)`        | User clicks export           | Export from last native handle                    |
+| Command                 | Trigger                        | Worker Behavior                                   |
+| ----------------------- | ------------------------------ | ------------------------------------------------- |
+| `setFile(file, params)` | User opens file, project loads | Render immediately, discover deps, start watching |
+| `setParameters(params)` | User adjusts slider/input      | Store params, debounce 50ms, re-render            |
+| `export(format)`        | User clicks export             | Export from last native handle                    |
 
 **Worker → Main thread (events, pushed reactively):**
 
@@ -366,7 +366,7 @@ No `bufferingFile`, `bufferingParameters`, `createGeometry`, `changedPaths`, `is
 
 The current kernelMachine exists because the old protocol required orchestrating `createGeometry` → `render()` → result forwarding. With the autonomous worker model, there is no render command to orchestrate -- the worker self-renders. The only commands cadMachine sends are `setFile`, `setParameters`, and `export`, which map directly to `RuntimeClient` methods. An intermediate machine adds no value.
 
-### use-build.tsx
+### use-project.tsx
 
 **Before:** Lines 148-167 subscribe to `fileWritten` and fan out `setFile` to every compilation unit.
 
@@ -382,7 +382,7 @@ await client.connect({ port });
 
 // These write Atomics.store(abortFlag) then postMessage -- the abort
 // signal reaches the worker's OC Proxy before the message is processed.
-client.setFile({ path: '/builds/xxx', filename: 'main.ts' });
+client.setFile({ path: '/projects/xxx', filename: 'main.ts' });
 client.setParameters({ width: 10 });
 
 client.on('geometry', (result) => {
@@ -478,6 +478,6 @@ These components must be implemented first. The autonomous render loop is the fo
 8. Add `stateChanged` response type to kernel protocol.
 9. Collapse `kernelMachine` into `cadMachine` -- move RuntimeClient lifecycle (creation, connection, event subscription, cleanup) into cadMachine as a `connecting` state with a promise actor.
 10. Simplify unified `cadMachine` to display-state machine (connecting | idle | rendering | error).
-11. Remove `use-build.tsx` relay, `changedPaths` threading, `notifyFileChanged` command.
+11. Remove `use-project.tsx` relay, `changedPaths` threading, `notifyFileChanged` command.
 12. Update `RuntimeClient` API to reactive event emitter pattern.
 13. Delete `kernel.machine.ts`.

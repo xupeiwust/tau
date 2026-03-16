@@ -53,7 +53,7 @@ The application manages **6 distinct worker types** across 3 lifecycle patterns:
 | **Size**           | 120-175 MB per instance (includes WASM heap)                                                         |
 | **Termination**    | `kernelClient.terminate()` → `workerClient.terminate()` → `transport.close()` → `worker.terminate()` |
 | **Owner**          | `kernel.machine.ts` via `destroyWorkers` exit action                                                 |
-| **Expected count** | 1 per compilation unit (typically 1 per build)                                                       |
+| **Expected count** | 1 per compilation unit (typically 1 per project)                                                     |
 | **Observed count** | 5-15+ (accumulating across navigation)                                                               |
 
 **Termination chain**:
@@ -105,15 +105,15 @@ Component unmount
 | **Entry module**   | `object-store.worker.ts`                            |
 | **Size**           | ~8.5 MB                                             |
 | **Termination**    | `destroyWorker` machine exit action                 |
-| **Owner**          | `build-manager.machine.ts`                          |
-| **Expected count** | 1 (per build manager)                               |
+| **Owner**          | `project-manager.machine.ts`                        |
+| **Expected count** | 1 (per project manager)                             |
 | **Observed count** | 1 (correct)                                         |
 
 **Note**: Still uses Comlink (`expose`/`wrap`). This is the last remaining Comlink usage in the codebase.
 
 **Files**:
 
-- `apps/ui/app/hooks/build-manager.machine.ts` — Machine with worker lifecycle
+- `apps/ui/app/hooks/project-manager.machine.ts` — Machine with worker lifecycle
 - `apps/ui/app/hooks/object-store.worker.ts` — Worker entry using Comlink `expose()`
 
 ### 4. KCL LSP Worker
@@ -176,7 +176,7 @@ Component unmount
 ### Kernel Worker Lifecycle (Critical Path)
 
 ```
-CadPreviewProvider mount / BuildProvider mount
+CadPreviewProvider mount / ProjectProvider mount
   → useActorRef(cadMachine)
     → cadMachine spawns kernelMachine as kernelRef
       → kernelMachine starts in 'initializing'
@@ -202,28 +202,28 @@ Component unmount / route change
                 → worker.terminate()
 ```
 
-### Build-to-Build Navigation
+### Project-to-Project Navigation
 
-The `BuildProvider` correctly handles `buildId` changes:
+The `ProjectProvider` correctly handles `projectId` changes:
 
 ```typescript
-// use-build.tsx line 170-176
+// use-project.tsx line 170-176
 useEffect(() => {
-  actorRef.send({ type: 'loadBuild', buildId });
-  editorRef.send({ type: 'reload', buildId });
-}, [actorRef, buildId, editorRef]);
+  actorRef.send({ type: 'loadProject', projectId });
+  editorRef.send({ type: 'reload', projectId });
+}, [actorRef, projectId, editorRef]);
 ```
 
-The `buildMachine` processes `loadBuild` with `isBuildIdChanging` guard:
+The `projectMachine` processes `loadProject` with `isProjectIdChanging` guard:
 
 ```
-loadBuild (buildId changed)
+loadProject (projectId changed)
   → stopStatefulActors: stopChild(gitRef), stopChild(each compilationUnit), stopChild(each viewGraphics)
   → respawnStatefulActors: fresh git, empty compilationUnits, empty viewGraphics
-  → setLoading → re-invoke loadBuildActor
+  → setLoading → re-invoke loadProjectActor
 ```
 
-This correctly terminates old kernel workers when switching builds within the same `BuildProvider` instance.
+This correctly terminates old kernel workers when switching projects within the same `ProjectProvider` instance.
 
 ### Project Grid Preview Lifecycle
 
@@ -250,8 +250,8 @@ Page navigation away from project grid
 ## XState Actor Hierarchy
 
 ```
-BuildProvider (useActorRef)
-  └─ buildMachine
+ProjectProvider (useActorRef)
+  └─ projectMachine
        ├─ gitMachine (spawned)
        ├─ logMachine (spawned)
        ├─ compilationUnits: Map<string, cadMachine> (spawned)
@@ -261,7 +261,7 @@ BuildProvider (useActorRef)
        └─ viewGraphics: Map<string, graphicsMachine> (spawned)
 
 CadPreviewProvider (useActorRef)
-  ├─ cadMachine (standalone, NOT spawned by buildMachine)
+  ├─ cadMachine (standalone, NOT spawned by projectMachine)
   │   └─ kernelMachine (spawned)
   │       └─ RuntimeClient → Web Worker
   ├─ graphicsMachine (standalone)
@@ -271,8 +271,8 @@ FileManagerProvider (useActorRef)
   └─ fileManagerMachine
        └─ File Manager Worker (manual lifecycle)
 
-BuildManagerProvider (useActorRef)
-  └─ buildManagerMachine
+ProjectManagerProvider (useActorRef)
+  └─ projectManagerMachine
        └─ Object Store Worker (manual lifecycle, Comlink)
 ```
 
@@ -377,7 +377,7 @@ persistedSnapshots.forEach(([ref, snapshot]) => {
 
 **Problem**: Monaco editor creates up to 3 workers (JSON, TypeScript, Editor) via `MonacoEnvironment.getWorker`. These are never explicitly terminated. Lifecycle is fully under Monaco's control.
 
-**Impact**: Low — Monaco generally manages its own workers. But when the editor is fully unmounted (e.g., navigating away from build page), Monaco workers may persist until GC collects the Monaco instance.
+**Impact**: Low — Monaco generally manages its own workers. But when the editor is fully unmounted (e.g., navigating away from project page), Monaco workers may persist until GC collects the Monaco instance.
 
 **Recommendation**: Call `editor.dispose()` on Monaco editor instances during component cleanup.
 
@@ -385,7 +385,7 @@ persistedSnapshots.forEach(([ref, snapshot]) => {
 
 **Problem**: The object-store worker is the last remaining Comlink usage. It uses `Comlink.expose()` and `Comlink.wrap()`. This prevents transfer list control and adds unnecessary dependency overhead.
 
-**Impact**: Low — the object-store handles small payloads (build metadata, editor state).
+**Impact**: Low — the object-store handles small payloads (project metadata, editor state).
 
 **Recommendation**: Migrate to the custom bridge pattern (`createBridgeServer`/`createBridgeProxy`) for consistency and eventual Comlink removal.
 
@@ -431,5 +431,5 @@ The kernel runtime workers dominate memory consumption due to WASM heap allocati
 
 ### P3: Low (Future)
 
-9. **Worker pooling**: Reuse kernel workers across builds of the same kernel type
+9. **Worker pooling**: Reuse kernel workers across projects of the same kernel type
 10. **SharedArrayBuffer FS**: Evaluate ZenFS `SingleBuffer` backend for synchronous FS access without MessagePort overhead

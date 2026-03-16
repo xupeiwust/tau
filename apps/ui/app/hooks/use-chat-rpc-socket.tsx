@@ -19,7 +19,7 @@ import { ChatRpcSocketService } from '#services/chat-rpc-socket.service.js';
 import type { ConnectionStatus, RpcRequestHandler } from '#services/chat-rpc-socket.service.js';
 import { createRpcHandlers } from '#hooks/rpc-handlers.js';
 import type { RpcHandlerDependencies, RpcCallInput } from '#hooks/rpc-handlers.js';
-import { useBuild, useMainGraphics } from '#hooks/use-build.js';
+import { useProject, useMainGraphics } from '#hooks/use-project.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { useImageQuality } from '#hooks/use-image-quality.js';
 
@@ -121,7 +121,7 @@ type UseChatRpcConnectionReturn = {
  *
  * This hook:
  * 1. Joins the chat room when enabled and chatId is provided
- * 2. Sets up RPC request handling using the current build context
+ * 2. Sets up RPC request handling using the current project context
  * 3. Leaves the chat room on cleanup or when disabled
  * 4. Provides reactive connection status updates
  */
@@ -132,7 +132,7 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
   const { status, error } = useChatRpcStatus();
 
   // Get dependencies for RPC handlers
-  const { buildRef } = useBuild();
+  const { projectRef } = useProject();
   const mainGraphicsRef = useMainGraphics();
   const fileManager = useFileManager();
   const { fileManagerRef } = fileManager;
@@ -145,7 +145,7 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
   depsRef.current = {
     fileManager,
     graphicsRef: mainGraphicsRef,
-    buildRef,
+    projectRef,
     fileTree,
     screenshotQuality,
   };

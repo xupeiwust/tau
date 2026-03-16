@@ -166,7 +166,7 @@ import { mock } from 'vitest-mock-extended';
 // CORRECT: typed mock with overrides
 const client = mock<RuntimeClient>({ terminate: vi.fn() });
 const options = mock<RuntimeClientOptions>();
-const ref = mock<BuildContext['fileManagerRef']>({ send: vi.fn() });
+const ref = mock<ProjectContext['fileManagerRef']>({ send: vi.fn() });
 
 // INCORRECT: bypasses type system
 const client = {} as unknown as RuntimeClient;

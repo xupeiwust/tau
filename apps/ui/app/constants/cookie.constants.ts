@@ -59,9 +59,9 @@ export const cookieName = {
   // Whether testing tools (test_model, edit_tests) are enabled.
   chatTestingEnabled: 'chat-testing-enabled',
 
-  /* Builds */
-  // The last selected build view mode.
-  buildViewMode: 'build-view-mode',
+  /* Projects */
+  // The last selected project view mode.
+  projectViewMode: 'project-view-mode',
 
   /* Graphics */
   // Whether the section view status is open.

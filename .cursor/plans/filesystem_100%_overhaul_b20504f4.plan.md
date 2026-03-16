@@ -507,7 +507,7 @@ ZenFS's `emitChange(context, eventType, filename)` (in `vfs/watchers.js`) is cal
 - `unlink` -> `emitChange(this, 'rename', path)`
 - `mkdir`/`rmdir` -> `emitChange(this, 'rename', path)`
 
-The `emitChange` function walks up the directory tree from the changed file to `/`, notifying registered `FSWatcher` instances at each level. This means a watcher on `/builds/123/` would fire for changes to `/builds/123/main.ts`.
+The `emitChange` function walks up the directory tree from the changed file to `/`, notifying registered `FSWatcher` instances at each level. This means a watcher on `/projects/123/` would fire for changes to `/projects/123/main.ts`.
 
 Our `FileService.watch()` uses `ChangeEventBus` (which fires after the full FileService operation completes, including cache invalidation) rather than ZenFS watchers directly, because:
 1. Richer event data (includes `backend`, full path, event type with `fileWritten`/`fileDeleted`/`fileRenamed` semantics)

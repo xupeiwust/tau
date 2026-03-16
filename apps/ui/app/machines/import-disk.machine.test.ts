@@ -50,8 +50,8 @@ function createTestActor(options?: { throwOnRead?: boolean }) {
       readDataTransferActor: createReadActor<{ items: DataTransferItemList; onProgress: OnProgress }>(),
       readDirectoryHandleActor: createReadActor<{ handle: FileSystemDirectoryHandle; onProgress: OnProgress }>(),
       extractZipActor: createReadActor<{ file: File; onProgress: OnProgress }>(),
-      createBuildActor: fromSafeAsync(async () => {
-        return { type: 'buildCreated', buildId: 'build_123' };
+      createProjectActor: fromSafeAsync(async () => {
+        return { type: 'projectCreated', projectId: 'proj_123' };
       }),
     },
   });
@@ -80,7 +80,7 @@ describe('importDiskMachine', () => {
       expect(context.importName).toBe('Uploaded Files');
       expect(context.selectedMainFile).toBeUndefined();
       expect(context.error).toBeUndefined();
-      expect(context.buildId).toBeUndefined();
+      expect(context.projectId).toBeUndefined();
       actor.stop();
     });
   });
@@ -137,7 +137,7 @@ describe('importDiskMachine', () => {
     });
   });
 
-  describe('creating build', () => {
+  describe('creating project', () => {
     it('should transition to creating on confirmImport', async () => {
       const actor = createTestActor();
       actor.start();
@@ -148,14 +148,14 @@ describe('importDiskMachine', () => {
       actor.stop();
     });
 
-    it('should transition to success after build creation', async () => {
+    it('should transition to success after project creation', async () => {
       const actor = createTestActor();
       actor.start();
       actor.send({ type: 'processFiles', files: mock<FileList>() });
       await waitFor(actor, (s) => s.value === 'selectingMainFile');
       actor.send({ type: 'confirmImport' });
       await waitFor(actor, (s) => s.value === 'success');
-      expect(actor.getSnapshot().context.buildId).toBe('build_123');
+      expect(actor.getSnapshot().context.projectId).toBe('project_123');
       actor.stop();
     });
   });
@@ -200,7 +200,7 @@ describe('importDiskMachine', () => {
       const { context } = actor.getSnapshot();
       expect(context.files.size).toBe(0);
       expect(context.error).toBeUndefined();
-      expect(context.buildId).toBeUndefined();
+      expect(context.projectId).toBeUndefined();
       actor.stop();
     });
   });

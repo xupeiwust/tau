@@ -376,7 +376,7 @@ fileManager.fileManagerRef.on('fileWritten', (event) => {
   for (const [entryFile, unit] of units) {
     unit.send({
       type: 'setFile',
-      file: { path: `/builds/${buildId}`, filename: entryFile },
+      file: { path: `/projects/${projectId}`, filename: entryFile },
       changedPath: event.path, // NEW: the actual file that changed
     });
   }
@@ -1069,7 +1069,7 @@ Beyond project files, kernel workers need access to additional data sources: CAD
 
 ```typescript
 // In the React layer (e.g., use-build.tsx)
-const buildRef = useBuild({
+const projectRef = useProject({
   kernelConfig: [...],
   middlewareConfig: [...],
   mountConfig: [
@@ -1105,7 +1105,7 @@ Kernel workers don't need to know whether a file came from IndexedDB, a zip arch
 Mounts can be added/removed at runtime, similar to middleware reconfiguration:
 
 ```typescript
-buildRef.send({
+projectRef.send({
   type: 'configureMounts',
   mountConfig: [
     { type: 'zip', url: '/assets/updated-library.zip', mountPoint: '/libs/parts' },

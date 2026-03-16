@@ -457,7 +457,7 @@ describe('geometryCacheMiddleware', () => {
 
         runtime.filesystem.mocks.readdirStat.mockResolvedValue([
           {
-            path: '/builds/test-build/.tau/cache/geometry/old-cache.bin',
+            path: '/projects/test-build/.tau/cache/geometry/old-cache.bin',
             name: 'old-cache.bin',
             type: 'file',
             size: 100,
@@ -482,7 +482,7 @@ describe('geometryCacheMiddleware', () => {
         });
 
         // Create 102 files (2 over the 100 max), stagger mtimeMs oldest first
-        const cacheDirectory = '/builds/test-build/.tau/cache/geometry';
+        const cacheDirectory = '/projects/test-build/.tau/cache/geometry';
         const entries = Array.from({ length: 102 }, (_, index) => ({
           path: `${cacheDirectory}/cache-${index}.bin`,
           name: `cache-${index}.bin`,

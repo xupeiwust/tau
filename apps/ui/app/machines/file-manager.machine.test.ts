@@ -28,7 +28,7 @@ vi.mock('@taucad/runtime/filesystem', () => ({
 
 vi.mock('#filesystem/handle-store.js', () => ({
   getStoredDirectoryHandle: vi.fn(async () => undefined),
-  getBuildFileSystemConfig: vi.fn(async () => undefined),
+  getProjectFileSystemConfig: vi.fn(async () => undefined),
   checkHandlePermission: vi.fn(async () => 'granted'),
   storeDirectoryHandle: vi.fn(),
   requestHandlePermission: vi.fn(async () => true),

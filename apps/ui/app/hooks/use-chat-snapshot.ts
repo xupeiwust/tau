@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSelector } from '@xstate/react';
 import type { ChatSnapshot } from '@taucad/chat';
-import { useBuild } from '#hooks/use-build.js';
+import { useProject } from '#hooks/use-project.js';
 import { useFileTree } from '#hooks/use-file-manager.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
@@ -20,9 +20,9 @@ import { cookieName } from '#constants/cookie.constants.js';
  * @returns ChatSnapshot object or undefined if no context is enabled/available
  */
 export function useChatSnapshot(): ChatSnapshot | undefined {
-  // Get the editor ref from build context (may not be available outside build pages)
-  const buildContext = useBuild({ enableNoContext: true });
-  const editorRef = buildContext?.editorRef;
+  // Get the editor ref from project context (may not be available outside project pages)
+  const projectContext = useProject({ enableNoContext: true });
+  const editorRef = projectContext?.editorRef;
 
   // Get file tree data
   const fileTree = useFileTree();

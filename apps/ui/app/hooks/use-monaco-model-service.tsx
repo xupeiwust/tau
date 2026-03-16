@@ -8,7 +8,7 @@
  * - MonacoNavigationService: Global editor opener for cross-model navigation
  *
  * Services are initialized when Monaco becomes available and disposed on unmount.
- * Build session changes are forwarded to all services for clean state transitions.
+ * Project session changes are forwarded to all services for clean state transitions.
  */
 
 import type { ReactNode } from 'react';
@@ -19,7 +19,7 @@ import { MonacoMarkerService } from '#lib/monaco-marker-service.js';
 import { MonacoModelService } from '#lib/monaco-model-service.js';
 import { registry } from '#lib/monaco-language-registry.js';
 import { registerMonacoNavigation } from '#lib/monaco-navigation-service.js';
-import { useBuild } from '#hooks/use-build.js';
+import { useProject } from '#hooks/use-project.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 
 type MonacoServicesContextType = {
@@ -33,7 +33,7 @@ const MonacoServicesContext = createContext<MonacoServicesContextType>(defaultCo
 
 export function MonacoModelServiceProvider({ children }: { readonly children: ReactNode }): React.JSX.Element {
   const monaco = useMonaco();
-  const { buildId, editorRef } = useBuild();
+  const { projectId, editorRef } = useProject();
   const { fileManagerRef, readFile, exists, readdir, getDirectoryStat } = useFileManager();
 
   // Stable file manager API reference (methods are already useCallback-wrapped)
@@ -91,11 +91,11 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
     };
   }, [monaco, fileManagerApi, fileManagerRef, editorRef]);
 
-  // Forward build session changes to services
+  // Forward project session changes to services
   useEffect(() => {
-    services.modelService?.setBuildSession(buildId);
-    registry.onBuildSessionChange(buildId);
-  }, [buildId, services.modelService]);
+    services.modelService?.setProjectSession();
+    registry.onProjectSessionChange(projectId);
+  }, [projectId, services.modelService]);
 
   return <MonacoServicesContext.Provider value={services}>{children}</MonacoServicesContext.Provider>;
 }

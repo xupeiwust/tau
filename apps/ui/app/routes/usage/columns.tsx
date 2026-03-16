@@ -36,12 +36,12 @@ export const usageColumns: Array<ColumnDef<UsageRecord>> = [
     enableHiding: true,
   },
   {
-    accessorKey: 'buildName',
+    accessorKey: 'projectName',
     header: ({ column }) => <DataTableColumnHeader column={column} title='Build' />,
     cell({ row }: { readonly row: Row<UsageRecord> }): ReactNode {
       return (
-        <Link to={`/builds/${row.original.buildId}`} className='max-w-[200px] truncate hover:underline'>
-          {row.original.buildName}
+        <Link to={`/projects/${row.original.projectId}`} className='max-w-[200px] truncate hover:underline'>
+          {row.original.projectName}
         </Link>
       );
     },

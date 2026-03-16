@@ -69,7 +69,7 @@ async function startAndConnect(options?: Parameters<typeof createTestActor>[0]) 
 // Stub data
 // ---------------------------------------------------------------------------
 
-const stubFile: GeometryFile = { path: '/builds/test', filename: 'main.ts' };
+const stubFile: GeometryFile = { path: '/projects/test', filename: 'main.ts' };
 
 const stubGeometries: Geometry[] = [{ format: 'gltf', content: new Uint8Array(0), hash: 'stub' }];
 
@@ -364,7 +364,7 @@ describe('cadMachine', () => {
     it('should handle kernelFilesChanged as no-op', async () => {
       const { actor } = await startAndConnect();
 
-      actor.send({ type: 'kernelFilesChanged', paths: ['/builds/test/main.ts'] });
+      actor.send({ type: 'kernelFilesChanged', paths: ['/projects/test/main.ts'] });
       expect(actor.getSnapshot().value).toBe('idle');
       actor.stop();
     });
@@ -748,7 +748,7 @@ describe('cadMachine', () => {
       actor.send({ type: 'stateChanged', state: 'rendering' });
       expect(actor.getSnapshot().value).toBe('rendering');
 
-      const newFile: GeometryFile = { path: '/builds/test', filename: 'other.ts' };
+      const newFile: GeometryFile = { path: '/projects/test', filename: 'other.ts' };
       actor.send({ type: 'setFile', file: newFile });
       expect(mockClient.setFile).toHaveBeenCalledWith(newFile, {});
       expect(actor.getSnapshot().context.file).toEqual(newFile);

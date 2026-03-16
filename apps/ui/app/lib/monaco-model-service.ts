@@ -52,7 +52,7 @@ export class MonacoModelService {
   private fileManager: Pick<FileManagerApi, 'readFile' | 'getDirectoryStat'> | undefined;
   private markerService: MonacoMarkerService | undefined;
 
-  /** Session epoch -- incremented on each build session change */
+  /** Session epoch -- incremented on each project session change */
   private epoch = 0;
 
   /** AbortController for current session -- aborted on session change and dispose */
@@ -149,9 +149,9 @@ export class MonacoModelService {
   }
 
   /**
-   * Switch to a new build session. Aborts in-flight work, clears state, restarts sync.
+   * Switch to a new project session. Aborts in-flight work, clears state, restarts sync.
    */
-  public setBuildSession(_buildId: string): void {
+  public setProjectSession(): void {
     // Increment epoch
     this.epoch++;
 
@@ -494,7 +494,7 @@ export class MonacoModelService {
           existingModel.setValue(text);
 
           // Safety net: immediately clear TypeScript/JavaScript worker markers
-          // from the previous build. The TS worker will re-validate the updated
+          // from the previous project. The TS worker will re-validate the updated
           // content asynchronously and set fresh markers, but clearing now prevents
           // stale errors from showing during the debounce window.
           this.monaco.editor.setModelMarkers(existingModel, 'typescript', []);

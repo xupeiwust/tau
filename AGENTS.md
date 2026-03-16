@@ -36,7 +36,7 @@ Tau is the AI-native CAD platform for the web (`tau.new`), built as an Nx monore
 | `packages/converter`    | CAD file conversion (STL, STEP, IGES, DXF, glTF, USDZ)                 |
 | `packages/json-schema`  | JSON to JSON Schema inference                                          |
 | `libs/chat`             | AI chat tool schemas, message schemas, RPC definitions                 |
-| `libs/types`            | Shared TypeScript types (API, build, CAD, file, graphics)              |
+| `libs/types`            | Shared TypeScript types (API, project, CAD, file, graphics)            |
 | `libs/utils`            | Shared utilities (ID generation, path, file, schema, dispose)          |
 | `libs/units`            | Units of measurement and conversions                                   |
 | `apps/ui/content/docs/` | Docs site (Fumadocs): `(runtime)/` and `(editor)/` sections            |

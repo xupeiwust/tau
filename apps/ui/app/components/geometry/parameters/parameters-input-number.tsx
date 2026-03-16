@@ -4,7 +4,7 @@ import { Angle } from '#components/icons/angle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 import { cn } from '#utils/ui.utils.js';
 import { Input } from '#components/ui/input.js';
-import type { MeasurementDescriptor } from '#constants/build-parameters.js';
+import type { MeasurementDescriptor } from '#constants/project-parameters.js';
 
 const baseIndicatorClass = 'flex h-7 w-7 items-center justify-center border bg-muted text-muted-foreground select-none';
 

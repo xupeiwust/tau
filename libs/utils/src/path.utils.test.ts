@@ -3,19 +3,19 @@ import { joinPath, normalizePath, parentDirectory, canonicalizePath } from '#pat
 
 describe('normalizePath', () => {
   it('should normalize a simple path', () => {
-    expect(normalizePath('/builds/id/main.scad')).toBe('/builds/id/main.scad');
+    expect(normalizePath('/projects/id/main.scad')).toBe('/projects/id/main.scad');
   });
 
   it('should remove redundant slashes', () => {
-    expect(normalizePath('//builds//id//main.scad')).toBe('/builds/id/main.scad');
+    expect(normalizePath('//projects//id//main.scad')).toBe('/projects/id/main.scad');
   });
 
   it('should handle double slashes at the start', () => {
-    expect(normalizePath('//builds/id/main.scad')).toBe('/builds/id/main.scad');
+    expect(normalizePath('//projects/id/main.scad')).toBe('/projects/id/main.scad');
   });
 
   it('should handle path without leading slash', () => {
-    expect(normalizePath('builds/id/main.scad')).toBe('/builds/id/main.scad');
+    expect(normalizePath('projects/id/main.scad')).toBe('/projects/id/main.scad');
   });
 
   it('should handle empty path', () => {
@@ -27,7 +27,7 @@ describe('normalizePath', () => {
   });
 
   it('should handle multiple consecutive slashes', () => {
-    expect(normalizePath('///builds///id///main.scad///')).toBe('/builds/id/main.scad');
+    expect(normalizePath('///projects///id///main.scad///')).toBe('/projects/id/main.scad');
   });
 });
 
@@ -42,7 +42,7 @@ describe('joinPath', () => {
     });
 
     it('should join root with relative path', () => {
-      expect(joinPath('/', 'builds', 'id', 'main.scad')).toBe('/builds/id/main.scad');
+      expect(joinPath('/', 'projects', 'id', 'main.scad')).toBe('/projects/id/main.scad');
     });
   });
 
@@ -52,11 +52,11 @@ describe('joinPath', () => {
     });
 
     it('should handle absolute path as first argument', () => {
-      expect(joinPath('/builds/id/main.scad')).toBe('/builds/id/main.scad');
+      expect(joinPath('/projects/id/main.scad')).toBe('/projects/id/main.scad');
     });
 
     it('should handle root directory with absolute path', () => {
-      expect(joinPath('/', '/builds/hero-qrcode-v2/main.scad')).toBe('/builds/hero-qrcode-v2/main.scad');
+      expect(joinPath('/', '/projects/hero-qrcode-v2/main.scad')).toBe('/projects/hero-qrcode-v2/main.scad');
     });
 
     it('should reset multiple times with multiple absolute paths', () => {
@@ -74,7 +74,7 @@ describe('joinPath', () => {
     });
 
     it('should handle empty string at start', () => {
-      expect(joinPath('', 'builds', 'file.txt')).toBe('/builds/file.txt');
+      expect(joinPath('', 'projects', 'file.txt')).toBe('/projects/file.txt');
     });
   });
 
@@ -99,7 +99,7 @@ describe('joinPath', () => {
 
 describe('parentDirectory', () => {
   it('should return parent of a nested path', () => {
-    expect(parentDirectory('/builds/abc/main.scad')).toBe('/builds/abc');
+    expect(parentDirectory('/projects/abc/main.scad')).toBe('/projects/abc');
   });
 
   it('should return root for a top-level file', () => {
@@ -117,11 +117,11 @@ describe('parentDirectory', () => {
 
 describe('canonicalizePath', () => {
   it('should normalize duplicate slashes', () => {
-    expect(canonicalizePath('//builds//id//main.scad')).toBe('/builds/id/main.scad');
+    expect(canonicalizePath('//projects//id//main.scad')).toBe('/projects/id/main.scad');
   });
 
   it('should strip trailing slash', () => {
-    expect(canonicalizePath('/builds/abc/')).toBe('/builds/abc');
+    expect(canonicalizePath('/projects/abc/')).toBe('/projects/abc');
   });
 
   it('should preserve root', () => {
@@ -129,7 +129,7 @@ describe('canonicalizePath', () => {
   });
 
   it('should add leading slash if missing', () => {
-    expect(canonicalizePath('builds/abc')).toBe('/builds/abc');
+    expect(canonicalizePath('projects/abc')).toBe('/projects/abc');
   });
 
   it('should handle empty string', () => {
@@ -137,6 +137,6 @@ describe('canonicalizePath', () => {
   });
 
   it('should handle multiple trailing slashes', () => {
-    expect(canonicalizePath('/builds///')).toBe('/builds');
+    expect(canonicalizePath('/projects///')).toBe('/projects');
   });
 });

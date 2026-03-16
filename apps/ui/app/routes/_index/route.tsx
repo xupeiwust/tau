@@ -4,8 +4,8 @@ import type { ChatTextareaProperties } from '#components/chat/chat-textarea-type
 import { ChatTextarea } from '#components/chat/chat-textarea.js';
 import { KernelSelector } from '#components/chat/kernel-selector.js';
 import { Button } from '#components/ui/button.js';
-import { CommunityBuildGrid } from '#components/project-grid.js';
-import { sampleBuilds } from '#constants/build-examples.js';
+import { CommunityProjectGrid } from '#components/project-grid.js';
+import { sampleProjects } from '#constants/project-examples.js';
 import { HeroViewer } from '#routes/_index/hero-viewer.js';
 import { HeroImage } from '#routes/_index/hero-image.js';
 import { KernelsSection } from '#routes/_index/kernels-section.js';
@@ -18,7 +18,7 @@ import { InteractiveHoverButton } from '#components/magicui/interactive-hover-bu
 import { toast } from '#components/ui/sonner.js';
 import { Loader } from '#components/ui/loader.js';
 import type { Handle } from '#types/matches.types.js';
-import { useBuildManager } from '#hooks/use-build-manager.js';
+import { useProjectManager } from '#hooks/use-project-manager.js';
 import { useKernel } from '#hooks/use-kernel.js';
 
 export const handle: Handle = {
@@ -29,26 +29,26 @@ export const handle: Handle = {
 export default function ChatStart(): React.JSX.Element {
   const navigate = useNavigate();
   const { kernel, setKernel } = useKernel();
-  const buildManager = useBuildManager();
+  const projectManager = useProjectManager();
 
   const onSubmit: ChatTextareaProperties['onSubmit'] = useCallback(
     async ({ content, model, metadata, imageUrls }) => {
       try {
-        const createdBuild = await buildManager.createBuild({
+        const createProject = await projectManager.createProject({
           kernel,
           initialMessage: { content, model, metadata, imageUrls },
           // Set initial panel state: chat open
           editorState: { panelState: { openPanels: { chat: true } } },
         });
 
-        // Navigate immediately - the build page will handle the streaming
-        await navigate(`/builds/${createdBuild.id}`);
+        // Navigate immediately - the project page will handle the streaming
+        await navigate(`/projects/${createProject.id}`);
       } catch (error) {
-        console.error('Failed to create build:', error);
-        toast.error('Failed to create build');
+        console.error('Failed to create project:', error);
+        toast.error('Failed to create project');
       }
     },
-    [kernel, buildManager, navigate],
+    [kernel, projectManager, navigate],
   );
 
   return (
@@ -80,7 +80,7 @@ export default function ChatStart(): React.JSX.Element {
               <Separator />
             </div>
             <div className='flex justify-center'>
-              <NavLink to='/builds/new' tabIndex={-1}>
+              <NavLink to='/projects/new' tabIndex={-1}>
                 {({ isPending }) => (
                   <InteractiveHoverButton className='flex items-center gap-2 font-light [&_svg]:size-4 [&_svg]:stroke-1'>
                     {isPending ? <Loader /> : 'Build from code'}
@@ -92,15 +92,15 @@ export default function ChatStart(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Community Builds */}
+      {/* Community Projects */}
       <div className='container mx-auto px-4 py-8'>
         <div className='mb-2 flex flex-row items-center justify-between'>
           <h1 className='text-lg font-medium tracking-tight'>From the Community</h1>
           <Button asChild variant='link' size='lg' className='p-0'>
-            <Link to='/builds/community'>View All</Link>
+            <Link to='/projects/community'>View All</Link>
           </Button>
         </div>
-        <CommunityBuildGrid builds={sampleBuilds} limit={10} />
+        <CommunityProjectGrid projects={sampleProjects} limit={10} />
       </div>
 
       {/* Hero Image with Features */}

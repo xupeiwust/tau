@@ -2,7 +2,7 @@ import { Copy, Edit, History, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router';
-import type { Build } from '@taucad/types';
+import type { Project } from '@taucad/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,42 +19,42 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '#components/ui/sidebar.js';
-import { useBuilds } from '#hooks/use-builds.js';
+import { useProjects } from '#hooks/use-projects.js';
 import { toast } from '#components/ui/sonner.js';
 import { groupItemsByTimeHorizon } from '#utils/temporal.utils.js';
 import { SearchInput } from '#components/search-input.js';
 import { Loader } from '#components/ui/loader.js';
 
-const buildsPerPage = 5;
+const projectsPerPage = 5;
 
 export function NavHistory(): ReactNode {
-  const [visibleCount, setVisibleCount] = useState(buildsPerPage);
+  const [visibleCount, setVisibleCount] = useState(projectsPerPage);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
-  const { builds, deleteBuild, duplicateBuild, updateName } = useBuilds();
+  const { projects, deleteProject, duplicateProject, updateName } = useProjects();
   const navigate = useNavigate();
 
-  // Filter builds based on search query
-  const filteredBuilds = useMemo(() => {
+  // Filter projects based on search query
+  const filteredProjects = useMemo(() => {
     if (!searchQuery.trim()) {
-      return builds;
+      return projects;
     }
 
     const query = searchQuery.toLowerCase().trim();
-    return builds.filter(
-      (build) => build.name.toLowerCase().includes(query) || build.description.toLowerCase().includes(query),
+    return projects.filter(
+      (project) => project.name.toLowerCase().includes(query) || project.description.toLowerCase().includes(query),
     );
-  }, [builds, searchQuery]);
+  }, [projects, searchQuery]);
 
-  const groupedBuilds = useMemo(() => {
-    return groupItemsByTimeHorizon(filteredBuilds);
-  }, [filteredBuilds]);
+  const groupedProjects = useMemo(() => {
+    return groupItemsByTimeHorizon(filteredProjects);
+  }, [filteredProjects]);
 
-  const visibleBuilds = useMemo(() => {
+  const visibleProjects = useMemo(() => {
     let totalShown = 0;
     const result = [];
 
-    for (const group of groupedBuilds) {
+    for (const group of groupedProjects) {
       const remainingSlots = visibleCount - totalShown;
       if (remainingSlots <= 0) {
         break;
@@ -71,23 +71,23 @@ export function NavHistory(): ReactNode {
     }
 
     return result;
-  }, [groupedBuilds, visibleCount]);
+  }, [groupedProjects, visibleCount]);
 
-  const totalVisibleBuildCount = useMemo(() => {
-    return visibleBuilds.reduce((sum, group) => sum + group.items.length, 0);
-  }, [visibleBuilds]);
+  const totalVisibleProjectCount = useMemo(() => {
+    return visibleProjects.reduce((sum, group) => sum + group.items.length, 0);
+  }, [visibleProjects]);
 
   const handleLoadMore = () => {
-    setVisibleCount((previous) => previous + buildsPerPage);
+    setVisibleCount((previous) => previous + projectsPerPage);
   };
 
-  const handleRename = (buildId: string) => {
-    setEditingId(buildId);
+  const handleRename = (projectId: string) => {
+    setEditingId(projectId);
   };
 
-  const handleRenameSubmit = async (buildId: string, newName: string) => {
+  const handleRenameSubmit = async (projectId: string, newName: string) => {
     if (newName.trim()) {
-      await updateName(buildId, newName.trim());
+      await updateName(projectId, newName.trim());
     }
 
     setEditingId(undefined);
@@ -97,23 +97,23 @@ export function NavHistory(): ReactNode {
     setEditingId(undefined);
   };
 
-  const handleDelete = async (buildId: string) => {
-    const build = builds.find((b) => b.id === buildId);
-    await deleteBuild(buildId);
-    if (build) {
-      toast.success(`Deleted ${build.name}`);
+  const handleDelete = async (projectId: string) => {
+    const project = projects.find((b) => b.id === projectId);
+    await deleteProject(projectId);
+    if (project) {
+      toast.success(`Deleted ${project.name}`);
     }
   };
 
-  const handleDuplicate = async (buildId: string) => {
-    const build = builds.find((b) => b.id === buildId);
-    const newBuild = await duplicateBuild(buildId);
-    if (build) {
-      toast.success(`Duplicated ${build.name}`, {
+  const handleDuplicate = async (projectId: string) => {
+    const project = projects.find((b) => b.id === projectId);
+    const newProject = await duplicateProject(projectId);
+    if (project) {
+      toast.success(`Duplicated ${project.name}`, {
         action: {
           label: 'Open',
           onClick() {
-            void navigate(`/builds/${newBuild.id}`);
+            void navigate(`/projects/${newProject.id}`);
           },
         },
       });
@@ -126,13 +126,13 @@ export function NavHistory(): ReactNode {
     if (event.target.value.trim()) {
       setVisibleCount(Infinity);
     } else {
-      setVisibleCount(buildsPerPage);
+      setVisibleCount(projectsPerPage);
     }
   };
 
   const handleSearchClear = () => {
     setSearchQuery('');
-    setVisibleCount(buildsPerPage);
+    setVisibleCount(projectsPerPage);
   };
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,7 +140,7 @@ export function NavHistory(): ReactNode {
     event.stopPropagation();
   };
 
-  if (builds.length === 0) {
+  if (projects.length === 0) {
     return null;
   }
 
@@ -148,9 +148,9 @@ export function NavHistory(): ReactNode {
     <>
       {/* Search input */}
       <SidebarGroup className='-mb-2 group-data-[collapsible=icon]:hidden'>
-        <SidebarGroupLabel>Recent Builds</SidebarGroupLabel>
+        <SidebarGroupLabel>Recent Projects</SidebarGroupLabel>
         <SearchInput
-          placeholder='Search builds...'
+          placeholder='Search projects...'
           value={searchQuery}
           className='h-7 bg-background dark:bg-background'
           onChange={handleSearchChange}
@@ -160,15 +160,15 @@ export function NavHistory(): ReactNode {
       </SidebarGroup>
 
       {/* Temporal groups */}
-      {visibleBuilds.map((group) => (
+      {visibleProjects.map((group) => (
         <SidebarGroup key={group.name} className='group-data-[collapsible=icon]:hidden'>
           <SidebarGroupLabel>{group.name}</SidebarGroupLabel>
           <SidebarMenu>
-            {group.items.map((build) => (
+            {group.items.map((project) => (
               <NavHistoryItem
-                key={build.id}
-                build={build}
-                isEditing={editingId === build.id}
+                key={project.id}
+                project={project}
+                isEditing={editingId === project.id}
                 onRename={handleRename}
                 onRenameSubmit={handleRenameSubmit}
                 onRenameCancel={handleRenameCancel}
@@ -181,12 +181,12 @@ export function NavHistory(): ReactNode {
       ))}
 
       {/* Show "No results" message when searching with no results */}
-      {searchQuery.trim() && filteredBuilds.length === 0 && (
+      {searchQuery.trim() && filteredProjects.length === 0 && (
         <SidebarGroup className='group-data-[collapsible=icon]:hidden'>
           <SidebarMenu>
             <SidebarMenuItem>
               <div className='px-2 py-4 text-center text-sm text-muted-foreground'>
-                No builds found for &ldquo;{searchQuery}&rdquo;
+                No projects found for &ldquo;{searchQuery}&rdquo;
               </div>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -194,7 +194,7 @@ export function NavHistory(): ReactNode {
       )}
 
       {/* Load More button */}
-      {builds.length > totalVisibleBuildCount && !searchQuery.trim() && (
+      {projects.length > totalVisibleProjectCount && !searchQuery.trim() && (
         <SidebarGroup className='group-data-[collapsible=icon]:hidden'>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -211,17 +211,17 @@ export function NavHistory(): ReactNode {
 }
 
 type NavHistoryItemProps = {
-  readonly build: Build;
+  readonly project: Project;
   readonly isEditing: boolean;
-  readonly onRename: (buildId: string) => void;
-  readonly onRenameSubmit: (buildId: string, newName: string) => Promise<void>;
+  readonly onRename: (projectId: string) => void;
+  readonly onRenameSubmit: (projectId: string, newName: string) => Promise<void>;
   readonly onRenameCancel: () => void;
-  readonly onDuplicate: (buildId: string) => Promise<void>;
-  readonly onDelete: (buildId: string) => Promise<void>;
+  readonly onDuplicate: (projectId: string) => Promise<void>;
+  readonly onDelete: (projectId: string) => Promise<void>;
 };
 
 function NavHistoryItem({
-  build,
+  project,
   isEditing,
   onRename,
   onRenameSubmit,
@@ -230,39 +230,39 @@ function NavHistoryItem({
   onDelete,
 }: NavHistoryItemProps) {
   const { isMobile } = useSidebar();
-  const [editValue, setEditValue] = useState(build.name);
+  const [editValue, setEditValue] = useState(project.name);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      void onRenameSubmit(build.id, editValue);
+      void onRenameSubmit(project.id, editValue);
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      setEditValue(build.name);
+      setEditValue(project.name);
       onRenameCancel();
     }
   };
 
   const handleBlur = () => {
-    void onRenameSubmit(build.id, editValue);
+    void onRenameSubmit(project.id, editValue);
   };
 
   const handleRenameClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    onRename(build.id);
+    onRename(project.id);
   };
 
   const handleDuplicateClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    void onDuplicate(build.id);
+    void onDuplicate(project.id);
   };
 
   const handleDeleteClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    void onDelete(build.id);
+    void onDelete(project.id);
   };
 
   const handleInputClick = (event: React.MouseEvent) => {
@@ -275,7 +275,7 @@ function NavHistoryItem({
   };
 
   return (
-    <SidebarMenuItem key={build.id}>
+    <SidebarMenuItem key={project.id}>
       {isEditing ? (
         // Show editing state without NavLink to prevent drag issues
         <SidebarMenuButton asChild className='bg-sidebar-accent'>
@@ -297,12 +297,12 @@ function NavHistoryItem({
           </span>
         </SidebarMenuButton>
       ) : (
-        <NavLink to={`/builds/${build.id}`}>
+        <NavLink to={`/projects/${project.id}`}>
           {({ isActive, isPending }) => (
             <SidebarMenuButton asChild isActive={isActive}>
               <span>
                 {isPending ? <Loader /> : <History className='size-4 shrink-0' />}
-                <span className='flex-1 truncate'>{build.name}</span>
+                <span className='flex-1 truncate'>{project.name}</span>
               </span>
             </SidebarMenuButton>
           )}

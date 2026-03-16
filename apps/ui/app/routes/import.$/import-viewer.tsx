@@ -13,9 +13,9 @@ type ImportViewerProperties = {
 };
 
 export function ImportViewer({ files, mainFile, owner, repo }: ImportViewerProperties): React.JSX.Element {
-  const buildId = `import-preview-${owner}-${repo}`;
+  const projectId = `import-preview-${owner}-${repo}`;
 
-  const buildFiles = useMemo(() => {
+  const projectFiles = useMemo(() => {
     if (!mainFile || files.size === 0) {
       return undefined;
     }
@@ -28,7 +28,7 @@ export function ImportViewer({ files, mainFile, owner, repo }: ImportViewerPrope
     return result;
   }, [files, mainFile]);
 
-  if (!mainFile || !buildFiles) {
+  if (!mainFile || !projectFiles) {
     return (
       <div className='flex size-full items-center justify-center'>
         <div className='flex flex-col items-center gap-2 text-muted-foreground'>
@@ -40,7 +40,7 @@ export function ImportViewer({ files, mainFile, owner, repo }: ImportViewerPrope
   }
 
   return (
-    <CadPreviewProvider key={`${buildId}-${mainFile}`} buildId={buildId} mainFile={mainFile} files={buildFiles}>
+    <CadPreviewProvider key={`${projectId}-${mainFile}`} projectId={projectId} mainFile={mainFile} files={projectFiles}>
       <CadPreviewViewer
         className='size-full'
         stageOptions={{ zoomLevel: 1.5 }}

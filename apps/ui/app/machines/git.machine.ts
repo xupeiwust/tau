@@ -13,11 +13,11 @@ import type { FileManagerProxy } from '#machines/file-manager.machine.types.js';
 const gitMountPrefix = '/git';
 
 /**
- * Get the directory path for a build in the git virtual filesystem.
+ * Get the directory path for a project in the git virtual filesystem.
  * Uses the /git prefix for isolated git storage.
  */
-export function getBuildDirectory(buildId: string): string {
-  return joinPath(gitMountPrefix, 'builds', buildId);
+export function getProjectDirectory(projectId: string): string {
+  return joinPath(gitMountPrefix, 'projects', projectId);
 }
 
 /**
@@ -132,7 +132,7 @@ export type GitRepository = {
  */
 export type GitContext = {
   parentRef: AnyActorRef | undefined;
-  buildId: string | undefined;
+  projectId: string | undefined;
   accessToken: string | undefined;
   provider: 'github' | undefined;
   repository: GitRepository | undefined;
@@ -150,7 +150,7 @@ export type GitContext = {
  * Git Machine Input
  */
 type GitInput = {
-  buildId?: string;
+  projectId?: string;
   parentRef?: AnyActorRef;
   fileManagerRef: ActorRefFrom<FileManagerMachine>;
 };
@@ -159,10 +159,10 @@ export type GitActorInput = {
   fileManagerRef: ActorRefFrom<FileManagerMachine>;
 };
 
-const initGitActor = fromSafeAsync<void, GitActorInput & { buildId: string; repository: GitRepository }>(
+const initGitActor = fromSafeAsync<void, GitActorInput & { projectId: string; repository: GitRepository }>(
   async ({ input }) => {
     const fs = await getGitFs(input.fileManagerRef);
-    const directory = getBuildDirectory(input.buildId);
+    const directory = getProjectDirectory(input.projectId);
 
     await git.init({ fs, dir: directory, defaultBranch: input.repository.branch });
 
@@ -183,7 +183,7 @@ const initGitActor = fromSafeAsync<void, GitActorInput & { buildId: string; repo
 );
 
 type CloneRepositoryInput = GitActorInput & {
-  buildId: string;
+  projectId: string;
   repository: GitRepository;
   accessToken: string;
   username: string;
@@ -191,7 +191,7 @@ type CloneRepositoryInput = GitActorInput & {
 
 const cloneRepositoryActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   await git.clone({
     fs,
@@ -208,11 +208,11 @@ const cloneRepositoryActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ 
   });
 });
 
-type StageInput = GitActorInput & { buildId: string; path: string };
+type StageInput = GitActorInput & { projectId: string; path: string };
 
 const stageFileActor = fromSafeAsync<{ type: 'fileStaged'; path: string }, StageInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   await git.add({
     fs,
@@ -225,7 +225,7 @@ const stageFileActor = fromSafeAsync<{ type: 'fileStaged'; path: string }, Stage
 
 const unstageFileActor = fromSafeAsync<{ type: 'fileUnstaged'; path: string }, StageInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   await git.remove({
     fs,
@@ -237,7 +237,7 @@ const unstageFileActor = fromSafeAsync<{ type: 'fileUnstaged'; path: string }, S
 });
 
 type CommitInput = GitActorInput & {
-  buildId: string;
+  projectId: string;
   message: string;
   username: string;
   email: string;
@@ -245,7 +245,7 @@ type CommitInput = GitActorInput & {
 
 const commitChangesActor = fromSafeAsync<{ type: 'commitCreated'; sha: string }, CommitInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   const sha = await git.commit({
     fs,
@@ -262,7 +262,7 @@ const commitChangesActor = fromSafeAsync<{ type: 'commitCreated'; sha: string },
 
 const pushChangesActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   await git.push({
     fs,
@@ -279,7 +279,7 @@ const pushChangesActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ inpu
 
 const pullChangesActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   await git.pull({
     fs,
@@ -300,10 +300,10 @@ const pullChangesActor = fromSafeAsync<void, CloneRepositoryInput>(async ({ inpu
 // oxlint-disable-next-line complexity -- TODO: address
 const refreshGitStatusActor = fromSafeAsync<
   { type: 'statusRefreshed'; fileStatuses: Map<string, GitFileStatus> },
-  GitActorInput & { buildId: string }
+  GitActorInput & { projectId: string }
 >(async ({ input }) => {
   const fs = await getGitFs(input.fileManagerRef);
-  const directory = getBuildDirectory(input.buildId);
+  const directory = getProjectDirectory(input.projectId);
 
   try {
     const statusMatrix = await git.statusMatrix({ fs, dir: directory });
@@ -345,7 +345,7 @@ const refreshGitStatusActor = fromSafeAsync<
   }
 });
 
-const buildListenerActor = fromCallback<{ type: 'refreshStatus' }, { parentRef: AnyActorRef | undefined }>(
+const projectListenerActor = fromCallback<{ type: 'refreshStatus' }, { parentRef: AnyActorRef | undefined }>(
   ({ input, sendBack }) => {
     if (!input.parentRef) {
       return () => {
@@ -384,14 +384,14 @@ const gitActors = {
   pushChangesActor,
   pullChangesActor,
   refreshGitStatusActor,
-  buildListener: buildListenerActor,
+  buildListener: projectListenerActor,
 } as const;
 
 /**
  * Git Machine Events
  */
 type GitEvent =
-  | { type: 'connect'; buildId: string }
+  | { type: 'connect'; projectId: string }
   | {
       type: 'authenticate';
       accessToken: string;
@@ -485,10 +485,10 @@ export const gitMachine = setup({
     clearError: assign({
       error: undefined,
     }),
-    setBuildId: assign({
-      buildId({ event }) {
+    setProjectId: assign({
+      projectId({ event }) {
         assertEvent(event, 'connect');
-        return event.buildId;
+        return event.projectId;
       },
     }),
     setAuthentication: assign({
@@ -568,7 +568,7 @@ export const gitMachine = setup({
   id: 'git',
   context: ({ input }) => ({
     parentRef: input.parentRef,
-    buildId: input.buildId,
+    projectId: input.projectId,
     accessToken: undefined,
     provider: undefined,
     repository: undefined,
@@ -587,7 +587,7 @@ export const gitMachine = setup({
       on: {
         connect: {
           target: 'checkingAuthentication',
-          actions: 'setBuildId',
+          actions: 'setProjectId',
         },
       },
     },
@@ -657,7 +657,7 @@ export const gitMachine = setup({
         src: 'cloneRepositoryActor',
         input: ({ context }) => ({
           fileManagerRef: context.fileManagerRef,
-          buildId: context.buildId!,
+          projectId: context.projectId!,
           repository: context.repository!,
           accessToken: context.accessToken!,
           username: context.username!,
@@ -705,7 +705,7 @@ export const gitMachine = setup({
           assertEvent(event, 'stageFile');
           return {
             fileManagerRef: context.fileManagerRef,
-            buildId: context.buildId!,
+            projectId: context.projectId!,
             path: event.path,
           };
         },
@@ -741,7 +741,7 @@ export const gitMachine = setup({
           assertEvent(event, 'unstageFile');
           return {
             fileManagerRef: context.fileManagerRef,
-            buildId: context.buildId!,
+            projectId: context.projectId!,
             path: event.path,
           };
         },
@@ -775,7 +775,7 @@ export const gitMachine = setup({
         src: 'commitChangesActor',
         input: ({ context }) => ({
           fileManagerRef: context.fileManagerRef,
-          buildId: context.buildId!,
+          projectId: context.projectId!,
           message: context.commitMessage!,
           username: context.username!,
           email: context.email!,
@@ -810,7 +810,7 @@ export const gitMachine = setup({
         src: 'pushChangesActor',
         input: ({ context }) => ({
           fileManagerRef: context.fileManagerRef,
-          buildId: context.buildId!,
+          projectId: context.projectId!,
           repository: context.repository!,
           accessToken: context.accessToken!,
           username: context.username!,
@@ -837,7 +837,7 @@ export const gitMachine = setup({
         src: 'pullChangesActor',
         input: ({ context }) => ({
           fileManagerRef: context.fileManagerRef,
-          buildId: context.buildId!,
+          projectId: context.projectId!,
           repository: context.repository!,
           accessToken: context.accessToken!,
           username: context.username!,
@@ -863,7 +863,7 @@ export const gitMachine = setup({
         src: 'refreshGitStatusActor',
         input: ({ context }) => ({
           fileManagerRef: context.fileManagerRef,
-          buildId: context.buildId!,
+          projectId: context.projectId!,
         }),
         onDone: 'ready',
         onError: {

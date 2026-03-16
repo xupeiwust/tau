@@ -13,7 +13,7 @@ const boxCode = `
   }
 `;
 
-const basePath = '/builds/test';
+const basePath = '/projects/test';
 const fileName = 'box.ts';
 const absolutePath = `${basePath}/${fileName}`;
 

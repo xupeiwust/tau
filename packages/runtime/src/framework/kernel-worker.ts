@@ -1229,8 +1229,8 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
   /**
    * Get the project root path by stripping the subdirectory from basePath.
-   * For basePath '/builds/test/site' with activeFilePath 'site/main.scad',
-   * returns '/builds/test'.
+   * For basePath '/projects/test/site' with activeFilePath 'site/main.scad',
+   * returns '/projects/test'.
    *
    * @returns absolute path to the project root, derived by stripping the active file's subdirectory from basePath
    */

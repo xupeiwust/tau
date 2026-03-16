@@ -129,8 +129,8 @@ export const jsTsContribution: LanguageContribution = {
     };
   },
 
-  onBuildSessionChange(_buildId: string): void {
-    ataInstance?.onBuildSessionChange();
+  onProjectSessionChange(_buildId: string): void {
+    ataInstance?.onProjectSessionChange();
   },
 
   dispose(): void {

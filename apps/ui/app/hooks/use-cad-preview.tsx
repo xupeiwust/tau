@@ -39,12 +39,12 @@ const CadPreviewContext = createContext<CadPreviewContextValue | undefined>(unde
  * Props for CadPreviewProvider.
  */
 export type CadPreviewProviderProps = {
-  readonly buildId: string;
+  readonly projectId: string;
   readonly mainFile: string;
-  /** When provided, files are written to ZenFS before kernel init. Omit for dynamic builds where files already exist. */
+  /** When provided, files are written to ZenFS before kernel init. Omit for dynamic projects where files already exist. */
   readonly files?: Record<string, { content: Uint8Array<ArrayBuffer> }>;
   readonly parameters?: Record<string, unknown>;
-  /** Whether the build should be triggered (default: true) */
+  /** Whether the rendering should be triggered (default: true) */
   readonly isEnabled?: boolean;
   readonly kernelOptions?: RuntimeClientOptions;
   readonly children: ReactNode;
@@ -75,26 +75,26 @@ function deriveStatus(cadState: string): CadPreviewStatus {
  * Provider that creates a lightweight CAD rendering pipeline (cadMachine + graphicsMachine),
  * optionally writes files to ZenFS, and exposes all rendering state via the useCadPreview() hook.
  *
- * Replaces the heavyweight BuildProvider for preview-only contexts.
+ * Replaces the heavyweight ProjectProvider for preview-only contexts.
  * Uses cadPreviewMachine to orchestrate file preparation and kernel initialization,
- * following the same invoke+fromPromise pattern as buildMachine.
+ * following the same invoke+fromPromise pattern as projectMachine.
  *
  * @example Simple thumbnail
  * ```tsx
- * <CadPreviewProvider buildId="my-build" mainFile="main.ts" files={files}>
+ * <CadPreviewProvider projectId="my-build" mainFile="main.ts" files={files}>
  *   <CadPreviewViewer className="size-full" />
  * </CadPreviewProvider>
  * ```
  *
- * @example Dynamic build (files already in ZenFS)
+ * @example Dynamic project (files already in ZenFS)
  * ```tsx
- * <CadPreviewProvider buildId={existingBuildId} mainFile="main.ts">
+ * <CadPreviewProvider projectId={existingBuildId} mainFile="main.ts">
  *   <CadPreviewViewer enablePan enableZoom />
  * </CadPreviewProvider>
  * ```
  */
 export function CadPreviewProvider({
-  buildId,
+  projectId,
   mainFile,
   files,
   parameters,
@@ -130,7 +130,7 @@ export function CadPreviewProvider({
 
   // Orchestration machine -- file preparation + cadRef initialization.
   // prepareFiles actor is injected via .provide(), capturing writeFiles/exists
-  // from useFileManager() in the closure (same pattern as buildMachine's loadBuildActor).
+  // from useFileManager() in the closure (same pattern as projectMachine's loadProjectActor).
   const previewRef = useActorRef(
     cadPreviewMachine.provide({
       actors: {
@@ -139,18 +139,19 @@ export function CadPreviewProvider({
             const firstFilePath = Object.keys(input.files)[0];
 
             signal.throwIfAborted();
-            const alreadyExists = firstFilePath && (await exists(joinPath('/builds', input.buildId, firstFilePath)));
+            const alreadyExists =
+              firstFilePath && (await exists(joinPath('/projects', input.projectId, firstFilePath)));
 
             signal.throwIfAborted();
             if (!alreadyExists) {
-              const buildFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
+              const projectFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
               for (const [path, file] of Object.entries(input.files)) {
-                buildFiles[joinPath('/builds', input.buildId, path)] = {
+                projectFiles[joinPath('/projects', input.projectId, path)] = {
                   content: new Uint8Array(file.content),
                 };
               }
 
-              await writeFiles(buildFiles);
+              await writeFiles(projectFiles);
             }
           }
         }),
@@ -159,7 +160,7 @@ export function CadPreviewProvider({
     {
       input: {
         cadRef,
-        buildId,
+        projectId,
         mainFile,
         files,
         parameters,

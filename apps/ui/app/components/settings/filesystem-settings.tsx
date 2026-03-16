@@ -2,7 +2,7 @@
  * Filesystem settings component.
  *
  * Allows the user to:
- * - Select the default storage backend for new builds
+ * - Select the default storage backend for new projects
  * - Connect/change the workspace directory for File System (webaccess) backend
  */
 
@@ -106,7 +106,7 @@ export function FileSystemSettings(): React.JSX.Element {
             <div className='flex flex-col gap-1'>
               <span className='font-medium'>Default Backend</span>
               <span className='text-sm text-muted-foreground'>
-                Default storage for new builds. Existing builds keep their current backend.
+                Default storage for new projects. Existing projects keep their current backend.
               </span>
             </div>
             <BackendSelector isInternalHidden value={backendCookie} onSelect={handleBackendChange} />
@@ -122,8 +122,8 @@ export function FileSystemSettings(): React.JSX.Element {
           </CardHeader>
           <CardContent className='flex flex-col gap-4'>
             <p className='text-sm text-muted-foreground'>
-              When using the File System backend, builds are stored as subdirectories within a workspace folder on your
-              computer. Pick a workspace directory to get started.
+              When using the File System backend, projects are stored as subdirectories within a workspace folder on
+              your computer. Pick a workspace directory to get started.
             </p>
 
             {workspaceDirectoryName === undefined ? (

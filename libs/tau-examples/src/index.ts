@@ -1,1 +1,1 @@
-export { mockBuilds, jscadExamples } from '#build.examples.js';
+export { mockProjects, jscadExamples } from '#project.examples.js';

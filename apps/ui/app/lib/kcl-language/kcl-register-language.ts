@@ -819,7 +819,7 @@ let activationMarkerService: ActivationContext['markerService'] | undefined;
  * Conforms to the LanguageContribution interface for uniform lifecycle management.
  * - register: Language metadata and configuration
  * - activate: LSP client, providers, document sync, marker service injection
- * - onBuildSessionChange: Reset document tracking and caches
+ * - onProjectSessionChange: Reset document tracking and caches
  * - dispose: Full cleanup including LSP client, workers, markers
  */
 export const kclContribution: LanguageContribution = {
@@ -864,7 +864,7 @@ export const kclContribution: LanguageContribution = {
     };
   },
 
-  onBuildSessionChange(_buildId: string): void {
+  onProjectSessionChange(_buildId: string): void {
     // Clear document tracking for new session
     openedDocuments.clear();
     documentVersions.clear();

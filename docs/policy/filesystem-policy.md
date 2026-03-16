@@ -24,7 +24,7 @@ A single-writer topology with zero-copy binary transfer and bounded caches preve
 3. **Lazy loading over eager recursion** — never traverse a directory tree deeper than the consumer needs
 4. **Bounded caches** — every in-memory cache must have an eviction policy (TTL, max size, or LRU)
 5. **Debounce refresh, don't spam** — background tree refreshes must be debounced; rapid mutations must coalesce
-6. **Kernel watcher fast path first** — file change -> kernel invalidation must not route through `use-build.tsx` fanout
+6. **Kernel watcher fast path first** — file change -> kernel invalidation must not route through `use-project.tsx` fanout
 7. **Server-side watch filtering** — path/include/exclude/event filtering happens in the worker, not in clients
 8. **Loss-aware event streams** — watcher overflow/dropped-event conditions must trigger explicit resync behavior
 
@@ -301,7 +301,7 @@ For render reactivity, use this path only:
 
 INCORRECT:
 
-- `use-build.tsx` relaying `fileWritten` to all compilation units
+- `use-project.tsx` relaying `fileWritten` to all compilation units
 - Sending `changedPaths` on each render command as the primary invalidation mechanism
 - A separate `fileChanged` command from main thread to worker for every edit
 
@@ -395,7 +395,7 @@ The next implementation plan is incomplete unless all of the following are expli
 2. **Ref-counted watch dedup**: identical requests share one subscription.
 3. **Event coalescer**: canonicalization rules for add/delete/update/rename bursts.
 4. **Overflow protocol**: explicit reset/resync event and consumer behavior.
-5. **Kernel fast-path migration**: remove `use-build.tsx` relay and render-time `changedPaths` dependency.
+5. **Kernel fast-path migration**: remove `use-project.tsx` relay and render-time `changedPaths` dependency.
 6. **Incremental dependency watch set diffing**: avoid full resubscribe churn.
 7. **Incremental tree patching**: no mutation-triggered full recursive tree scans.
 8. **Self-churn exclusion**: explicit ignore patterns for generated cache paths.

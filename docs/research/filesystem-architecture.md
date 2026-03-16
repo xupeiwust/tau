@@ -113,7 +113,7 @@ flowchart LR
         FileTree["File Tree (files route)"]
         Preview["CAD Preview"]
         Import["Import Flow"]
-        BuildMgr["Build Manager"]
+        ProjectMgr["Build Manager"]
     end
 
     subgraph hookLayer ["Hook Layer"]
@@ -144,7 +144,7 @@ flowchart LR
 - `useFileManager` hook provides the public API to React components
 - `fileManagerMachine` manages worker lifecycle (create → init → ready → error) and per-build backend configuration
 - `openFiles` caches recently read/written file contents (must be bounded)
-- `fileTree` stores flat metadata for the build's project files
+- `fileTree` stores flat metadata for the project files
 - Emitted events notify Monaco and editors of changes
 
 **Key rules:**
@@ -260,7 +260,7 @@ type FileSystemProvider = {
 
 | Provider      | Backend                          | Persistence                           | Size limit                      | Notes                                  |
 | ------------- | -------------------------------- | ------------------------------------- | ------------------------------- | -------------------------------------- |
-| **IndexedDB** | IndexedDB via ZenFS              | Persistent, survives reload           | ~quota (typically 50%+ of disk) | Primary storage for builds             |
+| **IndexedDB** | IndexedDB via ZenFS              | Persistent, survives reload           | ~quota (typically 50%+ of disk) | Primary storage for projects           |
 | **WebAccess** | File System Access API via ZenFS | Persistent, user-controlled directory | Unlimited (native FS)           | Local directory sync                   |
 | **Memory**    | In-memory via ZenFS              | Session only                          | RAM-limited                     | Tests, ephemeral previews              |
 | **OPFS**      | Origin Private FS via ZenFS      | Persistent                            | Quota-based                     | Currently disabled (corruption issues) |
@@ -391,13 +391,13 @@ sequenceDiagram
     Worker-->>Hook: nodes
     Hook-->>Route: setLoadedDirs({indexeddb: Map{'/' => nodes}})
 
-    Note over Route: User expands /builds folder
-    Route->>Hook: readShallowDirectory('/builds', 'indexeddb')
-    Hook->>Worker: proxy.readShallowDirectory('/builds', 'indexeddb')
+    Note over Route: User expands /projects folder
+    Route->>Hook: readShallowDirectory('/projects', 'indexeddb')
+    Hook->>Worker: proxy.readShallowDirectory('/projects', 'indexeddb')
     Worker->>IDB: readdir + parallel stat
     IDB-->>Worker: FileTreeNode[]
     Worker-->>Hook: nodes
-    Hook-->>Route: setLoadedDirs(merge '/builds' => nodes)
+    Hook-->>Route: setLoadedDirs(merge '/projects' => nodes)
     Route->>Route: buildTreeFromDirs() → render updated tree
 ```
 
@@ -407,21 +407,21 @@ sequenceDiagram
 sequenceDiagram
     participant User as User
     participant Import as Import Route
-    participant BuildMgr as Build Manager
+    participant ProjectMgr as Build Manager
     participant Hook as useFileManager
     participant Worker as FM Worker
     participant ZenFS as ZenFS
 
     User->>Import: Drop files / select ZIP / paste GitHub URL
     Import->>Import: Parse files → Map<path, Uint8Array>
-    Import->>BuildMgr: createBuild({build, files})
-    BuildMgr->>BuildMgr: Create build metadata in ObjectStore
-    BuildMgr->>Hook: writeFiles(buildFiles)
-    Hook->>Worker: proxy.writeFiles({'/builds/{id}/main.ts': {...}, ...}) [transfer]
+    Import->>ProjectMgr: createProject({build, files})
+    ProjectMgr->>ProjectMgr: Create project metadata in ObjectStore
+    ProjectMgr->>Hook: writeFiles(projectFiles)
+    Hook->>Worker: proxy.writeFiles({'/projects/{id}/main.ts': {...}, ...}) [transfer]
     Worker->>ZenFS: serialized: ensureDir + writeFile for each
     ZenFS-->>Worker: void
     Worker-->>Hook: void
-    Hook->>Import: Build created, navigate to /builds/{id}
+    Hook->>Import: Build created, navigate to /projects/{id}
 ```
 
 ## 5. Performance Architecture
@@ -462,16 +462,16 @@ All `Uint8Array` / `ArrayBuffer` payloads must use transfer lists. This is criti
 ```mermaid
 flowchart TB
     subgraph current ["Current: Global Queue"]
-        W1["writeFile /builds/1/main.ts"] --> Q["Global Queue"]
-        W2["writeFile /builds/2/model.kcl"] --> Q
-        W3["mkdir /builds/3/exports"] --> Q
+        W1["writeFile /projects/1/main.ts"] --> Q["Global Queue"]
+        W2["writeFile /projects/2/model.kcl"] --> Q
+        W3["mkdir /projects/3/exports"] --> Q
         Q --> Exec["Execute one at a time"]
     end
 
     subgraph target ["Target: Per-Directory Queue"]
-        W4["writeFile /builds/1/main.ts"] --> Q1["Queue: /builds/1/"]
-        W5["writeFile /builds/2/model.kcl"] --> Q2["Queue: /builds/2/"]
-        W6["mkdir /builds/3/exports"] --> Q3["Queue: /builds/3/"]
+        W4["writeFile /projects/1/main.ts"] --> Q1["Queue: /projects/1/"]
+        W5["writeFile /projects/2/model.kcl"] --> Q2["Queue: /projects/2/"]
+        W6["mkdir /projects/3/exports"] --> Q3["Queue: /projects/3/"]
         Q1 --> P["Parallel execution"]
         Q2 --> P
         Q3 --> P
@@ -490,9 +490,9 @@ flowchart LR
     end
 
     subgraph target ["Target"]
-        Mutation2["fileWritten /builds/1/main.ts"] --> Debounce["Debounce 300ms"]
-        Debounce --> IncrRefresh["Re-stat /builds/1/ only"]
-        IncrRefresh --> PatchTree["Patch fileTree at /builds/1/"]
+        Mutation2["fileWritten /projects/1/main.ts"] --> Debounce["Debounce 300ms"]
+        Debounce --> IncrRefresh["Re-stat /projects/1/ only"]
+        IncrRefresh --> PatchTree["Patch fileTree at /projects/1/"]
     end
 ```
 
@@ -604,9 +604,9 @@ flowchart TB
 flowchart TB
     subgraph routes ["Routes"]
         FilesRoute["files/route.tsx\n readBackendFileTree, deleteFile, readFile, getZippedDirectory"]
-        BuildRoute["builds_.$id/route.tsx\n FileManagerProvider (rootDirectory=/builds/{id})"]
-        PreviewRoute["builds_.$id_.preview/route.tsx\n FileManagerProvider (rootDirectory=/builds/{id})"]
-        ImportRoute["import.$/route.tsx\n writeFiles (via buildManager)"]
+        BuildRoute["projects_.$id/route.tsx\n FileManagerProvider (rootDirectory=/projects/{id})"]
+        PreviewRoute["projects_.$id_.preview/route.tsx\n FileManagerProvider (rootDirectory=/projects/{id})"]
+        ImportRoute["import.$/route.tsx\n writeFiles (via projectManager)"]
     end
 
     subgraph editors ["Editor Components"]
@@ -728,7 +728,7 @@ Components to build in sequence, each delivering incremental value. Each phase c
 4. Queue auto-cleanup when empty (VS Code `ResourceQueue` pattern)
 
 **Depends on:** Validation that ZenFS TOCTOU only affects same-directory writes (or ZenFS fix lands)
-**Unblocks:** Faster batch imports, parallel build creation
+**Unblocks:** Faster batch imports, parallel project creation
 
 ### Phase 7: Worker port lifecycle
 

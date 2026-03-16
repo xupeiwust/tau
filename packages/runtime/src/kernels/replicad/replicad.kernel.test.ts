@@ -331,7 +331,7 @@ describe('ReplicadWorker', () => {
         // Step 3: Agent replaces scaffold with multi-file project
         // main.ts now imports from ./lib/cube (no direct 'replicad' import)
         await seedTestFileSystem({
-          '/builds/test/main.ts': `
+          '/projects/test/main.ts': `
             import { createCube } from './lib/cube';
             import { createCylinder } from './lib/cylinder';
 
@@ -346,14 +346,14 @@ describe('ReplicadWorker', () => {
               return cube.cut(cylinder);
             }
           `,
-          '/builds/test/lib/cube.ts': `
+          '/projects/test/lib/cube.ts': `
             import { makeBaseBox } from 'replicad';
 
             export function createCube(size: number) {
               return makeBaseBox(size, size, size);
             }
           `,
-          '/builds/test/lib/cylinder.ts': `
+          '/projects/test/lib/cylinder.ts': `
             import { makeCylinder } from 'replicad';
 
             export function createCylinder(radius: number, height: number) {
@@ -370,9 +370,9 @@ describe('ReplicadWorker', () => {
 
         // Step 5: FIX — notifyFileChanged clears selectionCache
         await worker.notifyFileChanged([
-          '/builds/test/main.ts',
-          '/builds/test/lib/cube.ts',
-          '/builds/test/lib/cylinder.ts',
+          '/projects/test/main.ts',
+          '/projects/test/lib/cube.ts',
+          '/projects/test/lib/cylinder.ts',
         ]);
 
         // Step 6: canHandle re-runs fresh detection:
@@ -3089,7 +3089,7 @@ export default function main() {
 
       // Modify file content: change to 20x20x20 box
       await seedTestFileSystem({
-        '/builds/test/main.ts': `
+        '/projects/test/main.ts': `
           import { drawRoundedRectangle } from 'replicad';
           export default function main() {
             return drawRoundedRectangle(20, 20).sketchOnPlane().extrude(20);
@@ -3098,7 +3098,7 @@ export default function main() {
       });
 
       // Notify worker about the change
-      await worker.notifyFileChanged(['/builds/test/main.ts']);
+      await worker.notifyFileChanged(['/projects/test/main.ts']);
 
       // Second render should use updated code
       const result2 = await worker.createGeometry({
@@ -3134,7 +3134,7 @@ export default function main() {
 
       // Modify file content
       await seedTestFileSystem({
-        '/builds/test/main.ts': `
+        '/projects/test/main.ts': `
           import { drawRoundedRectangle } from 'replicad';
           export default function main() {
             return drawRoundedRectangle(30, 30).sketchOnPlane().extrude(30);
@@ -3142,8 +3142,8 @@ export default function main() {
         `,
       });
 
-      // Notify with ABSOLUTE path (matching production behavior from use-build.tsx)
-      await worker.notifyFileChanged(['/builds/test/main.ts']);
+      // Notify with ABSOLUTE path (matching production behavior from use-project.tsx)
+      await worker.notifyFileChanged(['/projects/test/main.ts']);
 
       // Second render should use updated code
       const result2 = await worker.createGeometry({

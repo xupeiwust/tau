@@ -151,7 +151,7 @@ describe('FileInput (filesystem mode)', () => {
 
   it('should compile with GeometryFile', () => {
     const input: FileInput = {
-      file: { path: '/builds/test', filename: 'box.ts' },
+      file: { path: '/projects/test', filename: 'box.ts' },
     };
     expectTypeOf(input.file).toEqualTypeOf<string | GeometryFile>();
   });

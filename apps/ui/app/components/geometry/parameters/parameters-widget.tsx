@@ -3,7 +3,7 @@ import { ParametersBoolean } from '#components/geometry/parameters/parameters-bo
 import { ParametersNumber } from '#components/geometry/parameters/parameters-number.js';
 import { ParametersString } from '#components/geometry/parameters/parameters-string.js';
 import { toTitleCase } from '#utils/string.utils.js';
-import { getDescriptor } from '#constants/build-parameters.js';
+import { getDescriptor } from '#constants/project-parameters.js';
 import type { RJSFContext } from '#components/geometry/parameters/rjsf-context.js';
 
 export function ParametersWidget(

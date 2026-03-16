@@ -17,7 +17,7 @@ Three runtime contexts collaborate to turn user code into 3D geometry:
 │  Parameters UI   ─── setParams ──▶│
 │  Three.js viewport ◀── geometry   │
 │  cadMachine (display state)        │
-│  buildMachine (compilation units)  │
+│  projectMachine (compilation units)  │
 └──────────┬──────────┬──────────────┘
            │          │
    MessagePort   MessagePort
@@ -161,7 +161,7 @@ Worker-side, before delivery to subscribers:
 
 ### Startup hydration
 
-On build load, `getDirectoryStat(buildRoot)` provides a one-time recursive snapshot for the initial file explorer state. This is the only permitted full recursive scan.
+On project load, `getDirectoryStat(projectRoot)` provides a one-time recursive snapshot for the initial file explorer state. This is the only permitted full recursive scan.
 
 ### Post-startup incremental updates
 
@@ -181,7 +181,7 @@ No mutation-triggered full recursive tree scans.
 A compilation unit is a single `cadMachine` actor managing one runtime worker for one entry file:
 
 ```
-buildMachine spawns cadMachine(entryFile, kernelType)
+projectMachine spawns cadMachine(entryFile, kernelType)
   → cadMachine enters 'connecting' state
   → creates RuntimeClient, connects to runtime worker
   → sends setFile(entryFile, initialParams)

@@ -372,7 +372,7 @@ export function Converter({
               htmlFor='save-to-project'
               className='cursor-pointer text-sm leading-none font-normal peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
             >
-              Save exported files to build
+              Save exported files to project
             </Label>
           </div>
         ) : undefined}

@@ -123,7 +123,7 @@ Factory functions that create `RuntimeFileSystemBase` from various sources. Each
 
 These serve different environments with different constraints:
 
-- **`fromNodeFS(basePath)`** handles `require('node:fs/promises')` internally via dynamic require, preventing bundlers from including Node.js builtins in browser builds. It uses `path.resolve()` for OS-aware path resolution. This is genuinely Node.js-specific.
+- **`fromNodeFS(basePath)`** handles `require('node:fs/promises')` internally via dynamic require, preventing bundlers from including Node.js builtins in browser projects. It uses `path.resolve()` for OS-aware path resolution. This is genuinely Node.js-specific.
 
 - **`fromFsLike(fsLike, rootPath?)`** accepts any object with a `promises` namespace matching the `FsLike` shape. This covers ZenFS, BrowserFS, memfs, polyfills, and any future fs-compatible library. The caller provides the fs object; the constructor just normalizes return types (Buffer → Uint8Array, stat → simplified shape).
 

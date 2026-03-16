@@ -27,8 +27,8 @@ export type PackageInfo = {
 
 /**
  * Root directory for the CDN module cache in the virtual filesystem.
- * Lives at the filesystem root (`/`), outside any project directory (`/builds/xyz/`),
- * so cached modules are shared across all projects and persist across builds.
+ * Lives at the filesystem root (`/`), outside any project directory (`/projects/xyz/`),
+ * so cached modules are shared across all projects and persist across projects.
  */
 const nodeModulesRoot = '/node_modules';
 

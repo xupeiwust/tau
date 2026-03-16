@@ -345,8 +345,8 @@ describe('wrap hook behavior', () => {
 
     const result = await middleware.wrapCreateGeometry!(
       {
-        filePath: '/builds/test/test.kcl',
-        basePath: '/builds/test',
+        filePath: '/projects/test/test.kcl',
+        basePath: '/projects/test',
         parameters: {},
       },
       // oxlint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Mock handler for testing
@@ -387,8 +387,8 @@ describe('wrap hook behavior', () => {
     const mockHandler = vi.fn();
 
     const input = {
-      filePath: '/builds/test/test.kcl',
-      basePath: '/builds/test',
+      filePath: '/projects/test/test.kcl',
+      basePath: '/projects/test',
       parameters: {},
     };
     const runtime = createMiddlewareRuntime({
@@ -452,8 +452,8 @@ describe('wrap hook behavior', () => {
 
     await middleware.wrapCreateGeometry!(
       {
-        filePath: '/builds/test/test.kcl',
-        basePath: '/builds/test',
+        filePath: '/projects/test/test.kcl',
+        basePath: '/projects/test',
         parameters: {},
       },
       // oxlint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Mock handler for testing

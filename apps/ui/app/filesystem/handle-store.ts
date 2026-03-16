@@ -11,7 +11,7 @@
  * after retrieval. The workspace handle is stored with the key `'root'`.
  *
  * **Configs store** (`configs`):
- * Maps `buildId` to filesystem backend configuration. This is kept client-side
+ * Maps `projectId` to filesystem backend configuration. This is kept client-side
  * (separate from the Build type which syncs to the API DB). Architected for
  * future mount config expansion (e.g., zip library mounts).
  *
@@ -33,8 +33,8 @@ const dbVersion = 2;
  * Per-build filesystem configuration.
  * Architected for future mount support (zip libraries, etc.).
  */
-export type BuildFileSystemConfig = {
-  buildId: string;
+export type ProjectFileSystemConfig = {
+  projectId: string;
   backend: FileSystemBackend;
   // Future: mounts?: Array<{ path: string; type: 'zip'; source: string }>;
 };
@@ -58,7 +58,7 @@ async function openHandleDbRaw(): Promise<IDBDatabase> {
         db.createObjectStore(handlesStoreName);
       }
       if (!db.objectStoreNames.contains(configsStoreName)) {
-        db.createObjectStore(configsStoreName, { keyPath: 'buildId' });
+        db.createObjectStore(configsStoreName, { keyPath: 'projectId' });
       }
     });
 
@@ -204,12 +204,12 @@ export async function requestHandlePermission(handle: FileSystemDirectoryHandle)
 // ============ Build Filesystem Configs ============
 
 /**
- * Store the filesystem backend configuration for a build.
- * This records which backend a build's files are stored in, so the correct
- * backend is used when loading the build in the future.
+ * Store the filesystem backend configuration for a project.
+ * This records which backend a project's files are stored in, so the correct
+ * backend is used when loading the project in the future.
  */
-export async function setBuildFileSystemConfig(buildId: string, backend: FileSystemBackend): Promise<void> {
-  const config: BuildFileSystemConfig = { buildId, backend };
+export async function setBuildFileSystemConfig(projectId: string, backend: FileSystemBackend): Promise<void> {
+  const config: ProjectFileSystemConfig = { projectId, backend };
   return withDb(
     async (db) =>
       new Promise((resolve, reject) => {
@@ -220,59 +220,59 @@ export async function setBuildFileSystemConfig(buildId: string, backend: FileSys
           resolve();
         });
         request.addEventListener('error', () => {
-          reject(request.error ?? new Error('Failed to store build filesystem config'));
+          reject(request.error ?? new Error('Failed to store project filesystem config'));
         });
       }),
   );
 }
 
 /**
- * Retrieve the filesystem backend for a build.
- * Returns undefined if no config has been stored (legacy builds default to 'indexeddb').
+ * Retrieve the filesystem backend for a project.
+ * Returns undefined if no config has been stored (legacy projects default to 'indexeddb').
  */
-export async function getBuildFileSystemConfig(buildId: string): Promise<FileSystemBackend | undefined> {
+export async function getProjectFileSystemConfig(projectId: string): Promise<FileSystemBackend | undefined> {
   return withDb(
     async (db) =>
       new Promise((resolve, reject) => {
         const transaction = db.transaction(configsStoreName, 'readonly');
         const store = transaction.objectStore(configsStoreName);
-        const request = store.get(buildId);
+        const request = store.get(projectId);
         request.addEventListener('success', () => {
-          resolve((request.result as BuildFileSystemConfig | undefined)?.backend);
+          resolve((request.result as ProjectFileSystemConfig | undefined)?.backend);
         });
         request.addEventListener('error', () => {
-          reject(request.error ?? new Error('Failed to retrieve build filesystem config'));
+          reject(request.error ?? new Error('Failed to retrieve project filesystem config'));
         });
       }),
   );
 }
 
 /**
- * Remove the filesystem config for a build.
- * Should be called when a build is deleted.
+ * Remove the filesystem config for a project.
+ * Should be called when a project is deleted.
  */
-export async function deleteBuildFileSystemConfig(buildId: string): Promise<void> {
+export async function deleteBuildFileSystemConfig(projectId: string): Promise<void> {
   return withDb(
     async (db) =>
       new Promise((resolve, reject) => {
         const transaction = db.transaction(configsStoreName, 'readwrite');
         const store = transaction.objectStore(configsStoreName);
-        const request = store.delete(buildId);
+        const request = store.delete(projectId);
         request.addEventListener('success', () => {
           resolve();
         });
         request.addEventListener('error', () => {
-          reject(request.error ?? new Error('Failed to delete build filesystem config'));
+          reject(request.error ?? new Error('Failed to delete project filesystem config'));
         });
       }),
   );
 }
 
 /**
- * Retrieve all build filesystem configs.
- * Used by the /files route to enumerate builds across all backends.
+ * Retrieve all project filesystem configs.
+ * Used by the /files route to enumerate projects across all backends.
  */
-export async function getAllBuildFileSystemConfigs(): Promise<BuildFileSystemConfig[]> {
+export async function getAllProjectFileSystemConfigs(): Promise<ProjectFileSystemConfig[]> {
   return withDb(
     async (db) =>
       new Promise((resolve, reject) => {
@@ -280,10 +280,10 @@ export async function getAllBuildFileSystemConfigs(): Promise<BuildFileSystemCon
         const store = transaction.objectStore(configsStoreName);
         const request = store.getAll();
         request.addEventListener('success', () => {
-          resolve(request.result as BuildFileSystemConfig[]);
+          resolve(request.result as ProjectFileSystemConfig[]);
         });
         request.addEventListener('error', () => {
-          reject(request.error ?? new Error('Failed to retrieve all build filesystem configs'));
+          reject(request.error ?? new Error('Failed to retrieve all project filesystem configs'));
         });
       }),
   );

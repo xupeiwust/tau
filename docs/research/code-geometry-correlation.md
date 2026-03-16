@@ -313,7 +313,7 @@ graph TD
 
     subgraph State Machines
         FM[FileManager Machine<br/>file writes/reads]
-        BM[BuildMachine<br/>compilation units + view graphics]
+        BM[ProjectMachine<br/>compilation units + view graphics]
         CM[CadMachine<br/>per entry file, 500ms debounce]
         KM[KernelMachine<br/>spawns runtime worker]
         GM[GraphicsMachine<br/>per viewer panel]
@@ -356,9 +356,9 @@ graph TD
 
 | Component                    | Location                                                | Role                                                    |
 | ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| `chat-editor.tsx`            | `apps/ui/app/routes/builds_.$id/`                       | Code editor with Monaco                                 |
-| `chat-viewer.tsx`            | `apps/ui/app/routes/builds_.$id/`                       | 3D viewer container                                     |
-| `chat-interface-desktop.tsx` | `apps/ui/app/routes/builds_.$id/`                       | Panel layout (Allotment)                                |
+| `chat-editor.tsx`            | `apps/ui/app/routes/projects_.$id/`                     | Code editor with Monaco                                 |
+| `chat-viewer.tsx`            | `apps/ui/app/routes/projects_.$id/`                     | 3D viewer container                                     |
+| `chat-interface-desktop.tsx` | `apps/ui/app/routes/projects_.$id/`                     | Panel layout (Allotment)                                |
 | `cad.machine.ts`             | `apps/ui/app/machines/`                                 | Per-file CAD state (debounce, render, geometry storage) |
 | `kernel.machine.ts`          | `apps/ui/app/machines/`                                 | Kernel worker lifecycle                                 |
 | `graphics.machine.ts`        | `apps/ui/app/machines/`                                 | Per-viewer state (measure, section-view, camera)        |

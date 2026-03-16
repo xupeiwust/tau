@@ -200,7 +200,7 @@ describe('MonacoModelService', () => {
       expect(monaco.editor.getModels()).toHaveLength(2);
 
       // Trigger dispose via setBuildSession (calls disposeAllModels internally)
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       // The tracked model should have been disposed
       const trackedModel = models.get('file:///src/app.ts');
@@ -218,7 +218,7 @@ describe('MonacoModelService', () => {
 
       const model = models.get('file:///src/editor-held.ts');
 
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       expect(model?.dispose).toHaveBeenCalled();
     });
@@ -230,7 +230,7 @@ describe('MonacoModelService', () => {
 
       const model = models.get('file:///src/background.ts');
 
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       expect(model?.dispose).toHaveBeenCalled();
     });
@@ -245,7 +245,7 @@ describe('MonacoModelService', () => {
 
       const model = models.get('file:///src/synced.ts');
 
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       expect(model?.dispose).toHaveBeenCalled();
     });
@@ -263,7 +263,7 @@ describe('MonacoModelService', () => {
       fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('const y = 2;'));
       await service.getOrEnsureModel('src/index.ts');
 
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       // None of the untracked models should be disposed
       expect(tsLib.dispose).not.toHaveBeenCalled();
@@ -299,7 +299,7 @@ describe('MonacoModelService', () => {
       models.set('file:///lib.d.ts', libModel);
 
       // Should not throw and should not dispose the untracked model
-      service.setBuildSession('new-session');
+      service.setProjectSession('new-session');
 
       expect(libModel.dispose).not.toHaveBeenCalled();
     });
@@ -314,7 +314,7 @@ describe('MonacoModelService', () => {
 
       // Should not throw when the model is not found
       expect(() => {
-        service.setBuildSession('new-session');
+        service.setProjectSession('new-session');
       }).not.toThrow();
     });
   });

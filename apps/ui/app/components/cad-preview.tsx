@@ -25,7 +25,7 @@ type CadPreviewViewerProps = {
  *
  * @example
  * ```tsx
- * <CadPreviewProvider buildId="my-build" mainFile="main.ts" files={files}>
+ * <CadPreviewProvider projectId="my-build" mainFile="main.ts" files={files}>
  *   <CadPreviewViewer
  *     className="size-full"
  *     enablePan

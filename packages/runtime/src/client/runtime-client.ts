@@ -90,7 +90,7 @@ export type ExportResult = KernelResult<ExportFile>;
  *
  * - `'main.ts'` --> `{ path: '/', filename: 'main.ts' }`
  * - `'/src/model.ts'` --> `{ path: '/src', filename: 'model.ts' }`
- * - `'/builds/test/bench.ts'` --> `{ path: '/builds/test', filename: 'bench.ts' }`
+ * - `'/projects/test/bench.ts'` --> `{ path: '/projects/test', filename: 'bench.ts' }`
  *
  * @param file - file path string to resolve
  * @returns geometry file with separated path and filename

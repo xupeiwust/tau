@@ -95,7 +95,7 @@ export function GitConnector({
         <SheetContent side='right' className='flex w-full flex-col sm:max-w-2xl'>
           <SheetHeader>
             <SheetTitle>Git Integration</SheetTitle>
-            <SheetDescription>Connect your build to a GitHub repository for version control</SheetDescription>
+            <SheetDescription>Connect your project to a GitHub repository for version control</SheetDescription>
           </SheetHeader>
 
           <div className='flex flex-1 flex-col overflow-hidden py-4'>

@@ -160,10 +160,10 @@ export class TypeAcquisitionService {
   }
 
   /**
-   * Handle a build session change. Clears dynamic types and re-scans models.
+   * Handle a project session change. Clears dynamic types and re-scans models.
    * Static types persist across sessions.
    */
-  public onBuildSessionChange(): void {
+  public onProjectSessionChange(): void {
     // Increment epoch to invalidate in-flight fetches
     this.sessionEpoch++;
 
