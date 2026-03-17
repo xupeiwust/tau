@@ -3,7 +3,7 @@
  * from the browser File API and FileSystem API.
  */
 
-import { joinPath } from '@taucad/utils/path';
+import { joinRelativePath } from '@taucad/utils/path';
 
 export type FileData = {
   filename: string;
@@ -64,7 +64,7 @@ async function readEntry({
   if (entry.isFile) {
     const fileEntry = entry as FileSystemFileEntry;
     const file = await getFileFromEntry(fileEntry);
-    const path = basePath ? joinPath(basePath, entry.name) : entry.name;
+    const path = basePath ? joinRelativePath(basePath, entry.name) : entry.name;
     const arrayBuffer = await file.arrayBuffer();
     files.set(path, {
       filename: path,
@@ -79,7 +79,7 @@ async function readEntry({
     const directoryEntry = entry as FileSystemDirectoryEntry;
     const reader = directoryEntry.createReader();
     const entries = await readAllEntries(reader);
-    const newBase = basePath ? joinPath(basePath, entry.name) : entry.name;
+    const newBase = basePath ? joinRelativePath(basePath, entry.name) : entry.name;
 
     // Update total count
     if (progressInfo?.stats) {
@@ -234,7 +234,7 @@ async function readDirectoryHandleRecursive({
 }): Promise<void> {
   const entries = await collectDirectoryEntries(handle);
   for (const entry of entries) {
-    const entryPath = basePath ? joinPath(basePath, entry.name) : entry.name;
+    const entryPath = basePath ? joinRelativePath(basePath, entry.name) : entry.name;
 
     if (entry.kind === 'file') {
       // oxlint-disable-next-line no-await-in-loop -- sequential file reading for progress tracking

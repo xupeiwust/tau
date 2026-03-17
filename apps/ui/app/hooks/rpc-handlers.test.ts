@@ -102,6 +102,11 @@ function createMockCadUnit(options?: {
   };
 }
 
+function createMockTreeService(tree?: Map<string, FileEntry>): RpcHandlerDependencies['treeService'] {
+  const _tree = tree ?? new Map<string, FileEntry>();
+  return { getTreeSnapshot: () => _tree };
+}
+
 function buildDeps(overrides?: {
   fileManager?: ReturnType<typeof createMockFileManager>;
   fileTree?: Map<string, FileEntry>;
@@ -115,7 +120,7 @@ function buildDeps(overrides?: {
     fileManager: (overrides?.fileManager ?? createMockFileManager()) as RpcHandlerDependencies['fileManager'],
     projectRef: (overrides?.projectRef ?? createMockBuildRef()) as unknown as RpcHandlerDependencies['projectRef'],
     graphicsRef: (overrides?.graphicsRef ?? undefined) as RpcHandlerDependencies['graphicsRef'],
-    fileTree: overrides?.fileTree ?? new Map<string, FileEntry>(),
+    treeService: createMockTreeService(overrides?.fileTree),
     screenshotQuality: overrides?.screenshotQuality ?? 0.8,
   });
 
@@ -619,7 +624,7 @@ describe('rpc-handlers', () => {
         fileManager: createMockFileManager() as RpcHandlerDependencies['fileManager'],
         projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
         graphicsRef: undefined as RpcHandlerDependencies['graphicsRef'],
-        fileTree: new Map<string, FileEntry>(),
+        treeService: createMockTreeService(),
         screenshotQuality: 0.8,
       });
 

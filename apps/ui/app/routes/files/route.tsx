@@ -755,26 +755,25 @@ export default function FilesRoute(): React.JSX.Element {
     await handleConnectDirectory();
   }, [handleConnectDirectory]);
 
-  // Get rmdir function from the worker for recursive directory deletion
   const deleteDirectory = useCallback(
     async (path: string): Promise<void> => {
       const snapshot = fileManagerRef.getSnapshot();
-      const worker = snapshot.context.proxy;
-      if (!worker) {
+      const { proxy } = snapshot.context;
+      if (!proxy) {
         throw new Error('Worker not ready');
       }
 
       const deleteRecursive = async (directoryPath: string): Promise<void> => {
-        const entries = await worker.readdir(directoryPath);
+        const entries = await proxy.readdir(directoryPath);
         for (const entry of entries) {
           const fullPath = `${directoryPath}/${entry}`.replace('//', '/');
           // oxlint-disable-next-line no-await-in-loop -- need sequential processing for correct deletion order
-          const stats = await worker.stat(fullPath);
+          const stats = await proxy.stat(fullPath);
           // oxlint-disable-next-line no-await-in-loop -- need sequential processing for correct deletion order
-          await (stats.type === 'dir' ? deleteRecursive(fullPath) : worker.unlink(fullPath));
+          await (stats.type === 'dir' ? deleteRecursive(fullPath) : proxy.unlink(fullPath));
         }
 
-        await worker.rmdir(directoryPath);
+        await proxy.rmdir(directoryPath);
       };
 
       await deleteRecursive(path);

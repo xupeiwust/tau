@@ -15,16 +15,16 @@
  */
 
 import type * as Monaco from 'monaco-editor';
-import type { Subscription } from 'xstate';
-import type { FileManagerRef, FileManagerApi, FileManagerEmitted } from '#machines/file-manager.machine.types.js';
 import type { MonacoMarkerService } from '#lib/monaco-marker-service.js';
+import type { FileContentService, ContentChangeEvent } from '#lib/file-content-service.js';
+import type { FileTreeService } from '#lib/file-tree-service.js';
 import { isJsLikeFile, getMonacoLanguage } from '#lib/monaco.constants.js';
 import { decodeTextFile } from '#utils/filesystem.utils.js';
 
 export type ModelServiceConfig = {
   monaco: typeof Monaco;
-  fileManagerRef: FileManagerRef;
-  fileManager: Pick<FileManagerApi, 'readFile' | 'getDirectoryStat'>;
+  contentService: FileContentService;
+  treeService: FileTreeService;
   markerService: MonacoMarkerService;
 };
 
@@ -48,8 +48,8 @@ const evictionCheckIntervalMs = 60 * 1000;
 
 export class MonacoModelService {
   private monaco: typeof Monaco | undefined;
-  private fileManagerRef: FileManagerRef | undefined;
-  private fileManager: Pick<FileManagerApi, 'readFile' | 'getDirectoryStat'> | undefined;
+  private contentService: FileContentService | undefined;
+  private treeService: FileTreeService | undefined;
   private markerService: MonacoMarkerService | undefined;
 
   /** Session epoch -- incremented on each project session change */
@@ -67,8 +67,8 @@ export class MonacoModelService {
   /** Set of paths that have been synced in the current session */
   private readonly syncedPaths = new Set<string>();
 
-  /** Subscriptions to clean up */
-  private readonly subscriptions: Subscription[] = [];
+  /** Content change subscription unsubscribe fn */
+  private contentUnsubscribe: (() => void) | undefined;
 
   /** Timer for eviction checks */
   private evictionTimerId: ReturnType<typeof setInterval> | undefined;
@@ -85,24 +85,15 @@ export class MonacoModelService {
    */
   public initialize(config: ModelServiceConfig): void {
     this.monaco = config.monaco;
-    this.fileManagerRef = config.fileManagerRef;
-    this.fileManager = config.fileManager;
+    this.contentService = config.contentService;
+    this.treeService = config.treeService;
     this.markerService = config.markerService;
 
     this.abortController = new AbortController();
 
-    // Subscribe to file events (SINGLE subscriber -- eliminates race)
-    this.subscriptions.push(
-      this.fileManagerRef.on('fileWritten', (event) => {
-        this.handleFileWritten(event as FileManagerEmitted & { type: 'fileWritten' });
-      }),
-      this.fileManagerRef.on('fileDeleted', (event) => {
-        this.handleFileDeleted(event as FileManagerEmitted & { type: 'fileDeleted' });
-      }),
-      this.fileManagerRef.on('fileRenamed', (event) => {
-        this.handleFileRenamed(event as FileManagerEmitted & { type: 'fileRenamed' });
-      }),
-    );
+    this.contentUnsubscribe = this.contentService.onDidContentChange((event) => {
+      this.handleContentChange(event);
+    });
 
     // Start eviction timer
     this.evictionTimerId = setInterval(() => {
@@ -117,34 +108,26 @@ export class MonacoModelService {
    * Dispose all resources.
    */
   public dispose(): void {
-    // Abort in-flight async work
     this.abortController?.abort();
     this.abortController = undefined;
 
-    // Clear eviction timer
     if (this.evictionTimerId !== undefined) {
       clearInterval(this.evictionTimerId);
       this.evictionTimerId = undefined;
     }
 
-    // Unsubscribe from file events
-    for (const sub of this.subscriptions) {
-      sub.unsubscribe();
-    }
+    this.contentUnsubscribe?.();
+    this.contentUnsubscribe = undefined;
 
-    this.subscriptions.length = 0;
-
-    // Dispose all models
     this.disposeAllModels();
 
-    // Clear state
     this.editorHolds.clear();
     this.backgroundAccessTimes.clear();
     this.syncedPaths.clear();
 
     this.monaco = undefined;
-    this.fileManagerRef = undefined;
-    this.fileManager = undefined;
+    this.contentService = undefined;
+    this.treeService = undefined;
     this.markerService = undefined;
   }
 
@@ -206,7 +189,7 @@ export class MonacoModelService {
    * Returns undefined if the file can't be loaded.
    */
   public async getOrEnsureModel(path: string): Promise<Monaco.editor.ITextModel | undefined> {
-    if (!this.monaco || !this.fileManager) {
+    if (!this.monaco || !this.contentService) {
       return undefined;
     }
 
@@ -222,11 +205,10 @@ export class MonacoModelService {
       return existing;
     }
 
-    // Load from filesystem
     const capturedEpoch = this.epoch;
 
     try {
-      const content = await this.fileManager.readFile(path);
+      const content = await this.contentService.resolve(path);
 
       // Check epoch hasn't changed during async read
       if (this.epoch !== capturedEpoch || this.abortController?.signal.aborted) {
@@ -270,17 +252,77 @@ export class MonacoModelService {
     };
   }
 
-  // ============ File Event Handlers ============
+  // ============ Content Event Handler ============
 
-  private handleFileWritten(event: FileManagerEmitted & { type: 'fileWritten' }): void {
+  private handleContentChange(event: ContentChangeEvent): void {
     if (!this.monaco) {
       return;
     }
 
-    const { path, data, source } = event;
+    switch (event.type) {
+      case 'written': {
+        if (event.source === 'editor') {
+          return;
+        }
+        this.applyWritten(event.path, event.data, event.source);
+        break;
+      }
+      case 'batchWritten': {
+        for (const path of event.paths) {
+          const cached = this.contentService?.peek(path);
+          if (cached) {
+            this.applyWritten(path, cached, event.source);
+          }
+        }
+        break;
+      }
+      case 'deleted': {
+        const uri = this.createUri(event.path);
+        this.monaco.editor.getModel(uri)?.dispose();
+        this.editorHolds.delete(event.path);
+        this.backgroundAccessTimes.delete(event.path);
+        this.syncedPaths.delete(event.path);
+        this.markerService?.removeUri(uri.toString());
+        break;
+      }
+      case 'renamed': {
+        const oldUri = this.createUri(event.oldPath);
+        const newUri = this.createUri(event.newPath);
+        const oldModel = this.monaco.editor.getModel(oldUri);
+        const content = oldModel?.getValue() ?? '';
+        oldModel?.dispose();
 
-    // Skip Monaco model updates for editor typing to avoid recursion
-    if (source === 'editor') {
+        const editorCount = this.editorHolds.get(event.oldPath);
+        this.editorHolds.delete(event.oldPath);
+        if (editorCount !== undefined) {
+          this.editorHolds.set(event.newPath, editorCount);
+        }
+
+        this.backgroundAccessTimes.delete(event.oldPath);
+        this.syncedPaths.delete(event.oldPath);
+
+        const language = this.detectLanguage(event.newPath);
+        if (language && content) {
+          this.monaco.editor.createModel(content, language, newUri);
+          this.trackModelCreated();
+          this.syncedPaths.add(event.newPath);
+
+          if (!this.editorHolds.has(event.newPath)) {
+            this.backgroundAccessTimes.set(event.newPath, Date.now());
+          }
+        }
+
+        this.markerService?.migrateUri(oldUri.toString(), newUri.toString());
+        break;
+      }
+      case 'read': {
+        break;
+      }
+    }
+  }
+
+  private applyWritten(path: string, data: Uint8Array<ArrayBuffer>, source: string): void {
+    if (!this.monaco) {
       return;
     }
 
@@ -289,11 +331,9 @@ export class MonacoModelService {
     const existingModel = this.monaco.editor.getModel(uri);
 
     if (existingModel) {
-      // Update existing model if content changed
       const currentModelValue = existingModel.getValue();
       if (currentModelValue !== newContent) {
         if (this.editorHolds.has(path)) {
-          // Editor-held: use pushEditOperations to preserve undo history
           existingModel.pushStackElement();
           existingModel.pushEditOperations(
             [],
@@ -302,12 +342,10 @@ export class MonacoModelService {
           );
           existingModel.pushStackElement();
         } else {
-          // Background: use setValue (cheaper, no undo needed)
           existingModel.setValue(newContent);
         }
       }
     } else if (source === 'user') {
-      // For user operations (create/upload), create a new model
       const language = this.detectLanguage(path);
       if (language) {
         this.monaco.editor.createModel(newContent, language, uri);
@@ -319,7 +357,6 @@ export class MonacoModelService {
         }
       }
     } else {
-      // For machine/external sources, create model for any recognized file type
       const language = this.detectLanguage(path);
       if (language && !path.includes('node_modules')) {
         this.monaco.editor.createModel(newContent, language, uri);
@@ -328,67 +365,6 @@ export class MonacoModelService {
         this.backgroundAccessTimes.set(path, Date.now());
       }
     }
-  }
-
-  private handleFileDeleted(event: FileManagerEmitted & { type: 'fileDeleted' }): void {
-    if (!this.monaco) {
-      return;
-    }
-
-    const { path } = event;
-    const uri = this.createUri(path);
-    const uriString = uri.toString();
-
-    // Dispose model
-    this.monaco.editor.getModel(uri)?.dispose();
-
-    // Clean up tracking
-    this.editorHolds.delete(path);
-    this.backgroundAccessTimes.delete(path);
-    this.syncedPaths.delete(path);
-
-    // Clean up markers
-    this.markerService?.removeUri(uriString);
-  }
-
-  private handleFileRenamed(event: FileManagerEmitted & { type: 'fileRenamed' }): void {
-    if (!this.monaco) {
-      return;
-    }
-
-    const { oldPath, newPath } = event;
-    const oldUri = this.createUri(oldPath);
-    const newUri = this.createUri(newPath);
-
-    // Get old model content before disposing
-    const oldModel = this.monaco.editor.getModel(oldUri);
-    const content = oldModel?.getValue() ?? '';
-    oldModel?.dispose();
-
-    // Transfer tracking
-    const editorCount = this.editorHolds.get(oldPath);
-    this.editorHolds.delete(oldPath);
-    if (editorCount !== undefined) {
-      this.editorHolds.set(newPath, editorCount);
-    }
-
-    this.backgroundAccessTimes.delete(oldPath);
-    this.syncedPaths.delete(oldPath);
-
-    // Create new model
-    const language = this.detectLanguage(newPath);
-    if (language && content) {
-      this.monaco.editor.createModel(content, language, newUri);
-      this.trackModelCreated();
-      this.syncedPaths.add(newPath);
-
-      if (!this.editorHolds.has(newPath)) {
-        this.backgroundAccessTimes.set(newPath, Date.now());
-      }
-    }
-
-    // Migrate markers
-    this.markerService?.migrateUri(oldUri.toString(), newUri.toString());
   }
 
   /**
@@ -401,7 +377,7 @@ export class MonacoModelService {
   // ============ Background Sync ============
 
   private startBackgroundSync(): void {
-    if (!this.fileManager) {
+    if (!this.contentService) {
       return;
     }
 
@@ -409,7 +385,7 @@ export class MonacoModelService {
   }
 
   private async syncAllInBackground(): Promise<void> {
-    if (!this.fileManager || !this.monaco) {
+    if (!this.treeService || !this.monaco) {
       return;
     }
 
@@ -417,14 +393,14 @@ export class MonacoModelService {
     const signal = this.abortController?.signal;
 
     try {
-      const stats = await this.fileManager.getDirectoryStat('');
+      const tree = this.treeService.getTreeSnapshot();
 
       if (this.epoch !== capturedEpoch || signal?.aborted) {
         return;
       }
 
-      const jsFiles = stats.filter(
-        (s) => s.type === 'file' && isJsLikeFile(s.path) && !s.path.includes('node_modules'),
+      const jsFiles = [...tree.values()].filter(
+        (entry) => entry.type === 'file' && isJsLikeFile(entry.path) && !entry.path.includes('node_modules'),
       );
 
       // Process files in batches during idle time
@@ -462,7 +438,7 @@ export class MonacoModelService {
   }
 
   private async syncBackgroundFile(filePath: string, capturedEpoch: number): Promise<void> {
-    if (!this.monaco || !this.fileManager) {
+    if (!this.monaco || !this.contentService) {
       return;
     }
 
@@ -477,7 +453,7 @@ export class MonacoModelService {
     const uri = this.createUri(filePath);
 
     try {
-      const content = await this.fileManager.readFile(filePath);
+      const content = await this.contentService.resolve(filePath);
 
       if (this.epoch !== capturedEpoch || this.abortController?.signal.aborted) {
         return;

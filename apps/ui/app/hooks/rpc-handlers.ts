@@ -41,7 +41,7 @@ export type RpcHandlerDependencies = {
   };
   graphicsRef: ActorRefFrom<typeof graphicsMachine> | undefined;
   projectRef: ActorRefFrom<typeof projectMachine>;
-  fileTree: Map<string, FileEntry>;
+  treeService: { getTreeSnapshot(): Map<string, FileEntry> } | undefined;
   screenshotQuality: number;
 };
 
@@ -54,7 +54,7 @@ export type RpcCallInput = RpcCall & {
 
 function createBrowserRpcFileSystem(
   fileManager: RpcHandlerDependencies['fileManager'],
-  fileTree: Map<string, FileEntry>,
+  treeService: RpcHandlerDependencies['treeService'],
 ): RpcFileSystem {
   return {
     async readFile(path: string): Promise<string> {
@@ -79,6 +79,7 @@ function createBrowserRpcFileSystem(
         size: number;
       }> = [];
 
+      const fileTree = treeService?.getTreeSnapshot() ?? new Map<string, FileEntry>();
       for (const [entryPath, entry] of fileTree.entries()) {
         const parentPath = entryPath.includes('/') ? parentDirectory(entryPath) : '';
         if (parentPath === path) {
@@ -93,6 +94,7 @@ function createBrowserRpcFileSystem(
       return entries;
     },
     async exists(path: string): Promise<boolean> {
+      const fileTree = treeService?.getTreeSnapshot() ?? new Map<string, FileEntry>();
       return fileTree.has(path);
     },
   };
@@ -309,10 +311,10 @@ export type RpcHandlers = {
  * to createRpcDispatcher from @taucad/chat/rpc.
  */
 export function createRpcHandlers(deps: RpcHandlerDependencies): RpcHandlers {
-  const { fileManager, graphicsRef, projectRef, fileTree, screenshotQuality } = deps;
+  const { fileManager, graphicsRef, projectRef, treeService, screenshotQuality } = deps;
 
   const rpcDeps: RpcDependencies = {
-    fileSystem: createBrowserRpcFileSystem(fileManager, fileTree),
+    fileSystem: createBrowserRpcFileSystem(fileManager, treeService),
     kernelClient: createBrowserRuntimeClient(projectRef),
     graphics: graphicsRef ? createBrowserGraphicsClient(graphicsRef, projectRef, screenshotQuality) : undefined,
   };

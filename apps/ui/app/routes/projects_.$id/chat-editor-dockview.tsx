@@ -38,6 +38,8 @@ import { keyCombinationEditor } from '#routes/projects_.$id/chat-editor-layout.j
 import { getFileExtension, isBinaryFile, decodeTextFile, encodeTextFile } from '#utils/filesystem.utils.js';
 import { ChatEditorBinaryWarning } from '#routes/projects_.$id/chat-editor-binary-warning.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileContent } from '#hooks/use-file-content.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 import { useViewContext } from '#routes/projects_.$id/chat-interface-view-context.js';
 import { useMonacoServices } from '#hooks/use-monaco-model-service.js';
 import { useKernelDiagnostics } from '#hooks/use-kernel-diagnostics.js';
@@ -91,7 +93,6 @@ const FileEditor = memo(function ({
   const { editorRef, compilationUnits, mainEntryFile } = useProject();
   const cadActor = compilationUnits.get(mainEntryFile);
   const fileManager = useFileManager();
-  const { fileManagerRef } = useFileManager();
   const [forceOpenBinary, setForceOpenBinary] = useState(false);
   const { modelService, markerService } = useMonacoServices();
 
@@ -102,10 +103,10 @@ const FileEditor = memo(function ({
     markerService,
   });
 
-  // Read file content from file manager
-  const activeFile = useSelector(fileManagerRef, (state) => {
-    const { fileCache } = state.context;
-    const fileContent = fileCache.get(filePath);
+  // Read file content from content service
+  const fileContent = useFileContent(filePath);
+
+  const activeFile = useMemo(() => {
     if (!fileContent) {
       return undefined;
     }
@@ -118,10 +119,10 @@ const FileEditor = memo(function ({
       content: fileContent,
       language: languageFromExtension[getFileExtension(name) as keyof typeof languageFromExtension],
     };
-  });
+  }, [filePath, fileContent]);
 
   // Check if the file exists in the file tree
-  const fileTree = useSelector(fileManagerRef, (state) => state.context.fileTree);
+  const fileTree = useFileTreeMap();
 
   const isMissing = useMemo(() => {
     if (fileTree.size === 0) {
@@ -253,8 +254,7 @@ const FileEditor = memo(function ({
  */
 function EditorWatermark({ containerApi, group }: IWatermarkPanelProps): React.JSX.Element {
   const { editorRef } = useProject();
-  const { fileManagerRef } = useFileManager();
-  const fileTree = useSelector(fileManagerRef, (state) => state.context.fileTree);
+  const fileTree = useFileTreeMap();
 
   const files = useMemo(
     () =>

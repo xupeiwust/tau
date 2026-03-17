@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useCallback, useRef } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useSelector } from '@xstate/react';
 import { useProject } from '#hooks/use-project.js';
-import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 import { useHorizontalScroll } from '#hooks/use-horizontal-scroll.js';
 import { FileExtensionIcon } from '#components/icons/file-extension-icon.js';
 import { FileSelector } from '#components/files/file-selector.js';
@@ -14,7 +13,6 @@ type ChatEditorBreadcrumbsProperties = {
 
 export function ChatEditorBreadcrumbs({ filePath }: ChatEditorBreadcrumbsProperties): ReactNode {
   const { editorRef } = useProject();
-  const { fileManagerRef } = useFileManager();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Enable horizontal scrolling with mouse wheel
@@ -30,34 +28,16 @@ export function ChatEditorBreadcrumbs({ filePath }: ChatEditorBreadcrumbsPropert
     [filePath],
   );
 
-  // Get file list from file manager for the FileSelector
-  const files = useSelector(
-    fileManagerRef,
-    (state) => {
-      const fileTreeMap = state.context.fileTree;
-      if (fileTreeMap.size === 0) {
-        return [];
-      }
-
-      return [...fileTreeMap.values()].map((entry) => ({
-        path: entry.path,
-      }));
-    },
-    (previous, current) => {
-      // Compare file paths to determine if list changed
-      if (previous.length !== current.length) {
-        return false;
-      }
-
-      const previousPaths = new Set(previous.map((f) => f.path));
-      for (const file of current) {
-        if (!previousPaths.has(file.path)) {
-          return false;
-        }
-      }
-
-      return true;
-    },
+  // Get file list from file tree service for the FileSelector
+  const fileTree = useFileTreeMap();
+  const files = useMemo(
+    () =>
+      fileTree.size === 0
+        ? []
+        : [...fileTree.values()].map((entry) => ({
+            path: entry.path,
+          })),
+    [fileTree],
   );
 
   // Handle file selection - opens file in editor

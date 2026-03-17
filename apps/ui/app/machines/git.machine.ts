@@ -1,5 +1,5 @@
 import { assign, assertEvent, setup, emit, fromCallback, waitFor } from 'xstate';
-import type { AnyActorRef, ActorRefFrom } from 'xstate';
+import type { ActorRefFrom } from 'xstate';
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import type { FileStat } from '@taucad/types';
@@ -8,6 +8,7 @@ import { gitAttributesTemplate } from '#constants/gitattributes-template.js';
 import { joinPath } from '@taucad/utils/path';
 import type { FileManagerMachine } from '#machines/file-manager.machine.js';
 import type { FileManagerProxy } from '#machines/file-manager.machine.types.js';
+import type { FileContentService } from '#lib/file-content-service.js';
 
 /** Git mount point prefix for git operations within the filesystem. */
 const gitMountPrefix = '/git';
@@ -131,7 +132,6 @@ export type GitRepository = {
  * Git Machine Context
  */
 export type GitContext = {
-  parentRef: AnyActorRef | undefined;
   projectId: string | undefined;
   accessToken: string | undefined;
   provider: 'github' | undefined;
@@ -151,7 +151,6 @@ export type GitContext = {
  */
 type GitInput = {
   projectId?: string;
-  parentRef?: AnyActorRef;
   fileManagerRef: ActorRefFrom<FileManagerMachine>;
 };
 
@@ -345,35 +344,22 @@ const refreshGitStatusActor = fromSafeAsync<
   }
 });
 
-const projectListenerActor = fromCallback<{ type: 'refreshStatus' }, { parentRef: AnyActorRef | undefined }>(
-  ({ input, sendBack }) => {
-    if (!input.parentRef) {
-      return () => {
-        // No cleanup needed
-      };
-    }
-
-    const { parentRef } = input;
-
-    const fileCreatedSub = parentRef.on('fileCreated', () => {
-      sendBack({ type: 'refreshStatus' });
-    });
-
-    const fileUpdatedSub = parentRef.on('fileUpdated', () => {
-      sendBack({ type: 'refreshStatus' });
-    });
-
-    const fileDeletedSub = parentRef.on('fileDeleted', () => {
-      sendBack({ type: 'refreshStatus' });
-    });
-
+const projectListenerActor = fromCallback<
+  { type: 'refreshStatus' },
+  { contentService: FileContentService | undefined }
+>(({ input, sendBack }) => {
+  if (!input.contentService) {
     return () => {
-      fileCreatedSub.unsubscribe();
-      fileUpdatedSub.unsubscribe();
-      fileDeletedSub.unsubscribe();
+      // No cleanup needed
     };
-  },
-);
+  }
+
+  return input.contentService.onDidContentChange((event) => {
+    if (event.type !== 'read') {
+      sendBack({ type: 'refreshStatus' });
+    }
+  });
+});
 
 const gitActors = {
   initGitActor,
@@ -567,7 +553,6 @@ export const gitMachine = setup({
 }).createMachine({
   id: 'git',
   context: ({ input }) => ({
-    parentRef: input.parentRef,
     projectId: input.projectId,
     accessToken: undefined,
     provider: undefined,
@@ -682,7 +667,9 @@ export const gitMachine = setup({
       invoke: {
         id: 'buildListener',
         src: 'buildListener',
-        input: ({ context }) => ({ parentRef: context.parentRef }),
+        input: ({ context }) => ({
+          contentService: context.fileManagerRef.getSnapshot().context.contentService,
+        }),
       },
       on: {
         stageFile: 'stagingFile',

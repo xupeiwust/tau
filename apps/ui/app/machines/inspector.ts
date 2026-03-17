@@ -1,7 +1,7 @@
 import type { InspectionEvent } from 'xstate';
 
 // Toggle this to enable/disable inspector
-const inspectEnabled = true;
+const inspectEnabled = false;
 
 // Default to console inspector for easy debugging
 const isConsoleInspectorEnabled = true;

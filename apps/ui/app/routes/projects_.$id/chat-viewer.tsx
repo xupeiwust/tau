@@ -6,7 +6,7 @@ import type { FileEntry } from '@taucad/types';
 import { CadViewer } from '#components/geometry/cad/cad-viewer.js';
 import { FileSelector } from '#components/files/file-selector.js';
 import { useProject } from '#hooks/use-project.js';
-import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 import { defaultGraphicsSettings } from '#constants/editor.constants.js';
 import { CadProvider, useCadSelector } from '#hooks/use-cad.js';
 import { GraphicsProvider, useGraphics, useGraphicsSelector } from '#hooks/use-graphics.js';
@@ -39,8 +39,6 @@ export const ChatViewer = memo(function ({
   containerApi,
 }: ChatViewerProps): React.JSX.Element {
   const { projectRef, editorRef, viewGraphics, compilationUnits } = useProject();
-  const fileManager = useFileManager();
-
   // Get the per-view graphics machine
   const graphicsActor = viewGraphics.get(viewId);
 
@@ -48,7 +46,7 @@ export const ChatViewer = memo(function ({
   const cadActor = entryFile ? compilationUnits.get(entryFile) : undefined;
 
   // Get file list for the FileSelector
-  const fileTree = useSelector(fileManager.fileManagerRef, (state) => state.context.fileTree);
+  const fileTree = useFileTreeMap();
   const files = useMemo(
     () =>
       [...fileTree.values()]

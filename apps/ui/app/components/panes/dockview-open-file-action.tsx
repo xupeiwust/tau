@@ -1,11 +1,10 @@
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import type { IDockviewHeaderActionsProps, DockviewGroupPanel, DockviewApi } from 'dockview-react';
 import { Plus } from 'lucide-react';
-import { useSelector } from '@xstate/react';
 import type { FileEntry } from '@taucad/types';
 import { FileSelector } from '#components/files/file-selector.js';
 import { DockviewPaneAction } from '#components/panes/dockview-pane-action.js';
-import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 
 /**
  * Callback invoked when a file is selected from the open-file action.
@@ -39,8 +38,7 @@ export function DockviewOpenFileAction({
   group,
 }: IDockviewHeaderActionsProps): React.JSX.Element {
   const onFileSelect = useContext(DockviewFileActionContext);
-  const { fileManagerRef } = useFileManager();
-  const fileTree = useSelector(fileManagerRef, (state) => state.context.fileTree);
+  const fileTree = useFileTreeMap();
 
   const files = useMemo(
     () =>

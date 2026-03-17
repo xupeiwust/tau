@@ -1,9 +1,7 @@
-import { assign, assertEvent, setup, fromCallback, enqueueActions, emit, spawnChild, stopChild } from 'xstate';
-import type { AnyEventObject } from 'xstate';
+import { assign, assertEvent, setup, enqueueActions } from 'xstate';
 import type { FileEntry, FileSystemBackend } from '@taucad/types';
 import { createBridgeProxy, createFileSystemBridge } from '@taucad/runtime/filesystem';
 import { safeDispose } from '@taucad/utils/dispose';
-import { BoundedFileCache } from '@taucad/filesystem';
 import FileManagerWorker from '#machines/file-manager.worker.js?worker';
 import {
   getStoredDirectoryHandle,
@@ -11,16 +9,10 @@ import {
   checkHandlePermission,
 } from '#filesystem/handle-store.js';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
-import { normalizePath, joinPath } from '@taucad/utils/path';
-import type {
-  FileWriteSource,
-  FileManagerEmitted,
-  FileManagerProxy,
-  FileManagerProtocol,
-} from '#machines/file-manager.machine.types.js';
-
-const watchIntervalFocusedMs = 2000;
-const watchIntervalBlurredMs = 10_000;
+import { normalizePath } from '@taucad/utils/path';
+import { FileContentService } from '#lib/file-content-service.js';
+import { FileTreeService } from '#lib/file-tree-service.js';
+import type { FileManagerProxy, FileManagerProtocol } from '#machines/file-manager.machine.types.js';
 
 const fileCacheMaxEntries = 200;
 const fileCacheMaxTotalBytes = 50 * 1024 * 1024;
@@ -30,18 +22,15 @@ type FileManagerContext = {
   worker: Worker | undefined;
   proxy: (FileManagerProxy & { listen?: (event: string, handler: (data: unknown) => void) => () => void }) | undefined;
   bridgeDispose?: () => void;
-  fileTree: Map<string, FileEntry>;
-  fileCache: BoundedFileCache;
+  contentService: FileContentService | undefined;
+  treeService: FileTreeService | undefined;
   error: Error | undefined;
   rootDirectory: string;
   shouldInitializeOnStart: boolean;
-  isWatching: boolean;
   backendType: FileSystemBackend;
   webAccessNeedsPermission: boolean;
   projectId: string | undefined;
   sharedWorker: Worker | undefined;
-  /** Unsubscribe function for bridge event listener */
-  eventUnsubscribe: (() => void) | undefined;
 };
 
 // ============ Lifecycle Actors ============
@@ -54,6 +43,8 @@ type WorkerInitializedEvent = {
   configuredBackend: FileSystemBackend;
   webAccessNeedsPermission: boolean;
   initialEntries: FileEntry[];
+  contentService: FileContentService;
+  treeService: FileTreeService;
 };
 
 const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: FileManagerContext }>(
@@ -64,6 +55,8 @@ const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: F
 
     safeDispose(() => context.proxy?.dispose());
     safeDispose(context.bridgeDispose);
+    context.contentService?.dispose();
+    context.treeService?.dispose();
 
     if (context.worker && !context.sharedWorker) {
       safeDispose(() => context.worker?.terminate());
@@ -141,6 +134,28 @@ const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: F
       initialEntries = [];
     }
 
+    const contentService = new FileContentService({
+      proxy,
+      rootDirectory: context.rootDirectory,
+      cacheOptions: {
+        maxEntries: fileCacheMaxEntries,
+        maxTotalBytes: fileCacheMaxTotalBytes,
+        maxSingleFileBytes: fileCacheMaxSingleFileBytes,
+      },
+    });
+
+    const treeService = new FileTreeService({
+      proxy,
+      rootDirectory: context.rootDirectory,
+      initialEntries,
+    });
+
+    treeService.connectToContentService(contentService);
+
+    proxy.listen('fileChanged', (event) => {
+      treeService.handleWorkerFileChanged(event);
+    });
+
     console.debug('[FileManager] initializeWorkerActor: success');
     return {
       type: 'workerInitialized',
@@ -150,76 +165,14 @@ const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: F
       configuredBackend: backend,
       webAccessNeedsPermission,
       initialEntries,
+      contentService,
+      treeService,
     };
   },
 );
 
-type DirectoryReadEvent = { type: 'directoryRead'; entries: FileEntry[] };
-
-const readDirectoryActor = fromSafeAsync<DirectoryReadEvent, { context: FileManagerContext; path: string }>(
-  async ({ input, signal }) => {
-    const { context, path } = input;
-
-    signal.throwIfAborted();
-
-    if (!context.proxy) {
-      throw new Error('Worker not initialized');
-    }
-
-    const absolutePath = path === '' ? normalizePath(context.rootDirectory) : joinPath(context.rootDirectory, path);
-    const fileStats = await context.proxy.getDirectoryStat(absolutePath);
-    const entries: FileEntry[] = [];
-
-    for (const fileStat of fileStats) {
-      const relativeFilePath = path === '' ? fileStat.path : joinPath(path, fileStat.path);
-      entries.push({
-        path: relativeFilePath,
-        name: fileStat.name,
-        type: fileStat.type,
-        size: fileStat.size,
-        isLoaded: false,
-      });
-    }
-
-    return { type: 'directoryRead', entries };
-  },
-);
-
-const fileWatcherActor = fromCallback<AnyEventObject>(({ sendBack }) => {
-  let intervalId: ReturnType<typeof setInterval> | undefined;
-
-  const startPolling = (): void => {
-    if (intervalId !== undefined) {
-      clearInterval(intervalId);
-    }
-    const interval = document.visibilityState === 'visible' ? watchIntervalFocusedMs : watchIntervalBlurredMs;
-    intervalId = setInterval(() => {
-      sendBack({ type: 'pollFileSystem' });
-    }, interval);
-  };
-
-  const handleVisibilityChange = (): void => {
-    startPolling();
-    if (document.visibilityState === 'visible') {
-      sendBack({ type: 'pollFileSystem' });
-    }
-  };
-
-  startPolling();
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-
-  return () => {
-    if (intervalId !== undefined) {
-      clearInterval(intervalId);
-    }
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  };
-});
-
 const fileManagerActors = {
   initializeWorkerActor,
-  readDirectoryActor,
-  fileWatcherActor,
 } as const;
 
 // ============ Events ============
@@ -227,26 +180,9 @@ const fileManagerActors = {
 type FileManagerEventLifecycle =
   | { type: 'initialize' }
   | { type: 'setRoot'; path: string; projectId?: string }
-  | { type: 'setBackendType'; backendType: FileSystemBackend }
-  | { type: 'startWatching' }
-  | { type: 'stopWatching' }
-  | { type: 'pollFileSystem' };
+  | { type: 'setBackendType'; backendType: FileSystemBackend };
 
-type FileManagerEventMutation =
-  | {
-      type: 'fileWritten';
-      path: string;
-      data: Uint8Array<ArrayBuffer>;
-      source: FileWriteSource;
-    }
-  | { type: 'fileRead'; path: string; data: Uint8Array<ArrayBuffer> }
-  | { type: 'fileRenamed'; oldPath: string; newPath: string }
-  | { type: 'fileDeleted'; path: string; source: FileWriteSource }
-  | { type: 'filesWritten'; paths: string[] };
-
-type FileManagerEventInternal = FileManagerEventLifecycle | FileManagerEventMutation;
-
-type FileManagerEvent = FileManagerEventInternal | WorkerInitializedEvent | DirectoryReadEvent;
+type FileManagerEvent = FileManagerEventLifecycle | WorkerInitializedEvent;
 
 type FileManagerInput = {
   rootDirectory: string;
@@ -264,8 +200,6 @@ export const fileManagerMachine = setup({
     events: {} as FileManagerEvent,
     // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- type assertion required
     input: {} as FileManagerInput,
-    // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- type assertion required
-    emitted: {} as FileManagerEmitted,
   },
   actors: fileManagerActors,
   actions: {
@@ -281,10 +215,11 @@ export const fileManagerMachine = setup({
 
     clearError: assign({ error: undefined }),
 
-    destroyWorker: assign(({ context }) => {
+    destroyWorkerAndServices: assign(({ context }) => {
+      context.contentService?.dispose();
+      context.treeService?.dispose();
       safeDispose(() => context.proxy?.dispose());
       safeDispose(context.bridgeDispose);
-      safeDispose(context.eventUnsubscribe);
 
       if (!context.sharedWorker) {
         safeDispose(() => context.worker?.terminate());
@@ -294,7 +229,8 @@ export const fileManagerMachine = setup({
         proxy: undefined,
         bridgeDispose: undefined,
         worker: context.sharedWorker ? context.worker : undefined,
-        eventUnsubscribe: undefined,
+        contentService: undefined,
+        treeService: undefined,
       };
     }),
 
@@ -307,15 +243,7 @@ export const fileManagerMachine = setup({
         assertEvent(event, 'setRoot');
         return event.projectId;
       },
-      fileTree: () => new Map(),
-      fileCache: () =>
-        new BoundedFileCache({
-          maxEntries: fileCacheMaxEntries,
-          maxTotalBytes: fileCacheMaxTotalBytes,
-          maxSingleFileBytes: fileCacheMaxSingleFileBytes,
-        }),
       error: undefined,
-      isWatching: false,
     }),
 
     updateBackendFromInit: assign({
@@ -339,13 +267,13 @@ export const fileManagerMachine = setup({
         assertEvent(event, 'workerInitialized');
         return event.webAccessNeedsPermission;
       },
-      fileTree({ event }) {
+      contentService({ event }) {
         assertEvent(event, 'workerInitialized');
-        const newTree = new Map<string, FileEntry>();
-        for (const entry of event.initialEntries) {
-          newTree.set(entry.path, entry);
-        }
-        return newTree;
+        return event.contentService;
+      },
+      treeService({ event }) {
+        assertEvent(event, 'workerInitialized');
+        return event.treeService;
       },
     }),
 
@@ -356,145 +284,15 @@ export const fileManagerMachine = setup({
       },
     }),
 
-    // ============ File Tree Actions ============
+    startPolling({ context }) {
+      if (context.backendType === 'webaccess') {
+        context.treeService?.startPolling();
+      }
+    },
 
-    replaceFileTreeFromBackgroundRefresh: assign({
-      fileTree({ event }) {
-        assertEvent(event, 'directoryRead');
-        const newTree = new Map<string, FileEntry>();
-        for (const entry of event.entries) {
-          newTree.set(entry.path, entry);
-        }
-        return newTree;
-      },
-    }),
-
-    spawnBackgroundRefresh: enqueueActions(({ enqueue }) => {
-      enqueue(stopChild('backgroundRefresh'));
-      enqueue(
-        spawnChild('readDirectoryActor', {
-          id: 'backgroundRefresh',
-          input: ({ context }) => ({ context, path: '' }),
-        }),
-      );
-    }),
-
-    // ============ File Cache Actions ============
-
-    updateFileCacheFromWritten: assign({
-      fileCache({ context, event }) {
-        assertEvent(event, 'fileWritten');
-        context.fileCache.set(event.path, event.data);
-        return context.fileCache;
-      },
-    }),
-
-    updateFileCacheFromRead: assign({
-      fileCache({ context, event }) {
-        assertEvent(event, 'fileRead');
-        context.fileCache.set(event.path, event.data);
-        return context.fileCache;
-      },
-    }),
-
-    optimisticRenameInContext: assign({
-      fileTree({ context, event }) {
-        assertEvent(event, 'fileRenamed');
-        const { oldPath, newPath } = event;
-        const newTree = new Map<string, FileEntry>();
-        const prefix = `${oldPath}/`;
-
-        for (const [path, entry] of context.fileTree.entries()) {
-          if (path === oldPath) {
-            const newName = newPath.split('/').pop() ?? newPath;
-            newTree.set(newPath, { ...entry, path: newPath, name: newName });
-          } else if (path.startsWith(prefix)) {
-            const relativePath = path.slice(oldPath.length);
-            const newFilePath = `${newPath}${relativePath}`;
-            newTree.set(newFilePath, { ...entry, path: newFilePath });
-          } else {
-            newTree.set(path, entry);
-          }
-        }
-
-        return newTree;
-      },
-      fileCache({ context, event }) {
-        assertEvent(event, 'fileRenamed');
-        context.fileCache.rename(event.oldPath, event.newPath);
-        return context.fileCache;
-      },
-    }),
-
-    optimisticDeleteInContext: assign({
-      fileTree({ context, event }) {
-        assertEvent(event, 'fileDeleted');
-        const newTree = new Map(context.fileTree);
-        newTree.delete(event.path);
-        return newTree;
-      },
-      fileCache({ context, event }) {
-        assertEvent(event, 'fileDeleted');
-        context.fileCache.delete(event.path);
-        return context.fileCache;
-      },
-    }),
-
-    // ============ Emit Actions ============
-
-    emitFileWritten: emit(({ event }) => {
-      assertEvent(event, 'fileWritten');
-      return {
-        type: 'fileWritten',
-        path: event.path,
-        data: event.data,
-        source: event.source,
-      };
-    }),
-
-    emitFileRead: emit(({ event }) => {
-      assertEvent(event, 'fileRead');
-      return {
-        type: 'fileRead',
-        path: event.path,
-        data: event.data,
-      };
-    }),
-
-    emitFileRenamed: emit(({ event }) => {
-      assertEvent(event, 'fileRenamed');
-      return {
-        type: 'fileRenamed',
-        oldPath: event.oldPath,
-        newPath: event.newPath,
-      };
-    }),
-
-    emitFileDeleted: emit(({ event }) => {
-      assertEvent(event, 'fileDeleted');
-      return {
-        type: 'fileDeleted',
-        path: event.path,
-        source: event.source,
-      };
-    }),
-
-    // ============ File Watching Actions ============
-
-    startFileWatcher: enqueueActions(({ enqueue }) => {
-      enqueue(stopChild('fileWatcher'));
-      enqueue(
-        spawnChild('fileWatcherActor', {
-          id: 'fileWatcher',
-        }),
-      );
-      enqueue(assign({ isWatching: true }));
-    }),
-
-    stopFileWatcher: enqueueActions(({ enqueue }) => {
-      enqueue(stopChild('fileWatcher'));
-      enqueue(assign({ isWatching: false }));
-    }),
+    stopPolling({ context }) {
+      context.treeService?.stopPolling();
+    },
   },
   guards: {
     isRootChanged({ context, event }) {
@@ -512,24 +310,18 @@ export const fileManagerMachine = setup({
   context: ({ input }) => ({
     worker: undefined,
     proxy: undefined,
-    fileTree: new Map(),
-    fileCache: new BoundedFileCache({
-      maxEntries: fileCacheMaxEntries,
-      maxTotalBytes: fileCacheMaxTotalBytes,
-      maxSingleFileBytes: fileCacheMaxSingleFileBytes,
-    }),
+    contentService: undefined,
+    treeService: undefined,
     error: undefined,
     rootDirectory: input.rootDirectory,
     shouldInitializeOnStart: input.shouldInitializeOnStart ?? true,
-    isWatching: false,
     backendType: input.initialBackend ?? 'indexeddb',
     webAccessNeedsPermission: false,
     projectId: input.projectId,
     sharedWorker: input.sharedWorker,
-    eventUnsubscribe: undefined,
   }),
   initial: 'initializing',
-  exit: ['stopFileWatcher', 'destroyWorker'],
+  exit: ['stopPolling', 'destroyWorkerAndServices'],
   states: {
     initializing: {
       on: {
@@ -543,7 +335,7 @@ export const fileManagerMachine = setup({
         setRoot: {
           target: 'creatingWorker',
           guard: 'isRootChanged',
-          actions: ['stopFileWatcher', 'destroyWorker', 'updateRootAndReset'],
+          actions: ['stopPolling', 'destroyWorkerAndServices', 'updateRootAndReset'],
         },
         workerInitialized: {
           actions: ['updateBackendFromInit'],
@@ -564,50 +356,17 @@ export const fileManagerMachine = setup({
     },
 
     ready: {
-      entry: enqueueActions(({ enqueue, context }) => {
-        if (context.backendType === 'webaccess' && !context.isWatching) {
-          enqueue('startFileWatcher');
-        }
-      }),
+      entry: ['startPolling'],
+      exit: ['stopPolling'],
       on: {
         setRoot: {
           target: 'creatingWorker',
           guard: 'isRootChanged',
-          actions: ['stopFileWatcher', 'destroyWorker', 'updateRootAndReset'],
+          actions: ['stopPolling', 'destroyWorkerAndServices', 'updateRootAndReset'],
         },
 
         setBackendType: {
           actions: ['updateBackendType'],
-        },
-
-        fileWritten: {
-          actions: ['updateFileCacheFromWritten', 'emitFileWritten', 'spawnBackgroundRefresh'],
-        },
-        fileRead: {
-          actions: ['updateFileCacheFromRead', 'emitFileRead'],
-        },
-        fileRenamed: {
-          actions: ['optimisticRenameInContext', 'emitFileRenamed', 'spawnBackgroundRefresh'],
-        },
-        fileDeleted: {
-          actions: ['optimisticDeleteInContext', 'emitFileDeleted', 'spawnBackgroundRefresh'],
-        },
-        filesWritten: {
-          actions: ['spawnBackgroundRefresh'],
-        },
-
-        startWatching: {
-          actions: ['startFileWatcher'],
-        },
-        stopWatching: {
-          actions: ['stopFileWatcher'],
-        },
-        pollFileSystem: {
-          actions: ['spawnBackgroundRefresh'],
-        },
-
-        directoryRead: {
-          actions: ['replaceFileTreeFromBackgroundRefresh'],
         },
       },
     },
@@ -619,7 +378,7 @@ export const fileManagerMachine = setup({
       on: {
         setRoot: {
           target: 'creatingWorker',
-          actions: ['destroyWorker', 'updateRootAndReset'],
+          actions: ['destroyWorkerAndServices', 'updateRootAndReset'],
         },
         initialize: {
           target: 'creatingWorker',

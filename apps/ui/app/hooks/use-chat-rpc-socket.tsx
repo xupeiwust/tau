@@ -12,7 +12,7 @@
  */
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useSelector } from '@xstate/react';
+
 import type { RpcRequest, RpcResponse } from '@taucad/chat';
 import { rpcNames } from '@taucad/chat/constants';
 import { ChatRpcSocketService } from '#services/chat-rpc-socket.service.js';
@@ -135,8 +135,7 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
   const { projectRef } = useProject();
   const mainGraphicsRef = useMainGraphics();
   const fileManager = useFileManager();
-  const { fileManagerRef } = fileManager;
-  const fileTree = useSelector(fileManagerRef, (state) => state.context.fileTree);
+  const { treeService } = fileManager;
   const { quality: screenshotQuality } = useImageQuality();
 
   // Store dependencies in a ref so handler always uses current values
@@ -146,7 +145,7 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
     fileManager,
     graphicsRef: mainGraphicsRef,
     projectRef,
-    fileTree,
+    treeService,
     screenshotQuality,
   };
 

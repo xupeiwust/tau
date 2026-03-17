@@ -1,5 +1,5 @@
-import { useSelector } from '@xstate/react';
-import { useFileManager } from '#hooks/use-file-manager.js';
+import { useMemo } from 'react';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 
 type PreviewFileEntry = {
   path: string;
@@ -11,18 +11,17 @@ type PreviewFileEntry = {
  * Hook to read the file list from the file manager for the preview route.
  */
 export function usePreviewFileList(): PreviewFileEntry[] {
-  const fileManager = useFileManager();
+  const fileTree = useFileTreeMap();
 
-  return useSelector(fileManager.fileManagerRef, (state) => {
-    const fileTreeMap = state.context.fileTree;
-    if (fileTreeMap.size === 0) {
+  return useMemo(() => {
+    if (fileTree.size === 0) {
       return [];
     }
 
-    return [...fileTreeMap.values()].map((entry) => ({
+    return [...fileTree.values()].map((entry) => ({
       path: entry.path,
       name: entry.name,
       size: entry.size,
     }));
-  });
+  }, [fileTree]);
 }

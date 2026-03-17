@@ -15,18 +15,20 @@ import { Format3D } from '#components/icons/format-3d.js';
 import { useCommandPaletteItems } from '#components/layout/command-palette.js';
 import type { CommandPaletteItem } from '#components/layout/command-palette.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 
 export function ProjectCommandPaletteItems({ match }: { readonly match: UIMatch }): undefined {
   const { compilationUnits, mainEntryFile, updateThumbnail, projectRef } = useProject();
   const mainGraphicsRef = useMainGraphics();
   const cadActor = compilationUnits.get(mainEntryFile);
   const fileManager = useFileManager();
+  const fileTree = useFileTreeMap();
   const geometries = useSelector(cadActor, (state) => state?.context.geometries ?? []);
   const project = useSelector(projectRef, (state) => state.context.project);
   const projectName = useSelector(projectRef, (state) => state.context.project?.name) ?? 'file';
 
   const isScreenshotReady = useSelector(mainGraphicsRef, (state) => state?.context.isScreenshotReady ?? false);
-  const fileCount = useSelector(fileManager.fileManagerRef, (state) => state.context.fileTree.size);
+  const fileCount = fileTree.size;
 
   // Create export geometry machine instance
   const exportActorRef = useActorRef(exportGeometryMachine, {
@@ -279,7 +281,7 @@ export function ProjectCommandPaletteItems({ match }: { readonly match: UIMatch 
 
     const subscription = cadActor.on('geometryEvaluated', (event) => {
       if (event.geometries.length > 0) {
-        updateThumbnailScreenshot();
+        // UpdateThumbnailScreenshot();
       }
     });
 

@@ -81,6 +81,7 @@ import { FileExtensionIcon, getIconIdFromExtension } from '#components/icons/fil
 import { getFileExtension, encodeTextFile } from '#utils/filesystem.utils.js';
 import { downloadBlob, asBuffer } from '@taucad/utils/file';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 import { parentDirectory } from '@taucad/utils/path';
 
 type TreeItemData = {
@@ -196,7 +197,7 @@ export const ChatEditorFileTree = memo(function ({
   const { projectRef, editorRef, gitRef } = useProject();
   const projectId = useSelector(projectRef, (state) => state.context.projectId);
   const fileManager = useFileManager();
-  const { fileManagerRef, readFile, writeFile, renameFile, duplicateFile, deleteFile, getZippedDirectory } =
+  const { contentService, readFile, writeFile, renameFile, duplicateFile, deleteFile, getZippedDirectory } =
     fileManager;
 
   useEffect(() => {
@@ -246,30 +247,21 @@ export const ChatEditorFileTree = memo(function ({
       tryOpenMainFile();
     });
 
-    // Event-driven toasts for file operations
-    const fileRenamedSub = fileManagerRef.on('fileRenamed', (event) => {
-      const oldName = event.oldPath.split('/').pop() ?? event.oldPath;
-      const newName = event.newPath.split('/').pop() ?? event.newPath;
-      if (oldName === newName) {
-        toast.success(`Moved: ${newName}`);
-      } else {
-        toast.success(`Renamed: ${oldName} → ${newName}`);
-      }
-    });
-
-    const fileDeletedSub = fileManagerRef.on('fileDeleted', (event) => {
-      // Only show toast for user operations (user-initiated deletes)
-      if (event.source === 'user') {
+    // Event-driven toasts for file operations via ContentService
+    const contentChangeSub = contentService?.onDidContentChange((event) => {
+      if (event.type === 'renamed') {
+        const oldName = event.oldPath.split('/').pop() ?? event.oldPath;
+        const newName = event.newPath.split('/').pop() ?? event.newPath;
+        if (oldName === newName) {
+          toast.success(`Moved: ${newName}`);
+        } else {
+          toast.success(`Renamed: ${oldName} → ${newName}`);
+        }
+      } else if (event.type === 'deleted' && event.source === 'user') {
         const fileName = event.path.split('/').pop() ?? event.path;
         toast.success(`Deleted: ${fileName}`);
-      }
-    });
-
-    const fileWrittenSub = fileManagerRef.on('fileWritten', (event) => {
-      // Only show toast for user operations (user-initiated creates/uploads)
-      if (event.source === 'user') {
+      } else if (event.type === 'written' && event.source === 'user') {
         const fileName = event.path.split('/').pop() ?? event.path;
-        // Check if it's a .gitkeep (folder creation marker)
         if (fileName === '.gitkeep') {
           const folderPath = event.path.replace('/.gitkeep', '');
           const folderName = folderPath.split('/').pop() ?? folderPath;
@@ -284,62 +276,29 @@ export const ChatEditorFileTree = memo(function ({
       fileOpenedSub.unsubscribe();
       projectLoadedSub.unsubscribe();
       editorStateLoadedSub.unsubscribe();
-      fileRenamedSub.unsubscribe();
-      fileDeletedSub.unsubscribe();
-      fileWrittenSub.unsubscribe();
+      contentChangeSub?.();
     };
-  }, [projectRef, editorRef, fileManagerRef, projectId, readFile]);
+  }, [projectRef, editorRef, contentService, projectId, readFile]);
 
-  // Derive file tree from file-manager (reactive selector)
-  // Use custom equality to prevent unnecessary re-renders
-  const fileTree = useSelector(
-    fileManagerRef,
-    (state): FileItem[] => {
-      const fileTreeMap = state.context.fileTree;
-      if (fileTreeMap.size === 0) {
-        return [];
-      }
+  const fileTreeMap = useFileTreeMap();
+  const fileTree = useMemo((): FileItem[] => {
+    if (fileTreeMap.size === 0) {
+      return [];
+    }
 
-      const gitSnapshot = gitRef.getSnapshot();
-      const { fileStatuses } = gitSnapshot.context;
+    const gitSnapshot = gitRef.getSnapshot();
+    const { fileStatuses } = gitSnapshot.context;
 
-      // Convert Map to array and filter for files only (not directories)
-      return (
-        [...fileTreeMap.values()]
-          // .filter((entry) => entry.type === 'file')
-          .map((entry) => ({
-            id: entry.path,
-            name: entry.name,
-            path: entry.path,
-            content: new Uint8Array(), // Placeholder - actual content in openFiles
-            language: getIconIdFromExtension(getFileExtension(entry.path)),
-            isDirectory: false,
-            gitStatus: fileStatuses.get(entry.path)?.status,
-          }))
-      );
-    },
-    (previous, current) => {
-      // Compare file paths and git statuses to determine if tree changed
-      if (previous.length !== current.length) {
-        return false;
-      }
-
-      const previousPaths = new Set(previous.map((f) => f.path));
-      const currentPaths = new Set(current.map((f) => f.path));
-
-      if (previousPaths.size !== currentPaths.size) {
-        return false;
-      }
-
-      for (const path of currentPaths) {
-        if (!previousPaths.has(path)) {
-          return false;
-        }
-      }
-
-      return true;
-    },
-  );
+    return [...fileTreeMap.values()].map((entry) => ({
+      id: entry.path,
+      name: entry.name,
+      path: entry.path,
+      content: new Uint8Array(),
+      language: getIconIdFromExtension(getFileExtension(entry.path)),
+      isDirectory: false,
+      gitStatus: fileStatuses.get(entry.path)?.status,
+    }));
+  }, [fileTreeMap, gitRef]);
 
   const activeFilePath = useSelector(editorRef, (state) => state.context.activeFilePath);
   const openFiles = useSelector(editorRef, (state) => state.context.openFiles);

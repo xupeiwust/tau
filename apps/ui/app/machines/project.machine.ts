@@ -294,12 +294,11 @@ export const projectMachine = setup({
       }
     }),
     respawnStatefulActors: assign({
-      gitRef({ context, spawn, self }) {
+      gitRef({ context, spawn }) {
         return spawn('git', {
           id: `git-${context.projectId}`,
           input: {
             projectId: context.projectId,
-            parentRef: self,
             fileManagerRef: context.fileManagerRef,
           },
         });
@@ -554,12 +553,12 @@ export const projectMachine = setup({
   },
 }).createMachine({
   id: 'project',
-  context({ input, spawn, self }) {
+  context({ input, spawn }) {
     const { projectId, shouldLoadModelOnStart = true, fileManagerRef, kernelOptions } = input;
 
     const gitRef = spawn('git', {
       id: `git-${projectId}`,
-      input: { projectId, parentRef: self, fileManagerRef },
+      input: { projectId, fileManagerRef },
     });
 
     const logRef = spawn('logs', {

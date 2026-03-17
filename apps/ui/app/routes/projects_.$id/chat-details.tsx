@@ -1,5 +1,5 @@
 import { XIcon, Info, Database, HardDrive, FolderOpen, MemoryStick } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSelector } from '@xstate/react';
 import type { FileSystemBackend } from '@taucad/types';
 import { filesystemBackendMeta } from '@taucad/types/constants';
@@ -24,6 +24,7 @@ import { useProject } from '#hooks/use-project.js';
 import type { KeyCombination } from '#utils/keys.utils.js';
 import { formatKeyCombination } from '#utils/keys.utils.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileTreeMap } from '#hooks/use-file-tree.js';
 
 const keyCombinationEditor = {
   key: 'i',
@@ -106,7 +107,8 @@ export function ChatDetails({
   const projectTags = useSelector(projectRef, (state) => state.context.project?.tags ?? []);
   const mainFile = useSelector(projectRef, (state) => state.context.project?.assets.mechanical?.main ?? '');
   const { fileManagerRef, connectedDirectoryName } = useFileManager();
-  const availableFiles = useSelector(fileManagerRef, (state) => [...state.context.fileTree.entries()].map(([k]) => k));
+  const fileTree = useFileTreeMap();
+  const availableFiles = useMemo(() => [...fileTree.keys()], [fileTree]);
   const backendType = useSelector(fileManagerRef, (state) => state.context.backendType);
 
   const toggleDetails = (): void => {

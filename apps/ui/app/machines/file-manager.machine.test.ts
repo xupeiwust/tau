@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createActor } from 'xstate';
 import { fileManagerMachine } from '#machines/file-manager.machine.js';
-import { BoundedFileCache } from '@taucad/filesystem';
 
 vi.mock('#machines/file-manager.worker.js?worker', () => ({
   default: class MockWorker {
@@ -23,6 +22,7 @@ vi.mock('@taucad/runtime/filesystem', () => ({
     getDirectoryStat: vi.fn(async () => []),
     readShallowDirectory: vi.fn(async () => []),
     dispose: vi.fn(),
+    listen: vi.fn(() => vi.fn()),
   })),
 }));
 
@@ -65,7 +65,7 @@ describe('fileManagerMachine', () => {
     actor.stop();
   });
 
-  it('should initialize context with BoundedFileCache', () => {
+  it('should initialize context without fileCache or fileTree', () => {
     const actor = createActor(fileManagerMachine, {
       input: {
         rootDirectory: '/test',
@@ -75,11 +75,10 @@ describe('fileManagerMachine', () => {
     actor.start();
 
     const snapshot = actor.getSnapshot();
-    expect(snapshot.context.fileCache).toBeInstanceOf(BoundedFileCache);
-    expect(snapshot.context.fileTree).toBeInstanceOf(Map);
     expect(snapshot.context.rootDirectory).toBe('/test');
     expect(snapshot.context.backendType).toBe('indexeddb');
-    expect(snapshot.context.eventUnsubscribe).toBeUndefined();
+    expect(snapshot.context.contentService).toBeUndefined();
+    expect(snapshot.context.treeService).toBeUndefined();
 
     actor.stop();
   });
@@ -132,7 +131,7 @@ describe('fileManagerMachine', () => {
     actor.stop();
   });
 
-  it('should handle setBackendType event', async () => {
+  it('should handle setBackendType event in ready state', async () => {
     const actor = createActor(fileManagerMachine, {
       input: {
         rootDirectory: '/test',
@@ -141,7 +140,6 @@ describe('fileManagerMachine', () => {
     });
     actor.start();
 
-    // Wait for ready state
     await vi.waitFor(() => {
       expect(actor.getSnapshot().value).toBe('ready');
     });
@@ -152,7 +150,7 @@ describe('fileManagerMachine', () => {
     actor.stop();
   });
 
-  it('should cache file data on fileWritten event', async () => {
+  it('should create contentService and treeService on init', async () => {
     const actor = createActor(fileManagerMachine, {
       input: {
         rootDirectory: '/test',
@@ -164,118 +162,10 @@ describe('fileManagerMachine', () => {
     await vi.waitFor(() => {
       expect(actor.getSnapshot().value).toBe('ready');
     });
-
-    const data = new Uint8Array([1, 2, 3]);
-    actor.send({ type: 'fileWritten', path: 'test.txt', data, source: 'user' });
 
     const snapshot = actor.getSnapshot();
-    expect(snapshot.context.fileCache.has('test.txt')).toBe(true);
-    expect(snapshot.context.fileCache.get('test.txt')).toEqual(data);
-
-    actor.stop();
-  });
-
-  it('should cache file data on fileRead event', async () => {
-    const actor = createActor(fileManagerMachine, {
-      input: {
-        rootDirectory: '/test',
-        shouldInitializeOnStart: true,
-      },
-    });
-    actor.start();
-
-    await vi.waitFor(() => {
-      expect(actor.getSnapshot().value).toBe('ready');
-    });
-
-    const data = new Uint8Array([4, 5, 6]);
-    actor.send({ type: 'fileRead', path: 'read.txt', data });
-
-    const snapshot = actor.getSnapshot();
-    expect(snapshot.context.fileCache.has('read.txt')).toBe(true);
-    expect(snapshot.context.fileCache.get('read.txt')).toEqual(data);
-
-    actor.stop();
-  });
-
-  it('should optimistically rename in file tree and cache', async () => {
-    const actor = createActor(fileManagerMachine, {
-      input: {
-        rootDirectory: '/test',
-        shouldInitializeOnStart: true,
-      },
-    });
-    actor.start();
-
-    await vi.waitFor(() => {
-      expect(actor.getSnapshot().value).toBe('ready');
-    });
-
-    // Seed the cache and tree
-    const data = new Uint8Array([7, 8, 9]);
-    actor.send({ type: 'fileWritten', path: 'old.txt', data, source: 'user' });
-
-    // Now rename
-    actor.send({ type: 'fileRenamed', oldPath: 'old.txt', newPath: 'new.txt' });
-
-    const snapshot = actor.getSnapshot();
-    expect(snapshot.context.fileCache.has('old.txt')).toBe(false);
-    expect(snapshot.context.fileCache.has('new.txt')).toBe(true);
-    expect(snapshot.context.fileCache.get('new.txt')).toEqual(data);
-
-    actor.stop();
-  });
-
-  it('should optimistically delete from file tree and cache', async () => {
-    const actor = createActor(fileManagerMachine, {
-      input: {
-        rootDirectory: '/test',
-        shouldInitializeOnStart: true,
-      },
-    });
-    actor.start();
-
-    await vi.waitFor(() => {
-      expect(actor.getSnapshot().value).toBe('ready');
-    });
-
-    // Seed the cache
-    const data = new Uint8Array([10, 11, 12]);
-    actor.send({ type: 'fileWritten', path: 'todelete.txt', data, source: 'user' });
-    expect(actor.getSnapshot().context.fileCache.has('todelete.txt')).toBe(true);
-
-    // Delete
-    actor.send({ type: 'fileDeleted', path: 'todelete.txt', source: 'user' });
-
-    const snapshot = actor.getSnapshot();
-    expect(snapshot.context.fileCache.has('todelete.txt')).toBe(false);
-
-    actor.stop();
-  });
-
-  it('should emit fileWritten event to subscribers', async () => {
-    const actor = createActor(fileManagerMachine, {
-      input: {
-        rootDirectory: '/test',
-        shouldInitializeOnStart: true,
-      },
-    });
-    actor.start();
-
-    await vi.waitFor(() => {
-      expect(actor.getSnapshot().value).toBe('ready');
-    });
-
-    const emitted: unknown[] = [];
-    actor.on('fileWritten', (event) => {
-      emitted.push(event);
-    });
-
-    const data = new Uint8Array([1]);
-    actor.send({ type: 'fileWritten', path: 'emit.txt', data, source: 'user' });
-
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]).toMatchObject({ type: 'fileWritten', path: 'emit.txt', source: 'user' });
+    expect(snapshot.context.contentService).toBeDefined();
+    expect(snapshot.context.treeService).toBeDefined();
 
     actor.stop();
   });

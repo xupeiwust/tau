@@ -23,20 +23,6 @@ import type { FileTreeNode, WatchRequest, WatchEvent, MkdirOptions } from '@tauc
 export type FileWriteSource = 'editor' | 'user' | 'machine';
 
 /**
- * Emitted events for UI consumers (toasts, Monaco updates, etc.)
- */
-export type FileManagerEmitted =
-  | {
-      type: 'fileWritten';
-      path: string;
-      data: Uint8Array<ArrayBuffer>;
-      source: FileWriteSource;
-    }
-  | { type: 'fileRead'; path: string; data: Uint8Array<ArrayBuffer> }
-  | { type: 'fileRenamed'; oldPath: string; newPath: string }
-  | { type: 'fileDeleted'; path: string; source: FileWriteSource };
-
-/**
  * Type-safe reference to the file manager XState actor.
  * Preserves the full XState type including literal event type unions.
  */

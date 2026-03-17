@@ -1,19 +1,16 @@
 /**
- * MonacoModelService Tests – disposeAllModels scoping
+ * MonacoModelService Tests
  *
- * Verifies that disposeAllModels only disposes models tracked by the service
- * (editorHolds, backgroundAccessTimes, syncedPaths), leaving Monaco internals
- * (TypeScript lib files, ATA-injected type declarations, etc.) intact.
+ * Verifies:
+ * - disposeAllModels only disposes tracked models (not TS lib files, ATA declarations)
+ * - Content change event handling creates/updates/deletes Monaco models correctly
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type * as Monaco from 'monaco-editor';
 import { MonacoModelService } from '#lib/monaco-model-service.js';
 import type { ModelServiceConfig } from '#lib/monaco-model-service.js';
-
-// =============================================================================
-// Mock dependencies
-// =============================================================================
+import type { ContentChangeEvent } from '#lib/file-content-service.js';
 
 vi.mock('#lib/monaco.constants.js', () => ({
   isJsLikeFile: (path: string) => /\.(js|jsx|ts|tsx|mjs|cjs)$/.test(path),
@@ -40,10 +37,6 @@ vi.mock('#lib/monaco.constants.js', () => ({
 vi.mock('#utils/filesystem.utils.js', () => ({
   decodeTextFile: (data: Uint8Array<ArrayBuffer>) => new TextDecoder().decode(data),
 }));
-
-// =============================================================================
-// Mock helpers
-// =============================================================================
 
 type MockModel = {
   uri: { toString: () => string; path: string };
@@ -100,7 +93,6 @@ function createMockMonaco(): {
             return model;
           }
         }
-
         return undefined;
       },
       createModel: vi.fn((content: string, _language: string, uri: { toString: () => string; path: string }) => {
@@ -120,33 +112,11 @@ function createMockMonaco(): {
   return { monaco: monaco as unknown as typeof Monaco & MockMonaco, models };
 }
 
-type MockFileManagerRef = {
-  on: ReturnType<typeof vi.fn>;
-};
-
-type MockFileManager = {
-  readFile: ReturnType<typeof vi.fn>;
-  getDirectoryStat: ReturnType<typeof vi.fn>;
-};
-
 type MockMarkerService = {
   clearAll: ReturnType<typeof vi.fn>;
   removeUri: ReturnType<typeof vi.fn>;
   migrateUri: ReturnType<typeof vi.fn>;
 };
-
-function createMockFileManagerRef(): MockFileManagerRef {
-  return {
-    on: vi.fn(() => ({ unsubscribe: vi.fn() })),
-  };
-}
-
-function createMockFileManager(): MockFileManager {
-  return {
-    readFile: vi.fn(async () => new TextEncoder().encode('')),
-    getDirectoryStat: vi.fn(async () => []),
-  };
-}
 
 function createMockMarkerService(): MockMarkerService {
   return {
@@ -156,16 +126,43 @@ function createMockMarkerService(): MockMarkerService {
   };
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
+type MockContentService = {
+  onDidContentChange: ReturnType<typeof vi.fn>;
+  resolve: ReturnType<typeof vi.fn>;
+  peek: ReturnType<typeof vi.fn>;
+  _handler?: (event: ContentChangeEvent) => void;
+};
+
+type MockTreeService = {
+  getTreeSnapshot: ReturnType<typeof vi.fn>;
+};
+
+function createMockContentService(): MockContentService {
+  const mock: MockContentService = {
+    onDidContentChange: vi.fn((handler: (event: ContentChangeEvent) => void) => {
+      mock._handler = handler;
+      return () => {
+        mock._handler = undefined;
+      };
+    }),
+    resolve: vi.fn(async () => new TextEncoder().encode('')),
+    peek: vi.fn(() => undefined),
+  };
+  return mock;
+}
+
+function createMockTreeService(): MockTreeService {
+  return {
+    getTreeSnapshot: vi.fn(() => new Map()),
+  };
+}
 
 describe('MonacoModelService', () => {
   let service: MonacoModelService;
   let monaco: typeof Monaco & MockMonaco;
   let models: Map<string, MockModel>;
-  let fileManagerRef: MockFileManagerRef;
-  let fileManager: MockFileManager;
+  let contentService: MockContentService;
+  let treeService: MockTreeService;
   let markerService: MockMarkerService;
 
   beforeEach(() => {
@@ -173,85 +170,60 @@ describe('MonacoModelService', () => {
 
     service = new MonacoModelService();
     ({ monaco, models } = createMockMonaco());
-    fileManagerRef = createMockFileManagerRef();
-    fileManager = createMockFileManager();
+    contentService = createMockContentService();
+    treeService = createMockTreeService();
     markerService = createMockMarkerService();
 
     // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- mock<T>() proxy not assignable to ModelServiceConfig types
     service.initialize({
       monaco,
-      fileManagerRef: fileManagerRef as unknown as ModelServiceConfig['fileManagerRef'],
-      fileManager: fileManager as unknown as ModelServiceConfig['fileManager'],
+      contentService: contentService as unknown as ModelServiceConfig['contentService'],
+      treeService: treeService as unknown as ModelServiceConfig['treeService'],
       markerService: markerService as unknown as ModelServiceConfig['markerService'],
     });
   });
 
   describe('disposeAllModels', () => {
     it('should only dispose tracked models, not untracked ones', async () => {
-      // Set up a tracked model via getOrEnsureModel
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('const x = 1;'));
+      contentService.resolve.mockResolvedValueOnce(new TextEncoder().encode('const x = 1;'));
       await service.getOrEnsureModel('src/app.ts');
 
-      // Manually inject an untracked model (simulates a TS lib or ATA model)
       const untrackedModel = createMockModel('/lib.es2015.d.ts', 'declare const Array: any;');
       models.set('file:///lib.es2015.d.ts', untrackedModel);
 
-      // Verify both models exist
       expect(monaco.editor.getModels()).toHaveLength(2);
 
-      // Trigger dispose via setBuildSession (calls disposeAllModels internally)
-      service.setProjectSession('new-session');
+      service.setProjectSession();
 
-      // The tracked model should have been disposed
       const trackedModel = models.get('file:///src/app.ts');
       expect(trackedModel?.dispose).toHaveBeenCalled();
-
-      // The untracked model should NOT have been disposed
       expect(untrackedModel.dispose).not.toHaveBeenCalled();
     });
 
     it('should dispose models from editorHolds', async () => {
-      // Create a model and register an editor hold
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
+      contentService.resolve.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
       await service.getOrEnsureModel('src/editor-held.ts');
       service.registerEditorModel('src/editor-held.ts');
 
       const model = models.get('file:///src/editor-held.ts');
 
-      service.setProjectSession('new-session');
+      service.setProjectSession();
 
       expect(model?.dispose).toHaveBeenCalled();
     });
 
     it('should dispose models from backgroundAccessTimes', async () => {
-      // Create a model that stays as a background model
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
+      contentService.resolve.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
       await service.getOrEnsureModel('src/background.ts');
 
       const model = models.get('file:///src/background.ts');
 
-      service.setProjectSession('new-session');
-
-      expect(model?.dispose).toHaveBeenCalled();
-    });
-
-    it('should dispose models from syncedPaths', async () => {
-      // Create a model, register editor hold, then unregister it
-      // After unregister it moves to backgroundAccessTimes but stays in syncedPaths
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
-      await service.getOrEnsureModel('src/synced.ts');
-      service.registerEditorModel('src/synced.ts');
-      service.unregisterEditorModel('src/synced.ts');
-
-      const model = models.get('file:///src/synced.ts');
-
-      service.setProjectSession('new-session');
+      service.setProjectSession();
 
       expect(model?.dispose).toHaveBeenCalled();
     });
 
     it('should leave TypeScript lib models intact after session change', async () => {
-      // Inject multiple untracked models simulating Monaco/TS internals
       const tsLib = createMockModel('/lib.es5.d.ts', 'declare const Object: any;');
       const tsLibDom = createMockModel('/lib.dom.d.ts', 'declare const document: any;');
       const ataModel = createMockModel('/node_modules/@types/react/index.d.ts', 'declare namespace React {}');
@@ -259,84 +231,44 @@ describe('MonacoModelService', () => {
       models.set('file:///lib.dom.d.ts', tsLibDom);
       models.set('file:///node_modules/@types/react/index.d.ts', ataModel);
 
-      // Also create a tracked model
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('const y = 2;'));
+      contentService.resolve.mockResolvedValueOnce(new TextEncoder().encode('const y = 2;'));
       await service.getOrEnsureModel('src/index.ts');
 
-      service.setProjectSession('new-session');
+      service.setProjectSession();
 
-      // None of the untracked models should be disposed
       expect(tsLib.dispose).not.toHaveBeenCalled();
       expect(tsLibDom.dispose).not.toHaveBeenCalled();
       expect(ataModel.dispose).not.toHaveBeenCalled();
 
-      // The tracked model should be disposed
       const trackedModel = models.get('file:///src/index.ts');
       expect(trackedModel?.dispose).toHaveBeenCalled();
     });
 
-    it('should leave untracked models intact after full dispose', async () => {
-      // Inject an untracked model
-      const untrackedModel = createMockModel('/lib.es2020.d.ts', 'declare const BigInt: any;');
-      models.set('file:///lib.es2020.d.ts', untrackedModel);
-
-      // Create a tracked model
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('const z = 3;'));
-      await service.getOrEnsureModel('src/main.ts');
-
-      const trackedModel = models.get('file:///src/main.ts');
-
-      // Full service dispose
-      service.dispose();
-
-      expect(trackedModel?.dispose).toHaveBeenCalled();
-      expect(untrackedModel.dispose).not.toHaveBeenCalled();
-    });
-
     it('should handle empty tracking sets gracefully', () => {
-      // Inject untracked models but don't create any tracked models
       const libModel = createMockModel('/lib.d.ts', '');
       models.set('file:///lib.d.ts', libModel);
 
-      // Should not throw and should not dispose the untracked model
-      service.setProjectSession('new-session');
+      service.setProjectSession();
 
       expect(libModel.dispose).not.toHaveBeenCalled();
     });
 
     it('should handle models that have already been disposed externally', async () => {
-      // Create a tracked model
-      fileManager.readFile.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
+      contentService.resolve.mockResolvedValueOnce(new TextEncoder().encode('export {};'));
       await service.getOrEnsureModel('src/already-gone.ts');
 
-      // Simulate external disposal (model no longer found by getModel)
       models.delete('file:///src/already-gone.ts');
 
-      // Should not throw when the model is not found
       expect(() => {
-        service.setProjectSession('new-session');
+        service.setProjectSession();
       }).not.toThrow();
     });
   });
 
-  describe('handleFileWritten', () => {
-    type FileWrittenEvent = {
-      type: 'fileWritten';
-      path: string;
-      data: Uint8Array<ArrayBuffer>;
-      source: string;
-    };
-
-    function getFileWrittenHandler(): (event: FileWrittenEvent) => void {
-      const onCall = fileManagerRef.on.mock.calls.find((call: unknown[]) => call[0] === 'fileWritten');
-      expect(onCall).toBeDefined();
-      return onCall![1] as (event: FileWrittenEvent) => void;
-    }
-
+  describe('handleContentChange', () => {
     it('should create a model for machine-sourced .scad files', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'main.scad',
         data: new TextEncoder().encode('cube([10,10,10]);'),
         source: 'machine',
@@ -350,9 +282,8 @@ describe('MonacoModelService', () => {
     });
 
     it('should create a model for machine-sourced .kcl files', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'main.kcl',
         data: new TextEncoder().encode('fn main() {}'),
         source: 'machine',
@@ -366,9 +297,8 @@ describe('MonacoModelService', () => {
     });
 
     it('should create a model for machine-sourced .json files', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'test.json',
         data: new TextEncoder().encode('{"key": "value"}'),
         source: 'machine',
@@ -382,9 +312,8 @@ describe('MonacoModelService', () => {
     });
 
     it('should NOT create a model for machine-sourced files with unknown extensions', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'model.stl',
         data: new TextEncoder().encode('binary data'),
         source: 'machine',
@@ -394,9 +323,8 @@ describe('MonacoModelService', () => {
     });
 
     it('should NOT create a model for editor-sourced files', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'main.ts',
         data: new TextEncoder().encode('const x = 1;'),
         source: 'editor',
@@ -406,9 +334,8 @@ describe('MonacoModelService', () => {
     });
 
     it('should NOT create a model for machine-sourced node_modules files', () => {
-      const handler = getFileWrittenHandler();
-      handler({
-        type: 'fileWritten',
+      contentService._handler?.({
+        type: 'written',
         path: 'node_modules/lodash/index.js',
         data: new TextEncoder().encode('module.exports = {};'),
         source: 'machine',

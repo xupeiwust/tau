@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { useMonaco } from '@monaco-editor/react';
 import { useSelector } from '@xstate/react';
@@ -16,6 +16,7 @@ import { getFileExtension, isBinaryFile, decodeTextFile, encodeTextFile } from '
 import { ChatEditorBinaryWarning } from '#routes/projects_.$id/chat-editor-binary-warning.js';
 import { ChatEditorPlanViewer } from '#routes/projects_.$id/chat-editor-plan-viewer.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { useFileContent } from '#hooks/use-file-content.js';
 import { useFeature } from '#flags/use-feature.js';
 import { useViewContext } from '#routes/projects_.$id/chat-interface-view-context.js';
 import { useMonacoServices } from '#hooks/use-monaco-model-service.js';
@@ -41,7 +42,6 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
   const { projectId, editorRef, compilationUnits, mainEntryFile } = useProject();
   const cadActor = compilationUnits.get(mainEntryFile);
   const fileManager = useFileManager();
-  const { fileManagerRef } = useFileManager();
   const [forceOpenBinary, setForceOpenBinary] = useState(false);
   const { setIsEditorOpen } = useViewContext();
   const { modelService, markerService } = useMonacoServices();
@@ -59,15 +59,10 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
     return state.context.activeFilePath;
   });
 
-  const activeFile = useSelector(fileManagerRef, (state) => {
-    const { fileCache } = state.context;
+  const fileContent = useFileContent(activeFilePath);
 
-    if (!activeFilePath) {
-      return undefined;
-    }
-
-    const fileContent = fileCache.get(activeFilePath);
-    if (!fileContent) {
+  const activeFile = useMemo(() => {
+    if (!activeFilePath || !fileContent) {
       return undefined;
     }
 
@@ -80,7 +75,7 @@ export const ChatEditor = memo(function ({ className }: { readonly className?: s
       content: fileContent,
       language: languageFromExtension[getFileExtension(name) as keyof typeof languageFromExtension],
     };
-  });
+  }, [activeFilePath, fileContent]);
 
   // Reset force open when file path changes (switching files)
   useEffect(() => {

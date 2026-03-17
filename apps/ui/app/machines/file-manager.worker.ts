@@ -41,6 +41,7 @@ exposeFileSystem(fileService, {
       fileService.cleanupWatches(ownerId);
     },
   },
+  changeEventBus: eventBus,
 });
 
 console.debug(`[FM-Worker] exposeFileSystem registered at +${(performance.now() - t0).toFixed(1)}ms`);

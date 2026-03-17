@@ -10,14 +10,11 @@ import type { FileTreeNode } from '@taucad/filesystem';
 import { storeDirectoryHandle, getStoredDirectoryHandle, requestHandlePermission } from '#filesystem/handle-store.js';
 import { useCookie } from '#hooks/use-cookie.js';
 import { cookieName } from '#constants/cookie.constants.js';
-import { joinPath } from '@taucad/utils/path';
+import type { FileContentService } from '#lib/file-content-service.js';
+import type { FileTreeService } from '#lib/file-tree-service.js';
 
 type FileManagerSnapshot = SnapshotFrom<typeof fileManagerMachine>;
 
-/**
- * Creates a waitFor predicate that returns true if either the success condition is met
- * OR the machine enters the error state. This prevents infinite hangs when operations fail.
- */
 function createErrorAwareWaitPredicate(
   predicate: (state: FileManagerSnapshot) => boolean,
 ): (state: FileManagerSnapshot) => boolean {
@@ -30,9 +27,6 @@ function createErrorAwareWaitPredicate(
   };
 }
 
-/**
- * Checks if the snapshot is in error state and throws with the error message.
- */
 function assertNotErrorState(snapshot: FileManagerSnapshot, fallbackMessage: string): void {
   if (snapshot.matches('error')) {
     throw new Error(snapshot.context.error?.message ?? fallbackMessage);
@@ -57,6 +51,8 @@ export type WebAccessStatus = 'disconnected' | 'connected' | 'needs-permission';
 
 type FileManagerContextType = {
   fileManagerRef: FileManagerRef;
+  contentService: FileContentService | undefined;
+  treeService: FileTreeService | undefined;
   writeFile: (path: string, data: Uint8Array<ArrayBuffer>, options: WriteFileOptions) => Promise<void>;
   writeFiles: (files: Record<string, { content: Uint8Array<ArrayBuffer> }>) => Promise<void>;
   readFile: (path: string) => Promise<Uint8Array<ArrayBuffer>>;
@@ -69,26 +65,15 @@ type FileManagerContextType = {
   getZippedDirectory: (path: string) => Promise<Blob>;
   copyDirectory: (sourcePath: string, destinationPath: string) => Promise<void>;
   reconfigureBackend: (backend: FileSystemBackend) => Promise<void>;
-  /** Open a directory picker, store the handle, and reconfigure to webaccess backend. */
   selectDirectory: () => Promise<void>;
-  /** Re-request permission on a stored directory handle. Must be called from a user gesture. */
   reconnectDirectory: () => Promise<boolean>;
-  /** Current status of the webaccess backend connection. */
   webAccessStatus: WebAccessStatus;
-  /** Name of the connected directory (if webaccess is active). */
   connectedDirectoryName: string | undefined;
   readShallowDirectory: (path: string, backend: FileSystemBackend) => Promise<FileTreeNode[]>;
 };
 
 const FileManagerContext = createContext<FileManagerContextType | undefined>(undefined);
 
-/**
- * Shared worker context for the singleton worker pattern.
- * The root FileManagerProvider creates the Worker and provides it here.
- * Nested providers (build, preview routes) read from this context to
- * reuse the same Worker, ensuring all filesystem operations share one
- * ZenFS instance and one serialization queue.
- */
 const SharedWorkerContext = createContext<Worker | undefined>(undefined);
 
 export function FileManagerProvider({
@@ -99,14 +84,12 @@ export function FileManagerProvider({
 }: {
   readonly children: ReactNode;
   readonly rootDirectory: string;
-  /** When provided, the per-build backend config is read from the config store. */
   readonly projectId?: string;
   readonly shouldInitializeOnStart?: boolean;
 }): React.JSX.Element {
   const [backendCookie] = useCookie(cookieName.filesystemBackend, 'indexeddb' as FileSystemBackend);
   const parentWorker = useContext(SharedWorkerContext);
 
-  // Use per-build config when projectId is provided; resolved async during machine init
   const fileManagerRef = useActorRef(fileManagerMachine, {
     input: {
       rootDirectory,
@@ -117,22 +100,21 @@ export function FileManagerProvider({
     },
   });
 
-  // Store rootDirectory in ref to avoid stale closures
   const rootDirectoryRef = useRef(rootDirectory);
   rootDirectoryRef.current = rootDirectory;
 
-  // Handle root directory or projectId changes (e.g., navigating between projects).
-  // The machine's isRootChanged guard ensures same-value events are no-ops,
-  // so this is safe to send unconditionally on every render cycle.
   useEffect(() => {
     fileManagerRef.send({ type: 'setRoot', path: rootDirectory, projectId });
   }, [fileManagerRef, rootDirectory, projectId]);
 
+  const contentService = useSelector(fileManagerRef, (state) => state.context.contentService);
+  const treeService = useSelector(fileManagerRef, (state) => state.context.treeService);
+
   /**
-   * Wait for the file manager to be ready and return the proxy.
-   * This follows the established projectManagerMachine pattern.
+   * Wait for machine ready and return proxy. Used only for admin operations
+   * (reconfigure, setDirectoryHandle) that are not file I/O.
    */
-  const getReadiedWorker = useCallback(async (): Promise<FileManagerProxy> => {
+  const getReadiedProxy = useCallback(async (): Promise<FileManagerProxy> => {
     const snapshot = await waitFor(
       fileManagerRef,
       createErrorAwareWaitPredicate((state) => state.matches('ready')),
@@ -148,246 +130,142 @@ export function FileManagerProvider({
     return proxy;
   }, [fileManagerRef]);
 
-  /**
-   * Write a single file to the filesystem.
-   * Calls worker directly, then sends single consolidated event.
-   * Machine handles: updating openFiles, emitting UI event, spawning background refresh.
-   */
   const writeFile = useCallback(
     async (path: string, data: Uint8Array<ArrayBuffer>, options: WriteFileOptions): Promise<void> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-
-      await worker.writeFile(absolutePath, data);
-
-      fileManagerRef.send({
-        type: 'fileWritten',
-        path,
-        data,
-        source: options.source,
-      });
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      await contentService.write(path, data, options.source);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Write multiple files to the filesystem.
-   * Uses worker's batch write for efficiency.
-   * Machine spawns background refresh to update file tree.
-   */
   const writeFiles = useCallback(
     async (files: Record<string, { content: Uint8Array<ArrayBuffer> }>): Promise<void> => {
-      const worker = await getReadiedWorker();
-
-      const absoluteFiles: Record<string, { content: Uint8Array<ArrayBuffer> }> = {};
-      const paths: string[] = [];
-
-      for (const [path, file] of Object.entries(files)) {
-        const absolutePath = joinPath(rootDirectoryRef.current, path);
-        absoluteFiles[absolutePath] = file;
-        paths.push(path);
+      if (!contentService) {
+        throw new Error('Content service not initialized');
       }
-
-      await worker.writeFiles(absoluteFiles);
-
-      fileManagerRef.send({ type: 'filesWritten', paths });
+      await contentService.writeFiles(files, 'machine');
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Read a file from the filesystem.
-   * Calls worker directly, then caches in open files.
-   * No file tree refresh needed for reads.
-   */
   const readFile = useCallback(
     async (path: string): Promise<Uint8Array<ArrayBuffer>> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-
-      // Call worker directly
-      const data = await worker.readFile(absolutePath);
-
-      // Single consolidated event - machine updates openFiles and emits
-      fileManagerRef.send({ type: 'fileRead', path, data });
-
-      return data;
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      return contentService.resolve(path);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Rename a file or directory.
-   * Machine handles optimistic update, emit, and background refresh.
-   */
   const renameFile = useCallback(
     async (oldPath: string, newPath: string): Promise<void> => {
-      // Skip no-op renames
       if (oldPath === newPath) {
         return;
       }
-
-      const worker = await getReadiedWorker();
-      const absoluteOldPath = joinPath(rootDirectoryRef.current, oldPath);
-      const absoluteNewPath = joinPath(rootDirectoryRef.current, newPath);
-
-      // Call worker directly
-      await worker.rename(absoluteOldPath, absoluteNewPath);
-
-      // Single consolidated event - machine handles optimistic update, emit, and refresh
-      fileManagerRef.send({ type: 'fileRenamed', oldPath, newPath });
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      await contentService.rename(oldPath, newPath);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Duplicate a file within the filesystem.
-   * Read and write happen entirely on the worker thread — content never crosses to main thread.
-   * Machine handles file tree refresh via the fileWritten event.
-   */
   const duplicateFile = useCallback(
     async (sourcePath: string, destinationPath: string): Promise<void> => {
-      const worker = await getReadiedWorker();
-      const absoluteSourcePath = joinPath(rootDirectoryRef.current, sourcePath);
-      const absoluteDestinationPath = joinPath(rootDirectoryRef.current, destinationPath);
-
-      // Call worker directly - read + write stay on worker thread
-      await worker.duplicateFile(absoluteSourcePath, absoluteDestinationPath);
-
-      // Read the duplicated file content so the machine can cache it in openFiles
-      const data = await worker.readFile(absoluteDestinationPath);
-
-      // Single consolidated event - machine handles context update, emit, and refresh
-      fileManagerRef.send({
-        type: 'fileWritten',
-        path: destinationPath,
-        data,
-        source: 'user',
-      });
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      await contentService.duplicate(sourcePath, destinationPath);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Delete a file from the filesystem.
-   * Machine handles optimistic delete, emit, and background refresh.
-   */
   const deleteFile = useCallback(
     async (path: string, options: DeleteFileOptions): Promise<void> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-
-      // Call worker directly
-      await worker.unlink(absolutePath);
-
-      // Single consolidated event - machine handles optimistic delete, emit, and refresh
-      fileManagerRef.send({
-        type: 'fileDeleted',
-        path,
-        source: options.source,
-      });
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      await contentService.delete(path, options.source);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Check if a path exists in the filesystem.
-   */
   const exists = useCallback(
     async (path: string): Promise<boolean> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-      return worker.exists(absolutePath);
+      if (!treeService) {
+        throw new Error('Tree service not initialized');
+      }
+      return treeService.exists(path);
     },
-    [getReadiedWorker],
+    [treeService],
   );
 
-  /**
-   * List directory contents.
-   */
   const readdir = useCallback(
     async (path: string): Promise<string[]> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-      return worker.readdir(absolutePath);
+      if (!treeService) {
+        throw new Error('Tree service not initialized');
+      }
+      return treeService.readdir(path);
     },
-    [getReadiedWorker],
+    [treeService],
   );
 
-  /**
-   * Get all file stats in a directory recursively.
-   */
   const getDirectoryStat = useCallback(
     async (path: string): Promise<FileStatEntry[]> => {
-      const worker = await getReadiedWorker();
-      const absolutePath = joinPath(rootDirectoryRef.current, path);
-      return worker.getDirectoryStat(absolutePath);
+      if (!treeService) {
+        throw new Error('Tree service not initialized');
+      }
+      return treeService.getDirectoryStat(path);
     },
-    [getReadiedWorker],
+    [treeService],
   );
 
-  /**
-   * Get a zipped archive of a directory.
-   */
   const getZippedDirectory = useCallback(
     async (path: string): Promise<Blob> => {
-      const worker = await getReadiedWorker();
-      return worker.getZippedDirectory(path);
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      return contentService.getZippedDirectory(path);
     },
-    [getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Copy a directory to a new location.
-   * Machine spawns background refresh to update file tree.
-   */
   const copyDirectory = useCallback(
     async (sourcePath: string, destinationPath: string): Promise<void> => {
-      const worker = await getReadiedWorker();
-      await worker.copyDirectory(sourcePath, destinationPath);
-
-      // Single consolidated event - machine spawns background refresh
-      fileManagerRef.send({ type: 'filesWritten', paths: [] });
+      if (!contentService) {
+        throw new Error('Content service not initialized');
+      }
+      await contentService.copyDirectory(sourcePath, destinationPath);
     },
-    [fileManagerRef, getReadiedWorker],
+    [contentService],
   );
 
-  /**
-   * Reconfigure the filesystem with a different backend.
-   * Calls the worker to reconfigure and triggers a file tree refresh.
-   */
   const reconfigureBackend = useCallback(
     async (backend: FileSystemBackend): Promise<void> => {
-      const worker = await getReadiedWorker();
+      const proxy = await getReadiedProxy();
 
-      // Stop file watching when switching away from webaccess
       if (backend !== 'webaccess') {
-        fileManagerRef.send({ type: 'stopWatching' });
+        treeService?.stopPolling();
       }
 
-      await worker.reconfigure(backend);
+      await proxy.reconfigure(backend);
 
-      // Track the backend type in the machine context
       fileManagerRef.send({ type: 'setBackendType', backendType: backend });
 
-      // Start file watching when switching to webaccess
       if (backend === 'webaccess') {
-        fileManagerRef.send({ type: 'startWatching' });
+        treeService?.startPolling();
       }
 
-      // Trigger file tree refresh after reconfiguration
-      fileManagerRef.send({ type: 'filesWritten', paths: [] });
+      treeService?.scheduleRefresh('');
     },
-    [fileManagerRef, getReadiedWorker],
+    [fileManagerRef, getReadiedProxy, treeService],
   );
 
-  // ============ WebAccess (File System Access API) ============
-
-  // Local state for directory name (not tracked in machine)
   const [connectedDirectoryName, setConnectedDirectoryName] = useState<string | undefined>(undefined);
 
-  // Derive webAccessStatus from machine context
-  // The machine tracks webAccessNeedsPermission (set during init) and backendType
   const machineWebAccessNeedsPermission = useSelector(
     fileManagerRef,
     (state) => state.context.webAccessNeedsPermission,
@@ -406,42 +284,24 @@ export function FileManagerProvider({
     return 'disconnected';
   }, [machineWebAccessNeedsPermission, machineBackendType]);
 
-  /**
-   * Open a directory picker dialog, store the selected handle,
-   * pass it to the worker, and reconfigure to the webaccess backend.
-   * Starts file watching after successful configuration.
-   */
   const selectDirectory = useCallback(async (): Promise<void> => {
-    // ShowDirectoryPicker must be called from a user gesture
     const handle = await globalThis.window.showDirectoryPicker({
       mode: 'readwrite',
     });
 
-    // Persist the handle for future sessions
     await storeDirectoryHandle(handle);
 
-    // Pass handle to worker and reconfigure
-    const worker = await getReadiedWorker();
-    worker.setDirectoryHandle(handle);
-    await worker.reconfigure('webaccess');
+    const proxy = await getReadiedProxy();
+    proxy.setDirectoryHandle(handle);
+    await proxy.reconfigure('webaccess');
 
-    // Update directory name and track backend type
     setConnectedDirectoryName(handle.name);
     fileManagerRef.send({ type: 'setBackendType', backendType: 'webaccess' });
 
-    // Start file watching for external change detection
-    fileManagerRef.send({ type: 'startWatching' });
+    treeService?.startPolling();
+    treeService?.scheduleRefresh('');
+  }, [fileManagerRef, getReadiedProxy, treeService]);
 
-    // Trigger file tree refresh
-    fileManagerRef.send({ type: 'filesWritten', paths: [] });
-  }, [fileManagerRef, getReadiedWorker]);
-
-  /**
-   * Re-request permission on a previously stored directory handle.
-   * Must be called from a user gesture (e.g., button click).
-   *
-   * @returns true if permission was granted, false otherwise
-   */
   const reconnectDirectory = useCallback(async (): Promise<boolean> => {
     const handle = await getStoredDirectoryHandle();
     if (!handle) {
@@ -453,38 +313,34 @@ export function FileManagerProvider({
       return false;
     }
 
-    // Pass handle to worker and reconfigure
-    const worker = await getReadiedWorker();
-    worker.setDirectoryHandle(handle);
-    await worker.reconfigure('webaccess');
+    const proxy = await getReadiedProxy();
+    proxy.setDirectoryHandle(handle);
+    await proxy.reconfigure('webaccess');
 
-    // Update directory name and track backend type
     setConnectedDirectoryName(handle.name);
     fileManagerRef.send({ type: 'setBackendType', backendType: 'webaccess' });
 
-    // Start file watching
-    fileManagerRef.send({ type: 'startWatching' });
-
-    // Trigger file tree refresh
-    fileManagerRef.send({ type: 'filesWritten', paths: [] });
+    treeService?.startPolling();
+    treeService?.scheduleRefresh('');
 
     return true;
-  }, [fileManagerRef, getReadiedWorker]);
+  }, [fileManagerRef, getReadiedProxy, treeService]);
 
   const readShallowDirectory = useCallback(
     async (path: string, backend: FileSystemBackend): Promise<FileTreeNode[]> => {
-      const worker = await getReadiedWorker();
+      if (!treeService) {
+        throw new Error('Tree service not initialized');
+      }
       const handle = backend === 'webaccess' ? await getStoredDirectoryHandle() : undefined;
-      return worker.readShallowDirectory(path, backend, handle);
+      if (handle) {
+        const proxy = await getReadiedProxy();
+        return proxy.readShallowDirectory(path, backend, handle);
+      }
+      return treeService.readShallowDirectory(path, backend);
     },
-    [getReadiedWorker],
+    [treeService, getReadiedProxy],
   );
 
-  /**
-   * Resolve the connected directory name on mount.
-   * The machine handles backend configuration and permission checking during init,
-   * but we need to resolve the human-readable directory name on the main thread.
-   */
   useEffect(() => {
     const resolveDirectoryName = async (): Promise<void> => {
       try {
@@ -503,6 +359,8 @@ export function FileManagerProvider({
   const value = useMemo<FileManagerContextType>(
     () => ({
       fileManagerRef,
+      contentService,
+      treeService,
       writeFile,
       writeFiles,
       readFile,
@@ -523,6 +381,8 @@ export function FileManagerProvider({
     }),
     [
       fileManagerRef,
+      contentService,
+      treeService,
       writeFile,
       writeFiles,
       readFile,
@@ -548,7 +408,6 @@ export function FileManagerProvider({
 
   const provider = <FileManagerContext.Provider value={value}>{children}</FileManagerContext.Provider>;
 
-  // Root provider shares the worker with nested providers
   if (isRoot) {
     return <SharedWorkerContext.Provider value={workerForChildren}>{provider}</SharedWorkerContext.Provider>;
   }
@@ -572,24 +431,21 @@ export function useFileManager(): FileManagerContextType {
  * @returns Array of file entries, or undefined if the file manager is not ready
  */
 export function useFileTree(): FileTreeEntry[] | undefined {
-  const { fileManagerRef } = useFileManager();
+  const { treeService } = useFileManager();
 
-  return useSelector(fileManagerRef, (state) => {
-    if (!state.matches('ready')) {
-      return undefined;
-    }
+  if (!treeService) {
+    return undefined;
+  }
 
-    const { fileTree } = state.context;
-    if (fileTree.size === 0) {
-      return undefined;
-    }
+  const tree = treeService.getTreeSnapshot();
+  if (tree.size === 0) {
+    return undefined;
+  }
 
-    // Convert Map to array and exclude isLoaded (client-side state)
-    return [...fileTree.values()].map(({ path, name, type, size }) => ({
-      path,
-      name,
-      type,
-      size,
-    }));
-  });
+  return [...tree.values()].map(({ path, name, type, size }) => ({
+    path,
+    name,
+    type,
+    size,
+  }));
 }
