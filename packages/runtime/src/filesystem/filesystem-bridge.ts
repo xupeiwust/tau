@@ -34,6 +34,15 @@ export type BridgeWatchHandler = {
 };
 
 /**
+ * Minimal event bus interface for broadcasting file change events
+ * to all connected bridge clients via `server.emit('fileChanged', event)`.
+ * @public
+ */
+export type BridgeChangeEventBus = {
+  subscribe(handler: (event: unknown) => void): () => void;
+};
+
+/**
  * Handle returned by {@link exposeFileSystem} for managing bridge connections and cleanup.
  * @public
  */
@@ -63,12 +72,18 @@ export type ExposeFileSystemHandle = {
  */
 export function exposeFileSystem<T extends StringKeyedObject>(
   handlers: T,
-  options?: FileSystemBridgeOptions & { watchHandler?: BridgeWatchHandler },
+  options?: FileSystemBridgeOptions & { watchHandler?: BridgeWatchHandler; changeEventBus?: BridgeChangeEventBus },
 ): ExposeFileSystemHandle {
   const messageType = options?.messageType ?? defaultBridgeMessageType;
   const activePorts = new Set<MessagePort>();
   const serverHandles = new Map<MessagePort, BridgeServerHandle>();
   const portWatches = new Map<MessagePort, Map<string, () => void>>();
+
+  const unsubscribeEventBus = options?.changeEventBus?.subscribe((event) => {
+    for (const handle of serverHandles.values()) {
+      handle.emit('fileChanged', event);
+    }
+  });
 
   const handler = (event: MessageEvent): void => {
     if (event.data?.type === messageType && event.data.port instanceof MessagePort) {
@@ -133,6 +148,7 @@ export function exposeFileSystem<T extends StringKeyedObject>(
 
   return {
     cleanup() {
+      unsubscribeEventBus?.();
       self.removeEventListener('message', handler);
       for (const port of activePorts) {
         safeDispose(() => {
@@ -162,6 +178,9 @@ export function createFileSystemBridge(worker: Worker, options?: FileSystemBridg
   return {
     port: channel.port2,
     dispose() {
+      safeDispose(() => {
+        channel.port2.postMessage({ type: 'disconnect' });
+      });
       safeDispose(() => {
         channel.port2.close();
       });
