@@ -163,8 +163,8 @@ catalogs:
       specifier: ^0.3.1
       version: 0.3.1
     '@taucad/kcl-wasm-lib':
-      specifier: 0.1.111
-      version: 0.1.111
+      specifier: 0.1.130
+      version: 0.1.130
     '@testing-library/jest-dom':
       specifier: 6.6.3
       version: 6.6.3
@@ -623,7 +623,7 @@ importers:
         version: link:packages/json-schema
       '@taucad/kcl-wasm-lib':
         specifier: 'catalog:'
-        version: 0.1.111(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)
+        version: 0.1.130(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
@@ -1458,7 +1458,7 @@ importers:
         version: link:../json-schema
       '@taucad/kcl-wasm-lib':
         specifier: 'catalog:'
-        version: 0.1.111(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)
+        version: 0.1.130(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)
       '@taucad/types':
         specifier: workspace:*
         version: link:../../libs/types
@@ -8416,8 +8416,8 @@ packages:
   '@tanstack/virtual-core@3.13.19':
     resolution: {integrity: sha512-/BMP7kNhzKOd7wnDeB8NrIRNLwkf5AhCYCvtfZV2GXWbBieFm/el0n6LOAXlTi6ZwHICSNnQcIxRCWHrLzDY+g==}
 
-  '@taucad/kcl-wasm-lib@0.1.111':
-    resolution: {integrity: sha512-NnEbJ/+pRjvDk/Ir16dQDFXlYKcTmYIgTvL9HGYIgBR+UB86xKcKbFSfThYP2/DGf9i6GEj79B8SZlFUKS1nAQ==}
+  '@taucad/kcl-wasm-lib@0.1.130':
+    resolution: {integrity: sha512-nSmwe6gArl2YpgrS+XCSLFclNl5+rdznoMV7t/LdAKG9tzOv3O2iUKtpSDTFwDcFlIsTZZd8AmBoH9e9AoDsOg==}
 
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==}
@@ -25770,7 +25770,7 @@ snapshots:
 
   '@tanstack/virtual-core@3.13.19': {}
 
-  '@taucad/kcl-wasm-lib@0.1.111(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)': {}
+  '@taucad/kcl-wasm-lib@0.1.130(patch_hash=94d107e9b51ff3dcaca86cf552a795d118641be3b5fac75c5710fdd92004d0ce)': {}
 
   '@testing-library/dom@10.4.0':
     dependencies:
@@ -26658,7 +26658,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
-      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/utils@4.1.0-beta.6':
     dependencies:
@@ -37508,7 +37508,7 @@ snapshots:
     dependencies:
       ts-essentials: 10.1.1(typescript@5.9.3)
       typescript: 5.9.3
-      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   vitest@4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
