@@ -1,5 +1,10 @@
 import process from 'node:process';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { Server as SocketIoServer } from 'socket.io';
+import { io as ioClient } from 'socket.io-client';
+import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { collectStreamChunks, collectFinalMessage } from '#testing/stream-consumer.js';
 import {
   expectHasTextContent,
@@ -446,4 +451,412 @@ describe.skip(`Model Integration: ${modelId}`, () => {
 
     expectCacheTokenNormalization(chunks2);
   }, 120_000);
+});
+
+/**
+ * Transport-level tests that validate the specific Socket.IO issues causing
+ * WebSocket disconnections during chat RPC execution.
+ *
+ * These tests reproduce the exact failure conditions observed in production:
+ *
+ * 1. maxHttpBufferSize (Socket.IO default: 1MB) is too small for geometry payloads.
+ *    The fetchGeometry RPC returns GLB data (Uint8Array) from the client to the server.
+ *    Complex models (e.g. a detailed OpenSCAD helicopter, $fn=48, 7 files) produce
+ *    2-5MB GLB. When the rpc_response message exceeds maxHttpBufferSize, Socket.IO's
+ *    ws library closes the connection with code 1009 (Message Too Big).
+ *
+ * 2. Dev mode handleDevConnection registers Socket.IO event handlers AFTER an async
+ *    auth check (await auth.api.getSession()). The client's connect handler emits
+ *    'join' immediately. This message arrives at the server during the auth await,
+ *    before the 'join' handler is registered — it is silently dropped. After
+ *    reconnection, rooms are never re-joined, so all subsequent RPCs fail with
+ *    NO_CONNECTION.
+ *
+ * 3. ChatRpcService pending requests are rejected with CLIENT_DISCONNECTED when the
+ *    socket dies mid-RPC. The combination of (1) triggering the disconnect and (2)
+ *    preventing recovery creates the exact failure cascade seen in production.
+ */
+describe('Chat RPC WebSocket Transport Resilience', () => {
+  const cleanup: Array<() => Promise<void>> = [];
+
+  afterEach(async () => {
+    const pending = cleanup.splice(0);
+    await Promise.all(pending.map(async (teardown) => teardown()));
+  });
+
+  const createTestServer = (options?: Partial<import('socket.io').ServerOptions>) => {
+    const httpServer = createServer();
+    const serverIo = new SocketIoServer(httpServer, {
+      transports: ['websocket'],
+      ...options,
+    });
+
+    cleanup.push(async () => {
+      await serverIo.close();
+      await new Promise<void>((resolve) => {
+        if (httpServer.listening) {
+          httpServer.close(() => {
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    const listen = async (): Promise<number> => {
+      await new Promise<void>((resolve) => {
+        httpServer.listen(0, () => {
+          resolve();
+        });
+      });
+      const { port } = httpServer.address() as AddressInfo;
+      return port;
+    };
+
+    return { httpServer, serverIo, listen };
+  };
+
+  const createTestClient = (port: number, options?: Partial<import('socket.io-client').ManagerOptions>) => {
+    const client = ioClient(`http://localhost:${port}`, {
+      transports: ['websocket'],
+      autoConnect: false,
+      ...options,
+    });
+    cleanup.push(async () => {
+      client.disconnect();
+    });
+    return client;
+  };
+
+  it('should maintain connection when RPC response contains large geometry payload (>1MB)', async () => {
+    const { serverIo, listen } = createTestServer({ maxHttpBufferSize: 10e6 });
+
+    let serverReceivedResponse = false;
+    const responseReceived = new Promise<void>((resolve) => {
+      serverIo.on('connection', (socket) => {
+        socket.on('rpc_response', () => {
+          serverReceivedResponse = true;
+          resolve();
+        });
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+    expect(client.connected).toBe(true);
+
+    // Simulate fetchGeometry RPC response with realistic GLB payload.
+    // A detailed OpenSCAD helicopter model ($fn=48, 7 component files)
+    // produces 2-5MB of GLB geometry data.
+    const twoMegabytes = 2 * 1024 * 1024;
+    const largeGlb = new Uint8Array(twoMegabytes);
+
+    const disconnectPromise = new Promise<string>((resolve) => {
+      client.on('disconnect', (reason) => {
+        resolve(reason);
+      });
+    });
+
+    client.emit('rpc_response', {
+      type: 'rpc_response',
+      requestId: 'req_geometry_001',
+      toolCallId: 'tool_test_model_001',
+      result: { success: true, glb: largeGlb },
+    });
+
+    const outcome = await Promise.race([
+      responseReceived.then(() => 'received'),
+      disconnectPromise.then((reason) => `disconnected:${reason}`),
+      new Promise<string>((resolve) => {
+        setTimeout(() => {
+          resolve('timeout');
+        }, 5000);
+      }),
+    ]);
+
+    expect(
+      outcome,
+      'Socket.IO killed the connection because the payload exceeded maxHttpBufferSize (1MB default)',
+    ).toBe('received');
+    expect(client.connected).toBe(true);
+    expect(serverReceivedResponse).toBe(true);
+  });
+
+  it('should process join event when auth middleware runs before connection handler', async () => {
+    const { serverIo, listen } = createTestServer();
+
+    let joinProcessed = false;
+    let joinChatId: string | undefined;
+
+    // Auth runs as middleware — connection event fires only after middleware completes.
+    // This matches the fixed pattern in chat-rpc.gateway.ts initDevSocketIo().
+    serverIo.use(async (_socket, next) => {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 50);
+      });
+      next();
+    });
+
+    serverIo.on('connection', (socket) => {
+      socket.on('join', (data: { chatId: string }) => {
+        joinProcessed = true;
+        joinChatId = data.chatId;
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        client.emit('join', { chatId: 'chat_test456' });
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 500);
+    });
+
+    expect(joinProcessed, 'Join event was not processed — middleware did not prevent the race condition').toBe(true);
+    expect(joinChatId).toBe('chat_test456');
+  });
+
+  it('should receive disconnect reason when client disconnects', async () => {
+    const { serverIo, listen } = createTestServer();
+
+    let serverDisconnectReason: string | undefined;
+
+    serverIo.on('connection', (socket) => {
+      socket.on('disconnect', (reason) => {
+        serverDisconnectReason = reason;
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+
+    const clientDisconnected = new Promise<string>((resolve) => {
+      client.on('disconnect', (reason) => {
+        resolve(reason);
+      });
+    });
+
+    client.disconnect();
+    const clientReason = await clientDisconnected;
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 200);
+    });
+
+    expect(clientReason).toBe('io client disconnect');
+    expect(serverDisconnectReason).toBe('client namespace disconnect');
+  });
+
+  it('should receive disconnect reason when server force-disconnects', async () => {
+    const { serverIo, listen } = createTestServer();
+
+    let serverSocket: import('socket.io').Socket | undefined;
+
+    serverIo.on('connection', (socket) => {
+      serverSocket = socket;
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+
+    const clientDisconnected = new Promise<string>((resolve) => {
+      client.on('disconnect', (reason) => {
+        resolve(reason);
+      });
+    });
+
+    expect(serverSocket).toBeDefined();
+    serverSocket!.disconnect(true);
+
+    const reason = await clientDisconnected;
+    expect(reason).toBe('io server disconnect');
+  });
+
+  it('should deliver join ack via Socket.IO callback', async () => {
+    const { serverIo, listen } = createTestServer();
+
+    let joinedChatId: string | undefined;
+
+    serverIo.on('connection', (socket) => {
+      socket.on('join', (data: { chatId: string }, callback?: (ack: { success: boolean }) => void) => {
+        joinedChatId = data.chatId;
+        callback?.({ success: true });
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+
+    const ack = await new Promise<{ success: boolean }>((resolve) => {
+      client.emit('join', { chatId: 'chat_ack_test' }, (response: { success: boolean }) => {
+        resolve(response);
+      });
+    });
+
+    expect(ack.success).toBe(true);
+    expect(joinedChatId).toBe('chat_ack_test');
+  });
+
+  it('should retry join when server does not ack within timeout', async () => {
+    const { serverIo, listen } = createTestServer();
+
+    let joinAttempts = 0;
+
+    serverIo.on('connection', (socket) => {
+      socket.on('join', (_data: { chatId: string }, callback?: (ack: { success: boolean }) => void) => {
+        joinAttempts++;
+        if (joinAttempts >= 2) {
+          callback?.({ success: true });
+        }
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        resolve();
+      });
+    });
+    client.connect();
+    await connected;
+
+    const emitJoinWithTimeout = async (): Promise<{ success: boolean } | undefined> =>
+      new Promise<{ success: boolean } | undefined>((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve(undefined);
+        }, 2000);
+        client.emit('join', { chatId: 'chat_retry_test' }, (response: { success: boolean }) => {
+          clearTimeout(timeout);
+          resolve(response);
+        });
+      });
+
+    // First attempt: server doesn't invoke callback → undefined after timeout
+    const ack1 = await emitJoinWithTimeout();
+    expect(ack1).toBeUndefined();
+
+    // Second attempt: server invokes callback
+    const ack2 = await emitJoinWithTimeout();
+    expect(ack2).toEqual({ success: true });
+    expect(joinAttempts).toBe(2);
+  });
+
+  it('should complete RPC round-trip with large geometry payload over real Socket.IO', async () => {
+    const { serverIo, listen } = createTestServer({ maxHttpBufferSize: 10e6 });
+
+    const chatRpcService = new ChatRpcService();
+    const chatId = 'chat_rpc_test_001';
+
+    serverIo.on('connection', (socket) => {
+      socket.on('join', () => {
+        chatRpcService.registerConnection(chatId, socket);
+      });
+
+      socket.on('disconnect', () => {
+        chatRpcService.handleSocketDisconnect(socket);
+      });
+
+      socket.on('rpc_response', (message: { requestId: string; result: unknown }) => {
+        chatRpcService.handleRpcResponse({
+          type: 'rpc_response',
+          requestId: message.requestId,
+          toolCallId: 'tool_001',
+          result: message.result,
+        });
+      });
+    });
+
+    const port = await listen();
+    const client = createTestClient(port);
+
+    const connected = new Promise<void>((resolve) => {
+      client.on('connect', () => {
+        client.emit('join', { chatId });
+        resolve();
+      });
+    });
+
+    const twoMegabytes = 2 * 1024 * 1024;
+    const largeGlb = new Uint8Array(twoMegabytes);
+
+    client.on('rpc_request' as string, (request: { requestId: string }) => {
+      client.emit('rpc_response', {
+        requestId: request.requestId,
+        result: { success: true, glb: largeGlb },
+      });
+    });
+
+    client.connect();
+    await connected;
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 100);
+    });
+
+    expect(chatRpcService.isConnected(chatId)).toBe(true);
+
+    const rpcResult = await chatRpcService.sendRpcRequest({
+      chatId,
+      toolCallId: 'tool_fetch_geometry_001',
+      rpcName: 'fetch_geometry',
+      args: {},
+    });
+
+    expect(rpcResult, 'RPC failed — the response payload may have exceeded maxHttpBufferSize').toMatchObject({
+      success: true,
+    });
+    expect(rpcResult).toHaveProperty('glb');
+    expect((rpcResult as { glb: unknown }).glb).toBeInstanceOf(Uint8Array);
+  });
 });

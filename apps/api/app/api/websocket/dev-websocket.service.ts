@@ -133,6 +133,7 @@ export class DevWebSocketService implements OnModuleDestroy {
         credentials: true,
       },
       transports: ['websocket'],
+      maxHttpBufferSize: 50e6, // 50MB — accommodates binary GLB geometry from fetchGeometry RPC
     });
 
     // Handle upgrade requests manually to route between Socket.IO and raw WebSocket
