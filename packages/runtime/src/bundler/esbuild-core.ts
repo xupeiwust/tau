@@ -300,6 +300,8 @@ export type VfsPluginOptions = {
   projectPath: string;
   entryPath: string;
   autoExportNames: string[];
+  /** Collects absolute paths of project files accessed during the build, even on failure. */
+  accessedProjectFiles?: Set<string>;
 };
 
 /**
@@ -323,7 +325,8 @@ export type VfsPluginOptions = {
  * @returns esbuild plugin for vfs-namespace module resolution
  */
 export function createVfsPlugin(options: VfsPluginOptions): Plugin {
-  const { filesystem, moduleManager, builtinModules, projectPath, entryPath, autoExportNames } = options;
+  const { filesystem, moduleManager, builtinModules, projectPath, entryPath, autoExportNames, accessedProjectFiles } =
+    options;
 
   // Path conversion helpers: esbuild sees project-relative paths in the vfs namespace,
   // but all filesystem I/O uses absolute paths.
@@ -564,10 +567,16 @@ export function createVfsPlugin(options: VfsPluginOptions): Plugin {
           let content = await filesystem.readFile(absolutePath, 'utf8');
           const loader = getLoader(args.path);
 
+          // Track project files accessed during the build so that even on
+          // build failure the caller knows which files were touched.
+          const isNodeModules = absolutePath.includes('/node_modules/');
+          if (!isNodeModules) {
+            accessedProjectFiles?.add(absolutePath);
+          }
+
           // For the entry file (not node_modules), add CommonJS exports if needed
           // This prevents esbuild from tree-shaking away unexported main/defaultParams
           const isEntryFile = args.path === relativeEntryPath;
-          const isNodeModules = absolutePath.includes('/node_modules/');
 
           if (isEntryFile && !isNodeModules && (loader === 'js' || loader === 'ts')) {
             content = addCommonJsExports(content, autoExportNames);
@@ -659,6 +668,7 @@ export class EsbuildBundler {
    */
   public async bundle(entryPath: string): Promise<BundleResult> {
     const issues: KernelIssue[] = [];
+    const accessedProjectFiles = new Set<string>();
 
     try {
       // Create banner to inject CommonJS-style globals for built-in modules
@@ -694,6 +704,7 @@ const module = { exports };
             projectPath: this.projectPath,
             entryPath,
             autoExportNames: this.autoExportNames,
+            accessedProjectFiles,
           }),
         ],
         // Ensure we don't try to resolve node built-ins
@@ -768,7 +779,7 @@ const module = { exports };
 
       return {
         code: '',
-        dependencies: [],
+        dependencies: [...accessedProjectFiles],
         issues,
         success: false,
       };
