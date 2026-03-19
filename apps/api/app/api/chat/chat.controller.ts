@@ -195,6 +195,7 @@ export class ChatController {
       const uiMessageStream = toUIMessageStream(stream)
         .pipeThrough(createStaticToolTransform())
         .pipeThrough(createToolOutputTransform())
+        .pipeThrough(createNewlineTrimTransform())
         .pipeThrough(createErrorTransform());
 
       const uiMessageStreamResponse = createUIMessageStreamResponse({
