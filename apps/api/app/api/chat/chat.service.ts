@@ -10,6 +10,8 @@ import type { ChatMode } from '@taucad/chat/constants';
 import { ModelService } from '#api/models/model.service.js';
 import { createUsageTrackingMiddleware } from '#api/chat/middleware/usage-tracking.middleware.js';
 import { createToolMetricsMiddleware } from '#api/chat/middleware/tool-metrics.middleware.js';
+import { createLlmTimingMiddleware } from '#api/chat/middleware/llm-timing.middleware.js';
+import { createAgentIterationsMiddleware } from '#api/chat/middleware/agent-iterations.middleware.js';
 import { MetricsService } from '#telemetry/metrics.js';
 import { messageLoggingMiddleware } from '#api/chat/middleware/message-logging.middleware.js';
 import { toolErrorHandlerMiddleware } from '#api/chat/middleware/tool-error-handler.middleware.js';
@@ -21,7 +23,9 @@ import { getCadSystemPrompt } from '#api/chat/prompts/cad-agent.prompt.js';
 import { toolResultTrimmerMiddleware } from '#api/chat/middleware/tool-result-trimmer.middleware.js';
 import { promptCachingMiddleware } from '#api/chat/middleware/prompt-caching.middleware.js';
 import { messageContentSanitizerMiddleware } from '#api/chat/middleware/message-content-sanitizer.middleware.js';
+import { newlineTrimmerMiddleware } from '#api/chat/middleware/newline-trimmer.middleware.js';
 import { CheckpointerService } from '#api/chat/checkpointer.service.js';
+import { Span } from '#telemetry/tracer.service.js';
 
 @Injectable()
 export class ChatService {
@@ -32,22 +36,7 @@ export class ChatService {
     private readonly metricsService: MetricsService,
   ) {}
 
-  public getBuildNameGenerator(coreMessages: ModelMessage[]): ReturnType<typeof streamText> {
-    return streamText({
-      model: openai('gpt-4o-mini'),
-      messages: coreMessages,
-      system: projectNameGenerationSystemPrompt,
-    });
-  }
-
-  public getCommitMessageGenerator(coreMessages: ModelMessage[]): ReturnType<typeof streamText> {
-    return streamText({
-      model: openai('gpt-4o-mini'),
-      messages: coreMessages,
-      system: commitMessageGenerationSystemPrompt,
-    });
-  }
-
+  @Span()
   public async createAgent(options: {
     modelId: string;
     kernel: KernelProvider;
@@ -121,15 +110,37 @@ export class ChatService {
         toolResultTrimmerMiddleware,
         // Ensure all AIMessages have text content (fixes interrupted thinking blocks)
         messageContentSanitizerMiddleware,
+        // Strip leading/trailing/excessive newlines from model output
+        newlineTrimmerMiddleware,
         // Add cache_control to last message for incremental caching (breakpoint 2)
         promptCachingMiddleware,
         // Log messages before each model call (for debugging)
         messageLoggingMiddleware,
+        // Measure LLM operation duration and time-to-first-token
+        createLlmTimingMiddleware(this.metricsService),
+        // Count agent loop iterations per request
+        createAgentIterationsMiddleware(this.metricsService),
         // Track token usage and costs after each model call
         createUsageTrackingMiddleware(this.metricsService),
       ],
     });
 
     return agent;
+  }
+
+  public getBuildNameGenerator(coreMessages: ModelMessage[]): ReturnType<typeof streamText> {
+    return streamText({
+      model: openai('gpt-4o-mini'),
+      messages: coreMessages,
+      system: projectNameGenerationSystemPrompt,
+    });
+  }
+
+  public getCommitMessageGenerator(coreMessages: ModelMessage[]): ReturnType<typeof streamText> {
+    return streamText({
+      model: openai('gpt-4o-mini'),
+      messages: coreMessages,
+      system: commitMessageGenerationSystemPrompt,
+    });
   }
 }

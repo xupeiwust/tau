@@ -5,6 +5,7 @@ import { ChatService } from '#api/chat/chat.service.js';
 import { ModelService } from '#api/models/model.service.js';
 import { ToolService } from '#api/tools/tool.service.js';
 import { CheckpointerService } from '#api/chat/checkpointer.service.js';
+import { MetricsService } from '#telemetry/metrics.js';
 
 // Mock other dependencies
 vi.mock('ai', () => ({
@@ -60,6 +61,7 @@ describe('ChatService', () => {
         { provide: CheckpointerService, useValue: mockCheckpointerService },
         { provide: ModelService, useValue: mockModelService },
         { provide: ToolService, useValue: mockToolService },
+        { provide: MetricsService, useValue: new MetricsService() },
       ],
     }).compile();
 

@@ -15,7 +15,7 @@ import type {
 } from '@taucad/chat';
 import { AttributeKey } from '@taucad/telemetry';
 import { MetricsService } from '#telemetry/metrics.js';
-import { TracerService } from '#telemetry/tracer.service.js';
+import { injectTraceContext } from '#telemetry/tracer.service.js';
 
 /** Timeout for RPC execution in milliseconds (60 seconds) */
 export const rpcExecutionTimeoutMs = 60_000;
@@ -59,10 +59,7 @@ export class ChatRpcService implements OnModuleDestroy {
   /** Track active abort signal listeners per chatId for cleanup on re-registration */
   private readonly activeAbortListeners = new Map<string, { signal: AbortSignal; listener: () => void }>();
 
-  public constructor(
-    private readonly tracerService: TracerService,
-    private readonly metrics: MetricsService,
-  ) {}
+  public constructor(private readonly metrics: MetricsService) {}
 
   /**
    * Register a Socket.IO connection for a chat room.
@@ -265,7 +262,7 @@ export class ChatRpcService implements OnModuleDestroy {
     }
 
     const requestId = generatePrefixedId(idPrefix.request);
-    const traceContext = this.tracerService.injectTraceContext();
+    const traceContext = injectTraceContext();
     const rpcRequest: RpcRequest = {
       type: 'rpc_request',
       chatId,
@@ -281,9 +278,21 @@ export class ChatRpcService implements OnModuleDestroy {
     const startTime = performance.now();
     this.metrics.rpcActiveCalls.add(1, { [AttributeKey.RPC_METHOD]: rpcName });
 
+    const outboundSize = estimateJsonSize(rpcRequest);
+    this.metrics.wsMessageSize.record(outboundSize, {
+      [AttributeKey.WS_DIRECTION]: 'out',
+      [AttributeKey.RPC_METHOD]: rpcName,
+    });
+
     try {
       /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- emitWithAck returns untyped ack */
       const response: RpcResponse = await socket.timeout(rpcExecutionTimeoutMs).emitWithAck('rpc_request', rpcRequest);
+
+      const inboundSize = estimateJsonSize(response);
+      this.metrics.wsMessageSize.record(inboundSize, {
+        [AttributeKey.WS_DIRECTION]: 'in',
+        [AttributeKey.RPC_METHOD]: rpcName,
+      });
 
       if (response.error) {
         this.recordRpcDuration(startTime, rpcName, { status: 'error' });
@@ -450,3 +459,11 @@ export class ChatRpcService implements OnModuleDestroy {
     }
   }
 }
+
+const estimateJsonSize = (value: unknown): number => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return 0;
+  }
+};

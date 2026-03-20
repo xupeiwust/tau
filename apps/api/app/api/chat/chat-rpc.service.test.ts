@@ -2,10 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import type { Socket } from 'socket.io';
 import { ChatRpcService, rpcExecutionTimeoutMs, abortCleanupDelayMs } from '#api/chat/chat-rpc.service.js';
-import { TracerService } from '#telemetry/tracer.service.js';
 import { MetricsService } from '#telemetry/metrics.js';
 
-const mockTracerService = new TracerService();
 const mockMetricsService = new MetricsService();
 
 let requestIdCounter = 0;
@@ -46,7 +44,7 @@ describe('ChatRpcService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     requestIdCounter = 0;
-    service = new ChatRpcService(mockTracerService, mockMetricsService);
+    service = new ChatRpcService(mockMetricsService);
   });
 
   afterEach(() => {
@@ -260,7 +258,7 @@ describe('ChatRpcService', () => {
       service.registerConnection('chat_1', s1, 'user_a');
       service.onModuleDestroy();
 
-      const service2 = new ChatRpcService(mockTracerService, mockMetricsService);
+      const service2 = new ChatRpcService(mockMetricsService);
       const s2 = createMockSocket('s2');
       expect(service2.registerConnection('chat_1', s2, 'user_b')).toBe(true);
       service2.onModuleDestroy();
@@ -808,7 +806,7 @@ describe('ChatRpcService', () => {
       service.onModuleDestroy();
 
       // Re-create the service and register a new connection
-      const service2 = new ChatRpcService(mockTracerService, mockMetricsService);
+      const service2 = new ChatRpcService(mockMetricsService);
       const socket2 = createMockSocket('s2');
       service2.registerConnection('chat_1', socket2, defaultUserId);
 

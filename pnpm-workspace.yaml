@@ -53,6 +53,7 @@ catalog:
   '@opentelemetry/sdk-node': ^0.213.0
   '@oxc-node/core': ^0.0.35
   '@playwright/test': ^1.58.2
+  '@pyroscope/nodejs': ^0.4.10
   '@react-router/dev': 7.12.0
   '@react-router/fs-routes': 7.12.0
   '@react-router/node': 7.12.0
@@ -61,6 +62,7 @@ catalog:
   '@taucad/kcl-wasm-lib': 0.1.130
   '@testing-library/jest-dom': 6.6.3
   '@testing-library/react': 16.2.0
+  '@traceloop/instrumentation-langchain': ^0.22.6
   '@types/js-yaml': ^4.0.9
   '@types/json-schema': ^7.0.15
   '@types/madge': ^5.0.3

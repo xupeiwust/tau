@@ -16,6 +16,7 @@ import { FileEditService } from '#api/file-edit/file-edit.service.js';
 import { GeometryAnalysisService } from '#api/analysis/geometry-analysis.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
 import type { CreateChatDto } from '#api/chat/chat.dto.js';
+import { MetricsService } from '#telemetry/metrics.js';
 
 // Mock the @ai-sdk/langchain module
 vi.mock('@ai-sdk/langchain', () => ({
@@ -183,6 +184,10 @@ describe('ChatController', () => {
         {
           provide: GeometryAnalysisService,
           useValue: mockGeometryAnalysisService,
+        },
+        {
+          provide: MetricsService,
+          useValue: new MetricsService(),
         },
         Reflector,
       ],

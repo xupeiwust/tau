@@ -8,6 +8,10 @@ import { z } from 'zod';
 export const IngestEntryName = {
   KERNEL_CREATE_GEOMETRY: 'observability.createGeometry',
   KERNEL_EXPORT_GEOMETRY: 'observability.exportGeometry',
+  WEBSOCKET_RECONNECTION: 'observability.websocketReconnection',
+  EDITOR_LOAD: 'observability.editorLoad',
+  WASM_MODULE_LOAD: 'observability.wasmModuleLoad',
+  INDEXEDDB_OPERATION: 'observability.indexeddbOperation',
 } as const;
 /* eslint-enable @typescript-eslint/naming-convention -- end OTEL constants block */
 
@@ -34,6 +38,51 @@ const kernelExportGeometryEntrySchema = z.object({
     .optional(),
 });
 
+const websocketReconnectionEntrySchema = z.object({
+  name: z.literal(IngestEntryName.WEBSOCKET_RECONNECTION),
+  duration: z.number().nonnegative(),
+  detail: z
+    .object({
+      attempt: z.number().int().nonnegative().optional(),
+      reason: z.string().optional(),
+    })
+    .optional(),
+});
+
+const editorLoadEntrySchema = z.object({
+  name: z.literal(IngestEntryName.EDITOR_LOAD),
+  duration: z.number().nonnegative(),
+  detail: z
+    .object({
+      kernel: z.string().optional(),
+      fileCount: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
+});
+
+const wasmModuleLoadEntrySchema = z.object({
+  name: z.literal(IngestEntryName.WASM_MODULE_LOAD),
+  duration: z.number().nonnegative(),
+  detail: z
+    .object({
+      module: z.string().optional(),
+      sizeBytes: z.number().nonnegative().optional(),
+    })
+    .optional(),
+});
+
+const indexeddbOperationEntrySchema = z.object({
+  name: z.literal(IngestEntryName.INDEXEDDB_OPERATION),
+  duration: z.number().nonnegative(),
+  detail: z
+    .object({
+      operation: z.string().optional(),
+      store: z.string().optional(),
+      error: z.string().optional(),
+    })
+    .optional(),
+});
+
 /**
  * Discriminated union of all client metric entry shapes.
  * Used for validating individual entries in the ingest payload.
@@ -42,6 +91,10 @@ const kernelExportGeometryEntrySchema = z.object({
 export const clientMetricEntrySchema = z.discriminatedUnion('name', [
   kernelCreateGeometryEntrySchema,
   kernelExportGeometryEntrySchema,
+  websocketReconnectionEntrySchema,
+  editorLoadEntrySchema,
+  wasmModuleLoadEntrySchema,
+  indexeddbOperationEntrySchema,
 ]);
 
 /**

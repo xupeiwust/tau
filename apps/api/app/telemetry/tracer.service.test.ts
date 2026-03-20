@@ -16,47 +16,10 @@ describe('TracerService', () => {
     service = module.get(TracerService);
   });
 
-  describe('withSpan', () => {
-    it('should execute the function and return its result', async () => {
-      const result = await service.withSpan('test-span', async () => {
-        return 42;
-      });
-      expect(result).toBe(42);
-    });
-
-    it('should propagate errors from the wrapped function', async () => {
-      await expect(
-        service.withSpan('error-span', async () => {
-          throw new Error('test error');
-        }),
-      ).rejects.toThrow('test error');
-    });
-
-    it('should accept attributes', async () => {
-      const result = await service.withSpan('attributed-span', async () => 'ok', { 'test.key': 'value' });
-      expect(result).toBe('ok');
-    });
-  });
-
   describe('injectTraceContext', () => {
     it('should return an object (may be empty when no active span)', () => {
       const carrier = service.injectTraceContext();
       expect(carrier).toBeTypeOf('object');
-    });
-  });
-
-  describe('withExtractedContext', () => {
-    it('should execute function with extracted context', () => {
-      const result = service.withExtractedContext({}, () => 'hello');
-      expect(result).toBe('hello');
-    });
-  });
-
-  describe('startSpan', () => {
-    it('should return a span that can be ended', () => {
-      const span = service.startSpan('manual-span');
-      expect(span).toBeDefined();
-      span.end();
     });
   });
 });

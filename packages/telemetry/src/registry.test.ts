@@ -4,8 +4,8 @@ import { TauMetrics } from '#registry.js';
 describe('TauMetrics', () => {
   const metrics = Object.values(TauMetrics);
 
-  it('should define exactly 16 metrics', () => {
-    expect(metrics).toHaveLength(16);
+  it('should define all canonical metrics', () => {
+    expect(metrics).toHaveLength(21);
   });
 
   it('should use lowercase dot-delimited names for all metrics', () => {

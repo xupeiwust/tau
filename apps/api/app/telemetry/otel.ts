@@ -2,8 +2,12 @@
  * OpenTelemetry SDK initialization.
  *
  * This module MUST be imported before any other application code to ensure
- * auto-instrumentations can patch modules as they load. It is imported
- * as a side-effect at the top of main.ts.
+ * auto-instrumentations can patch modules as they load.
+ *
+ * Production: Loaded via `NODE_OPTIONS="--import ./dist/telemetry/otel.js"` in the
+ * Dockerfile, ensuring all modules are patched before import.
+ *
+ * Development: Imported as a side-effect at the top of main.ts.
  *
  * Metrics: Exposed via PrometheusExporter on a separate port (default 9464),
  * scraped by Fly.io's managed VictoriaMetrics.
@@ -20,8 +24,14 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { LangChainInstrumentation } from '@traceloop/instrumentation-langchain';
 
 const metricsPort = Number(process.env['OTEL_METRICS_PORT']) || 9464;
+
+// OTEL env vars must be set before SDK initialization (NestJS ConfigModule
+// loads after the SDK starts, so these cannot live in environment.config.ts).
+process.env['OTEL_METRICS_EXEMPLAR_FILTER'] ??= 'trace_based';
+process.env['OTEL_SEMCONV_STABILITY_OPT_IN'] ??= 'http';
 
 /* eslint-disable @typescript-eslint/naming-convention -- OTEL semantic convention attribute names use dot-notation */
 const resource = resourceFromAttributes({
@@ -49,15 +59,43 @@ const sdk = new NodeSDK({
   logRecordProcessor: hasOtlpEndpoint ? new BatchLogRecordProcessor(new OTLPLogExporter()) : undefined,
 
   instrumentations: [
+    new LangChainInstrumentation(),
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': { enabled: false },
       '@opentelemetry/instrumentation-dns': { enabled: false },
       '@opentelemetry/instrumentation-net': { enabled: false },
       '@opentelemetry/instrumentation-fastify': { enabled: false },
+      '@opentelemetry/instrumentation-http': {
+        ignoreIncomingRequestHook: (request) => {
+          const host = request.headers.host ?? '';
+          return host.includes(String(metricsPort));
+        },
+      },
+      '@opentelemetry/instrumentation-pg': {
+        addSqlCommenterCommentToQueries: false,
+      },
     }),
   ],
 });
 
 sdk.start();
+
+if (process.env['PYROSCOPE_SERVER_ADDRESS']) {
+  import('@pyroscope/nodejs')
+    .then(({ default: Pyroscope }) => {
+      Pyroscope.init({
+        serverAddress: process.env['PYROSCOPE_SERVER_ADDRESS']!,
+        appName: 'tau-api',
+        tags: {
+          region: process.env['FLY_REGION'] ?? 'local',
+          version: process.env['FLY_IMAGE_REF'] ?? 'dev',
+        },
+      });
+      Pyroscope.start();
+    })
+    .catch(() => {
+      // Pyroscope is optional; silently skip if unavailable
+    });
+}
 
 export { sdk };

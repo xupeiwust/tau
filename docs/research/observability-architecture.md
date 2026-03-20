@@ -1,9 +1,10 @@
 ---
 title: 'Observability Architecture for Agentic CAD Platform'
 description: 'Research into monitoring topology, OTEL architecture, structured logging, error tracking, custom metrics, and Grafana dashboards for Tau'
-status: draft
+status: superseded
+superseded_by: docs/research/observability-architecture-v2.md
 created: '2026-03-18'
-updated: '2026-03-18'
+updated: '2026-03-19'
 category: architecture
 related:
   - docs/policy/vision-policy.md

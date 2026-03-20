@@ -1,5 +1,4 @@
 /* oxlint-disable new-cap -- NestJS decorators use PascalCase */
-/* eslint-disable @typescript-eslint/naming-convention -- OTEL attribute names use dot-notation */
 import { Body, Controller, Post, HttpCode, UseGuards } from '@nestjs/common';
 import { IngestEntryName, AttributeKey } from '@taucad/telemetry';
 import { AuthGuard } from '#auth/auth.guard.js';
@@ -20,19 +19,45 @@ export class TelemetryController {
   public ingest(@Body() body: IngestPayloadDto): void {
     for (const entry of body.entries) {
       const durationSeconds = entry.duration / 1000;
-      const status = entry.detail?.status ?? 'unknown';
 
       switch (entry.name) {
         case IngestEntryName.KERNEL_CREATE_GEOMETRY: {
+          const status = entry.detail?.status ?? 'unknown';
           this.metrics.kernelExecutionDuration.record(durationSeconds, { [AttributeKey.KERNEL_STATUS]: status });
           this.metrics.kernelExecutions.add(1, { [AttributeKey.KERNEL_STATUS]: status });
           break;
         }
         case IngestEntryName.KERNEL_EXPORT_GEOMETRY: {
+          const status = entry.detail?.status ?? 'unknown';
           const format = entry.detail?.exportFormat ?? 'unknown';
           this.metrics.kernelExportDuration.record(durationSeconds, {
             [AttributeKey.KERNEL_STATUS]: status,
             [AttributeKey.EXPORT_FORMAT]: format,
+          });
+          break;
+        }
+        case IngestEntryName.WEBSOCKET_RECONNECTION: {
+          this.metrics.wsReconnectionDuration.record(durationSeconds, {
+            [AttributeKey.WS_RECONNECTION_ATTEMPT]: entry.detail?.attempt ?? 0,
+          });
+          break;
+        }
+        case IngestEntryName.EDITOR_LOAD: {
+          this.metrics.editorLoadDuration.record(durationSeconds, {
+            [AttributeKey.EDITOR_KERNEL]: entry.detail?.kernel ?? 'unknown',
+          });
+          break;
+        }
+        case IngestEntryName.WASM_MODULE_LOAD: {
+          this.metrics.wasmModuleLoadDuration.record(durationSeconds, {
+            [AttributeKey.WASM_MODULE]: entry.detail?.module ?? 'unknown',
+          });
+          break;
+        }
+        case IngestEntryName.INDEXEDDB_OPERATION: {
+          this.metrics.indexeddbOperationDuration.record(durationSeconds, {
+            [AttributeKey.INDEXEDDB_OPERATION]: entry.detail?.operation ?? 'unknown',
+            [AttributeKey.INDEXEDDB_STORE]: entry.detail?.store ?? 'unknown',
           });
           break;
         }

@@ -69,12 +69,21 @@ export const createUsageTrackingMiddleware = (metricsService: MetricsService): A
         const usageCost = modelService.getModelCost(modelId, normalizedUsage);
         const usageId = generatePrefixedId(idPrefix.data);
 
-        const metricAttributes = { [AttributeKey.GEN_AI_REQUEST_MODEL]: modelId };
-        metricsService.genAiTokenUsage.record(normalizedUsage.inputTokens, {
+        const otelProviderName = modelService.getOtelProviderName(modelId);
+        const responseModel = String(
+          lastMessage.response_metadata['model'] ?? lastMessage.response_metadata['model_name'] ?? '',
+        );
+        const metricAttributes: Record<string, string> = {
+          [AttributeKey.GEN_AI_OPERATION_NAME]: 'chat',
+          [AttributeKey.GEN_AI_REQUEST_MODEL]: modelId,
+          ...(otelProviderName ? { [AttributeKey.GEN_AI_PROVIDER_NAME]: otelProviderName } : {}),
+          ...(responseModel ? { [AttributeKey.GEN_AI_RESPONSE_MODEL]: responseModel } : {}),
+        };
+        metricsService.genAiTokenUsage.record(usage.input_tokens, {
           ...metricAttributes,
           [AttributeKey.GEN_AI_TOKEN_TYPE]: GenAiTokenType.INPUT,
         });
-        metricsService.genAiTokenUsage.record(normalizedUsage.outputTokens, {
+        metricsService.genAiTokenUsage.record(usage.output_tokens, {
           ...metricAttributes,
           [AttributeKey.GEN_AI_TOKEN_TYPE]: GenAiTokenType.OUTPUT,
         });

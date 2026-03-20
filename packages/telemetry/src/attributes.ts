@@ -17,6 +17,15 @@ export const AttributeKey = {
   REDIS_ROLE: 'redis.role',
   SSE_EVENT_TYPE: 'sse.event.type',
   ERROR_TYPE: 'error.type',
+  WS_RECONNECTION_ATTEMPT: 'ws.reconnection.attempt',
+  EDITOR_KERNEL: 'editor.kernel',
+  WASM_MODULE: 'wasm.module',
+  INDEXEDDB_OPERATION: 'indexeddb.operation',
+  INDEXEDDB_STORE: 'indexeddb.store',
+  GEN_AI_PROVIDER_NAME: 'gen_ai.provider.name',
+  GEN_AI_OPERATION_NAME: 'gen_ai.operation.name',
+  GEN_AI_RESPONSE_MODEL: 'gen_ai.response.model',
+  WS_DIRECTION: 'ws.direction',
 } as const;
 
 /**

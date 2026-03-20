@@ -1,6 +1,7 @@
 import { Body, Controller, Logger, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
 import { convertToModelMessages, createUIMessageStreamResponse } from 'ai';
+import type { UIMessageChunk } from 'ai';
 import type { FastifyReply } from 'fastify';
 import type { ReactAgent } from 'langchain';
 import type { ToolSelection, ChatSnapshot } from '@taucad/chat';
@@ -17,8 +18,13 @@ import { injectSnapshotContext } from '#api/chat/utils/inject-snapshot-context.j
 import { createStaticToolTransform } from '#api/chat/utils/static-tool-transform.js';
 import { createErrorTransform } from '#api/chat/utils/error-transform.js';
 import { createToolOutputTransform } from '#api/chat/utils/tool-output-transform.js';
+import { createNewlineTrimTransform } from '#api/chat/utils/newline-trim-transform.js';
 import { ChatExceptionFilter } from '#api/chat/chat-exception.filter.js';
 import { ChatAbortError, isChatAbortError, registerChatAbort } from '#api/chat/utils/chat-abort.js';
+import { MetricsService } from '#telemetry/metrics.js';
+import { Span } from '#telemetry/tracer.service.js';
+import { AttributeKey } from '@taucad/telemetry';
+import { TtftCallbackHandler } from '#api/chat/middleware/ttft-callback.handler.js';
 
 type LangChainMessages = Awaited<ReturnType<typeof toBaseMessages>>;
 
@@ -45,9 +51,11 @@ export class ChatController {
     private readonly modelService: ModelService,
     private readonly fileEditService: FileEditService,
     private readonly geometryAnalysisService: GeometryAnalysisService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   @Post()
+  @Span()
   public async createChat(@Body() body: CreateChatDto, @Res() response: FastifyReply): Promise<void> {
     this.logger.debug(`Creating chat: ${body.id}`);
 
@@ -77,6 +85,106 @@ export class ChatController {
       modelId,
       response,
     });
+  }
+
+  /**
+   * Sets up client-disconnect abort handling, runs the LangGraph agent stream,
+   * and pipes the result as an SSE response.
+   */
+  @Span()
+  private async streamAgentResponse(options: {
+    chatId: string;
+    agent: ReactAgent;
+    messages: LangChainMessages;
+    modelId: string;
+    response: FastifyReply;
+  }): Promise<void> {
+    const { chatId, agent, messages, modelId, response } = options;
+
+    // Abort the request if the client disconnects.
+    // Listen on response.raw (ServerResponse) — for SSE, the response stream
+    // stays open and its 'close' event fires when the client disconnects.
+    // request.raw (IncomingMessage) fires 'close' when the POST body is consumed,
+    // which is too early to detect SSE disconnects.
+    const abortController = new AbortController();
+
+    response.raw.on('close', () => {
+      if (!response.raw.writableFinished) {
+        registerChatAbort(chatId);
+        abortController.abort(new ChatAbortError(chatId));
+      }
+    });
+
+    // Register the abort signal on the RPC service so in-flight RPC calls
+    // are rejected immediately when the client aborts, rather than waiting
+    // for the 60s timeout
+    this.chatRpcService.registerAbortSignal(chatId, abortController.signal);
+
+    this.logger.debug(`Starting execution for thread: ${chatId}`);
+
+    this.metricsService.sseActiveConnections.add(1);
+
+    try {
+      const ttftHandler = new TtftCallbackHandler(this.metricsService, this.modelService, modelId);
+
+      const stream = await agent.graph.stream(
+        { messages },
+        {
+          configurable: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
+            thread_id: chatId,
+            chatRpcService: this.chatRpcService,
+            fileEditService: this.fileEditService,
+            geometryAnalysisService: this.geometryAnalysisService,
+          },
+          signal: abortController.signal,
+          streamMode: ['values', 'messages', 'custom'],
+          callbacks: [ttftHandler],
+          context: {
+            modelId,
+            modelService: this.modelService,
+            logger: this.logger,
+          },
+          recursionLimit: 200,
+        },
+      );
+
+      void response.header('content-type', 'text/event-stream');
+      void response.header('cache-control', 'no-cache, no-store');
+      void response.header('connection', 'keep-alive');
+      void response.header('x-vercel-ai-ui-message-stream', 'v1');
+      void response.header('x-accel-buffering', 'no');
+
+      const uiMessageStream = toUIMessageStream(stream)
+        .pipeThrough(createStaticToolTransform())
+        .pipeThrough(createToolOutputTransform())
+        .pipeThrough(createNewlineTrimTransform())
+        .pipeThrough(createErrorTransform())
+        .pipeThrough(this.createSseEventCountTransform());
+
+      const uiMessageStreamResponse = createUIMessageStreamResponse({
+        stream: uiMessageStream,
+      });
+
+      const responseBody = uiMessageStreamResponse.body;
+      if (responseBody) {
+        return await response.send(responseBody);
+      }
+
+      throw new Error('Failed to create UI message stream response');
+    } catch (error) {
+      // When the client disconnects, we abort with a branded ChatAbortError
+      // reason. Check signal.reason for our brand — this is a definitive match
+      // regardless of what error LangGraph/node-fetch actually throws.
+      if (abortController.signal.aborted && isChatAbortError(abortController.signal.reason)) {
+        this.logger.debug(`Chat ${chatId} was cancelled by client`);
+        return;
+      }
+
+      throw error;
+    } finally {
+      this.metricsService.sseActiveConnections.add(-1);
+    }
   }
 
   /**
@@ -130,94 +238,12 @@ export class ChatController {
     return toBaseMessages(messagesWithContext);
   }
 
-  /**
-   * Sets up client-disconnect abort handling, runs the LangGraph agent stream,
-   * and pipes the result as an SSE response.
-   */
-  private async streamAgentResponse(options: {
-    chatId: string;
-    agent: ReactAgent;
-    messages: LangChainMessages;
-    modelId: string;
-    response: FastifyReply;
-  }): Promise<void> {
-    const { chatId, agent, messages, modelId, response } = options;
-
-    // Abort the request if the client disconnects.
-    // Listen on response.raw (ServerResponse) — for SSE, the response stream
-    // stays open and its 'close' event fires when the client disconnects.
-    // request.raw (IncomingMessage) fires 'close' when the POST body is consumed,
-    // which is too early to detect SSE disconnects.
-    const abortController = new AbortController();
-
-    response.raw.on('close', () => {
-      if (!response.raw.writableFinished) {
-        registerChatAbort(chatId);
-        abortController.abort(new ChatAbortError(chatId));
-      }
+  private createSseEventCountTransform(): TransformStream<UIMessageChunk, UIMessageChunk> {
+    return new TransformStream({
+      transform: (chunk, controller) => {
+        this.metricsService.sseEvents.add(1, { [AttributeKey.SSE_EVENT_TYPE]: 'message' });
+        controller.enqueue(chunk);
+      },
     });
-
-    // Register the abort signal on the RPC service so in-flight RPC calls
-    // are rejected immediately when the client aborts, rather than waiting
-    // for the 60s timeout
-    this.chatRpcService.registerAbortSignal(chatId, abortController.signal);
-
-    this.logger.debug(`Starting execution for thread: ${chatId}`);
-
-    try {
-      const stream = await agent.graph.stream(
-        { messages },
-        {
-          configurable: {
-            // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
-            thread_id: chatId,
-            chatRpcService: this.chatRpcService,
-            fileEditService: this.fileEditService,
-            geometryAnalysisService: this.geometryAnalysisService,
-          },
-          signal: abortController.signal,
-          streamMode: ['values', 'messages', 'custom'],
-          context: {
-            modelId,
-            modelService: this.modelService,
-            logger: this.logger,
-          },
-          recursionLimit: 200,
-        },
-      );
-
-      void response.header('content-type', 'text/event-stream');
-      void response.header('cache-control', 'no-cache, no-store');
-      void response.header('connection', 'keep-alive');
-      void response.header('x-vercel-ai-ui-message-stream', 'v1');
-      void response.header('x-accel-buffering', 'no');
-
-      const uiMessageStream = toUIMessageStream(stream)
-        .pipeThrough(createStaticToolTransform())
-        .pipeThrough(createToolOutputTransform())
-        .pipeThrough(createNewlineTrimTransform())
-        .pipeThrough(createErrorTransform());
-
-      const uiMessageStreamResponse = createUIMessageStreamResponse({
-        stream: uiMessageStream,
-      });
-
-      const responseBody = uiMessageStreamResponse.body;
-      if (responseBody) {
-        return await response.send(responseBody);
-      }
-
-      throw new Error('Failed to create UI message stream response');
-    } catch (error) {
-      // When the client disconnects, we abort with a branded ChatAbortError
-      // reason. Check signal.reason for our brand — this is a definitive match
-      // regardless of what error LangGraph/node-fetch actually throws.
-      if (abortController.signal.aborted && isChatAbortError(abortController.signal.reason)) {
-        this.logger.debug(`Chat ${chatId} was cancelled by client`);
-        return;
-      }
-
-      throw error;
-    }
   }
 }

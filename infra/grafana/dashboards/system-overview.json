@@ -6,6 +6,29 @@
   "timezone": "browser",
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(up, service_name)",
+        "current": { "text": "tau-api", "value": "tau-api" },
+        "includeAll": false,
+        "refresh": 1
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(up{service_name=\"$service\"}, instance)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 1
+      }
+    ]
+  },
   "links": [
     {
       "title": "SLO / Executive",
@@ -46,7 +69,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
       "targets": [
         {
-          "expr": "(1 - (sum(rate(http_server_duration_count{service_name=\"tau-api\",http_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_duration_count{service_name=\"tau-api\"}[5m])), 1e-10)) * 100",
+          "expr": "(1 - (sum(rate(http_server_duration_count{service_name=~\"$service\",http_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_duration_count{service_name=~\"$service\"}[5m])), 1e-10)) * 100",
           "legendFormat": "availability"
         }
       ],
@@ -71,7 +94,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
       "targets": [
         {
-          "expr": "(sum(rate(http_server_duration_count{service_name=\"tau-api\",http_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_duration_count{service_name=\"tau-api\"}[5m])), 1e-10) * 100"
+          "expr": "(sum(rate(http_server_duration_count{service_name=~\"$service\",http_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_duration_count{service_name=~\"$service\"}[5m])), 1e-10) * 100"
         }
       ],
       "fieldConfig": {
@@ -93,7 +116,7 @@
       "description": "Active WebSocket connections",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "targets": [{ "expr": "ws_connections_active{service_name=\"tau-api\"}" }],
+      "targets": [{ "expr": "ws_connections_active{service_name=~\"$service\"}" }],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -106,7 +129,7 @@
       "description": "Redis connection health",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "targets": [{ "expr": "redis_connection_state{service_name=\"tau-api\"}" }],
+      "targets": [{ "expr": "redis_connection_state{service_name=~\"$service\"}" }],
       "fieldConfig": {
         "defaults": {
           "mappings": [
@@ -120,11 +143,13 @@
       }
     },
     {
-      "title": "AI Cost (1h)",
-      "description": "Estimated LLM spend in the last hour",
+      "title": "AI Cost",
+      "description": "Estimated LLM spend in the selected time range",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
-      "targets": [{ "expr": "sum(increase(gen_ai_client_cost_total{service_name=\"tau-api\"}[1h])) or vector(0)" }],
+      "targets": [
+        { "expr": "sum(increase(gen_ai_client_cost_total{service_name=~\"$service\"}[$__range])) or vector(0)" }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
@@ -144,7 +169,7 @@
       "description": "Active server-sent event streams (AI chat)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
-      "targets": [{ "expr": "sse_connections_active{service_name=\"tau-api\"} or vector(0)" }],
+      "targets": [{ "expr": "sse_connections_active{service_name=~\"$service\"} or vector(0)" }],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -166,7 +191,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 0, "y": 6 },
       "targets": [
         {
-          "expr": "sum(rate(http_server_duration_count{service_name=\"tau-api\"}[5m]))",
+          "expr": "sum(rate(http_server_duration_count{service_name=~\"$service\"}[5m]))",
           "legendFormat": "req/s"
         }
       ],
@@ -181,7 +206,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 8, "y": 6 },
       "targets": [
         {
-          "expr": "sum(rate(rpc_server_call_duration_count{service_name=\"tau-api\"}[5m])) or vector(0)",
+          "expr": "sum(rate(rpc_server_call_duration_count{service_name=~\"$service\"}[5m])) or vector(0)",
           "legendFormat": "calls/s"
         }
       ],
@@ -196,11 +221,11 @@
       "gridPos": { "h": 7, "w": 8, "x": 16, "y": 6 },
       "targets": [
         {
-          "expr": "ws_connections_active{service_name=\"tau-api\"}",
+          "expr": "ws_connections_active{service_name=~\"$service\"}",
           "legendFormat": "WebSocket"
         },
         {
-          "expr": "sse_connections_active{service_name=\"tau-api\"}",
+          "expr": "sse_connections_active{service_name=~\"$service\"}",
           "legendFormat": "SSE"
         }
       ],
@@ -222,7 +247,7 @@
       "gridPos": { "h": 7, "w": 6, "x": 0, "y": 14 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_bucket{service_name=\"tau-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_bucket{service_name=~\"$service\"}[5m])) by (le))",
           "legendFormat": "HTTP p95"
         }
       ],
@@ -235,7 +260,7 @@
       "gridPos": { "h": 7, "w": 6, "x": 6, "y": 14 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(rpc_server_call_duration_bucket{service_name=\"tau-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(rpc_server_call_duration_bucket{service_name=~\"$service\"}[5m])) by (le))",
           "legendFormat": "RPC p95"
         }
       ],
@@ -248,7 +273,7 @@
       "gridPos": { "h": 7, "w": 6, "x": 12, "y": 14 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(db_client_operation_duration_bucket{service_name=\"tau-api\",db_system=\"postgresql\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(db_client_operation_duration_bucket{service_name=~\"$service\",db_system=\"postgresql\"}[5m])) by (le))",
           "legendFormat": "DB p95"
         }
       ],
@@ -261,7 +286,7 @@
       "gridPos": { "h": 7, "w": 6, "x": 18, "y": 14 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_client_operation_duration_bucket{service_name=\"tau-api\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_client_operation_duration_bucket{service_name=~\"$service\"}[5m])) by (le))",
           "legendFormat": "LLM p95"
         }
       ],
@@ -281,15 +306,15 @@
       "gridPos": { "h": 7, "w": 12, "x": 0, "y": 22 },
       "targets": [
         {
-          "expr": "sum(rate(http_server_duration_count{service_name=\"tau-api\",http_status_code=~\"5..\"}[5m])) or vector(0)",
+          "expr": "sum(rate(http_server_duration_count{service_name=~\"$service\",http_status_code=~\"5..\"}[5m])) or vector(0)",
           "legendFormat": "HTTP 5xx"
         },
         {
-          "expr": "sum(rate(rpc_server_call_duration_count{service_name=\"tau-api\",rpc_status=\"error\"}[5m])) or vector(0)",
+          "expr": "sum(rate(rpc_server_call_duration_count{service_name=~\"$service\",rpc_status=\"error\"}[5m])) or vector(0)",
           "legendFormat": "RPC errors"
         },
         {
-          "expr": "sum(rate(kernel_executions_total{service_name=\"tau-api\",kernel_status=\"error\"}[5m])) or vector(0)",
+          "expr": "sum(rate(kernel_executions_total{service_name=~\"$service\",kernel_status=\"error\"}[5m])) or vector(0)",
           "legendFormat": "Kernel errors"
         }
       ],
@@ -304,7 +329,7 @@
       "gridPos": { "h": 7, "w": 12, "x": 12, "y": 22 },
       "targets": [
         {
-          "expr": "sum(rate(ws_disconnections_total{service_name=\"tau-api\",ws_close_reason!=\"\"}[5m])) by (ws_close_reason)",
+          "expr": "sum(rate(ws_disconnections_total{service_name=~\"$service\",ws_close_reason!=\"\"}[5m])) by (ws_close_reason)",
           "legendFormat": "{{ws_close_reason}}"
         }
       ],
@@ -326,7 +351,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 0, "y": 30 },
       "targets": [
         {
-          "expr": "sum(rate(gen_ai_client_token_usage_sum{service_name=\"tau-api\"}[5m])) by (gen_ai_request_model)",
+          "expr": "sum(rate(gen_ai_client_token_usage_sum{service_name=~\"$service\"}[5m])) by (gen_ai_request_model)",
           "legendFormat": "{{gen_ai_request_model}}"
         }
       ],
@@ -341,7 +366,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 8, "y": 30 },
       "targets": [
         {
-          "expr": "sum(rate(gen_ai_tool_invocations_total{service_name=\"tau-api\"}[5m])) by (gen_ai_tool_name)",
+          "expr": "sum(rate(gen_ai_tool_invocations_total{service_name=~\"$service\"}[5m])) by (gen_ai_tool_name)",
           "legendFormat": "{{gen_ai_tool_name}}"
         }
       ],
@@ -356,7 +381,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 16, "y": 30 },
       "targets": [
         {
-          "expr": "sum(rate(kernel_executions_total{service_name=\"tau-api\"}[5m])) by (kernel_status)",
+          "expr": "sum(rate(kernel_executions_total{service_name=~\"$service\"}[5m])) by (kernel_status)",
           "legendFormat": "{{kernel_status}}"
         }
       ],
@@ -378,11 +403,11 @@
       "gridPos": { "h": 7, "w": 8, "x": 0, "y": 38 },
       "targets": [
         {
-          "expr": "sum(v8js_memory_heap_used{service_name=\"tau-api\"})",
+          "expr": "sum(v8js_memory_heap_used{service_name=~\"$service\"})",
           "legendFormat": "heap used"
         },
         {
-          "expr": "sum(v8js_memory_heap_limit{service_name=\"tau-api\"})",
+          "expr": "sum(v8js_memory_heap_limit{service_name=~\"$service\"})",
           "legendFormat": "heap limit"
         }
       ],
@@ -397,7 +422,7 @@
       "gridPos": { "h": 7, "w": 8, "x": 8, "y": 38 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(db_client_operation_duration_bucket{service_name=\"tau-api\",db_system=\"postgresql\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(db_client_operation_duration_bucket{service_name=~\"$service\",db_system=\"postgresql\"}[5m])) by (le))",
           "legendFormat": "PostgreSQL p95"
         }
       ],
@@ -412,11 +437,11 @@
       "gridPos": { "h": 7, "w": 8, "x": 16, "y": 38 },
       "targets": [
         {
-          "expr": "nodejs_eventloop_utilization{service_name=\"tau-api\"}",
+          "expr": "nodejs_eventloop_utilization{service_name=~\"$service\"}",
           "legendFormat": "utilization"
         },
         {
-          "expr": "nodejs_eventloop_delay_p99{service_name=\"tau-api\"}",
+          "expr": "nodejs_eventloop_delay_p99{service_name=~\"$service\"}",
           "legendFormat": "p99 delay"
         }
       ],
@@ -432,6 +457,38 @@
           }
         ]
       }
+    },
+
+    {
+      "title": "Logs",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "collapsed": true,
+      "panels": [
+        {
+          "title": "Error Logs",
+          "type": "logs",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 46 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [{ "expr": "{service_name=~\"$service\"} |= \"level\" | json | level = \"error\"", "refId": "A" }],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "sortOrder": "Descending"
+          }
+        },
+        {
+          "title": "Recent Traces",
+          "type": "traces",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 54 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [{ "query": "{resource.service.name=~\"$service\"}", "refId": "A", "queryType": "traceqlSearch" }]
+        }
+      ]
     }
   ],
   "schemaVersion": 39

@@ -50,6 +50,9 @@ const environmentSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // Local Model Providers
+  OLLAMA_ENABLED: z.coerce.boolean().default(false).describe('Enable Ollama local model provider'),
+
   // Kernel Integrations
   ZOO_API_KEY: z.string().describe('Zoo.dev API key for KCL kernel proxy'),
   ZOO_WEBSOCKET_URL: z.string().describe('Zoo.dev API URL for KCL kernel proxy').default('wss://api.zoo.dev'),

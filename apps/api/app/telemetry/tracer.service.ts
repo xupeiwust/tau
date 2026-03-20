@@ -1,56 +1,23 @@
 /* oxlint-disable new-cap -- NestJS decorators use PascalCase */
 import { Injectable } from '@nestjs/common';
 import { trace, context, SpanStatusCode, propagation } from '@opentelemetry/api';
-import type { Span, Attributes } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('tau-api');
 
+/**
+ * Inject W3C trace context into a carrier object for cross-service propagation.
+ * Standalone function using the module-level OTEL context — no service injection needed.
+ */
+export const injectTraceContext = (): Record<string, string> => {
+  const carrier: Record<string, string> = {};
+  propagation.inject(context.active(), carrier);
+  return carrier;
+};
+
 @Injectable()
 export class TracerService {
-  /**
-   * Execute an async function within a new OTEL span.
-   * The span is automatically ended and its status set based on success/failure.
-   */
-  public async withSpan<T>(name: string, handler: (span: Span) => Promise<T>, attributes?: Attributes): Promise<T> {
-    return tracer.startActiveSpan(name, { attributes }, async (span) => {
-      try {
-        const result = await handler(span);
-        span.setStatus({ code: SpanStatusCode.OK });
-        return result;
-      } catch (error) {
-        span.setStatus({ code: SpanStatusCode.ERROR });
-        if (error instanceof Error) {
-          span.recordException(error);
-        }
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  /**
-   * Inject W3C trace context into a carrier object for cross-service propagation.
-   * Used to propagate trace context across Socket.IO RPC payloads.
-   */
   public injectTraceContext(): Record<string, string> {
-    const carrier: Record<string, string> = {};
-    propagation.inject(context.active(), carrier);
-    return carrier;
-  }
-
-  /**
-   * Extract trace context from a carrier and run a function within that context.
-   * Used on the receiving side of Socket.IO to link spans.
-   */
-  public withExtractedContext<T>(carrier: Record<string, string>, handler: () => T): T {
-    const extractedContext = propagation.extract(context.active(), carrier);
-    return context.with(extractedContext, handler);
-  }
-
-  /** Start a span and return it for manual control. */
-  public startSpan(name: string, attributes?: Attributes): Span {
-    return tracer.startSpan(name, { attributes });
+    return injectTraceContext();
   }
 }
 

@@ -21,6 +21,7 @@ groups:
         condition: redis_down
         data:
           - refId: redis_down
+            datasourceUid: prometheus
             relativeTimeRange:
               from: 300
               to: 0
@@ -47,13 +48,14 @@ groups:
         condition: rpc_errors_high
         data:
           - refId: rpc_errors_high
+            datasourceUid: prometheus
             relativeTimeRange:
               from: 300
               to: 0
             model:
               expr: >
-                sum(rate(rpc_server_call_duration_seconds_count{service_name="tau-api",rpc_status="error"}[5m]))
-                / sum(rate(rpc_server_call_duration_seconds_count{service_name="tau-api"}[5m])) > 0.1
+                sum(rate(rpc_server_call_duration_count{service_name="tau-api",rpc_status="error"}[5m]))
+                / sum(rate(rpc_server_call_duration_count{service_name="tau-api"}[5m])) > 0.1
               intervalMs: 15000
               maxDataPoints: 20
         for: 5m
@@ -69,6 +71,7 @@ groups:
         condition: ws_disconnect_spike
         data:
           - refId: ws_disconnect_spike
+            datasourceUid: prometheus
             relativeTimeRange:
               from: 300
               to: 0
@@ -90,13 +93,14 @@ groups:
         condition: llm_errors
         data:
           - refId: llm_errors
+            datasourceUid: prometheus
             relativeTimeRange:
               from: 600
               to: 0
             model:
               expr: >
-                sum(rate(gen_ai_client_operation_duration_seconds_count{service_name="tau-api",error_type!=""}[10m]))
-                / sum(rate(gen_ai_client_operation_duration_seconds_count{service_name="tau-api"}[10m])) > 0.05
+                sum(rate(gen_ai_client_operation_duration_count{service_name="tau-api",error_type!=""}[10m]))
+                / sum(rate(gen_ai_client_operation_duration_count{service_name="tau-api"}[10m])) > 0.05
               intervalMs: 15000
               maxDataPoints: 20
         for: 5m
@@ -112,13 +116,14 @@ groups:
         condition: http_5xx_high
         data:
           - refId: http_5xx_high
+            datasourceUid: prometheus
             relativeTimeRange:
               from: 300
               to: 0
             model:
               expr: >
-                sum(rate(http_server_request_duration_seconds_count{service_name="tau-api",http_response_status_code=~"5.."}[5m]))
-                / sum(rate(http_server_request_duration_seconds_count{service_name="tau-api"}[5m])) > 0.05
+                sum(rate(http_server_duration_count{service_name="tau-api",http_status_code=~"5.."}[5m]))
+                / sum(rate(http_server_duration_count{service_name="tau-api"}[5m])) > 0.05
               intervalMs: 15000
               maxDataPoints: 20
         for: 5m
