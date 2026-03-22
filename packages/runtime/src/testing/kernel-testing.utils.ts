@@ -489,7 +489,7 @@ export function assertSuccess<T>(result: KernelResult<T>, context?: string): ass
   if (!result.success) {
     const prefix = context ? `[${context}] ` : '';
     const issuesSummary = result.issues.map((issue) => `  [${issue.severity}] ${issue.message}`).join('\n');
-    console.error(`${prefix}Expected success but got failure:\n${issuesSummary}`);
+    throw new Error(`${prefix}Expected success but got failure:\n${issuesSummary}`);
   }
 
   expect(result.success).toBe(true);
