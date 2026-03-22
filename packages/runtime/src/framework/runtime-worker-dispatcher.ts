@@ -178,7 +178,6 @@ export function createWorkerDispatcher(worker: KernelWorker, port: RuntimeMessag
         }
 
         case 'setFile': {
-          console.log('[KernelDispatcher] setFile received', { file: message.file, params: message.parameters });
           worker.handleSetFile(message.file, message.parameters, message.tessellation);
           break;
         }

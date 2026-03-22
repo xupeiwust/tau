@@ -87,7 +87,6 @@ export function exposeFileSystem<T extends StringKeyedObject>(
 
   const handler = (event: MessageEvent): void => {
     if (event.data?.type === messageType && event.data.port instanceof MessagePort) {
-      console.debug(`[exposeFileSystem] connect received, setting up bridge server`);
       const port = event.data.port as MessagePort;
       const stopAndReplayMessages = catchMessages(port);
       const portId = `port_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

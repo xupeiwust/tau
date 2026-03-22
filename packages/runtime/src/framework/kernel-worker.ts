@@ -473,7 +473,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param tessellation - Optional tessellation config.
    */
   public handleSetFile(file: GeometryFile, parameters: Record<string, unknown>, tessellation?: Tessellation): void {
-    console.log('[KernelWorker] handleSetFile', { file, parameters, tessellation });
     this.currentFile = file;
     this.currentParameters = parameters;
     this.currentTessellation = tessellation;
@@ -1356,7 +1355,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   private async executeRender(): Promise<void> {
     if (!this.currentFile) {
-      console.log('[KernelWorker] executeRender: no currentFile, skipping');
       return;
     }
 
@@ -1364,8 +1362,6 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     if (this.signalView) {
       Atomics.store(this.signalView, signalSlot.abortGeneration, generation);
     }
-
-    console.log('[KernelWorker] executeRender: starting', { file: this.currentFile.filename, generation });
 
     this.pushState('rendering');
     this.pushProgress(0);
@@ -1383,18 +1379,13 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       this.setBasePath(this.currentFile);
 
       if (this.isAborted(generation)) {
-        console.log('[KernelWorker] executeRender: aborted after setBasePath');
         return;
       }
 
-      console.log('[KernelWorker] executeRender: getting parameters...');
       const parametersResult = await this.getParameters(this.currentFile);
       if (this.isAborted(generation)) {
-        console.log('[KernelWorker] executeRender: aborted after getParameters');
         return;
       }
-
-      console.log('[KernelWorker] executeRender: parameters resolved', { success: parametersResult.success });
       this.onParametersResolved?.(parametersResult);
 
       let mergedParameters = this.currentParameters;
@@ -1409,13 +1400,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
       await cooperativeYield();
       if (this.isAborted(generation)) {
-        console.log('[KernelWorker] executeRender: aborted after yield');
         return;
       }
 
       this.pushProgress(30);
 
-      console.log('[KernelWorker] executeRender: creating geometry...');
       const result = await this.createGeometry({
         file: this.currentFile,
         parameters: mergedParameters,
@@ -1423,11 +1412,8 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       });
 
       if (this.isAborted(generation)) {
-        console.log('[KernelWorker] executeRender: aborted after createGeometry');
         return;
       }
-
-      console.log('[KernelWorker] executeRender: geometry computed', { success: result.success });
       this.pushProgress(100);
       this.onProgress = undefined;
       renderSpan.end();

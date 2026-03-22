@@ -146,13 +146,11 @@ export function createBridgeServer<T extends StringKeyedObject>(
     }
 
     const { id, method, args } = data as BridgeRequest;
-    console.debug(`[BridgeServer] request: ${method}(${JSON.stringify(args).slice(0, 100)})`);
 
     const function_ = (handlers as Record<string, unknown>)[method] as
       | ((...functionArguments: unknown[]) => Promise<unknown>)
       | undefined;
     if (!function_) {
-      console.debug(`[BridgeServer] method '${method}' not found on handlers`);
       port.postMessage({
         id,
         error: { message: `Unknown method: ${method}`, name: 'Error' },

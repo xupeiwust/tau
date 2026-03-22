@@ -439,7 +439,6 @@ export function createRuntimeClient(options: RuntimeClientOptions): RuntimeClien
   }
 
   function emitGeometry(result: HashedGeometryResult): void {
-    console.log('[RuntimeClient] emitGeometry', { success: result.success, handlerCount: handlers.geometry.size });
     for (const handler of handlers.geometry) {
       handler(result);
     }

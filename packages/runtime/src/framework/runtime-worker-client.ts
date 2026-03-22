@@ -434,10 +434,6 @@ export class RuntimeWorkerClient {
       }
 
       case 'geometryComputed': {
-        console.log('[RuntimeClient] geometryComputed received', {
-          hasPendingRender: Boolean(this.pendingRender),
-          success: response.result.success,
-        });
         if (this.pendingRender) {
           this.pendingRender.resolve(response.result);
           this.pendingRender = undefined;
