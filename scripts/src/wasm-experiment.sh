@@ -8,7 +8,7 @@ set -euo pipefail
 # runtime benchmark system for evaluation.
 #
 # Usage:
-#   ./scripts/wasm-experiment.sh <experiment.yml> [options]
+#   ./scripts/src/wasm-experiment.sh <experiment.yml> [options]
 #
 # Options:
 #   --skip-benchmark    Build and pack only, skip benchmarks
@@ -16,9 +16,9 @@ set -euo pipefail
 #   --tau-root <path>   Path to tau repo root (default: auto-detect)
 #
 # Examples:
-#   ./scripts/wasm-experiment.sh scripts/experiments/O2-noLTO-single.yml
-#   ./scripts/wasm-experiment.sh scripts/experiments/O3-noLTO-single.yml --baseline tarballs/baselines/v8-rc4-O2-single
-#   ./scripts/wasm-experiment.sh scripts/experiments/Os-noLTO-single.yml --skip-benchmark
+#   ./scripts/src/wasm-experiment.sh scripts/experiments/O2-noLTO-single.yml
+#   ./scripts/src/wasm-experiment.sh scripts/experiments/O3-noLTO-single.yml --baseline tarballs/baselines/v8-rc4-O2-single
+#   ./scripts/src/wasm-experiment.sh scripts/experiments/Os-noLTO-single.yml --skip-benchmark
 # ─────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

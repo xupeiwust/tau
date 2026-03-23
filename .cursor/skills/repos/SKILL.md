@@ -102,6 +102,21 @@ Run `pnpm repos` with no arguments to launch the interactive terminal UI:
 | `tscircuit` | tscircuit EDA ecosystem                                                       |
 | `zenfs`     | ZenFS filesystem abstractions                                                 |
 
+## Build
+
+The repos CLI is a bundled single-file script at `scripts/dist/repos.js` (checked into git). CLI commands work immediately with no build step.
+
+The interactive TUI (`pnpm repos` with no args) requires a separate bundle with React/ink that is gitignored:
+
+```bash
+pnpm nx build scripts   # Build both CLI + TUI bundles
+```
+
+Source files live in `scripts/src/repos/`. The tsdown config at `scripts/tsdown.config.ts` produces two bundles:
+
+- `dist/repos.js` — CLI bundle (~98 KB, checked in)
+- `dist/repos-tui.js` — TUI bundle (~1.7 MB, gitignored, needs build)
+
 ## For Agents
 
 - Read `repos.yaml` first to understand what repos exist and their relationships
@@ -110,7 +125,8 @@ Run `pnpm repos` with no arguments to launch the interactive terminal UI:
 - Use `pnpm repos clone --group <name>` to selectively clone only what you need
 - All commands support `--json` for machine-readable output
 - Clone is idempotent -- safe to re-run without checking state
-- Runs on `node` natively (no tsx needed for headless commands)
+- CLI commands run from the checked-in bundle (no build step needed)
+- TUI requires `pnpm nx build scripts` first
 
 ## Dependency Investigation Workflow
 

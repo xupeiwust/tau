@@ -4,7 +4,7 @@
  * This script extracts license information from all installed packages
  * and outputs a formatted markdown file grouped by license type.
  *
- * Usage: node --import tsx scripts/update-license-deps.mts
+ * Usage: node --import tsx scripts/src/update-license-deps.mts
  */
 
 import { readdir, readFile, writeFile, stat, access } from 'node:fs/promises';

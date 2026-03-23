@@ -10,7 +10,7 @@
  *   - repos/OCCT must exist with all tags fetched
  *   - `gh` CLI must be authenticated
  *
- * Usage: node --import tsx scripts/generate-opencascade-changelog.mts
+ * Usage: node --import tsx scripts/src/generate-opencascade-changelog.mts
  */
 
 import { execSync } from 'node:child_process';

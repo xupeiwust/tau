@@ -45,5 +45,10 @@ apps/ui/.source/**/*
 # Linter caches
 .oxlintcache
 
+# Repos CLI bundle (checked in); TUI bundle requires build
+!scripts/dist/
+scripts/dist/*
+!scripts/dist/repos.js
+
 # Repos - for integration context
 repos/**/*
