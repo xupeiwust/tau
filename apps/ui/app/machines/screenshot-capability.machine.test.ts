@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+
+// three/addons -> lottie_canvas.module.js calls HTMLCanvasElement.getContext()
+// during static init, which jsdom does not implement without the canvas npm
+// package. Stub the transitive import so the module graph loads cleanly.
+vi.mock('three/addons', () => ({ LineSegments2: class {} }));
+
 import { createActor } from 'xstate';
 import { mock } from 'vitest-mock-extended';
 import type { AnyActorRef } from 'xstate';

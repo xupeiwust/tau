@@ -87,9 +87,19 @@ function restoreOriginalMaterials(scene: Group, saved: Map<number, Material | Ma
         return;
       }
 
+      // Preserve clipping planes so section-view clipping survives material restoration
+      const currentMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const restoredMats = Array.isArray(original) ? original : [original];
+      for (let i = 0; i < restoredMats.length && i < currentMats.length; i++) {
+        const currentMat = currentMats[i];
+        const restoredMat = restoredMats[i];
+        if (currentMat && restoredMat && currentMat.clippingPlanes?.length) {
+          restoredMat.clippingPlanes = currentMat.clippingPlanes;
+        }
+      }
+
       // Dispose current material if it was replaced (e.g. matcap)
       if (mesh.material !== original) {
-        const currentMats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of currentMats) {
           disposeMaterialWithTextures(mat);
         }

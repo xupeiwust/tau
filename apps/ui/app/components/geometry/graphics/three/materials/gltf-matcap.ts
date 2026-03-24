@@ -3,6 +3,7 @@ import type { Mesh, Material, Scene, Texture } from 'three';
 import { DoubleSide, MeshMatcapMaterial } from 'three';
 import { LineSegments2 } from 'three/addons';
 import { matcapMaterial } from '#components/geometry/graphics/three/materials/matcap-material.js';
+import { sceneTag, hasSceneTag } from '#components/geometry/graphics/three/utils/scene-tags.js';
 
 /**
  * Dispose a material or array of materials, releasing GPU resources.
@@ -38,6 +39,11 @@ export const applyMatcap = async (gltf: GLTF): Promise<void> => {
         side: DoubleSide,
       });
       const mesh = child as Mesh;
+
+      // Preserve clipping planes so section-view clipping survives matcap replacement
+      if (!Array.isArray(mesh.material) && mesh.material.clippingPlanes?.length) {
+        meshMatcap.clippingPlanes = mesh.material.clippingPlanes;
+      }
 
       const hasVertexColors = Boolean(mesh.geometry.attributes['color'] ?? mesh.geometry.attributes['COLOR_0']);
 
@@ -83,12 +89,23 @@ export function applyMatcapToClonedScene(scene: Scene, matcapTexture: Texture): 
       return;
     }
 
+    // Preserve section-view helpers (stencil groups, cap planes) — their
+    // materials use stencil ops and custom shaders that must not be replaced.
+    if (hasSceneTag(child, sceneTag.sectionViewHelper)) {
+      return;
+    }
+
     if ('isMesh' in child && child.isMesh) {
       const mesh = child as Mesh;
       const meshMatcap = new MeshMatcapMaterial({
         matcap: matcapTexture,
         side: DoubleSide,
       });
+
+      // Preserve clipping planes so section-view clipping survives matcap replacement
+      if (!Array.isArray(mesh.material) && mesh.material.clippingPlanes?.length) {
+        meshMatcap.clippingPlanes = mesh.material.clippingPlanes;
+      }
 
       const hasVertexColors = Boolean(mesh.geometry.attributes['color'] ?? mesh.geometry.attributes['COLOR_0']);
 
