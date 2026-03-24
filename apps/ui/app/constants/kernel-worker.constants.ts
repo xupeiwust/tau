@@ -2,6 +2,7 @@ import { replicad, opencascade, zoo, openscad, jscad, manifold, tau } from '@tau
 import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
 import { createRuntimeClientOptions } from '@taucad/runtime';
+import { observability } from '@taucad/telemetry/middleware';
 import { ENV } from '#environment.config.js';
 
 /**
@@ -23,7 +24,14 @@ export const defaultKernelOptions = createRuntimeClientOptions({
     jscad(),
     tau(),
   ],
-  middleware: [parameterCache(), geometryCache(), gltfCoordinateTransform(), gltfEdgeDetection()],
+  middleware: [
+    // Middleware
+    observability({ reportUrl: `${ENV.TAU_API_URL}/v1/telemetry/ingest` }),
+    parameterCache(),
+    geometryCache(),
+    gltfCoordinateTransform(),
+    gltfEdgeDetection(),
+  ],
   bundlers: [esbuild()],
 });
 
