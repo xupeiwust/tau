@@ -491,7 +491,7 @@ export default defineKernel({
   },
 
   async createGeometry(
-    { filePath, basePath, parameters, tessellation },
+    { filePath, basePath, parameters, tessellation: _tessellation },
     { filesystem, logger, fileContentCache, tracer },
     context,
   ) {
@@ -536,9 +536,10 @@ export default defineKernel({
 
       const args = [relativeFilePath, '-o', `${relativeFilePath}.off`, '--backend=manifold'];
 
-      if (tessellation) {
-        args.push(`-D$fn=48`, `-D$fa=${tessellation.angularTolerance}`, `-D$fs=${tessellation.linearTolerance}`);
-      }
+      // TODO: Re-enable default tessellation
+      // if (tessellation) {
+      //   args.push(`-D$fn=48`, `-D$fa=${tessellation.angularTolerance}`, `-D$fs=${tessellation.linearTolerance}`);
+      // }
       //  Else {
       //   args.push(`-D$fn=48`, `-D$fa=48`, `-D$fs=2`);
       // }
