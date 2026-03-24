@@ -17,6 +17,8 @@ groups:
       - phyz
       - bitbybit
       - bitbybit-occt
+      - brepjs
+      - zalo-opencascade.js
   slicers:
     description: 3D printer slicer applications
     repos:
@@ -29,6 +31,7 @@ groups:
       - langchainjs
       - langgraphjs
       - ai
+      - deepagentsjs
   3d:
     description: 3D rendering and visualization
     repos:
@@ -61,6 +64,8 @@ groups:
       - type-fest
       - xyflow
       - shiki
+      - tsdown
+      - rolldown
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -335,3 +340,21 @@ repos:
   shiki:
     upstream: shikijs/shiki
     description: A beautiful yet powerful syntax highlighter
+  brepjs:
+    upstream: andymai/brepjs
+    description: Web CAD library with pluggable geometry kernel
+  zalo-opencascade.js:
+    upstream: zalo/opencascade.js
+    path: zalo-opencascade.js
+    branch: cascadestudio-v2
+    description: Zalo fork of opencascade.js — OCCT 8.0.0 RC4, emsdk 4.0.23, CascadeStudio bindings
+    shallow: true
+  tsdown:
+    upstream: rolldown/tsdown
+    description: The elegant bundler for libraries powered by Rolldown
+  rolldown:
+    upstream: rolldown/rolldown
+    description: Fast Rust bundler for JavaScript/TypeScript with Rollup-compatible API.
+  deepagentsjs:
+    upstream: langchain-ai/deepagentsjs
+    description: Deep Agents in JS
