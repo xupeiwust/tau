@@ -66,6 +66,7 @@ groups:
       - shiki
       - tsdown
       - rolldown
+      - knip
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -358,3 +359,6 @@ repos:
   deepagentsjs:
     upstream: langchain-ai/deepagentsjs
     description: Deep Agents in JS
+  knip:
+    upstream: webpro-nl/knip
+    description: ✂️  Find unused files, dependencies and exports in your JavaScript and TypeScript projects. Knip it before you ship it!

@@ -77,6 +77,19 @@ jobs:
       - name: Validate license-deps
         run: pnpm license-deps:validate
 
+  knip:
+    name: Dead code analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Nx Environment
+        uses: ./.github/actions/setup-nx
+
+      - name: Run Knip
+        run: pnpm knip
+
   affected:
     name: Run affected tasks
     runs-on: ubuntu-latest
