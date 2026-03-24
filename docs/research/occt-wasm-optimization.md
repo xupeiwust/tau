@@ -1,11 +1,11 @@
 ---
-title: 'OCCT WASM Optimization Analysis'
+
+## title: 'OCCT WASM Optimization Analysis'
 description: 'Audit of opencascade.js WASM build pipeline against Emscripten best practices: compile flags, closure, wasm-opt, and OCCT-specific optimizations.'
 status: active
 created: '2026-03-04'
 updated: '2026-03-05'
 category: optimization
----
 
 # OCCT WASM Optimization Analysis
 
@@ -19,17 +19,19 @@ Our best production build is `v8-O2-noLTO-wasmOptO3` at **17.80 MB** (single, no
 
 ### Identified Optimizations
 
+
 | #   | Optimization                       | Target    | Est. Impact                        | Risk        | Status                     |
 | --- | ---------------------------------- | --------- | ---------------------------------- | ----------- | -------------------------- |
 | 1   | `-fno-exceptions` on no-exc builds | Compile   | Size reduction (EH tables removed) | N/A         | **Blocked**                |
-| 2   | `--closure 1`                      | Link      | ~50% JS reduction (~56 KB)         | Medium      | **Not applied**            |
+| 2   | `--closure 1`                      | Link      | ~~50% JS reduction (~~56 KB)       | Medium      | **Not applied**            |
 | 3   | `-sEVAL_CTORS`                     | Link      | Faster startup                     | Low         | **Not applied**            |
 | 4   | `--converge` in wasm-opt           | Post-link | Additional WASM size reduction     | Low         | **Not applied**            |
 | 5   | `-fno-rtti` on OCCT sources        | Compile   | ~5-15% size reduction              | **Blocked** | N/A                        |
 | 6   | `-sENVIRONMENT=web,worker`         | Link      | ~2 KB JS reduction                 | —           | **Not applicable**         |
 | 7   | `-DNo_Exception`                   | Compile   | 100-300 KB WASM reduction          | None        | **Ready**                  |
 | 8   | `-UOCC_CONVERT_SIGNALS`            | Compile   | < 50 KB WASM reduction             | None        | **Ready**                  |
-| 9   | Stub `OCCT_DUMP_*` macros          | Compile   | 200-500 KB WASM reduction          | Low         | Requires OCCT source patch |
+| 9   | Stub `OCCT_DUMP_`* macros          | Compile   | 200-500 KB WASM reduction          | Low         | Requires OCCT source patch |
+
 
 ---
 
@@ -62,7 +64,7 @@ emcc -lembind <all .o files> -o <output.js> <emccFlags from YAML>
 Current YAML emccFlags (no-exceptions variant):
 
 ```
--flto -O3 -sEXPORT_ES6=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=100MB
+re-flto -O3 -sEXPORT_ES6=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=100MB
 -sMAXIMUM_MEMORY=4GB -sEXPORTED_RUNTIME_METHODS=["FS"] --no-entry
 --emit-symbol-map -sERROR_ON_UNDEFINED_SYMBOLS=0 -Wl,--allow-undefined
 -sSTACK_SIZE=8388608
@@ -197,9 +199,7 @@ Compiling with `-fno-rtti` would cause all `DownCast()` calls to fail at link ti
 LLVM's `-O3` inlining heuristics were designed for ahead-of-time native compilation, where the compiler output is the final machine code. In WASM, there's a second compilation step: the browser's JIT compiler (V8's Liftoff + TurboFan) compiles the WASM bytecode into actual machine code at runtime. This changes the cost-benefit calculus of inlining:
 
 1. **Function call overhead is cheaper in WASM than native.** In native code, a function call involves stack frame setup, register spilling, and a branch to a new address — the cost that inlining eliminates. In WASM, the VM manages call frames internally and the overhead is much lower, reducing the payoff of inlining.
-
 2. **Code size cost is higher in WASM than native.** Every byte of WASM bytecode produced by LLVM inlining must be JIT-compiled by the browser, producing even larger machine code. The code bloat is amplified by the JIT layer, not just passed through.
-
 3. **Instruction cache pressure from JIT output.** The JIT-generated machine code from bloated WASM functions competes for the CPU's L1 instruction cache. Functions that were compact at `-O2` and fit in cache become inflated at `-O3` and cause cache misses on hot paths.
 
 #### OCCT's architecture amplifies the problem
@@ -301,7 +301,7 @@ Build changes from current `O2-noLTO-single`:
 4. `repos/replicad/packages/replicad-opencascadejs/build-config/custom_build_with_exceptions_v8.yml` — Add `-sEVAL_CTORS=1` to emccFlags
 5. `scripts/experiments/O2-noLTO-optimized.yml` — New experiment config
 6. Test `--closure 1` separately; if it works, add to YAML emccFlags
-7. Run full experiment: `./scripts/wasm-experiment.sh scripts/experiments/O2-noLTO-optimized.yml`
+7. Run full experiment: `./scripts/src/wasm-experiment.sh scripts/experiments/O2-noLTO-optimized.yml`
 8. Validate with `pnpm nx test runtime --testNamePattern="Example models" --watch=false`
 
 ---
@@ -367,11 +367,11 @@ Each eliminated call site removes: the `if` condition check, a string literal co
 
 **Implementation**: Pass `-UOCC_CONVERT_SIGNALS` (or override with `-DOCC_CONVERT_SIGNALS=0`) in compile flags, or ensure the define is not set for Emscripten builds.
 
-### 9. `OCCT_DUMP_*` / `DumpJson` — V8 Debug Serialization (Unstubbed)
+### 9. `OCCT_DUMP_`\* / `DumpJson` — V8 Debug Serialization (Unstubbed)
 
 **Current state**: Always compiled in. No compile-time flag to disable.
 
-**What it does**: OCCT V8 added a comprehensive JSON debug serialization system. Classes implementing `Standard_Transient` can override `DumpJson()` to serialize their state. The `OCCT_DUMP_*` macro family (14+ macros defined in `Standard_Dump.hxx`) populates these implementations:
+**What it does**: OCCT V8 added a comprehensive JSON debug serialization system. Classes implementing `Standard_Transient` can override `DumpJson()` to serialize their state. The `OCCT_DUMP_`\* macro family (14+ macros defined in `Standard_Dump.hxx`) populates these implementations:
 
 ```cpp
 void Geom_Circle::DumpJson(Standard_OStream& theOStream, Standard_Integer theDepth) const
@@ -384,15 +384,15 @@ void Geom_Circle::DumpJson(Standard_OStream& theOStream, Standard_Integer theDep
 
 **Measured usage across compiled modules:**
 
-| Module               | `DumpJson` refs | `OCCT_DUMP_*` macro calls |
-| -------------------- | --------------- | ------------------------- |
-| FoundationClasses    | 93              | 174                       |
-| ModelingData         | 129             | 293                       |
-| ApplicationFramework | —               | 252                       |
-| DataExchange         | —               | 181                       |
-| **Total (compiled)** | **222+**        | **900+**                  |
+| Module               | `DumpJson` refs | `OCCT_DUMP_`\* macro calls |
+| -------------------- | --------------- | -------------------------- |
+| FoundationClasses    | 93              | 174                        |
+| ModelingData         | 129             | 293                        |
+| ApplicationFramework | —               | 252                        |
+| DataExchange         | —               | 181                        |
+| **Total (compiled)** | **222+**        | **900+**                   |
 
-Note: ModelingAlgorithms has zero `DumpJson`/`OCCT_DUMP_*` usage — this is concentrated in data/framework classes.
+Note: ModelingAlgorithms has zero `DumpJson`/`OCCT_DUMP_`\* usage — this is concentrated in data/framework classes.
 
 **Why it matters**: Unlike `OCCT_DEBUG`-guarded code, `DumpJson` implementations are **always compiled**. They are virtual methods, so the linker cannot strip them even if never called — they remain reachable through vtables. Each implementation contributes:
 
@@ -482,15 +482,15 @@ The `filterPackages.py` note correctly states: "With non-LTO builds (`OCJS_LTO=0
 
 From the V7.6.2 → V8.0.0-rc4 changelog (1,085 commits):
 
-| Change                                                         | Size Effect                                                                             |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `Standard_Failure` now inherits `std::exception` (rc4)         | Emscripten's `-sDISABLE_EXCEPTION_CATCHING=1` can strip catch handlers more effectively |
-| 29 Geom/Geom2d classes marked `final` (rc4)                    | Enables devirtualization at `-O2` — compiler can inline virtual calls                   |
-| Robin-hood hash maps (`NCollection_FlatDataMap`) (rc4)         | More template instantiations, but better runtime cache behavior                         |
-| `Handle(Class)` → `occ::handle<Class>` (~82,600 replacements)  | Same code, different syntax — no size impact                                            |
-| `Standard_*` type aliases → native C++ (~161,000 replacements) | Slight reduction from eliminated typedef indirection                                    |
-| Thread-local error handlers (rc4)                              | `thread_local` in single-threaded WASM is essentially a global — minimal overhead       |
-| Source directory reorganization (rc1)                          | No code size impact — build scripts adapted                                             |
+| Change                                                          | Size Effect                                                                             |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Standard_Failure` now inherits `std::exception` (rc4)          | Emscripten's `-sDISABLE_EXCEPTION_CATCHING=1` can strip catch handlers more effectively |
+| 29 Geom/Geom2d classes marked `final` (rc4)                     | Enables devirtualization at `-O2` — compiler can inline virtual calls                   |
+| Robin-hood hash maps (`NCollection_FlatDataMap`) (rc4)          | More template instantiations, but better runtime cache behavior                         |
+| `Handle(Class)` → `occ::handle<Class>` (~82,600 replacements)   | Same code, different syntax — no size impact                                            |
+| `Standard_`\* type aliases → native C++ (~161,000 replacements) | Slight reduction from eliminated typedef indirection                                    |
+| Thread-local error handlers (rc4)                               | `thread_local` in single-threaded WASM is essentially a global — minimal overhead       |
+| Source directory reorganization (rc1)                           | No code size impact — build scripts adapted                                             |
 
 ### Optional 3rd-Party Dependencies — Already Minimal
 
