@@ -1,11 +1,11 @@
 ---
-
-## title: 'OCCT WASM Optimization Analysis'
+title: 'OCCT WASM Optimization Analysis'
 description: 'Audit of opencascade.js WASM build pipeline against Emscripten best practices: compile flags, closure, wasm-opt, and OCCT-specific optimizations.'
 status: active
 created: '2026-03-04'
 updated: '2026-03-05'
 category: optimization
+---
 
 # OCCT WASM Optimization Analysis
 
@@ -19,7 +19,6 @@ Our best production build is `v8-O2-noLTO-wasmOptO3` at **17.80 MB** (single, no
 
 ### Identified Optimizations
 
-
 | #   | Optimization                       | Target    | Est. Impact                        | Risk        | Status                     |
 | --- | ---------------------------------- | --------- | ---------------------------------- | ----------- | -------------------------- |
 | 1   | `-fno-exceptions` on no-exc builds | Compile   | Size reduction (EH tables removed) | N/A         | **Blocked**                |
@@ -30,8 +29,7 @@ Our best production build is `v8-O2-noLTO-wasmOptO3` at **17.80 MB** (single, no
 | 6   | `-sENVIRONMENT=web,worker`         | Link      | ~2 KB JS reduction                 | —           | **Not applicable**         |
 | 7   | `-DNo_Exception`                   | Compile   | 100-300 KB WASM reduction          | None        | **Ready**                  |
 | 8   | `-UOCC_CONVERT_SIGNALS`            | Compile   | < 50 KB WASM reduction             | None        | **Ready**                  |
-| 9   | Stub `OCCT_DUMP_`* macros          | Compile   | 200-500 KB WASM reduction          | Low         | Requires OCCT source patch |
-
+| 9   | Stub `OCCT_DUMP_`\* macros         | Compile   | 200-500 KB WASM reduction          | Low         | Requires OCCT source patch |
 
 ---
 

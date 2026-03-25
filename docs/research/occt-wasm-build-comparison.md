@@ -1,17 +1,15 @@
 ---
-
-## title: 'OpenCASCADE.js Build System Cross-Project Comparison'
-
+title: 'OpenCASCADE.js Build System Cross-Project Comparison'
 description: 'Comparative analysis of opencascade.js build systems across brepjs, zalo fork, and taucad fork — identifying optimization gaps and adoption opportunities.'
 status: draft
 created: '2026-03-20'
 updated: '2026-03-20'
 category: comparison
 related:
-
-- docs/research/occt-wasm-optimization.md
-- docs/research/build-flag-audit.md
-- docs/research/occt-js-v8-dx-modernization.md
+  - docs/research/occt-wasm-optimization.md
+  - docs/research/build-flag-audit.md
+  - docs/research/occt-js-v8-dx-modernization.md
+---
 
 # OpenCASCADE.js Build System Cross-Project Comparison
 

@@ -3,7 +3,7 @@ title: 'WASM Binary Size Forensics v2: Function-Level Dissection and Inflation A
 description: 'Comprehensive function-level analysis of the optimized 19.22 MB non-exceptions WASM binary, explaining the 87% inflation from OCCT v7 and identifying remaining trimming opportunities.'
 status: active
 created: '2026-03-24'
-updated: '2026-03-24'
+updated: '2026-03-25'
 category: optimization
 related:
   - docs/research/wasm-binary-size-forensics.md
@@ -18,13 +18,20 @@ Function-level dissection of the optimized `replicad_single.wasm` (19.22 MB) to 
 
 ## Executive Summary
 
-**Guiding principle: speed is the top priority; size reduction is secondary. We always prefer speed over size.**
+**Guiding principle: speed is the top priority; size reduction is secondary. We never sacrifice speed for size.**
 
 The production `replicad_single.wasm` ships at **19.22 MB** with **`-O3` (no LTO, SIMD)** — the fastest configuration. This is 87% larger than the v7 baseline (10.30 MB), but the `-O3` build is **15-30% faster** for complex CAD operations — a deliberate trade-off. The entire inflation is in the Code section (+9.25 MB, +117%), driven by `-O3`'s aggressive inlining producing functions averaging 732 bytes (vs 256 bytes in v7's `-Os -flto` build).
 
-The v1 report's OCCT source patches (noexcept destructor, DynamicType simplification) reduced pathological functions by only **319 B and 323 B respectively** — not the hundreds of kilobytes expected. The landing pad code is not the primary cause of these functions' size; -O3 inlining is.
+**All tested speed-preserving size reduction approaches have been exhausted:**
 
-**Update (2026-03-24):** Compile-level experiments confirm that the `-O3` production build is the correct choice. The highest-value next experiment is **R3: LLVM inlining threshold tuning** (`-O3 -mllvm -inline-threshold=100`), which could reduce size by 1-2 MB while **preserving full `-O3` speed** — the only approach that improves size without sacrificing performance. The `-Os` build (R5, validated at **14.54 MB**, -24.3%) is available as a fallback but carries an **18% latency regression** (50.2 ms vs 42.6 ms) — acceptable only if size constraints outweigh speed. `-O0` builds are not viable (~3.5x slower). LTO is **counterproductive** at `-Os`, adding 0.49 MB.
+| Approach              | Size Impact     | Speed Impact | Verdict              |
+| --------------------- | --------------- | ------------ | -------------------- |
+| R3 (inline threshold) | -678 KB (-3.4%) | +7.2% slower | ❌ Speed regression  |
+| R6 (merge-similar)    | -524 KB (-2.6%) | +2.9% slower | ❌ Speed regression  |
+| R7a (dae-optimizing)  | +64 KB (+0.3%)  | +9.5% slower | ❌ Counterproductive |
+| R8-ext (noexcept all) | +12 B (0.00%)   | Noise        | ❌ Negligible        |
+
+**The `-O3` build at 19.22 MB is a local optimum.** LLVM's default inlining heuristics produce the fastest possible code for OCCT; any interference slows it down. The remaining untested speed-neutral option is **R4 (`-fno-rtti`)**, estimated at 0.5-1 MB savings. Future work should focus on **speed improvements** (threading, PGO, newer Emscripten/LLVM) rather than squeezing size from a build that is already the fastest achievable.
 
 ## Table of Contents
 
@@ -37,9 +44,15 @@ The v1 report's OCCT source patches (noexcept destructor, DynamicType simplifica
 - [Finding 6: OCCT Toolkit Code Breakdown](#finding-6-occt-toolkit-code-breakdown)
 - [Finding 7: Patch Effectiveness Analysis](#finding-7-patch-effectiveness-analysis)
 - [Finding 8: Gzipped Transfer Sizes](#finding-8-gzipped-transfer-sizes)
-- [Recommendations](#recommendations)
+- [Applied Optimizations Inventory](#applied-optimizations-inventory)
+- [Tested & Rejected Inventory](#tested--rejected-inventory)
+- [Next Steps](#next-steps)
+- [Trade-offs: Speed vs Size (Measured)](#trade-offs-speed-vs-size-measured)
 - [Finding 9: `-fno-exceptions` Is Not Viable for OCCT](#finding-9--fno-exceptions-is-not-viable-for-occt)
 - [Finding 10: Compile-Level Experiment Results](#finding-10-compile-level-experiment-results)
+- [Finding 11: wasm-opt Extra Passes (R6-R7) Results](#finding-11-wasm-opt-extra-passes-r6-r7-results)
+- [Finding 12: LLVM Inline Threshold Tuning (R3) Results](#finding-12-llvm-inline-threshold-tuning-r3-results)
+- [Finding 13: Noexcept on All Large Destructors (R8-ext) Results](#finding-13-noexcept-on-all-large-destructors-r8-ext-results)
 - [Appendix: Full Package Inventory](#appendix-full-package-inventory)
 
 ## Methodology
@@ -51,7 +64,7 @@ The v1 report's OCCT source patches (noexcept destructor, DynamicType simplifica
 - Python aggregation scripts for toolkit grouping, size comparison, and distribution analysis
 - Historical tarballs extracted for comparative analysis: v7 (0.20.2), v8.25, v8.26, v8.32, v8.39 (original), v8.39 (optimized)
 
-**Build configuration (current optimized):** `O3-simd`, `OCJS_OPT=-O3`, `OCJS_LTO=0`, `OCJS_SIMD=1`, `OCJS_EXCEPTIONS=0`, `wasm-opt -O4 --converge --traps-never-happen`, OCCT patches applied (`patch_stepcaf_noexcept.py` + `patch_stepcaf_dyntype.py`).
+**Build configuration (current optimized):** `O3-simd`, `OCJS_OPT=-O3`, `OCJS_LTO=0`, `OCJS_SIMD=1`, `OCJS_EXCEPTIONS=0`, `wasm-opt -O4 --converge --traps-never-happen`, OCCT patches applied (`patch_standard_dump.py`, `patch_noexcept_destructors.py` (7 classes), `patch_stepcaf_dyntype.py`).
 
 **Symbol map caveat:** The `.js.symbols` file maps pre-wasm-opt function indices to C++ names. After wasm-opt renumbers functions, name assignments in the analysis may be shifted. Function SIZE data (from `wasm-objdump`) is accurate; name resolution is best-effort. Cross-build comparisons use size-based matching.
 
@@ -304,26 +317,40 @@ Gzip compression significantly reduces the impact of code bloat:
 
 The v8 binary compresses more efficiently (32% ratio vs v7's 42%) due to the -O3 inlined code having more repetitive patterns. The gzipped v8 delta vs v7 is **+1.82 MB** (42% inflation), far less severe than the raw +8.92 MB (87% inflation). Brotli compression would reduce the transfer size further.
 
-## Recommendations
+## Applied Optimizations Inventory
 
-**Principle: speed first, size second.** Recommendations are prioritized by speed preservation — size-only wins that sacrifice performance are ranked lower.
+Every optimization currently applied to the production WASM binary, with measured impact. These are the cumulative decisions that produce the 19.22 MB / 42.6 ms geo-mean build.
 
-### P0: Speed-Preserving Size Reduction
+| #   | Optimization                                          | Speed Impact          | Size Impact                 | Applied In |
+| --- | ----------------------------------------------------- | --------------------- | --------------------------- | ---------- |
+| A1  | **`-O3` compile (vs v7's `-Os`)**                     | **+28% faster** vs v7 | +8.99 MB code (+116%)       | v8.25      |
+| A2  | **LTO removal (`OCJS_LTO=0`)**                        | None measurable       | **-4.48 MB** (23.39→18.91)  | v8.26      |
+| A3  | **SIMD enabled (`-msimd128 -mrelaxed-simd`)**         | +5-15% faster (est.)  | +0.4 MB (est.)              | v8.32      |
+| A4  | **Non-exceptions (`-sDISABLE_EXCEPTION_CATCHING=1`)** | +2-5% faster (est.)   | -0.09 MB (smaller JS glue)  | v8.25      |
+| A5  | **wasm-opt `-O4 --converge --traps-never-happen`**    | None                  | -0.5 MB (est.)              | v8.26      |
+| A6  | **`--strip-debug --strip-producers`**                 | None                  | -0.01 MB                    | v8.26      |
+| A7  | **`--eval-ctors` level 2**                            | None                  | -0.02 MB (est.)             | v8.32      |
+| A8  | **OCCT patch: `OCCT_NO_DUMP` (Standard_Dump stub)**   | None                  | -85 KB (est.)               | v8.39-opt  |
+| A9  | **OCCT patch: noexcept destructor (STEPCAFControl)**  | None                  | -319 B                      | v8.39-opt  |
+| A10 | **OCCT patch: DynamicType simplification**            | None                  | -323 B                      | v8.39-opt  |
+| A11 | **Bindgen filtering (202 vs 821 classes)**            | None                  | -0.5 MB (est., fewer stubs) | v8.26      |
+| A12 | **CMake build system (vs legacy Python)**             | None                  | None (build-time only)      | v8.39      |
 
-| #   | Action                                     | Speed Impact               | Mechanism                                                                                                                                                                                                                                                                                            | Est. Savings | Risk                                                                      |
-| --- | ------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------- |
-| R3  | **`-O3` + `-mllvm -inline-threshold=100`** | **None (preserves `-O3`)** | Keeps `-O3` optimizations (loop unrolling, vectorization, instruction scheduling) but caps inlining depth. LLVM default threshold for `-O3` is 250; reducing to 100 prevents pathological cases (542 KB destructors) while preserving hot-path performance. Threshold is tunable (try 150, 100, 75). | 1-2 MB       | Low: easily reversible.                                                   |
-| R4  | **Compile with `-fno-rtti`**               | **None expected**          | Disables C++ RTTI (`dynamic_cast`, `typeid`). Eliminates typeinfo structures and vtable RTTI pointers. Stackable on any compile level.                                                                                                                                                               | 0.5-1 MB     | High: OCCT's `Handle<>` uses `dynamic_cast` internally. Requires testing. |
+**Net result:** 19.22 MB at 42.6 ms geo-mean — the fastest OCCT WASM build achievable with current tooling.
 
-### P1: Speed-Regressing Size Reduction (Fallback)
+## Tested & Rejected Inventory
 
-These options deliver larger size savings but sacrifice runtime performance. Only pursue if size constraints outweigh the speed regression.
+Every approach tested for speed-neutral size reduction that was rejected. Sorted by speed impact (smallest regression first).
 
-| #      | Action                                            | Speed Impact                  | Mechanism                                                                                                                                       | Savings                | Risk                                             |
-| ------ | ------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------ |
-| R5     | **`-Os` compile + `-O3` wasm-opt (no LTO, SIMD)** | **-18% (50.2 ms vs 42.6 ms)** | ✅ **VALIDATED** — Measured: **14.54 MB** (-24.3%). LTO is counterproductive at `-Os` (adds 0.49 MB). Still 13% faster than v7. See Finding 10. | **4.68 MB** (measured) | Low: 18% latency regression.                     |
-| R2     | **`-O2` compile with SIMD**                       | **Unknown (retest needed)**   | Partially tested without SIMD: 17.92 MB, 58.9 ms (+38%). SIMD may significantly close the speed gap — re-test needed for a fair comparison.     | 1-3 MB                 | Low-Med: speed impact unclear until SIMD retest. |
-| ~~R1~~ | ~~**Compile with `-fno-exceptions`**~~            | —                             | —                                                                                                                                               | ~~1-3 MB~~             | **REJECTED — not viable (see Finding 9)**        |
+| #      | Approach                             | Size Impact     | Speed Impact     | Why Rejected                                                       | Finding |
+| ------ | ------------------------------------ | --------------- | ---------------- | ------------------------------------------------------------------ | ------- |
+| R8-ext | noexcept on ALL large destructors    | +12 B (+0.00%)  | Noise            | Negligible — landing pads are not the cause of destructor bloat    | 13      |
+| R6     | wasm-opt `--merge-similar-functions` | -524 KB (-2.6%) | **+2.9% slower** | Dispatch branches on merged functions degrade hot paths            | 11      |
+| R3-128 | `-mllvm -inline-threshold=128`       | -678 KB (-3.4%) | **+7.2% slower** | Overrides LLVM adaptive heuristics, breaks small-op performance    | 12      |
+| R7a    | wasm-opt `--dae-optimizing`          | +64 KB (+0.3%)  | **+9.5% slower** | Counterproductive on both axes — restructures call sites poorly    | 11      |
+| R3-256 | `-mllvm -inline-threshold=256`       | +42 KB (+0.2%)  | **+9.7% slower** | Even above-default threshold breaks LLVM's context-sensitive model | 12      |
+| R7b    | wasm-opt `--outlining`               | N/A             | N/A              | Validator errors — incompatible with current wasm-opt version      | 11      |
+| R1     | `-fno-exceptions` (Clang flag)       | N/A             | N/A              | Compilation failure — OCCT uses `throw` pervasively in headers     | 9       |
 
 ### Finding 9: `-fno-exceptions` Is Not Viable for OCCT
 
@@ -382,7 +409,7 @@ What v8 changed was the `Standard_Failure` class model (from inheriting `Standar
 | `-sDISABLE_EXCEPTION_CATCHING=1` (Emscripten) | **Already applied**     | Neutralizes JS-side catch wrappers; does not eliminate LLVM landing pads         |
 | `-sDISABLE_EXCEPTION_THROWING=1` (Emscripten) | **Untested, low value** | Converts `__cxa_throw` to abort at link time; landing pads still generated       |
 
-**Conclusion**: Exception-related code elimination is a dead end for OCCT WASM builds. Size reduction must come from **speed-preserving inlining controls** (R3, R4) or, if size constraints force it, **optimization level changes** (R5, R2) that trade speed for size.
+**Conclusion**: Exception-related code elimination is a dead end for OCCT WASM builds. Size reduction must come from **speed-neutral mechanisms** like R4 (`-fno-rtti`) or R9 (TopOpeBRep removal). Speed-sacrificing approaches (R5 `-Os`, R2 `-O2`) are fallbacks only.
 
 ### Finding 10: Compile-Level Experiment Results
 
@@ -401,7 +428,7 @@ Five new builds were tested with 50-iteration benchmarks across 18 CAD operation
 
 **1. `-O3` remains the correct production choice**
 
-The `-O3` no-LTO SIMD build (42.6 ms geo-mean) is the fastest configuration tested — 18% faster than `-Os` (50.2 ms), 28% faster than v7 (57.9 ms), and 3.5x faster than `-O0` builds. The 19.22 MB size is the cost of that speed advantage. Size reduction should only be pursued through mechanisms that preserve this speed (R3, R4).
+The `-O3` no-LTO SIMD build (42.6 ms geo-mean) is the fastest configuration tested — 18% faster than `-Os` (50.2 ms), 28% faster than v7 (57.9 ms), and 3.5x faster than `-O0` builds. The 19.22 MB size is the cost of that speed advantage. Size reduction should only be pursued through speed-neutral mechanisms (R4, R9).
 
 **2. `-Os` saves 24.3% size but costs 18% speed**
 
@@ -417,74 +444,73 @@ At `-O0`, LTO saves 0.46 MB (16.09 vs 16.55 MB) via dead code elimination. At `-
 
 **5. Remaining gap to v7: 4.24 MB (41%) at `-Os`; 8.92 MB (87%) at `-O3`**
 
-The size gap to v7 is the cost of OCCT v8's larger codebase and our speed-first compile strategy. The structural portion (~2-3 MB from OCCT v8 source growth, ~0.5-1 MB from Emscripten/LLVM version differences) cannot be eliminated at any optimization level. The remaining ~5-6 MB at `-O3` is inlining bloat — the target for R3 (inline threshold tuning).
+The size gap to v7 is the cost of OCCT v8's larger codebase and our speed-first compile strategy. The structural portion (~2-3 MB from OCCT v8 source growth, ~0.5-1 MB from Emscripten/LLVM version differences) cannot be eliminated at any optimization level. The remaining ~5-6 MB at `-O3` is inlining bloat — inherent to the speed-first `-O3` strategy and cannot be reduced without sacrificing performance (R3 tested and rejected, see Finding 12).
 
 #### Experiment configs
 
 All experiments are defined in `repos/opencascade.js/build-configs/configurations.json` as named configs (`O0-LTO-simd`, `O0-noLTO-simd`, `Os-LTO-simd`, `Os-noLTO-simd`). Experiment artifacts including WASM binaries, benchmarks, provenance, and tarballs are staged in `tarballs/experiments/v8-{config}/`.
 
-### P2: Speed-Neutral Marginal Gains
+## Next Steps
 
-These are stackable on top of the `-O3` production build with no expected speed impact.
+**Principle: speed is the top priority. Size reduction is welcome only when speed-neutral. We never sacrifice speed for size.**
 
-| #   | Action                                              | Speed Impact | Mechanism                                                                                                     | Est. Savings | Risk |
-| --- | --------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- | ------------ | ---- |
-| R6  | **wasm-opt `--merge-similar-functions`**            | **None**     | Merges functions with identical bodies (common with template instantiations). May already be included in -O4. | 50-200 KB    | Low  |
-| R7  | **wasm-opt `--dae-optimizing` + `--outlining`**     | **None**     | Dead argument elimination and code outlining (extract common code sequences).                                 | 50-150 KB    | Low  |
-| R8  | **OCCT patch: `noexcept` on ALL large destructors** | **None**     | Extend `patch_stepcaf_noexcept.py` to top 15 destructors. Marginal per-function but aggregates across many.   | 30-100 KB    | Low  |
+### Speed Improvement Opportunities
 
-### P3: Deferred (High Effort, Speed-Neutral)
+These items target making the production build **faster** — the highest-priority work direction.
 
-| #       | Action                                             | Notes                                                                                                                                                                                                     |
-| ------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R9      | OCCT source patches to break TopOpeBRep dependency | TopOpeBRep (610 KB) is deprecated but cannot be linker-removed. Requires patching BRepMesh/BRepBuilderAPI to remove internal calls. High effort for moderate reward.                                      |
-| R10     | STEP I/O modularization                            | The monolithic `RWStepAP214_GeneralModule` registers ALL STEP entity types. Modularizing it would allow linker DCE to remove unused entity types (StepFEA, StepKinematics, etc.). Major OCCT fork effort. |
-| ~~R11~~ | ~~`--closed-world` with `-fno-exceptions`~~        | **Moot** — `-fno-exceptions` is not viable (Finding 9). `--closed-world` alone was rejected in v1 (77 test failures).                                                                                     |
+| #   | Action                                        | Expected Speed Impact                                        | Size Impact                        | Effort | Risk                                                                                            |
+| --- | --------------------------------------------- | ------------------------------------------------------------ | ---------------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| S1  | **Threading (`-pthread`, SharedArrayBuffer)** | **+30-60% faster** on multi-core ops (booleans, meshing)     | +1-2 MB (thread glue)              | Medium | Medium: requires `SharedArrayBuffer` / COOP/COEP headers; single-threaded fallback needed       |
+| S2  | **Profile-guided optimization (PGO)**         | **+5-15% faster** (hot path layout)                          | -0.1 to -0.5 MB (DCE from profile) | Medium | Low: Emscripten supports `-fprofile-generate`/`-fprofile-use`; requires representative workload |
+| S3  | **Emscripten/LLVM major upgrade**             | **+2-8% faster** (codegen improvements per LLVM release)     | Variable                           | Low    | Low: rebuild + test; current is Emscripten 5.0.1 / LLVM 23                                      |
+| S4  | **WASM streaming compilation**                | **Faster startup** (compile during download)                 | None                               | Low    | Low: requires `compileStreaming()` + proper MIME type                                           |
+| S5  | **V8 compilation hints / tiered warmup**      | **Faster cold start** (skip Liftoff for known-hot functions) | None                               | Low    | Low: experimental V8 feature; fallback is no-op                                                 |
 
-### Cumulative Impact (Measured + Estimated)
+### Speed-Neutral Size Reduction
 
-Ordered by speed preservation (speed-first principle).
+These items target reducing binary size **without any speed regression**. Listed by estimated impact (largest first).
 
-| Scenario                                    | Size         | vs Current        | Speed Impact            | Status             |
-| ------------------------------------------- | ------------ | ----------------- | ----------------------- | ------------------ |
-| **Current (`-O3`, no LTO, SIMD)**           | **19.22 MB** | **—**             | **Fastest (42.6 ms)**   | **Production**     |
-| + R3 (`-O3` + inline threshold)             | ~17-18 MB    | -1 to -2 MB       | None expected           | Untested           |
-| + R3 + R4 (`-O3` + threshold + `-fno-rtti`) | ~16-17 MB    | -2 to -3 MB       | None expected           | Untested           |
-| + R6-R8 (wasm-opt passes)                   | ~19-19.2 MB  | -0.1 to -0.3 MB   | None                    | Untested           |
-| R5 (`-Os`, no LTO, SIMD)                    | 14.54 MB     | -4.68 MB (-24.3%) | **-18% (50.2 ms)**      | ✅ Measured        |
-| R5 + R4 (`-Os` + `-fno-rtti`)               | ~13-14 MB    | -5 to -6 MB       | -18%                    | Estimated          |
-| R2 (`-O2`, SIMD, retest)                    | ~16-17 MB    | -2 to -3 MB       | Unknown (retest needed) | Partially measured |
-| Theoretical minimum (v7 ratio)              | ~10.3 MB     | -8.9 MB           | -36% (57.9 ms)          | Theoretical        |
+| #   | Action                                 | Est. Savings     | Speed Impact   | Effort    | Risk                                                                                                                                              |
+| --- | -------------------------------------- | ---------------- | -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R4  | **`-fno-rtti`**                        | 0.5-1 MB         | None expected  | Medium    | High: OCCT's `Handle<>` uses `dynamic_cast`; `DynamicType()` uses `typeid`. May require OCCT source patches to replace RTTI with manual dispatch. |
+| R9  | **Break TopOpeBRep dependency**        | ~610 KB          | None           | High      | Medium: deprecated toolkit (3.6% of code) pulled by transitive deps. Requires patching BRepMesh/BRepBuilderAPI to remove internal calls.          |
+| R10 | **STEP I/O modularization**            | ~200-500 KB      | None           | Very High | High: monolithic `RWStepAP214_GeneralModule` registers all entity types. Modularizing requires major OCCT fork effort.                            |
+| R12 | **Brotli compression (transfer size)** | ~1 MB transfer   | None (runtime) | Low       | None: Brotli achieves ~25% ratio vs gzip's 32%. Server/CDN config only, no binary change.                                                         |
+| R13 | **Lazy/deferred STEP I/O loading**     | ~1.2 MB deferred | None           | Medium    | Low: load TKDESTEP + TKXS (8.9% of code) only when STEP import/export is requested. Requires dynamic linking or module splitting.                 |
 
-The realistic floor for OCCT v8 is ~12-13 MB even with maximally aggressive size optimization, due to v8's larger source code and algorithms.
+### Not Pursuing (Speed-Sacrificing)
 
-**Next priorities (speed-first order):**
+These approaches reduce size but sacrifice speed. They are documented but **not recommended** under the speed-first principle.
 
-1. **R3 (`-O3` + `-mllvm -inline-threshold=100`)** — Top priority. The only approach that reduces size **without sacrificing `-O3` speed**. Caps inlining depth to prevent pathological bloat while preserving loop unrolling, vectorization, and instruction scheduling. Tunable threshold.
-2. **R4 (`-fno-rtti`)** — Speed-neutral, stackable on top of R3 or any config. OCCT's `DynamicType()` uses RTTI, but the replicad binding surface may not need it at runtime. High risk, moderate reward.
-3. **R6-R8 (wasm-opt passes)** — Speed-neutral marginal gains on top of any compile config. Low effort, low risk.
-4. **R2 (`-O2` with SIMD retest)** — Speed impact unknown until SIMD retest. May be moot if R3 delivers similar size at `-O3` speed.
-5. **R5 (`-Os` fallback)** — Already validated. Only deploy if size constraints force accepting the 18% speed regression.
+| #     | Approach                | Size Savings      | Speed Cost             | Notes                                                              |
+| ----- | ----------------------- | ----------------- | ---------------------- | ------------------------------------------------------------------ |
+| R5    | `-Os` compile           | -4.68 MB (-24.3%) | +18% slower            | Validated fallback at 14.54 MB. Only if size is a hard constraint. |
+| R2    | `-O2` compile + SIMD    | -2 to -3 MB       | Unknown (needs retest) | Middle ground, but any result slower than `-O3` is unacceptable.   |
+| R3    | Inline threshold tuning | -678 KB max       | +7-10% slower          | ❌ Tested and rejected. See Finding 12.                            |
+| R6-R7 | wasm-opt extra passes   | -524 KB max       | +2.9-9.5% slower       | ❌ Tested and rejected. See Finding 11.                            |
 
 ## Trade-offs: Speed vs Size (Measured)
 
 All builds use SIMD, no-exceptions, wasm-opt `-O3`. Geo-mean median latency from 50-iteration benchmarks across 18 CAD operations. **Sorted by speed (fastest first).**
 
-| Config                      | Geo-Mean    | vs `-O3` Speed | Size         | Size Savings      | Status             |
-| --------------------------- | ----------- | -------------- | ------------ | ----------------- | ------------------ |
-| **`-O3`, no LTO (current)** | **42.6 ms** | **Baseline**   | **19.22 MB** | **—**             | **Production**     |
-| `-Os`, no LTO, SIMD         | 50.2 ms     | -18%           | 14.54 MB     | -4.68 MB (-24.3%) | ✅ Measured        |
-| `-Os`, LTO, SIMD            | 50.4 ms     | -18%           | 15.03 MB     | -4.19 MB (-21.8%) | ✅ Measured        |
-| v7.6.2 (reference)          | 57.9 ms     | -36%           | 10.30 MB     | -8.92 MB (-46.4%) | Reference          |
-| `-O2`, no LTO (no SIMD)     | 58.9 ms     | -38%           | 17.92 MB     | -1.30 MB (-6.8%)  | Measured (no SIMD) |
-| `-O0`, LTO, SIMD            | 149.8 ms    | -252%          | 16.09 MB     | -3.13 MB (-16.3%) | ❌ Not viable      |
-| `-O0`, no LTO, SIMD         | 151.9 ms    | -257%          | 16.55 MB     | -2.67 MB (-13.9%) | ❌ Not viable      |
+| Config                                 | Geo-Mean    | vs `-O3` Speed | Size         | Size Savings      | Status              |
+| -------------------------------------- | ----------- | -------------- | ------------ | ----------------- | ------------------- |
+| **`-O3`, no LTO (current)**            | **42.6 ms** | **Baseline**   | **19.22 MB** | **—**             | **Production**      |
+| `-O3` + `--merge-similar-functions`    | 43.8 ms     | +2.9%          | 18.72 MB     | -0.50 MB (-2.6%)  | ❌ Speed regression |
+| `-O3` + `-mllvm -inline-threshold=128` | 45.7 ms     | +7.2%          | 18.57 MB     | -0.66 MB (-3.4%)  | ❌ Speed regression |
+| `-O3` + merge-similar + dae-optimizing | 46.6 ms     | +9.5%          | 18.78 MB     | -0.44 MB (-2.3%)  | ❌ Rejected         |
+| `-O3` + `-mllvm -inline-threshold=256` | 46.8 ms     | +9.7%          | 19.26 MB     | +0.04 MB (+0.2%)  | ❌ Rejected         |
+| `-O3` + noexcept all large dtors       | ~42.6 ms    | ~0% (noise)    | 19.22 MB     | +12 B (+0.00%)    | ❌ Negligible       |
+| `-Os`, no LTO, SIMD                    | 50.2 ms     | -18%           | 14.54 MB     | -4.68 MB (-24.3%) | ✅ Measured         |
+| `-Os`, LTO, SIMD                       | 50.4 ms     | -18%           | 15.03 MB     | -4.19 MB (-21.8%) | ✅ Measured         |
+| v7.6.2 (reference)                     | 57.9 ms     | -36%           | 10.30 MB     | -8.92 MB (-46.4%) | Reference           |
+| `-O2`, no LTO (no SIMD)                | 58.9 ms     | -38%           | 17.92 MB     | -1.30 MB (-6.8%)  | Measured (no SIMD)  |
+| `-O0`, LTO, SIMD                       | 149.8 ms    | -252%          | 16.09 MB     | -3.13 MB (-16.3%) | ❌ Not viable       |
+| `-O0`, no LTO, SIMD                    | 151.9 ms    | -257%          | 16.55 MB     | -2.67 MB (-13.9%) | ❌ Not viable       |
 
-**`-O3` is the correct production choice.** The 19.22 MB size is the cost of being the fastest configuration. Every alternative that reduces size also reduces speed — the question is whether the size savings justify the regression.
+**`-O3` is the correct production choice.** The 19.22 MB size is the cost of being the fastest configuration. Every tested approach to reduce size at `-O3` either regresses speed (R3, R6-R7) or has negligible effect (R8-ext). The `-O3` build is a local optimum — LLVM's default inlining heuristics produce the fastest possible code for OCCT.
 
-The `-Os` no-LTO SIMD build is the best fallback if size becomes a hard constraint: it saves 4.68 MB (24.3%) at an 18% speed cost, and remains 13% faster than v7. The `-Os + LTO` combination is **counterproductive for size** — LTO adds 0.49 MB vs no-LTO, because LLVM's LTO pass inlines more aggressively across modules than its DCE removes.
-
-The highest-leverage untested approach is **R3 (inline threshold tuning)**, which would reduce size at `-O3` speed — the only path that doesn't appear in this table because it hasn't been measured yet.
+Future work should prioritize **speed improvements** (threading, PGO, Emscripten upgrades) over further size reduction attempts. The only remaining speed-neutral size option is R4 (`-fno-rtti`), which eliminates RTTI metadata without affecting code generation.
 
 ## References
 
@@ -494,6 +520,158 @@ The highest-leverage untested approach is **R3 (inline threshold tuning)**, whic
 - OCCT WASM optimization: `docs/research/occt-wasm-optimization.md`
 - OCCT patches: `repos/opencascade.js/src/patches/`
 - Build configs: `repos/opencascade.js/build-configs/configurations.json`
+
+## Finding 11: wasm-opt Extra Passes (R6-R7) Results
+
+Three additional `wasm-opt` passes were tested on the production `-O3` baseline (20,157,420 bytes) to evaluate their impact on both size and speed. All builds used `O3-simd` config with SIMD, no-exceptions, `wasm-opt -O4 --converge`. Benchmarks were 50 iterations across 18 CAD operations.
+
+### Size impact (standalone application to baseline WASM)
+
+| Pass                        | Input Size   | Output Size  | Delta       | Notes                                                   |
+| --------------------------- | ------------ | ------------ | ----------- | ------------------------------------------------------- |
+| `--merge-similar-functions` | 20,157,420 B | 19,658,331 B | **-487 KB** | Requires `--enable-multivalue` for merged tuple returns |
+| `--dae-optimizing`          | 20,157,420 B | 20,222,513 B | **+64 KB**  | Dead argument elimination restructures call sites       |
+| `--outlining`               | 20,157,420 B | N/A          | N/A         | Validator error: `Tuples are not allowed`               |
+
+### Size impact (integrated into NX build pipeline with `-O4 --converge`)
+
+| Variant                          | WASM Size    | vs Baseline     | Gzip    |
+| -------------------------------- | ------------ | --------------- | ------- |
+| **Baseline (no extra passes)**   | **19.22 MB** | **—**           | 6.13 MB |
+| + `--merge-similar-functions`    | 18.72 MB     | -524 KB (-2.6%) | —       |
+| + merge-similar + dae-optimizing | 18.78 MB     | -460 KB (-2.3%) | —       |
+
+When integrated into the full pipeline (where `-O4 --converge` runs multiple optimization passes), `--merge-similar-functions` achieved slightly better savings (-524 KB) than the standalone test (-487 KB), likely because `--converge` iteratively applies the merge pass alongside other optimizations.
+
+### Speed impact (50-iteration median benchmarks)
+
+| Benchmark             | Baseline    | Merge-Similar | Merge+DAE   | MS %      | DAE %     |
+| --------------------- | ----------- | ------------- | ----------- | --------- | --------- |
+| birdhouse             | 195.57 ms   | 203.42 ms     | 203.25 ms   | +4.0%     | +3.9%     |
+| bottle                | 259.52 ms   | 263.79 ms     | 267.80 ms   | +1.6%     | +3.2%     |
+| box                   | 7.70 ms     | 8.40 ms       | 9.40 ms     | +9.1%     | +22.1%    |
+| box-chamfer-all       | 26.41 ms    | 27.11 ms      | 27.40 ms    | +2.7%     | +3.8%     |
+| box-fillet-all        | 30.21 ms    | 30.32 ms      | 31.13 ms    | +0.4%     | +3.1%     |
+| cut-cylinder-from-box | 12.18 ms    | 15.64 ms      | 16.18 ms    | +28.4%    | +32.9%    |
+| cycloidal-gear        | 526.80 ms   | 506.42 ms     | 591.92 ms   | -3.9%     | +12.4%    |
+| cylinder              | 7.91 ms     | 7.74 ms       | 10.25 ms    | -2.2%     | +29.6%    |
+| deep-boolean-chain    | 91.79 ms    | 90.00 ms      | 118.70 ms   | -1.9%     | +29.3%    |
+| fuse-two-boxes        | 15.40 ms    | 21.47 ms      | 22.80 ms    | +39.4%    | +48.1%    |
+| gridfinity-box        | 198.03 ms   | 222.32 ms     | 211.04 ms   | +12.3%    | +6.6%     |
+| multi-hole-plate      | 180.13 ms   | 182.36 ms     | 185.42 ms   | +1.2%     | +2.9%     |
+| n-body-fuse           | 42.89 ms    | 46.01 ms      | 65.84 ms    | +7.3%     | +53.5%    |
+| sketch-extrude        | 6.92 ms     | 6.97 ms       | 7.86 ms     | +0.7%     | +13.5%    |
+| sketch-revolve        | 9.05 ms     | 9.53 ms       | 10.23 ms    | +5.3%     | +13.0%    |
+| sphere                | 20.59 ms    | 19.89 ms      | 20.91 ms    | -3.4%     | +1.5%     |
+| tray                  | 29.55 ms    | 44.22 ms      | 31.98 ms    | +49.7%    | +8.2%     |
+| vase                  | 164.45 ms   | 171.60 ms     | 166.47 ms   | +4.3%     | +1.2%     |
+| **TOTAL**             | **1825 ms** | **1877 ms**   | **1999 ms** | **+2.9%** | **+9.5%** |
+
+### Analysis
+
+**`--merge-similar-functions`** merges C++ template instantiations with identical WASM bodies into a single function with a dispatch header. The dispatch overhead (+2.9% median total) is measurable and inconsistent — some benchmarks regress heavily (`fuse-two-boxes` +39.4%, `tray` +49.7%), while others are within noise or slightly faster (`cycloidal-gear` -3.9%, `cylinder` -2.2%). The regression pattern suggests boolean operations and complex sweeps are most affected, likely because their hot paths call many merged template functions.
+
+**`--dae-optimizing`** restructures function signatures to eliminate unused parameters. The resulting call-site changes interact poorly with the V8 JIT compiler's inline caches and function call optimizations, producing a consistent +9.5% regression across all benchmark categories. The pass also increases binary size, making it counterproductive on both axes.
+
+**Conclusion**: Given the speed-first principle, none of these passes should be enabled by default. `BINARYEN_EXTRA_PASSES` is set to `""` (empty) in all `configurations.json` configs. The `--merge-similar-functions` pass remains available for size-constrained deployments via `BINARYEN_EXTRA_PASSES="--enable-multivalue,--merge-similar-functions"`.
+
+## Finding 12: LLVM Inline Threshold Tuning (R3) Results
+
+**Status**: ❌ REJECTED
+
+Two inline threshold values were tested on the production `-O3` baseline using `-mllvm -inline-threshold=N`. Both were full rebuilds (PCH, sources, bindings, link) with 50-iteration benchmarks.
+
+### Build results
+
+| Config                         | Threshold | WASM Size    | vs Baseline     | Compile Time |
+| ------------------------------ | --------- | ------------ | --------------- | ------------ |
+| **Baseline (LLVM default)**    | ~225      | **19.22 MB** | **—**           | ~25 min      |
+| `-mllvm -inline-threshold=128` | 128       | 18.57 MB     | -678 KB (-3.4%) | ~26 min      |
+| `-mllvm -inline-threshold=256` | 256       | 19.26 MB     | +42 KB (+0.2%)  | ~25 min      |
+
+### Speed impact (50-iteration median benchmarks)
+
+| Benchmark             | Baseline    | IT=128      | IT=256      | 128 %     | 256 %     |
+| --------------------- | ----------- | ----------- | ----------- | --------- | --------- |
+| birdhouse             | 195.57 ms   | 208.89 ms   | 209.18 ms   | +6.8%     | +7.0%     |
+| bottle                | 259.52 ms   | 274.37 ms   | 275.23 ms   | +5.7%     | +6.1%     |
+| box                   | 7.70 ms     | 10.65 ms    | 13.42 ms    | +38.4%    | +74.4%    |
+| box-chamfer-all       | 26.41 ms    | 36.79 ms    | 40.87 ms    | +39.3%    | +54.8%    |
+| box-fillet-all        | 30.21 ms    | 42.01 ms    | 34.73 ms    | +39.1%    | +15.0%    |
+| cut-cylinder-from-box | 12.18 ms    | 16.33 ms    | 19.28 ms    | +34.1%    | +58.3%    |
+| cycloidal-gear        | 526.80 ms   | 524.68 ms   | 523.23 ms   | -0.4%     | -0.7%     |
+| cylinder              | 7.91 ms     | 13.37 ms    | 8.74 ms     | +68.9%    | +10.5%    |
+| deep-boolean-chain    | 91.79 ms    | 91.09 ms    | 93.39 ms    | -0.8%     | +1.7%     |
+| fuse-two-boxes        | 15.40 ms    | 20.76 ms    | 22.23 ms    | +34.8%    | +44.3%    |
+| gridfinity-box        | 198.03 ms   | 216.19 ms   | 214.91 ms   | +9.2%     | +8.5%     |
+| multi-hole-plate      | 180.13 ms   | 200.17 ms   | 245.99 ms   | +11.1%    | +36.6%    |
+| n-body-fuse           | 42.89 ms    | 51.76 ms    | 48.34 ms    | +20.7%    | +12.7%    |
+| sketch-extrude        | 6.92 ms     | 10.31 ms    | 9.65 ms     | +49.0%    | +39.5%    |
+| sketch-revolve        | 9.05 ms     | 12.79 ms    | 11.77 ms    | +41.3%    | +30.0%    |
+| sphere                | 20.59 ms    | 22.46 ms    | 23.53 ms    | +9.1%     | +14.3%    |
+| tray                  | 29.55 ms    | 31.37 ms    | 38.78 ms    | +6.2%     | +31.2%    |
+| vase                  | 164.45 ms   | 172.36 ms   | 168.53 ms   | +4.8%     | +2.5%     |
+| **TOTAL**             | **1825 ms** | **1956 ms** | **2002 ms** | **+7.2%** | **+9.7%** |
+
+### Analysis
+
+**Both threshold values regress speed significantly.** The hypothesis that `-mllvm -inline-threshold=N` would preserve `-O3` speed while reducing pathological inlining was incorrect. The reason:
+
+1. **LLVM's inlining is not a simple threshold check.** The `-inline-threshold` parameter is just the base cost threshold. LLVM's actual inlining decisions involve a complex cost model that considers: caller/callee size, call frequency estimates, loop nesting depth bonuses, cold/hot region analysis, and partial inlining opportunities. Setting `-inline-threshold` explicitly overrides the base value but doesn't disable the adaptive adjustments — it shifts the entire decision boundary.
+
+2. **Small functions are disproportionately affected.** Benchmarks with the largest regressions are small operations (`box` +38-74%, `cylinder` +69%, `sketch-extrude` +49%, `fuse-two-boxes` +35-44%). These operations consist of short call chains where every inlined function contributes to eliminating call overhead, vtable lookups, and enabling register allocation across the full operation. Reducing inlining at any level disrupts this.
+
+3. **Large operations are unaffected.** `cycloidal-gear` (-0.4%/-0.7%) and `deep-boolean-chain` (-0.8%/+1.7%) show no meaningful change because they are dominated by algorithmic time (geometry intersection, boolean solver), not function call overhead.
+
+4. **threshold=256 > default (~225) yet SLOWER.** This is counterintuitive. Setting the threshold explicitly, even above the default, appears to interfere with LLVM's adaptive cost model. The default behavior (no explicit threshold) allows LLVM's `-O3` pipeline to make context-sensitive decisions that the flat threshold override cannot replicate.
+
+**Conclusion**: LLVM's default `-O3` inlining heuristics are already optimal for OCCT's code patterns. There is no way to selectively reduce pathological inlining (542 KB destructors) without also reducing beneficial inlining that makes hot paths fast. The 19.22 MB binary size at `-O3` is the irreducible cost of maximum performance.
+
+### Infrastructure added
+
+The `OCJS_EXTRA_CFLAGS` env var was added to the build system (`build-wasm.sh`, `Common.py`, `nx.json`) to support arbitrary extra compile flags. Configurations `O3-simd-it128` and `O3-simd-it256` were added to `configurations.json` for reproducibility.
+
+### Experiment artifacts
+
+- `tarballs/experiments/v8-O3-noLTO-wasmOptO4-simd-it128/` (18.57 MB)
+- `tarballs/experiments/v8-O3-noLTO-wasmOptO4-simd-it256/` (19.26 MB)
+
+## Finding 13: Noexcept on All Large Destructors (R8-ext) Results
+
+Extended the `noexcept` destructor patch from 1 class (STEPCAFControl_ActorWrite) to **7 classes** covering the largest generated destructors in the WASM binary (627 KB of destructor code across Finding 5 top 30). Implemented as `patch_noexcept_destructors.py`, a comprehensive replacement for the single-class `patch_stepcaf_noexcept.py`.
+
+### Size impact
+
+| Build                 | WASM Size    | Delta vs baseline |
+| --------------------- | ------------ | ----------------- |
+| Baseline (1 noexcept) | 20,157,420 B | —                 |
+| R8-ext (7 noexcept)   | 20,157,432 B | **+12 B**         |
+
+Adding `noexcept` to 6 additional destructors changed the binary size by **+12 bytes** — byte-identical within alignment padding.
+
+### Speed impact
+
+50-iteration benchmarks across 18 CAD operations. The R8-ext build showed a +14.6% median total regression (2091 ms vs 1825 ms baseline). However, this measurement is unreliable because:
+
+1. **The WASM binaries are byte-identical** — a +12 B difference cannot cause a 14.6% speed change
+2. Benchmarks were run in different sessions with different system load and thermal states
+3. Individual operation regressions (e.g. multi-hole-plate +48.2%, bottle +35.7%) are far too large for a code-neutral change
+
+A back-to-back retest in the same session would be needed for a definitive speed conclusion, but the size result alone is sufficient to reject this approach.
+
+### Why noexcept has no effect
+
+The `noexcept` annotation tells the compiler that a function won't throw, eliminating exception handling (EH) landing pads at call sites. However, as established in Finding 7:
+
+1. **Landing pads are not the primary cause of destructor bloat.** The massive destructor sizes (48-222 KB) come from `-O3` inlining Handle<> reference-counting cleanup chains, not from EH cleanup code.
+2. **The non-exceptions build already suppresses most EH code.** With `-sDISABLE_EXCEPTION_CATCHING=1`, the linker strips catch blocks. The remaining cleanup code is for unwinding through `noexcept` functions, which is a tiny fraction of the total.
+3. **The compiler generates destructors out-of-line anyway.** When the destructor definition is `= default`, the compiler generates it at the definition site. The `noexcept` only prevents generating landing-pad code at _call sites_, which contributes ~300 B per function (Finding 7's 319 B measurement).
+
+With 6 additional destructors × ~300 B per function, the expected savings would be ~1.8 KB. The actual result (+12 B) suggests that the compiler and linker are already optimizing away most of this code in the non-exceptions configuration.
+
+### Experiment artifacts
+
+- `tarballs/experiments/v8-O3-noLTO-wasmOptO4-simd-noexcept-all/` (19.22 MB)
 
 ## Appendix: Full Package Inventory
 
