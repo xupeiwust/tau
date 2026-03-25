@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDirectory = join(__dirname, '..');
+const rootDirectory = join(__dirname, '../..');
 const nodeModulesDirectory = join(rootDirectory, 'node_modules');
 const outputFile = join(rootDirectory, 'license-deps');
 

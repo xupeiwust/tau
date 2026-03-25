@@ -19,7 +19,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDirectory = join(__dirname, '..');
+const rootDirectory = join(__dirname, '../..');
 const occtDirectory = join(rootDirectory, 'repos', 'OCCT');
 const outputFile = join(rootDirectory, 'docs', 'opencascade-v7.62-v8rc4-changelog.md');
 

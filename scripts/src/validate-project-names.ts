@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
 import process from 'node:process';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(import.meta.dirname, '../..');
 const projectDirectories = ['apps', 'packages', 'libs'];
 
 type Diagnostic = { level: 'ERROR' | 'WARN'; message: string };

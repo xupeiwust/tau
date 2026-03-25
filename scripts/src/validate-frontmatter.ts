@@ -5,7 +5,7 @@ import process from 'node:process';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-const root = resolve(import.meta.dirname, '..');
+const root = resolve(import.meta.dirname, '../..');
 const policyDirectory = join(root, 'docs/policy');
 const researchDirectory = join(root, 'docs/research');
 const stalenessDays = 180;
