@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { messageMetadataSchema } from '#schemas/metadata.schema.js';
 import { providerMetadataSchema } from '#schemas/message-provider.schema.js';
 import type { MyUIMessage } from '#types/message.types.js';
-import { usageDataSchema } from '#schemas/message-data.schema.js';
+import { usageDataSchema, contextCompactionDataSchema, contextUsageDataSchema } from '#schemas/message-data.schema.js';
 import { editFileInputSchema, editFileOutputSchema } from '#schemas/tools/edit-file.tool.schema.js';
 import { testModelOutputSchema } from '@taucad/testing';
 import { editTestsInputSchema, editTestsOutputSchema } from '#schemas/tools/test-model.tool.schema.js';
@@ -228,6 +228,16 @@ export const uiMessagesSchema: z.ZodType<MyUIMessage[]> = z
               type: z.literal('data-usage'),
               id: z.string().optional(),
               data: usageDataSchema,
+            }),
+            z.object({
+              type: z.literal('data-context-compaction'),
+              id: z.string().optional(),
+              data: contextCompactionDataSchema,
+            }),
+            z.object({
+              type: z.literal('data-context-usage'),
+              id: z.string().optional(),
+              data: contextUsageDataSchema,
             }),
             z.object({
               type: z.literal('dynamic-tool'),
