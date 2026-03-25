@@ -2,20 +2,7 @@ import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { newlineTrimmerMiddleware, trimNewlines } from '#api/chat/middleware/newline-trimmer.middleware.js';
-
-type TestRequest = { messages: BaseMessage[] };
-
-async function callWrapModelCall(request: TestRequest, handler: ReturnType<typeof vi.fn>): Promise<AIMessage> {
-  const { wrapModelCall } = newlineTrimmerMiddleware;
-  if (!wrapModelCall) {
-    throw new Error('wrapModelCall is not defined on middleware');
-  }
-
-  return (await wrapModelCall(
-    request as Parameters<typeof wrapModelCall>[0],
-    handler as Parameters<typeof wrapModelCall>[1],
-  )) as AIMessage;
-}
+import { invokeWrapModelCall } from '#testing/middleware-testing.utils.js';
 
 // =============================================================================
 // trimNewlines (unit)
@@ -82,7 +69,7 @@ describe('newlineTrimmerMiddleware', () => {
     it('should trim leading newlines from string content', async () => {
       handler.mockResolvedValue(new AIMessage({ content: '\n\nHello world' }));
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Hello world');
     });
@@ -90,7 +77,7 @@ describe('newlineTrimmerMiddleware', () => {
     it('should trim trailing newlines from string content', async () => {
       handler.mockResolvedValue(new AIMessage({ content: 'Hello world\n\n\n' }));
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Hello world');
     });
@@ -98,7 +85,7 @@ describe('newlineTrimmerMiddleware', () => {
     it('should collapse excessive interior newlines in string content', async () => {
       handler.mockResolvedValue(new AIMessage({ content: 'Paragraph one\n\n\n\nParagraph two' }));
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Paragraph one\n\nParagraph two');
     });
@@ -107,7 +94,7 @@ describe('newlineTrimmerMiddleware', () => {
       const original = new AIMessage({ content: 'Clean text\n\nWith paragraph' });
       handler.mockResolvedValue(original);
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result).toBe(original);
     });
@@ -125,7 +112,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; text: string }>;
 
       expect(blocks[0]!.text).toBe('Here is my response');
@@ -138,7 +125,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; text: string }>;
 
       expect(blocks[0]!.text).toBe('Response text');
@@ -151,7 +138,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; text: string }>;
 
       expect(blocks[0]!.text).toBe('First\n\nSecond');
@@ -163,7 +150,7 @@ describe('newlineTrimmerMiddleware', () => {
       });
       handler.mockResolvedValue(original);
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result).toBe(original);
     });
@@ -184,7 +171,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('Reviewing the implementation');
@@ -201,7 +188,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; reasoning?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('Thinking about this');
@@ -214,7 +201,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; reasoning?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('Step 1\n\nStep 2\n\nStep 3');
@@ -229,7 +216,7 @@ describe('newlineTrimmerMiddleware', () => {
       });
       handler.mockResolvedValue(original);
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result).toBe(original);
     });
@@ -250,7 +237,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('Let me think');
@@ -267,7 +254,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('Clean reasoning');
@@ -283,7 +270,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
       const blocks = result.content as Array<Record<string, unknown>>;
 
       expect(blocks[0]).toEqual(imageBlock);
@@ -304,7 +291,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.id).toBe('msg_abc123');
       expect(result.content).toBe('Trimmed');
@@ -320,7 +307,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Let me read the file');
       expect(result.tool_calls).toEqual(toolCalls);
@@ -335,7 +322,7 @@ describe('newlineTrimmerMiddleware', () => {
         }),
       );
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Response');
       expect(result.additional_kwargs).toEqual({ custom: 'value' });
@@ -350,9 +337,9 @@ describe('newlineTrimmerMiddleware', () => {
           response_metadata: responseMetadata,
         }),
       );
-      /* eslint-enable @typescript-eslint/naming-convention */
+      /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Response');
       expect(result.response_metadata).toEqual(responseMetadata);
@@ -372,9 +359,9 @@ describe('newlineTrimmerMiddleware', () => {
           usage_metadata: usageMetadata,
         }),
       );
-      /* eslint-enable @typescript-eslint/naming-convention */
+      /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Response');
       expect(result.usage_metadata).toEqual(usageMetadata);
@@ -402,9 +389,9 @@ describe('newlineTrimmerMiddleware', () => {
           usage_metadata: usageMetadata,
         }),
       );
-      /* eslint-enable @typescript-eslint/naming-convention */
+      /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       expect(result.content).toBe('Trimmed response');
       expect(result.id).toBe('msg_full_check');
@@ -437,11 +424,12 @@ describe('newlineTrimmerMiddleware', () => {
           additional_kwargs: additionalKwargs,
           response_metadata: responseMetadata,
           usage_metadata: usageMetadata,
-        }),
+          // oxlint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- AIMessage constructor union type inference
+        } as any),
       );
-      /* eslint-enable @typescript-eslint/naming-convention */
+      /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
-      const result = await callWrapModelCall({ messages: [] }, handler);
+      const result = (await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [] }, handler)) as AIMessage;
 
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
       expect(blocks[0]!.reasoning).toBe('Let me think');
@@ -463,10 +451,10 @@ describe('newlineTrimmerMiddleware', () => {
       const humanMessage = new HumanMessage('Hello');
       handler.mockResolvedValue(new AIMessage({ content: 'Hi' }));
 
-      await callWrapModelCall({ messages: [humanMessage] }, handler);
+      await invokeWrapModelCall(newlineTrimmerMiddleware, { messages: [humanMessage] }, handler);
 
       expect(handler).toHaveBeenCalledTimes(1);
-      const [passedRequest] = handler.mock.calls[0] as [TestRequest];
+      const [passedRequest] = handler.mock.calls[0] as [{ messages: BaseMessage[] }];
       expect(passedRequest.messages[0]).toBe(humanMessage);
     });
   });

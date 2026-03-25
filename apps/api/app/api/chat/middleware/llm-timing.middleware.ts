@@ -43,7 +43,9 @@ export const createLlmTimingMiddleware = (metricsService: MetricsService): Agent
         const durationSeconds = (performance.now() - startTime) / 1000;
         const responseModel =
           result instanceof AIMessage
-            ? String(result.response_metadata['model'] ?? result.response_metadata['model_name'] ?? '')
+            ? String(
+                (result.response_metadata.model as string | undefined) ?? result.response_metadata.model_name ?? '',
+              )
             : undefined;
         metricsService.genAiOperationDuration.record(durationSeconds, {
           ...baseAttributes,

@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { AIMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
 import { AttributeKey } from '@taucad/telemetry';
 import { MetricsService } from '#telemetry/metrics.js';
 import type { ModelService } from '#api/models/model.service.js';
 import { createLlmTimingMiddleware } from '#api/chat/middleware/llm-timing.middleware.js';
+import { invokeWrapModelCall } from '#testing/middleware-testing.utils.js';
 
 const mockModelService = mock<ModelService>();
 const metricsService = new MetricsService();
@@ -17,11 +19,6 @@ describe('createLlmTimingMiddleware', () => {
 
   it('should record duration with response_model on success', async () => {
     const middleware = createLlmTimingMiddleware(metricsService);
-    const { wrapModelCall } = middleware;
-
-    if (!wrapModelCall) {
-      throw new Error('wrapModelCall is not defined on middleware');
-    }
 
     mockModelService.getOtelProviderName.mockReturnValue('anthropic');
 
@@ -30,14 +27,15 @@ describe('createLlmTimingMiddleware', () => {
       content: 'Hello!',
       response_metadata: { model: 'claude-3-5-sonnet-20241022' },
     });
-    /* eslint-enable @typescript-eslint/naming-convention */
+    /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
     const handler = vi.fn().mockResolvedValue(aiMessage);
     const request = {
+      messages: [] as BaseMessage[],
       runtime: { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService } },
     };
 
-    await wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler as Parameters<typeof wrapModelCall>[1]);
+    await invokeWrapModelCall(middleware, request, handler);
 
     expect(metricsService.genAiOperationDuration.record).toHaveBeenCalledTimes(1);
     const [duration, attributes] = (metricsService.genAiOperationDuration.record as ReturnType<typeof vi.fn>).mock
@@ -53,11 +51,6 @@ describe('createLlmTimingMiddleware', () => {
 
   it('should fall back to model_name when model is not present in response_metadata', async () => {
     const middleware = createLlmTimingMiddleware(metricsService);
-    const { wrapModelCall } = middleware;
-
-    if (!wrapModelCall) {
-      throw new Error('wrapModelCall is not defined on middleware');
-    }
 
     mockModelService.getOtelProviderName.mockReturnValue('openai');
 
@@ -66,14 +59,15 @@ describe('createLlmTimingMiddleware', () => {
       content: 'Hi',
       response_metadata: { model_name: 'gpt-4o-2024-05-13' },
     });
-    /* eslint-enable @typescript-eslint/naming-convention */
+    /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
     const handler = vi.fn().mockResolvedValue(aiMessage);
     const request = {
+      messages: [] as BaseMessage[],
       runtime: { context: { modelId: 'gpt-4o', modelService: mockModelService } },
     };
 
-    await wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler as Parameters<typeof wrapModelCall>[1]);
+    await invokeWrapModelCall(middleware, request, handler);
 
     const [, attributes] = (metricsService.genAiOperationDuration.record as ReturnType<typeof vi.fn>).mock.calls[0] as [
       number,
@@ -84,22 +78,16 @@ describe('createLlmTimingMiddleware', () => {
 
   it('should record duration with error.type on failure', async () => {
     const middleware = createLlmTimingMiddleware(metricsService);
-    const { wrapModelCall } = middleware;
-
-    if (!wrapModelCall) {
-      throw new Error('wrapModelCall is not defined on middleware');
-    }
 
     mockModelService.getOtelProviderName.mockReturnValue('anthropic');
 
     const handler = vi.fn().mockRejectedValue(new TypeError('Network failure'));
     const request = {
+      messages: [] as BaseMessage[],
       runtime: { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService } },
     };
 
-    await expect(
-      wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler as Parameters<typeof wrapModelCall>[1]),
-    ).rejects.toThrow('Network failure');
+    await expect(invokeWrapModelCall(middleware, request, handler)).rejects.toThrow('Network failure');
 
     const [duration, attributes] = (metricsService.genAiOperationDuration.record as ReturnType<typeof vi.fn>).mock
       .calls[0] as [number, Record<string, string>];
@@ -114,11 +102,6 @@ describe('createLlmTimingMiddleware', () => {
 
   it('should omit provider name when getOtelProviderName returns undefined', async () => {
     const middleware = createLlmTimingMiddleware(metricsService);
-    const { wrapModelCall } = middleware;
-
-    if (!wrapModelCall) {
-      throw new Error('wrapModelCall is not defined on middleware');
-    }
 
     mockModelService.getOtelProviderName.mockReturnValue(undefined);
 
@@ -127,14 +110,15 @@ describe('createLlmTimingMiddleware', () => {
       content: 'Test',
       response_metadata: { model: 'local-model' },
     });
-    /* eslint-enable @typescript-eslint/naming-convention */
+    /* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
     const handler = vi.fn().mockResolvedValue(aiMessage);
     const request = {
+      messages: [] as BaseMessage[],
       runtime: { context: { modelId: 'local-model', modelService: mockModelService } },
     };
 
-    await wrapModelCall(request as Parameters<typeof wrapModelCall>[0], handler as Parameters<typeof wrapModelCall>[1]);
+    await invokeWrapModelCall(middleware, request, handler);
 
     const [, attributes] = (metricsService.genAiOperationDuration.record as ReturnType<typeof vi.fn>).mock.calls[0] as [
       number,

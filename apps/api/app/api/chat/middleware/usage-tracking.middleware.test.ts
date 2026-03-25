@@ -5,6 +5,7 @@ import { AttributeKey, GenAiTokenType } from '@taucad/telemetry';
 import { MetricsService } from '#telemetry/metrics.js';
 import type { ModelService } from '#api/models/model.service.js';
 import { createUsageTrackingMiddleware } from '#api/chat/middleware/usage-tracking.middleware.js';
+import { resolveMiddlewareHook } from '#testing/middleware-testing.utils.js';
 
 const mockModelService = mock<ModelService>();
 const metricsService = new MetricsService();
@@ -50,7 +51,7 @@ const createAIMessageWithUsage = (overrides?: {
     },
   });
 };
-/* eslint-enable @typescript-eslint/naming-convention */
+/* eslint-enable @typescript-eslint/naming-convention -- Re-enable naming convention after LangChain metadata */
 
 describe('createUsageTrackingMiddleware', () => {
   let writer: ReturnType<typeof vi.fn>;
@@ -75,11 +76,7 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should record raw input tokens in OTEL histogram (not normalized)', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = createAIMessageWithUsage({ inputTokens: 500, outputTokens: 200 });
 
@@ -92,18 +89,18 @@ describe('createUsageTrackingMiddleware', () => {
     });
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as any,
     );
 
-    const calls = (metricsService.genAiTokenUsage.record as ReturnType<typeof vi.fn>).mock.calls;
-    const inputCall = calls.find(
-      (call: [number, Record<string, string>]) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.INPUT,
-    ) as [number, Record<string, string>] | undefined;
+    const { calls } = (metricsService.genAiTokenUsage.record as ReturnType<typeof vi.fn>).mock;
+    const inputCall = calls.find((call: unknown) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.INPUT) as
+      | [number, Record<string, string>]
+      | undefined;
     const outputCall = calls.find(
-      (call: [number, Record<string, string>]) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.OUTPUT,
+      (call: unknown) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.OUTPUT,
     ) as [number, Record<string, string>] | undefined;
 
     expect(inputCall?.[0]).toBe(500);
@@ -112,11 +109,7 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should populate response_model from response_metadata.model (Anthropic)', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = createAIMessageWithUsage({
       responseModel: 'claude-3-5-sonnet-20241022',
@@ -124,10 +117,10 @@ describe('createUsageTrackingMiddleware', () => {
     });
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as any,
     );
 
     const [, attributes] = (metricsService.genAiTokenUsage.record as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -139,19 +132,15 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should fall back to response_metadata.model_name (OpenAI)', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = createAIMessageWithUsage({ responseModel: 'gpt-4o-2024-05-13', responseModelKey: 'model_name' });
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'gpt-4o', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'gpt-4o', modelService: mockModelService }, writer } as any,
     );
 
     const [, attributes] = (metricsService.genAiTokenUsage.record as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -163,19 +152,15 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should increment cost counter when totalCost > 0', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = createAIMessageWithUsage();
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as any,
     );
 
     expect(metricsService.genAiCost.add).toHaveBeenCalledWith(
@@ -188,19 +173,15 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should skip recording when usage_metadata is absent', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = new AIMessage({ content: 'No usage' });
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as any,
     );
 
     expect(metricsService.genAiTokenUsage.record).not.toHaveBeenCalled();
@@ -209,19 +190,15 @@ describe('createUsageTrackingMiddleware', () => {
 
   it('should write usage data to the stream writer', () => {
     const middleware = createUsageTrackingMiddleware(metricsService);
-    const { afterModel } = middleware;
-
-    if (!afterModel) {
-      throw new Error('afterModel is not defined on middleware');
-    }
+    const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
     const aiMessage = createAIMessageWithUsage();
 
     afterModel(
-      { messages: [aiMessage] } as Parameters<typeof afterModel>[0],
-      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as unknown as Parameters<
-        typeof afterModel
-      >[1],
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { messages: [aiMessage] } as any,
+      // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+      { context: { modelId: 'claude-3.5-sonnet', modelService: mockModelService }, writer } as any,
     );
 
     expect(writer).toHaveBeenCalledWith(
