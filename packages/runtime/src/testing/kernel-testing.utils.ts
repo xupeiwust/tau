@@ -396,6 +396,7 @@ export function createMockRuntime<
     options: (mockOptions?.options ?? {}) as Options,
     dependencies: mockOptions?.dependencies ?? [],
     dependencyHash: mockOptions?.dependencyHash ?? defaultMockDependencyHash,
+    registerWatchPath: vi.fn(),
   };
 }
 

@@ -295,6 +295,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /** Per-render dependency computation cache. Cleared at the start of each render cycle. */
   private renderDependencyCache?: { hash: string; dependencies: Dependency[] };
 
+  /** Middleware-registered watch paths with custom debounce tiers (path → debounceMs). */
+  private readonly middlewareWatchPaths = new Map<string, number>();
+
   /** Currently watched dependency paths. Used for incremental watch-set diffing. */
   private watchedPaths = new Set<string>();
 
@@ -471,9 +474,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    * @param parameters - Parameter overrides.
    * @param tessellation - Optional tessellation config.
    */
-  public handleSetFile(file: GeometryFile, parameters: Record<string, unknown>, tessellation?: Tessellation): void {
+  public handleSetFile(file: GeometryFile, parameters?: Record<string, unknown>, tessellation?: Tessellation): void {
     this.currentFile = file;
-    this.currentParameters = parameters;
+    this.currentParameters = parameters ?? {};
     this.currentTessellation = tessellation;
 
     this.renderGeneration++;
@@ -515,6 +518,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     this.watchUnsubscribe?.();
     this.watchUnsubscribe = undefined;
     this.assetHashCache.clear();
+    this.middlewareWatchPaths.clear();
     this.nativeHandle = undefined;
     this.currentFile = undefined;
     this.telemetryCollector?.dispose();
@@ -586,6 +590,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
             stateSchema: middleware.stateSchema,
             options: middlewareOptions,
             logger: this.getMiddlewareLogger(middleware.name),
+            registerWatchPath: this.handleRegisterWatchPath,
           }),
         );
       }
@@ -701,6 +706,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
             stateSchema: middleware.stateSchema,
             options: middlewareOptions,
             logger: this.getMiddlewareLogger(middleware.name),
+            registerWatchPath: this.handleRegisterWatchPath,
           }),
         );
       }
@@ -829,6 +835,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
             stateSchema: middleware.stateSchema,
             options: middlewareOptions,
             logger: this.getMiddlewareLogger(middleware.name),
+            registerWatchPath: this.handleRegisterWatchPath,
           }),
         );
       }
@@ -981,6 +988,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /**
+   * Get the current middleware-registered watch paths and their debounce tiers.
+   * Primarily for test assertions.
+   * @returns A copy of the internal middleware watch paths map.
+   */
+  public getMiddlewareWatchPaths(): Map<string, number> {
+    return new Map(this.middlewareWatchPaths);
+  }
+
+  /**
    * Update filesystem watch subscriptions based on the current dependency set.
    * Diffs against the previous watch set to avoid full resubscribe churn.
    *
@@ -1037,7 +1053,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
           this._invalidateCachesForPaths(changedPaths);
           this.onFileChanged(changedPaths);
           if (this.currentFile) {
-            this.scheduleRender(fileChangeDebounceMs);
+            let debounceMs = fileChangeDebounceMs;
+            for (const p of changedPaths) {
+              debounceMs = Math.min(debounceMs, this.middlewareWatchPaths.get(p) ?? fileChangeDebounceMs);
+            }
+            this.scheduleRender(debounceMs);
           }
         }
       },
@@ -1477,6 +1497,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     for (const path of this.fileHashCache.keys()) {
       allDeps.add(path);
     }
+    for (const path of this.middlewareWatchPaths.keys()) {
+      allDeps.add(path);
+    }
     this.updateWatchSet([...allDeps]);
   }
 
@@ -1730,8 +1753,41 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       contentHash: this.fileHashCache.get(absolutePath)!,
     }));
 
-    // 2. Middleware dependencies (only enabled, index preserves chain order)
+    // 2. Middleware file dependencies (from getDependencies hooks)
     const middleware = resolvedMiddleware ?? this.getMiddleware();
+    const middlewareFilePaths: string[] = [];
+    for (const { middleware: mw, options: mwOptions, enabled } of middleware) {
+      if (enabled && mw.getDependencies) {
+        const getDeps = mw.getDependencies as (
+          input: GetDependenciesInput,
+          options: Record<string, unknown>,
+        ) => string[] | Promise<string[]>;
+        // oxlint-disable-next-line no-await-in-loop -- Sequential to preserve deterministic ordering
+        const paths = await getDeps(discoverInput, mwOptions);
+        middlewareFilePaths.push(...paths);
+      }
+    }
+
+    if (middlewareFilePaths.length > 0) {
+      for (const filePath of middlewareFilePaths) {
+        if (!this.fileHashCache.has(filePath)) {
+          try {
+            // oxlint-disable-next-line no-await-in-loop -- Individual reads to handle missing files gracefully
+            const content = await this.filesystem.readFile(filePath);
+            this.fileHashCache.set(filePath, this.hashContent(content));
+          } catch {
+            this.fileHashCache.set(filePath, 'missing');
+          }
+        }
+        fileDeps.push({
+          type: 'file',
+          path: filePath,
+          contentHash: this.fileHashCache.get(filePath)!,
+        });
+      }
+    }
+
+    // 3. Middleware signature dependencies (only enabled, index preserves chain order)
     const middlewareDeps: MiddlewareDependency[] = middleware
       .filter(({ enabled }) => enabled)
       .map(({ middleware: mw, options: mwOptions }, index) => ({
@@ -1742,21 +1798,21 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         options: mwOptions,
       }));
 
-    // 3. Framework dependency
+    // 4. Framework dependency
     const frameworkDep: FrameworkDependency = {
       type: 'framework',
       name: 'tau',
       version: tauVersion,
     };
 
-    // 4. Options dependencies (options are stable between renders, no sort needed)
+    // 5. Options dependencies (options are stable between renders, no sort needed)
     const optionDeps: OptionDependency[] = Object.entries(this.options).map(([key, value]) => ({
       type: 'option',
       key,
       value,
     }));
 
-    // 5. Asset dependencies (fonts, WASM, etc.)
+    // 6. Asset dependencies (fonts, WASM, etc.)
     const assetUrls = this.getAssetUrls();
     const assetDeps: AssetDependency[] = assetUrls.map((urlOrVersion, index) => ({
       type: 'asset',
@@ -2026,6 +2082,15 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     this.cachedProjectRoot = undefined;
     this.cachedBundlerFacade = undefined;
   }
+
+  /**
+   * Register a middleware watch path with an optional custom debounce tier.
+   * Called by middleware via `runtime.registerWatchPath()`.
+   * Idempotent — re-registering the same path updates the debounce value.
+   */
+  private readonly handleRegisterWatchPath = (absolutePath: string, options?: { debounceMs?: number }): void => {
+    this.middlewareWatchPaths.set(absolutePath, options?.debounceMs ?? fileChangeDebounceMs);
+  };
 
   private computeDependencyHash(dependencies: readonly Dependency[]): string {
     const contentHashSpan = this.tracer.startSpan('deps.content-hash');

@@ -303,12 +303,12 @@ export class RuntimeWorkerClient {
    * @param parameters - Parameters for the render
    * @param tessellation - Optional tessellation quality settings
    */
-  public setFile(file: GeometryFile, parameters: Record<string, unknown>, tessellation?: Tessellation): void {
+  public setFile(file: GeometryFile, parameters?: Record<string, unknown>, tessellation?: Tessellation): void {
     this.incrementAbortGeneration();
     const command: RuntimeCommand = {
       type: 'setFile',
       file,
-      parameters,
+      parameters: parameters ?? {},
       tessellation,
     };
     this.transport.send(command);

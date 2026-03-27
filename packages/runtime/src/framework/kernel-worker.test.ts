@@ -9,6 +9,7 @@ import type { CreateGeometryResult } from '#types/runtime.types.js';
 import type { KernelRuntime, CreateGeometryInput } from '#types/runtime-kernel.types.js';
 import type { MockKernelWorkerOptions } from '#testing/kernel-testing.utils.js';
 import { MockKernelWorker, createMockFileSystem, createGeometryFile } from '#testing/kernel-testing.utils.js';
+import { defineMiddleware } from '#middleware/runtime-middleware.js';
 
 // =============================================================================
 // Test Helpers
@@ -420,6 +421,194 @@ describe('KernelWorker lifecycle', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // registerWatchPath
+  // ---------------------------------------------------------------------------
+
+  describe('registerWatchPath', () => {
+    it('should include middleware-registered paths in watch set', () => {
+      const worker = createConfiguredWorker();
+
+      // @ts-expect-error - accessing private method for test verification
+      worker.setBasePath(createGeometryFile('main.ts'));
+
+      // Simulate middleware registering a watch path
+      // @ts-expect-error - accessing private for test verification
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+
+      const spy = vi.spyOn(worker, 'updateWatchSet');
+
+      // @ts-expect-error - accessing private for test verification
+      worker._updateWatchSetFromCaches();
+
+      expect(spy).toHaveBeenCalled();
+      const watchedPaths = spy.mock.calls[0]![0];
+      expect(watchedPaths).toContain('/projects/test/.tau/parameters.json');
+      expect(watchedPaths).toContain('/projects/test/main.ts');
+    });
+
+    it('should select shortest debounce tier when middleware-watched paths change', async () => {
+      vi.useFakeTimers();
+      try {
+        const worker = createConfiguredWorker();
+
+        // @ts-expect-error - accessing private method for test verification
+        worker.setBasePath(createGeometryFile('main.ts'));
+
+        worker.onStateChanged = vi.fn();
+        worker.onGeometryComputed = vi.fn();
+
+        // @ts-expect-error - accessing private for test verification
+        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+
+        // @ts-expect-error - accessing private for test verification
+        worker.currentFile = createGeometryFile('main.ts');
+
+        let capturedWatchCallback: ((event: { type: string; path: string }) => void) | undefined;
+        const mockWatch = vi
+          .fn()
+          .mockImplementation((_request: unknown, callback: (event: { type: string; path: string }) => void) => {
+            capturedWatchCallback = callback;
+            return () => {
+              capturedWatchCallback = undefined;
+            };
+          });
+
+        // @ts-expect-error - accessing private for test verification
+        worker.fileSystem = { watch: mockWatch, dispose: vi.fn(), listen: vi.fn() };
+
+        worker.updateWatchSet(['/projects/test/main.ts', '/projects/test/.tau/parameters.json']);
+
+        capturedWatchCallback!({ type: 'change', path: '/projects/test/.tau/parameters.json' });
+
+        // At 49ms, render should not have started (50ms debounce)
+        await vi.advanceTimersByTimeAsync(49);
+        expect(worker.onStateChanged).not.toHaveBeenCalled();
+
+        // At 51ms, render should have been triggered
+        await vi.advanceTimersByTimeAsync(2);
+        expect(worker.onStateChanged).toHaveBeenCalledWith('rendering');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should use default fileChangeDebounceMs when non-middleware path changes', async () => {
+      vi.useFakeTimers();
+      try {
+        const worker = createConfiguredWorker();
+
+        // @ts-expect-error - accessing private method for test verification
+        worker.setBasePath(createGeometryFile('main.ts'));
+
+        worker.onStateChanged = vi.fn();
+        worker.onGeometryComputed = vi.fn();
+
+        // @ts-expect-error - accessing private for test verification
+        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+
+        // @ts-expect-error - accessing private for test verification
+        worker.currentFile = createGeometryFile('main.ts');
+
+        let capturedWatchCallback: ((event: { type: string; path: string }) => void) | undefined;
+        const mockWatch = vi
+          .fn()
+          .mockImplementation((_request: unknown, callback: (event: { type: string; path: string }) => void) => {
+            capturedWatchCallback = callback;
+            return () => {
+              capturedWatchCallback = undefined;
+            };
+          });
+
+        // @ts-expect-error - accessing private for test verification
+        worker.fileSystem = { watch: mockWatch, dispose: vi.fn(), listen: vi.fn() };
+
+        worker.updateWatchSet(['/projects/test/main.ts', '/projects/test/.tau/parameters.json']);
+
+        capturedWatchCallback!({ type: 'change', path: '/projects/test/main.ts' });
+
+        // At 100ms, render should not have started yet (500ms default debounce)
+        await vi.advanceTimersByTimeAsync(100);
+        expect(worker.onStateChanged).not.toHaveBeenCalled();
+
+        // At 501ms, render should have been triggered
+        await vi.advanceTimersByTimeAsync(401);
+        expect(worker.onStateChanged).toHaveBeenCalledWith('rendering');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should update debounce value on re-registration (idempotent)', () => {
+      const worker = createConfiguredWorker();
+
+      // @ts-expect-error - accessing private for test verification
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 100 });
+
+      expect(worker.getMiddlewareWatchPaths().get('/projects/test/.tau/parameters.json')).toBe(100);
+
+      // @ts-expect-error - accessing private for test verification
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+
+      expect(worker.getMiddlewareWatchPaths().get('/projects/test/.tau/parameters.json')).toBe(50);
+    });
+
+    it('should clear middleware watch paths on cleanup', async () => {
+      const worker = createConfiguredWorker();
+
+      // @ts-expect-error - accessing private for test verification
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+
+      expect(worker.getMiddlewareWatchPaths().size).toBe(1);
+
+      await worker.cleanup();
+
+      expect(worker.getMiddlewareWatchPaths().size).toBe(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // handleSetFile with optional parameters
+  // ---------------------------------------------------------------------------
+
+  describe('handleSetFile optional parameters', () => {
+    it('should default parameters to empty object when omitted', async () => {
+      const worker = createConfiguredWorker();
+
+      const renderComplete = new Promise<void>((resolve) => {
+        worker.onStateChanged = (state) => {
+          if (state === 'idle' || state === 'error') {
+            resolve();
+          }
+        };
+      });
+
+      worker.handleSetFile(createGeometryFile('main.ts'));
+      await renderComplete;
+
+      // @ts-expect-error - accessing private for test verification
+      expect(worker.currentParameters).toEqual({});
+    });
+
+    it('should use provided parameters when given', async () => {
+      const worker = createConfiguredWorker();
+
+      const renderComplete = new Promise<void>((resolve) => {
+        worker.onStateChanged = (state) => {
+          if (state === 'idle' || state === 'error') {
+            resolve();
+          }
+        };
+      });
+
+      worker.handleSetFile(createGeometryFile('main.ts'), { width: 10 });
+      await renderComplete;
+
+      // @ts-expect-error - accessing private for test verification
+      expect(worker.currentParameters).toEqual({ width: 10 });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Immediate entry-file watch
   // ---------------------------------------------------------------------------
 
@@ -478,6 +667,178 @@ describe('KernelWorker lifecycle', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // middleware getDependencies hook
+  // ---------------------------------------------------------------------------
+
+  describe('middleware getDependencies', () => {
+    it('should include middleware dependency files in the dependency hash', async () => {
+      const parameterFileContent = new Uint8Array([10, 20, 30]);
+
+      const middlewareWithDeps = defineMiddleware({
+        name: 'test-deps',
+        getDependencies({ basePath }) {
+          return [`${basePath}/.tau/parameters.json`];
+        },
+      });
+
+      const filesystem = createMockFileSystem();
+      filesystem.mocks.readFiles.mockResolvedValue({
+        '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+      });
+      filesystem.mocks.readFile.mockResolvedValue(parameterFileContent);
+
+      const worker = createConfiguredWorker({
+        middleware: [middlewareWithDeps],
+        filesystem,
+      });
+
+      worker.onStateChanged = vi.fn();
+      worker.onGeometryComputed = vi.fn();
+
+      const result1 = await worker.runCreateGeometry('main.ts');
+      expect(result1.success).toBe(true);
+      const hash1 = result1.success ? result1.data[0]?.hash : undefined;
+
+      // Change the parameter file content and invalidate caches
+      // (simulates a watch-triggered file change between render cycles)
+      filesystem.mocks.readFile.mockResolvedValue(new Uint8Array([99, 99, 99]));
+      // @ts-expect-error - accessing private for test verification
+      worker._invalidateCachesForPaths(['/projects/test/.tau/parameters.json']);
+      // @ts-expect-error - accessing private for test verification
+      worker.renderDependencyCache = undefined;
+
+      const result2 = await worker.runCreateGeometry('main.ts');
+      expect(result2.success).toBe(true);
+      const hash2 = result2.success ? result2.data[0]?.hash : undefined;
+
+      expect(hash1).toBeDefined();
+      expect(hash2).toBeDefined();
+      expect(hash1).not.toBe(hash2);
+    });
+
+    it('should produce identical hashes when middleware dependency file is unchanged', async () => {
+      const parameterFileContent = new Uint8Array([10, 20, 30]);
+
+      const middlewareWithDeps = defineMiddleware({
+        name: 'test-deps',
+        getDependencies({ basePath }) {
+          return [`${basePath}/.tau/parameters.json`];
+        },
+      });
+
+      const filesystem = createMockFileSystem();
+      filesystem.mocks.readFiles.mockResolvedValue({
+        '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+      });
+      filesystem.mocks.readFile.mockResolvedValue(parameterFileContent);
+
+      const worker = createConfiguredWorker({
+        middleware: [middlewareWithDeps],
+        filesystem,
+      });
+
+      worker.onStateChanged = vi.fn();
+      worker.onGeometryComputed = vi.fn();
+
+      const result1 = await worker.runCreateGeometry('main.ts');
+      const hash1 = result1.success ? result1.data[0]?.hash : undefined;
+
+      const result2 = await worker.runCreateGeometry('main.ts');
+      const hash2 = result2.success ? result2.data[0]?.hash : undefined;
+
+      expect(hash1).toBeDefined();
+      expect(hash1).toBe(hash2);
+    });
+
+    it('should use sentinel hash when middleware dependency file is missing', async () => {
+      const middlewareWithDeps = defineMiddleware({
+        name: 'test-deps',
+        getDependencies({ basePath }) {
+          return [`${basePath}/.tau/missing.json`];
+        },
+      });
+
+      const filesystem = createMockFileSystem();
+      filesystem.mocks.readFiles.mockResolvedValue({
+        '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+      });
+      filesystem.mocks.readFile.mockRejectedValue(new Error('ENOENT'));
+
+      const worker = createConfiguredWorker({
+        middleware: [middlewareWithDeps],
+        filesystem,
+      });
+
+      worker.onStateChanged = vi.fn();
+      worker.onGeometryComputed = vi.fn();
+
+      const result = await worker.runCreateGeometry('main.ts');
+      expect(result.success).toBe(true);
+    });
+
+    it('should call getDependencies with correct input and resolved options', async () => {
+      const getDependenciesSpy = vi.fn().mockReturnValue([]);
+
+      const middlewareWithDeps = defineMiddleware({
+        name: 'test-deps',
+        getDependencies: getDependenciesSpy,
+      });
+
+      const filesystem = createMockFileSystem();
+      filesystem.mocks.readFiles.mockResolvedValue({
+        '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+      });
+
+      const middlewareOptions = { parametersFile: '.tau/params.json' };
+      const worker = createConfiguredWorker({
+        middleware: [middlewareWithDeps],
+        middlewareConfigs: [middlewareOptions],
+        filesystem,
+      });
+
+      worker.onStateChanged = vi.fn();
+      worker.onGeometryComputed = vi.fn();
+
+      await worker.runCreateGeometry('main.ts');
+
+      expect(getDependenciesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filePath: '/projects/test/main.ts',
+          basePath: '/projects/test',
+        }),
+        middlewareOptions,
+      );
+    });
+
+    it('should skip getDependencies for disabled middleware', async () => {
+      const getDependenciesSpy = vi.fn().mockReturnValue([]);
+
+      const middlewareWithDeps = defineMiddleware({
+        name: 'test-deps',
+        getDependencies: getDependenciesSpy,
+      });
+
+      const filesystem = createMockFileSystem();
+      filesystem.mocks.readFiles.mockResolvedValue({
+        '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+      });
+
+      const worker = createConfiguredWorker({
+        middleware: [middlewareWithDeps],
+        middlewareEnabled: [false],
+        filesystem,
+      });
+
+      worker.onStateChanged = vi.fn();
+      worker.onGeometryComputed = vi.fn();
+
+      await worker.runCreateGeometry('main.ts');
+
+      expect(getDependenciesSpy).not.toHaveBeenCalled();
     });
   });
 });
