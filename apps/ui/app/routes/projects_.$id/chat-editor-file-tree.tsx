@@ -1057,7 +1057,7 @@ export const ChatEditorFileTree = memo(function ({
               >
                 <Search className='size-4' />
               </FloatingPanelMenuButton>
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <FloatingPanelMenuButton asChild tooltip='Create new file' aria-label='Create new file'>
                   <DropdownMenuTrigger>
                     <FilePlus className='size-4' />
@@ -1504,7 +1504,7 @@ function TreeItem({
             ) : null}
           </div>
           {isFolder ? null : (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant='secondary'
