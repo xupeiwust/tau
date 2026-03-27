@@ -26,7 +26,7 @@ function createMockProxy(overrides?: Partial<FileManagerProxy>): FileManagerProx
 
 function createEntry(path: string, type: 'file' | 'dir' = 'file', size = 100): FileEntry {
   const parts = path.split('/');
-  return { path, name: parts.at(-1) ?? path, type, size, isLoaded: false };
+  return { path, name: parts.at(-1) ?? path, type, size, mtimeMs: 0, isLoaded: false };
 }
 
 describe('FileTreeService', () => {

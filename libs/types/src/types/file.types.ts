@@ -26,6 +26,7 @@ export type FileTreeEntry = {
  */
 export type FileEntry = FileTreeEntry & {
   isLoaded: boolean;
+  mtimeMs: number;
 };
 
 /**

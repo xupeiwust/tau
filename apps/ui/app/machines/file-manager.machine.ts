@@ -126,6 +126,7 @@ const initializeWorkerActor = fromSafeAsync<WorkerInitializedEvent, { context: F
           name: fileStat.name,
           type: fileStat.type,
           size: fileStat.size,
+          mtimeMs: fileStat.mtimeMs,
           isLoaded: false,
         });
       }

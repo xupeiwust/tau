@@ -308,7 +308,7 @@ export class FileTreeService {
     const parts = path.split('/');
     const name = parts.at(-1) ?? path;
     const newTree = new Map(this._tree);
-    newTree.set(path, { path, name, type: 'file', size, isLoaded: false });
+    newTree.set(path, { path, name, type: 'file', size, mtimeMs: Date.now(), isLoaded: false });
     this._tree = newTree;
     this.notifyTreeSubscribers();
   }
@@ -368,6 +368,7 @@ export class FileTreeService {
           name: stat.name,
           type: stat.type,
           size: stat.size,
+          mtimeMs: stat.mtimeMs,
           isLoaded: false,
         });
       }
