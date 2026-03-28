@@ -105,7 +105,7 @@ describe('Autonomous render loop patterns', () => {
   });
 
   describe('debounce scheduling', () => {
-    it('should debounce parameter changes at 50ms', () => {
+    it('should debounce parameter changes at 200ms', () => {
       const renderFunction = vi.fn();
       let timer: number | undefined;
 
@@ -115,15 +115,15 @@ describe('Autonomous render loop patterns', () => {
       };
 
       // Rapid parameter changes
-      scheduleRender(50);
-      scheduleRender(50);
-      scheduleRender(50);
+      scheduleRender(200);
+      scheduleRender(200);
+      scheduleRender(200);
 
       // Should not have rendered yet
       expect(renderFunction).not.toHaveBeenCalled();
 
-      // Advance 49ms - still not rendered
-      vi.advanceTimersByTime(49);
+      // Advance 199ms - still not rendered
+      vi.advanceTimersByTime(199);
       expect(renderFunction).not.toHaveBeenCalled();
 
       // Advance 1ms more - should render
@@ -131,7 +131,7 @@ describe('Autonomous render loop patterns', () => {
       expect(renderFunction).toHaveBeenCalledTimes(1);
     });
 
-    it('should debounce file changes at 500ms', () => {
+    it('should debounce file changes at 200ms', () => {
       const renderFunction = vi.fn();
       let timer: number | undefined;
 
@@ -140,9 +140,9 @@ describe('Autonomous render loop patterns', () => {
         timer = Number(setTimeout(renderFunction, delayMs));
       };
 
-      scheduleRender(500);
+      scheduleRender(200);
 
-      vi.advanceTimersByTime(499);
+      vi.advanceTimersByTime(199);
       expect(renderFunction).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(1);
@@ -158,13 +158,13 @@ describe('Autonomous render loop patterns', () => {
         timer = Number(setTimeout(renderFunction, delayMs));
       };
 
-      scheduleRender(500);
-      vi.advanceTimersByTime(400);
+      scheduleRender(200);
+      vi.advanceTimersByTime(100);
       expect(renderFunction).not.toHaveBeenCalled();
 
       // New change resets the timer
-      scheduleRender(500);
-      vi.advanceTimersByTime(400);
+      scheduleRender(200);
+      vi.advanceTimersByTime(100);
       expect(renderFunction).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(100);

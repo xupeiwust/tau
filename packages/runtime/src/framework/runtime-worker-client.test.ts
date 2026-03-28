@@ -328,6 +328,51 @@ describe('RuntimeWorkerClient', () => {
       expect(onStateChanged).toHaveBeenCalledWith('idle', 'render complete');
     });
 
+    it('should propagate buffering state via stateChanged response', () => {
+      const transport = createMockTransport();
+      const onStateChanged = vi.fn();
+      const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+      expect(client).toBeDefined();
+
+      transport.simulateResponse({
+        type: 'stateChanged',
+        state: 'buffering',
+      } as RuntimeResponse);
+
+      expect(onStateChanged).toHaveBeenCalledWith('buffering', undefined);
+    });
+
+    it('should deduplicate identical stateChanged responses', () => {
+      const transport = createMockTransport();
+      const onStateChanged = vi.fn();
+      const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+      expect(client).toBeDefined();
+
+      transport.simulateResponse({ type: 'stateChanged', state: 'rendering' } as RuntimeResponse);
+      transport.simulateResponse({ type: 'stateChanged', state: 'rendering' } as RuntimeResponse);
+
+      expect(onStateChanged).toHaveBeenCalledTimes(1);
+      expect(onStateChanged).toHaveBeenCalledWith('rendering', undefined);
+    });
+
+    it('should allow detail to bypass dedup for the same state', () => {
+      const transport = createMockTransport();
+      const onStateChanged = vi.fn();
+      const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+      expect(client).toBeDefined();
+
+      transport.simulateResponse({ type: 'stateChanged', state: 'error' } as RuntimeResponse);
+      transport.simulateResponse({
+        type: 'stateChanged',
+        state: 'error',
+        detail: 'timeout',
+      } as RuntimeResponse);
+
+      expect(onStateChanged).toHaveBeenCalledTimes(2);
+      expect(onStateChanged).toHaveBeenNthCalledWith(1, 'error', undefined);
+      expect(onStateChanged).toHaveBeenNthCalledWith(2, 'error', 'timeout');
+    });
+
     it('should call onError callback when error received with no pending operations', () => {
       const transport = createMockTransport();
       const onError = vi.fn();

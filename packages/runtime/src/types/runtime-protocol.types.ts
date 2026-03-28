@@ -87,7 +87,7 @@ export type RenderPhase = string;
  * Worker state as reported via the shared signal channel and stateChanged responses.
  * @public
  */
-export type WorkerState = 'idle' | 'rendering' | 'error';
+export type WorkerState = 'idle' | 'buffering' | 'rendering' | 'error';
 
 /**
  * Integer enum for worker state in the SharedArrayBuffer signal channel.
@@ -97,6 +97,7 @@ export const workerStateEnum = {
   idle: 0,
   rendering: 1,
   error: 2,
+  buffering: 3,
 } as const satisfies Record<WorkerState, number>;
 
 /**
@@ -107,6 +108,7 @@ export const workerStateNames: Record<number, WorkerState> = {
   [workerStateEnum.idle]: 'idle',
   [workerStateEnum.rendering]: 'rendering',
   [workerStateEnum.error]: 'error',
+  [workerStateEnum.buffering]: 'buffering',
 };
 
 /**

@@ -141,3 +141,30 @@ export type ParsedCadModule = {
   /** Raw module exports for debugging */
   rawExports: CadModuleExports;
 };
+
+/**
+ * Filesystem-based parameter configuration stored at `.tau/parameters.json`.
+ * Contains per-file parameter entries with named parameter sets.
+ */
+export type FileParameterConfig = {
+  version: 1;
+  files: Record<string, FileParameterEntry>;
+};
+
+/**
+ * Parameter configuration for a single source file.
+ * Tracks which parameter set is active and all available sets.
+ */
+export type FileParameterEntry = {
+  activeSet: string;
+  order?: string[];
+  sets: Record<string, ParameterSet>;
+};
+
+/**
+ * A named collection of parameter override values.
+ * Values are overrides of source-code defaults — only non-default values are stored.
+ */
+export type ParameterSet = {
+  values: Record<string, unknown>;
+};

@@ -47,7 +47,7 @@ import type {
   ParameterDependency,
   AssetDependency,
 } from '#types/runtime-dependency.types.js';
-import type { PerformanceEntryData, RenderPhase } from '#types/runtime-protocol.types.js';
+import type { PerformanceEntryData, RenderPhase, WorkerState } from '#types/runtime-protocol.types.js';
 import { signalSlot, workerStateEnum } from '#types/runtime-protocol.types.js';
 import { isRenderAbortedError } from '#framework/runtime-worker-client.js';
 import type { FileSystemProxy } from '#framework/runtime-filesystem-bridge.js';
@@ -154,7 +154,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   }
 
   /** Callback for pushing state changes to the dispatcher (postMessage fallback). */
-  public onStateChanged?: (state: 'idle' | 'rendering' | 'error', detail?: string) => void;
+  public onStateChanged?: (state: WorkerState, detail?: string) => void;
 
   /** Callback for pushing geometry results to the dispatcher. */
   public onGeometryComputed?: (result: HashedGeometryResult) => void;
@@ -322,6 +322,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /** Debounce timer for parameter change re-renders. */
   private paramDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Last state pushed via `pushState`, used to deduplicate repeated emissions. */
+  private lastPushedState?: WorkerState;
+
   /**
    * Whether a render is currently in progress. Exposed for export-during-render decisions.
    *
@@ -485,6 +488,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     }
 
     clearTimeout(this.paramDebounceTimer);
+    this.paramDebounceTimer = undefined;
 
     // Phase 1: immediately watch the entry file so edits during
     // a long-running (or failing) first render are never missed.
@@ -515,6 +519,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   /** Clean up worker state, native handles, telemetry collector, and filesystem proxy. */
   public async cleanup(): Promise<void> {
     clearTimeout(this.paramDebounceTimer);
+    this.paramDebounceTimer = undefined;
     this.watchUnsubscribe?.();
     this.watchUnsubscribe = undefined;
     this.assetHashCache.clear();
@@ -1325,7 +1330,11 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    *
    * @param state - The worker state to push.
    */
-  private pushState(state: 'idle' | 'rendering' | 'error'): void {
+  private pushState(state: WorkerState): void {
+    if (state === this.lastPushedState) {
+      return;
+    }
+    this.lastPushedState = state;
     if (this.signalView) {
       Atomics.store(this.signalView, signalSlot.workerState, workerStateEnum[state]);
       Atomics.notify(this.signalView, signalSlot.workerState);
@@ -1364,7 +1373,9 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
    */
   private scheduleRender(delayMs: number): void {
     clearTimeout(this.paramDebounceTimer);
+    this.pushState('buffering');
     this.paramDebounceTimer = setTimeout(() => {
+      this.paramDebounceTimer = undefined;
       void this.executeRender();
     }, delayMs);
   }
@@ -1441,12 +1452,12 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
 
       this.flushTelemetry();
       this.onGeometryComputed?.(result);
-      this.pushState('idle');
+      this.pushState(this.paramDebounceTimer ? 'buffering' : 'idle');
     } catch (error) {
       console.error('[KernelWorker] executeRender: error', error);
       this.onProgress = undefined;
       if (isRenderAbortedError(error) || this.isAborted(generation)) {
-        this.pushState('idle');
+        this.pushState(this.paramDebounceTimer ? 'buffering' : 'idle');
         return;
       }
 

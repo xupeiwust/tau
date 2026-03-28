@@ -433,7 +433,7 @@ describe('KernelWorker lifecycle', () => {
 
       // Simulate middleware registering a watch path
       // @ts-expect-error - accessing private for test verification
-      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 200 });
 
       const spy = vi.spyOn(worker, 'updateWatchSet');
 
@@ -458,7 +458,7 @@ describe('KernelWorker lifecycle', () => {
         worker.onGeometryComputed = vi.fn();
 
         // @ts-expect-error - accessing private for test verification
-        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 200 });
 
         // @ts-expect-error - accessing private for test verification
         worker.currentFile = createGeometryFile('main.ts');
@@ -480,11 +480,14 @@ describe('KernelWorker lifecycle', () => {
 
         capturedWatchCallback!({ type: 'change', path: '/projects/test/.tau/parameters.json' });
 
-        // At 49ms, render should not have started (50ms debounce)
-        await vi.advanceTimersByTimeAsync(49);
-        expect(worker.onStateChanged).not.toHaveBeenCalled();
+        // Buffering should be emitted immediately
+        expect(worker.onStateChanged).toHaveBeenCalledWith('buffering');
 
-        // At 51ms, render should have been triggered
+        // At 199ms, render should not have started (200ms debounce)
+        await vi.advanceTimersByTimeAsync(199);
+        expect(worker.onStateChanged).not.toHaveBeenCalledWith('rendering');
+
+        // At 201ms, render should have been triggered
         await vi.advanceTimersByTimeAsync(2);
         expect(worker.onStateChanged).toHaveBeenCalledWith('rendering');
       } finally {
@@ -504,7 +507,7 @@ describe('KernelWorker lifecycle', () => {
         worker.onGeometryComputed = vi.fn();
 
         // @ts-expect-error - accessing private for test verification
-        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+        worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 200 });
 
         // @ts-expect-error - accessing private for test verification
         worker.currentFile = createGeometryFile('main.ts');
@@ -526,12 +529,15 @@ describe('KernelWorker lifecycle', () => {
 
         capturedWatchCallback!({ type: 'change', path: '/projects/test/main.ts' });
 
-        // At 100ms, render should not have started yet (500ms default debounce)
-        await vi.advanceTimersByTimeAsync(100);
-        expect(worker.onStateChanged).not.toHaveBeenCalled();
+        // Buffering should be emitted immediately
+        expect(worker.onStateChanged).toHaveBeenCalledWith('buffering');
 
-        // At 501ms, render should have been triggered
-        await vi.advanceTimersByTimeAsync(401);
+        // At 100ms, render should not have started yet (200ms default debounce)
+        await vi.advanceTimersByTimeAsync(100);
+        expect(worker.onStateChanged).not.toHaveBeenCalledWith('rendering');
+
+        // At 201ms, render should have been triggered
+        await vi.advanceTimersByTimeAsync(101);
         expect(worker.onStateChanged).toHaveBeenCalledWith('rendering');
       } finally {
         vi.useRealTimers();
@@ -547,22 +553,132 @@ describe('KernelWorker lifecycle', () => {
       expect(worker.getMiddlewareWatchPaths().get('/projects/test/.tau/parameters.json')).toBe(100);
 
       // @ts-expect-error - accessing private for test verification
-      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 200 });
 
-      expect(worker.getMiddlewareWatchPaths().get('/projects/test/.tau/parameters.json')).toBe(50);
+      expect(worker.getMiddlewareWatchPaths().get('/projects/test/.tau/parameters.json')).toBe(200);
     });
 
     it('should clear middleware watch paths on cleanup', async () => {
       const worker = createConfiguredWorker();
 
       // @ts-expect-error - accessing private for test verification
-      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 50 });
+      worker.handleRegisterWatchPath('/projects/test/.tau/parameters.json', { debounceMs: 200 });
 
       expect(worker.getMiddlewareWatchPaths().size).toBe(1);
 
       await worker.cleanup();
 
       expect(worker.getMiddlewareWatchPaths().size).toBe(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Buffering state emission
+  // ---------------------------------------------------------------------------
+
+  describe('buffering state', () => {
+    it('should not emit duplicate buffering on repeated scheduleRender calls', async () => {
+      vi.useFakeTimers();
+      try {
+        const worker = createConfiguredWorker();
+
+        // @ts-expect-error - accessing private method for test verification
+        worker.setBasePath(createGeometryFile('main.ts'));
+
+        worker.onStateChanged = vi.fn();
+        worker.onGeometryComputed = vi.fn();
+
+        // @ts-expect-error - accessing private for test verification
+        worker.currentFile = createGeometryFile('main.ts');
+
+        // Call scheduleRender 3x rapidly via handleSetParameters
+        worker.handleSetParameters({ width: 1 });
+        worker.handleSetParameters({ width: 2 });
+        worker.handleSetParameters({ width: 3 });
+
+        const bufferingCalls = (worker.onStateChanged as ReturnType<typeof vi.fn>).mock.calls.filter(
+          ([state]: [string]) => state === 'buffering',
+        );
+        expect(bufferingCalls).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should emit idle when render completes with no pending timer', async () => {
+      const worker = createConfiguredWorker();
+
+      const stateChanges: string[] = [];
+      const renderComplete = new Promise<void>((resolve) => {
+        worker.onStateChanged = (state) => {
+          stateChanges.push(state);
+          if (state === 'idle' || state === 'error') {
+            resolve();
+          }
+        };
+      });
+
+      worker.handleSetFile(createGeometryFile('main.ts'));
+      await renderComplete;
+
+      expect(stateChanges).toContain('rendering');
+      expect(stateChanges).toContain('idle');
+    });
+
+    it('should emit buffering instead of idle when render completes with pending timer', async () => {
+      vi.useFakeTimers();
+      try {
+        let resolveGate!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          resolveGate = resolve;
+        });
+
+        class GatedKernelWorker extends MockKernelWorker {
+          protected override async onCreateGeometry(
+            _input: CreateGeometryInput,
+            _runtime: KernelRuntime,
+          ): Promise<CreateGeometryResult> {
+            await gate;
+            return { success: true, data: [], issues: [] };
+          }
+        }
+
+        const filesystem = createMockFileSystem();
+        filesystem.mocks.readFiles.mockResolvedValue({
+          '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+        });
+
+        const worker = new GatedKernelWorker({
+          middleware: [],
+          onLog: noopLog,
+          filesystem,
+        });
+
+        const stateChanges: string[] = [];
+        worker.onStateChanged = (state) => {
+          stateChanges.push(state);
+        };
+        worker.onGeometryComputed = vi.fn();
+
+        worker.handleSetFile(createGeometryFile('main.ts'), {});
+
+        // Simulate a watch event arriving during the render by directly
+        // setting paramDebounceTimer (scheduleRender would normally do this)
+        // @ts-expect-error - accessing private for test verification
+        // oxlint-disable-next-line no-empty-function -- noop timer for test
+        worker.paramDebounceTimer = setTimeout(() => {}, 500);
+
+        resolveGate();
+        await flushMicrotasks();
+        await vi.advanceTimersByTimeAsync(0);
+        await flushMicrotasks();
+
+        expect(stateChanges).toContain('rendering');
+        expect(stateChanges).toContain('buffering');
+        expect(stateChanges).not.toContain('idle');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

@@ -6,10 +6,10 @@
  */
 
 /** Debounce delay (ms) for parameter-change re-renders. */
-export const parameterDebounceMs = 50;
+export const parameterDebounceMs = 200;
 
 /** Debounce delay (ms) for file-change re-renders. */
-export const fileChangeDebounceMs = 500;
+export const fileChangeDebounceMs = 200;
 
 /** Debounce delay (ms) for flushing batched worker logs to the main thread. */
 export const logFlushDebounceMs = 250;

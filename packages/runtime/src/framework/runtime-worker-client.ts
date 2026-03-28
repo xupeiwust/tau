@@ -119,6 +119,7 @@ export class RuntimeWorkerClient {
   private readonly signalBuffer: SharedArrayBuffer | undefined;
   private readonly signalView: Int32Array | undefined;
   private stateMonitorTerminated = false;
+  private lastReportedState?: WorkerState;
 
   private pendingInit?: { resolve: () => void; reject: (error: Error) => void };
   private pendingRender?: {
@@ -391,6 +392,14 @@ export class RuntimeWorkerClient {
     this.transport.close();
   }
 
+  private reportState(state: WorkerState, detail?: string): void {
+    if (state === this.lastReportedState && !detail) {
+      return;
+    }
+    this.lastReportedState = state;
+    this.onStateChanged?.(state, detail);
+  }
+
   private startStateMonitor(): void {
     if (!this.signalView || !this.onStateChanged) {
       return;
@@ -407,7 +416,7 @@ export class RuntimeWorkerClient {
           currentState = newState;
           const stateName = workerStateNames[newState];
           if (stateName) {
-            this.onStateChanged?.(stateName);
+            this.reportState(stateName);
           }
         }
       }
@@ -502,7 +511,7 @@ export class RuntimeWorkerClient {
       }
 
       case 'stateChanged': {
-        this.onStateChanged?.(response.state, response.detail);
+        this.reportState(response.state, response.detail);
         break;
       }
     }
