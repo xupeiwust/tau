@@ -71,7 +71,9 @@ export const createUsageTrackingMiddleware = (metricsService: MetricsService): A
 
         const otelProviderName = modelService.getOtelProviderName(modelId);
         const responseModel = String(
-          (lastMessage.response_metadata.model as string | undefined) ?? lastMessage.response_metadata.model_name ?? '',
+          (lastMessage.response_metadata['model'] as string | undefined) ??
+            lastMessage.response_metadata.model_name ??
+            '',
         );
         const metricAttributes: Record<string, string> = {
           [AttributeKey.GEN_AI_OPERATION_NAME]: 'chat',

@@ -96,12 +96,13 @@ describe('createUsageTrackingMiddleware', () => {
     );
 
     const { calls } = (metricsService.genAiTokenUsage.record as ReturnType<typeof vi.fn>).mock;
-    const inputCall = calls.find((call: unknown) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.INPUT) as
-      | [number, Record<string, string>]
-      | undefined;
+    type MetricCall = [number, Record<string, string>];
+    const inputCall = calls.find(
+      (call: unknown) => (call as MetricCall)[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.INPUT,
+    ) as MetricCall | undefined;
     const outputCall = calls.find(
-      (call: unknown) => call[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.OUTPUT,
-    ) as [number, Record<string, string>] | undefined;
+      (call: unknown) => (call as MetricCall)[1][AttributeKey.GEN_AI_TOKEN_TYPE] === GenAiTokenType.OUTPUT,
+    ) as MetricCall | undefined;
 
     expect(inputCall?.[0]).toBe(500);
     expect(outputCall?.[0]).toBe(200);
