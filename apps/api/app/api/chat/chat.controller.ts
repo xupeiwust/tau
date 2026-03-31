@@ -147,7 +147,7 @@ export class ChatController {
             modelService: this.modelService,
             logger: this.logger,
           },
-          recursionLimit: 200,
+          recursionLimit: 2000,
         },
       );
 
