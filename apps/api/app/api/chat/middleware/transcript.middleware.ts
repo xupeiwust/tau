@@ -35,6 +35,34 @@ export async function appendTranscriptLine(
 }
 
 /**
+ * Appends multiple JSONL lines to the transcript file in a single appendFile RPC.
+ * Fire-and-forget: errors are swallowed to avoid disrupting the agent loop.
+ */
+async function appendTranscriptLines(
+  chatRpcService: ChatRpcService,
+  chatId: string,
+  lines: Array<Record<string, unknown>>,
+): Promise<void> {
+  if (lines.length === 0) {
+    return;
+  }
+
+  try {
+    await chatRpcService.sendRpcRequest({
+      chatId,
+      toolCallId: 'transcript',
+      rpcName: rpcName.appendFile,
+      args: {
+        targetFile: `.tau/transcripts/${chatId}.jsonl`,
+        content: lines.map((line) => JSON.stringify(line)).join('\n') + '\n',
+      },
+    });
+  } catch {
+    // Non-blocking: transcript failures must not disrupt the agent loop
+  }
+}
+
+/**
  * Content block from an AI message with structured content.
  * LangChain uses `type: 'reasoning'` with a `reasoning` field for extended thinking,
  * and `type: 'text'` with a `text` field for regular content.
@@ -51,8 +79,12 @@ type ContentBlock = {
 
 /**
  * Appends transcript lines for an assistant message. When content is a string,
- * writes one line. When it's an array of content blocks, writes separate lines
- * per block — reasoning and text each get their own greppable line.
+ * writes one line. When it's an array of content blocks, coalesces adjacent
+ * same-type blocks and writes all lines in a single batched RPC.
+ *
+ * Coalescing is critical for streaming thinking models (GPT-5, Claude): they
+ * produce one content block per streaming chunk, which without coalescing would
+ * create thousands of concurrent RPCs per model response.
  *
  * Dropped from transcript (per context-engineering-policy):
  * - `signature` fields (opaque binary, not greppable)
@@ -70,22 +102,31 @@ function appendAssistantContent(chatRpcService: ChatRpcService, chatId: string, 
     return;
   }
 
+  const lines: Array<Record<string, unknown>> = [];
+
   for (const block of content as ContentBlock[]) {
     if (block.type === 'reasoning' && block.reasoning) {
-      void appendTranscriptLine(chatRpcService, chatId, {
-        role: 'assistant',
-        type: 'thinking',
-        content: block.reasoning,
-        timestamp,
-      });
+      const previous = lines.at(-1);
+      if (previous?.['type'] === 'thinking') {
+        // oxlint-disable-next-line eslint/operator-assignment -- Explicit form required to satisfy restrict-plus-operands (content is unknown)
+        previous['content'] = (previous['content'] as string) + block.reasoning;
+      } else {
+        lines.push({ role: 'assistant', type: 'thinking', content: block.reasoning, timestamp });
+      }
     } else if (block.type === 'text' && block.text) {
-      void appendTranscriptLine(chatRpcService, chatId, {
-        role: 'assistant',
-        content: block.text,
-        timestamp,
-      });
+      const previous = lines.at(-1);
+      if (previous && !previous['type']) {
+        // oxlint-disable-next-line eslint/operator-assignment -- Explicit form required to satisfy restrict-plus-operands (content is unknown)
+        previous['content'] = (previous['content'] as string) + block.text;
+      } else {
+        lines.push({ role: 'assistant', content: block.text, timestamp });
+      }
     }
     // Tool_use blocks are skipped — captured by wrapToolCall
+  }
+
+  if (lines.length > 0) {
+    void appendTranscriptLines(chatRpcService, chatId, lines);
   }
 }
 

@@ -53,7 +53,7 @@ describe('createTranscriptMiddleware', () => {
         role: 'user',
         content: 'Create a cube with 20mm sides',
       });
-      expect(parsed.timestamp).toBeDefined();
+      expect(parsed['timestamp']).toBeDefined();
     });
 
     it('should only log user message once across multiple beforeModel calls', () => {
@@ -97,7 +97,7 @@ describe('createTranscriptMiddleware', () => {
       const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
       const { content } = (call as { args: { content: string } }).args;
       const parsed = JSON.parse(content.trim()) as Record<string, unknown>;
-      expect(parsed.content).toBe('second question');
+      expect(parsed['content']).toBe('second question');
     });
 
     it('should not append when no HumanMessage exists', () => {
@@ -140,11 +140,11 @@ describe('createTranscriptMiddleware', () => {
         role: 'assistant',
         content: 'I will create a box with 20mm sides using OpenSCAD. Here is the code...',
       });
-      expect(parsed.timestamp).toBeDefined();
-      expect(parsed.type).toBeUndefined();
+      expect(parsed['timestamp']).toBeDefined();
+      expect(parsed['type']).toBeUndefined();
     });
 
-    it('should split reasoning and text content blocks into separate lines', async () => {
+    it('should batch reasoning and text content blocks into a single RPC', async () => {
       const middleware = createTranscriptMiddleware(chatRpcService);
       const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
@@ -163,30 +163,27 @@ describe('createTranscriptMiddleware', () => {
       );
 
       await vi.waitFor(() => {
-        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(2);
+        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(1);
       });
 
-      const call0 = chatRpcService.sendRpcRequest.mock.calls[0]![0];
-      const parsed0 = JSON.parse((call0 as { args: { content: string } }).args.content.trim()) as Record<
-        string,
-        unknown
-      >;
+      const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
+      const rawContent = (call as { args: { content: string } }).args.content;
+      const lines = rawContent.trim().split('\n');
+      expect(lines).toHaveLength(2);
+
+      const parsed0 = JSON.parse(lines[0]!) as Record<string, unknown>;
       expect(parsed0).toMatchObject({
         role: 'assistant',
         type: 'thinking',
         content: 'The user wants a cube.',
       });
 
-      const call1 = chatRpcService.sendRpcRequest.mock.calls[1]![0];
-      const parsed1 = JSON.parse((call1 as { args: { content: string } }).args.content.trim()) as Record<
-        string,
-        unknown
-      >;
+      const parsed1 = JSON.parse(lines[1]!) as Record<string, unknown>;
       expect(parsed1).toMatchObject({
         role: 'assistant',
         content: 'I will create a cube for you.',
       });
-      expect(parsed1.type).toBeUndefined();
+      expect(parsed1['type']).toBeUndefined();
     });
 
     it('should drop signatures from reasoning blocks', async () => {
@@ -211,7 +208,7 @@ describe('createTranscriptMiddleware', () => {
       );
 
       await vi.waitFor(() => {
-        expect(chatRpcService.sendRpcRequest).toHaveBeenCalled();
+        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(1);
       });
 
       const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
@@ -245,9 +242,9 @@ describe('createTranscriptMiddleware', () => {
       });
 
       const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
-      const { content } = (call as { args: { content: string } }).args;
-      expect(content).not.toContain('tool_use');
-      expect(content).not.toContain('read_file');
+      const rawContent = (call as { args: { content: string } }).args.content;
+      expect(rawContent).not.toContain('tool_use');
+      expect(rawContent).not.toContain('read_file');
     });
 
     it('should store full content, not a truncated preview', async () => {
@@ -271,8 +268,8 @@ describe('createTranscriptMiddleware', () => {
       const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
       const { content } = (call as { args: { content: string } }).args;
       const parsed = JSON.parse(content.trim()) as Record<string, unknown>;
-      expect(parsed.content).toBe(longContent);
-      expect((parsed.content as string).length).toBe(1000);
+      expect(parsed['content']).toBe(longContent);
+      expect((parsed['content'] as string).length).toBe(1000);
     });
 
     it('should emit all expected blocks for a realistic reasoning+text+tool_use message', async () => {
@@ -296,35 +293,32 @@ describe('createTranscriptMiddleware', () => {
       );
 
       await vi.waitFor(() => {
-        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(2);
+        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(1);
       });
 
-      const call0 = chatRpcService.sendRpcRequest.mock.calls[0]![0];
-      const parsed0 = JSON.parse((call0 as { args: { content: string } }).args.content.trim()) as Record<
-        string,
-        unknown
-      >;
+      const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
+      const rawContent = (call as { args: { content: string } }).args.content;
+      const jsonLines = rawContent.trim().split('\n');
+      expect(jsonLines).toHaveLength(2);
+
+      const parsed0 = JSON.parse(jsonLines[0]!) as Record<string, unknown>;
       expect(parsed0).toMatchObject({
         role: 'assistant',
         type: 'thinking',
         content: 'The user wants a cube with 20mm sides. I need to write OpenSCAD code.',
       });
-      expect(parsed0.timestamp).toBeDefined();
+      expect(parsed0['timestamp']).toBeDefined();
 
-      const call1 = chatRpcService.sendRpcRequest.mock.calls[1]![0];
-      const parsed1 = JSON.parse((call1 as { args: { content: string } }).args.content.trim()) as Record<
-        string,
-        unknown
-      >;
+      const parsed1 = JSON.parse(jsonLines[1]!) as Record<string, unknown>;
       expect(parsed1).toMatchObject({
         role: 'assistant',
         content: "I'll create a 20mm cube for you.",
       });
-      expect(parsed1.type).toBeUndefined();
-      expect(parsed1.timestamp).toBeDefined();
+      expect(parsed1['type']).toBeUndefined();
+      expect(parsed1['timestamp']).toBeDefined();
     });
 
-    it('should handle multiple reasoning blocks in sequence', async () => {
+    it('should coalesce adjacent reasoning blocks into a single thinking entry', async () => {
       const middleware = createTranscriptMiddleware(chatRpcService);
       const afterModel = resolveMiddlewareHook(middleware.afterModel);
 
@@ -344,32 +338,64 @@ describe('createTranscriptMiddleware', () => {
       );
 
       await vi.waitFor(() => {
-        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(3);
+        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(1);
       });
 
-      const parsed0 = JSON.parse(
-        (chatRpcService.sendRpcRequest.mock.calls[0]![0] as { args: { content: string } }).args.content.trim(),
-      ) as Record<string, unknown>;
+      const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
+      const rawContent = (call as { args: { content: string } }).args.content;
+      const jsonLines = rawContent.trim().split('\n');
+      expect(jsonLines).toHaveLength(2);
+
+      const parsed0 = JSON.parse(jsonLines[0]!) as Record<string, unknown>;
       expect(parsed0).toMatchObject({
         role: 'assistant',
         type: 'thinking',
-        content: 'First thought: analyze the request.',
+        content: 'First thought: analyze the request.Second thought: plan the implementation.',
       });
 
-      const parsed1 = JSON.parse(
-        (chatRpcService.sendRpcRequest.mock.calls[1]![0] as { args: { content: string } }).args.content.trim(),
-      ) as Record<string, unknown>;
-      expect(parsed1).toMatchObject({
-        role: 'assistant',
-        type: 'thinking',
-        content: 'Second thought: plan the implementation.',
+      const parsed1 = JSON.parse(jsonLines[1]!) as Record<string, unknown>;
+      expect(parsed1).toMatchObject({ role: 'assistant', content: 'Here is my plan.' });
+      expect(parsed1['type']).toBeUndefined();
+    });
+
+    it('should coalesce hundreds of streaming reasoning chunks into one RPC', async () => {
+      const middleware = createTranscriptMiddleware(chatRpcService);
+      const afterModel = resolveMiddlewareHook(middleware.afterModel);
+
+      const chunkCount = 500;
+      const reasoningChunks = Array.from(
+        { length: chunkCount },
+        (_, i) =>
+          ({
+            type: 'reasoning',
+            reasoning: `chunk${i} `,
+          }) as const,
+      );
+
+      const aiMessage = new AIMessage({
+        content: [...reasoningChunks, { type: 'text', text: 'Done thinking.' } as const],
       });
 
-      const parsed2 = JSON.parse(
-        (chatRpcService.sendRpcRequest.mock.calls[2]![0] as { args: { content: string } }).args.content.trim(),
-      ) as Record<string, unknown>;
-      expect(parsed2).toMatchObject({ role: 'assistant', content: 'Here is my plan.' });
-      expect(parsed2.type).toBeUndefined();
+      afterModel(
+        // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+        { messages: [aiMessage] } as any,
+        // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- Partial mock state/runtime for middleware testing
+        { context: { chatId: 'chat-1' } } as any,
+      );
+
+      await vi.waitFor(() => {
+        expect(chatRpcService.sendRpcRequest).toHaveBeenCalledTimes(1);
+      });
+
+      const call = chatRpcService.sendRpcRequest.mock.calls[0]![0];
+      const rawContent = (call as { args: { content: string } }).args.content;
+      const jsonLines = rawContent.trim().split('\n');
+      expect(jsonLines).toHaveLength(2);
+
+      const parsed0 = JSON.parse(jsonLines[0]!) as Record<string, unknown>;
+      expect(parsed0['type']).toBe('thinking');
+      expect((parsed0['content'] as string).startsWith('chunk0 chunk1 ')).toBe(true);
+      expect((parsed0['content'] as string).endsWith(`chunk${chunkCount - 1} `)).toBe(true);
     });
 
     it('should not throw when no last message', () => {
@@ -420,7 +446,7 @@ describe('createTranscriptMiddleware', () => {
         toolName: 'read_file',
         toolCallId: 'tc1',
       });
-      expect(parsed.contentLength).toBe('file contents here...'.length);
+      expect(parsed['contentLength']).toBe('file contents here...'.length);
     });
 
     it('should handle appendFile RPC failures gracefully', async () => {
@@ -477,7 +503,7 @@ describe('createTranscriptMiddleware', () => {
       const { content } = (call as { args: { content: string } }).args;
       expect(content.length).toBeLessThan(largeContent.length);
       const parsed = JSON.parse(content.trim()) as Record<string, unknown>;
-      expect(parsed.contentLength).toBe(10_000);
+      expect(parsed['contentLength']).toBe(10_000);
     });
   });
 });
