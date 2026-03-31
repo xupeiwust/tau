@@ -24,7 +24,6 @@ import { Dockview } from '#components/panes/dockview.js';
 import { DockviewWatermark } from '#components/panes/dockview-watermark.js';
 import { ViewerDockviewTab } from '#components/panes/viewer-tab-context-menu.js';
 import { DockviewOpenFileAction, DockviewFileActionProvider } from '#components/panes/dockview-open-file-action.js';
-import { WebglContextTrackerProvider } from '#hooks/use-webgl-context-tracker.js';
 
 /**
  * Params passed to each viewer panel via Dockview.
@@ -583,20 +582,18 @@ export const ViewerDockview = memo(function (): React.JSX.Element {
   );
 
   return (
-    <WebglContextTrackerProvider>
-      <DockviewFileActionProvider value={handleOpenFile}>
-        <div className='relative size-full'>
-          <Dockview
-            components={components}
-            noPanelsOverlay='emptyGroup'
-            defaultTabComponent={ViewerDockviewTab}
-            watermarkComponent={ViewerWatermark}
-            leftHeaderActionsComponent={DockviewOpenFileAction}
-            onReady={onReady}
-            onDidDrop={onDidDrop}
-          />
-        </div>
-      </DockviewFileActionProvider>
-    </WebglContextTrackerProvider>
+    <DockviewFileActionProvider value={handleOpenFile}>
+      <div className='relative size-full'>
+        <Dockview
+          components={components}
+          noPanelsOverlay='emptyGroup'
+          defaultTabComponent={ViewerDockviewTab}
+          watermarkComponent={ViewerWatermark}
+          leftHeaderActionsComponent={DockviewOpenFileAction}
+          onReady={onReady}
+          onDidDrop={onDidDrop}
+        />
+      </div>
+    </DockviewFileActionProvider>
   );
 });
