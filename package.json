@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^2.0.34",
-    "@ai-sdk/langchain": "^2.0.105",
+    "@ai-sdk/langchain": "2.0.147",
     "@ai-sdk/openai": "^3.0.33",
     "@ai-sdk/provider-utils": "catalog:",
     "@ai-sdk/react": "^3.0.101",
@@ -356,8 +356,7 @@
       "@kittycad/lib": "patches/@kittycad__lib.patch",
       "@taucad/kcl-wasm-lib": "patches/@taucad__kcl-wasm-lib.patch",
       "@zenfs/core": "patches/@zenfs__core.patch",
-      "replicad": "patches/replicad.patch",
-      "@oxc-project/runtime@0.115.0": "patches/@oxc-project__runtime@0.115.0.patch"
+      "replicad": "patches/replicad.patch"
     },
     "overrides": {
       "@langchain/google-common": "https://github.com/taucad/langchainjs/raw/0f065cb8c363ff95a2fdddfbe28bbac1970068cd/langchain-google-common-2.1.32.tgz",
