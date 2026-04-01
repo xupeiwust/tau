@@ -79,7 +79,10 @@ export class EventCoalescer {
 
     this._pending.push({ event, timestamp: Date.now() });
 
-    this._timer ??= setTimeout(() => {
+    if (this._timer !== undefined) {
+      clearTimeout(this._timer);
+    }
+    this._timer = setTimeout(() => {
       this._flush();
     }, this._windowMs);
   }

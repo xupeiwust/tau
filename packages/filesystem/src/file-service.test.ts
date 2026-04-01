@@ -1,11 +1,13 @@
+// oxlint-disable-next-line import/no-unassigned-import -- Side-effect import to polyfill IndexedDB for tests
+import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { FileService } from '#file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
-import { WriteCoordinator } from '#write-coordinator.js';
+import { ResourceQueue } from '#resource-queue.js';
 import { DirectoryTreeCache } from '#directory-tree-cache.js';
 import { ChangeEventBus } from '#change-event-bus.js';
-import type { ChangeEvent, FileSystemProvider } from '#types.js';
+import type { ChangeEvent, FileSystemProvider, WatchEvent } from '#types.js';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -14,18 +16,18 @@ async function createFileService() {
   const providerRegistry = new ProviderRegistry();
   await providerRegistry.switchActiveProvider('memory');
 
-  const writeCoordinator = new WriteCoordinator();
+  const resourceQueue = new ResourceQueue();
   const treeCache = new DirectoryTreeCache();
   const eventBus = new ChangeEventBus();
 
   const service = new FileService({
     providerRegistry,
-    writeCoordinator,
+    resourceQueue,
     treeCache,
     eventBus,
   });
 
-  return { service, eventBus, treeCache, providerRegistry };
+  return { service, eventBus, treeCache, providerRegistry, resourceQueue };
 }
 
 describe('FileService', () => {
@@ -102,6 +104,87 @@ describe('FileService', () => {
 
     it('should throw for a non-existent nested file', async () => {
       await expect(service.readFile('/a/b/c.txt')).rejects.toThrow();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // AbortSignal cancellation
+  // ---------------------------------------------------------------------------
+
+  describe('AbortSignal cancellation', () => {
+    it('should throw AbortError for readFile with pre-aborted signal', async () => {
+      await service.writeFile('/cancel.txt', 'data');
+      const controller = new AbortController();
+      controller.abort();
+      await expect(service.readFile('/cancel.txt', { signal: controller.signal })).rejects.toThrow('aborted');
+    });
+
+    it('should throw AbortError for readDirectory with pre-aborted signal', async () => {
+      await service.mkdir('/canceldir', { recursive: true });
+      await service.writeFile('/canceldir/a.txt', 'x');
+      const controller = new AbortController();
+      controller.abort();
+      await expect(service.readDirectory('/canceldir', { signal: controller.signal })).rejects.toThrow('aborted');
+    });
+
+    it('should throw AbortError for readFiles with pre-aborted signal', async () => {
+      await service.writeFile('/f1.txt', 'a');
+      const controller = new AbortController();
+      controller.abort();
+      await expect(service.readFiles(['/f1.txt'], { signal: controller.signal })).rejects.toThrow('aborted');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // readFileStream
+  // ---------------------------------------------------------------------------
+
+  describe('readFileStream', () => {
+    it('should return a ReadableStream producing correct content', async () => {
+      await service.writeFile('/stream.txt', 'hello streaming world');
+      const stream = await service.readFileStream('/stream.txt');
+      const reader = stream.getReader();
+      const chunks: Array<Uint8Array<ArrayBuffer>> = [];
+
+      while (true) {
+        // oxlint-disable-next-line no-await-in-loop -- inherent stream reading pattern
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        chunks.push(value);
+      }
+
+      const combined = new Uint8Array(chunks.reduce((sum, c) => sum + c.byteLength, 0));
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+
+      expect(decoder.decode(combined)).toBe('hello streaming world');
+    });
+
+    it('should throw AbortError for readFileStream with pre-aborted signal', async () => {
+      await service.writeFile('/abort-stream.txt', 'data');
+      const controller = new AbortController();
+      controller.abort();
+      await expect(service.readFileStream('/abort-stream.txt', { signal: controller.signal })).rejects.toThrow(
+        'aborted',
+      );
+    });
+
+    it('should wrap readFile output into single-chunk stream when provider lacks readFileStream', async () => {
+      await service.writeFile('/fallback.txt', 'fallback content');
+      const stream = await service.readFileStream('/fallback.txt');
+      const reader = stream.getReader();
+      const { done, value } = await reader.read();
+
+      expect(done).toBe(false);
+      expect(decoder.decode(value)).toBe('fallback content');
+
+      const end = await reader.read();
+      expect(end.done).toBe(true);
     });
   });
 
@@ -430,6 +513,21 @@ describe('FileService', () => {
       const second = await service.readDirectory('/cached');
       expect(first).toEqual(second);
     });
+
+    it('should use readdirWithStats when available', async () => {
+      await service.writeFile('/rws/file.txt', 'content');
+      await service.mkdir('/rws/dir');
+
+      const provider = await providerRegistry.getActiveProvider();
+      expect(provider.readdirWithStats).toBeDefined();
+
+      const nodes = await service.readDirectory('/rws');
+      expect(nodes).toHaveLength(2);
+      const directory = nodes.find((n) => n.name === 'dir');
+      const file = nodes.find((n) => n.name === 'file.txt');
+      expect(directory!.children).toEqual([]);
+      expect(file!.children).toBeUndefined();
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -457,6 +555,26 @@ describe('FileService', () => {
       const stats = await service.getDirectoryStat('/emptystats');
       expect(stats).toEqual([]);
     });
+
+    it('should return subdirectory stats from in-memory tree after initial scan', async () => {
+      await service.writeFile('/stats/a.txt', 'aaa');
+      await service.writeFile('/stats/sub/b.txt', 'bb');
+      await service.getDirectoryStat('/stats');
+
+      const subStats = await service.getDirectoryStat('/stats/sub');
+      expect(subStats).toHaveLength(1);
+      expect(subStats[0]!.path).toBe('b.txt');
+      expect(subStats[0]!.name).toBe('b.txt');
+    });
+
+    it('should list a new file under a subpath after write following initial scan', async () => {
+      await service.writeFile('/stats/a.txt', 'aaa');
+      await service.getDirectoryStat('/stats');
+      await service.writeFile('/stats/sub/c.txt', 'ccc');
+
+      const subStats = await service.getDirectoryStat('/stats/sub');
+      expect(subStats.some((s) => s.path === 'c.txt' && s.name === 'c.txt')).toBe(true);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -476,6 +594,7 @@ describe('FileService', () => {
           const directories = new Set(['/alpha', '/alpha-dir']);
           return { isDirectory: directories.has(path), isFile: !directories.has(path), size: 10, mtimeMs: 1 };
         }),
+        readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
@@ -497,7 +616,10 @@ describe('FileService', () => {
     });
 
     it('should return empty array when readdir throws', async () => {
-      const mockProvider = mock<FileSystemProvider>({ readdir: vi.fn().mockRejectedValue(new Error('ENOENT')) });
+      const mockProvider = mock<FileSystemProvider>({
+        readdir: vi.fn().mockRejectedValue(new Error('ENOENT')),
+        readdirWithStats: undefined,
+      });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
@@ -513,6 +635,7 @@ describe('FileService', () => {
           }
           throw new Error('stat failed');
         }),
+        readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
@@ -524,6 +647,7 @@ describe('FileService', () => {
       const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['file.txt']),
         stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
+        readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
@@ -536,6 +660,7 @@ describe('FileService', () => {
       const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['child.txt']),
         stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
+        readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
@@ -709,6 +834,23 @@ describe('FileService', () => {
       expect(service.watchRegistry).toBeDefined();
       expect(service.watchRegistry.subscriptionCount).toBe(0);
     });
+
+    it('should coalesce watch events within 75ms kernel window', async () => {
+      const received: WatchEvent[] = [];
+      service.watch({ paths: ['/src'], correlationId: 'c', recursive: true }, (event) => {
+        received.push(event);
+      });
+
+      eventBus.emit({ type: 'fileWritten', path: '/src/a.txt', backend: 'memory' });
+      eventBus.emit({ type: 'fileWritten', path: '/src/b.txt', backend: 'memory' });
+
+      expect(received).toHaveLength(0);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+      expect(received).toHaveLength(2);
+      expect(received.every((event) => event.type === 'change')).toBe(true);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -716,22 +858,35 @@ describe('FileService', () => {
   // ---------------------------------------------------------------------------
 
   describe('write serialization', () => {
-    it('should serialize concurrent writeFile calls', async () => {
+    it('should serialize concurrent writes to the same file', async () => {
       const order: string[] = [];
-      const origSubscribe = eventBus.subscribe.bind(eventBus);
-      origSubscribe((event) => {
+      eventBus.subscribe((event) => {
         if (event.type === 'fileWritten' && 'path' in event) {
           order.push(event.path);
         }
       });
 
-      const w1 = service.writeFile('/s1.txt', 'a');
-      const w2 = service.writeFile('/s2.txt', 'b');
-      const w3 = service.writeFile('/s3.txt', 'c');
+      const w1 = service.writeFile('/same.txt', 'a');
+      const w2 = service.writeFile('/same.txt', 'b');
+      const w3 = service.writeFile('/same.txt', 'c');
 
       await Promise.all([w1, w2, w3]);
 
-      expect(order).toEqual(['/s1.txt', '/s2.txt', '/s3.txt']);
+      expect(order).toEqual(['/same.txt', '/same.txt', '/same.txt']);
+      const finalContent = await service.readFile('/same.txt', 'utf8');
+      expect(finalContent).toBe('c');
+    });
+
+    it('should allow parallel writes to different files', async () => {
+      const w1 = service.writeFile('/p1.txt', 'a');
+      const w2 = service.writeFile('/p2.txt', 'b');
+      const w3 = service.writeFile('/p3.txt', 'c');
+
+      await Promise.all([w1, w2, w3]);
+
+      expect(await service.readFile('/p1.txt', 'utf8')).toBe('a');
+      expect(await service.readFile('/p2.txt', 'utf8')).toBe('b');
+      expect(await service.readFile('/p3.txt', 'utf8')).toBe('c');
     });
   });
 
@@ -784,6 +939,328 @@ describe('FileService', () => {
       };
 
       await expect(service.writeFile('/a/b/c.txt', 'data')).rejects.toThrow('disk full');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // In-memory tree integration
+  // ---------------------------------------------------------------------------
+
+  describe('in-memory tree integration', () => {
+    it('should reflect writeFile in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/a.txt', 'aaa');
+      await service.getDirectoryStat('/root');
+
+      await service.writeFile('/root/b.txt', 'bb');
+
+      const stats = await service.getDirectoryStat('/root');
+      const paths = stats.map((s) => s.path).sort();
+      expect(paths).toEqual(['a.txt', 'b.txt']);
+    });
+
+    it('should reflect mkdir in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/a.txt', 'a');
+      await service.getDirectoryStat('/root');
+
+      await service.mkdir('/root/sub');
+      await service.writeFile('/root/sub/x.txt', 'x');
+
+      const stats = await service.getDirectoryStat('/root/sub');
+      expect(stats).toHaveLength(1);
+      expect(stats[0]!.path).toBe('x.txt');
+    });
+
+    it('should reflect unlink in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/a.txt', 'a');
+      await service.writeFile('/root/b.txt', 'b');
+      await service.getDirectoryStat('/root');
+
+      await service.unlink('/root/a.txt');
+
+      const stats = await service.getDirectoryStat('/root');
+      expect(stats).toHaveLength(1);
+      expect(stats[0]!.path).toBe('b.txt');
+    });
+
+    it('should reflect rename in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/old.txt', 'data');
+      await service.getDirectoryStat('/root');
+
+      await service.rename('/root/old.txt', '/root/new.txt');
+
+      const stats = await service.getDirectoryStat('/root');
+      const paths = stats.map((s) => s.path);
+      expect(paths).toContain('new.txt');
+      expect(paths).not.toContain('old.txt');
+    });
+
+    it('should reflect rmdir in subsequent getDirectoryStat', async () => {
+      await service.mkdir('/root/sub', { recursive: true });
+      await service.writeFile('/root/a.txt', 'a');
+      await service.getDirectoryStat('/root');
+
+      await service.rmdir('/root/sub');
+
+      const stats = await service.getDirectoryStat('/root');
+      expect(stats).toHaveLength(1);
+      expect(stats[0]!.path).toBe('a.txt');
+    });
+
+    it('should reflect duplicateFile in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/src.txt', 'copy');
+      await service.getDirectoryStat('/root');
+
+      await service.duplicateFile('/root/src.txt', '/root/dst.txt');
+
+      const stats = await service.getDirectoryStat('/root');
+      const paths = stats.map((s) => s.path).sort();
+      expect(paths).toEqual(['dst.txt', 'src.txt']);
+    });
+
+    it('should clear in-memory tree on reconfigure', async () => {
+      await service.writeFile('/root/a.txt', 'a');
+      await service.getDirectoryStat('/root');
+
+      await service.reconfigure('memory');
+
+      await service.writeFile('/other/b.txt', 'b');
+      const stats = await service.getDirectoryStat('/other');
+      const paths = stats.map((s) => s.path);
+      expect(paths).toEqual(['b.txt']);
+      expect(paths).not.toContain('a.txt');
+    });
+
+    it('should reflect copyDirectory in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/src/a.txt', 'aaa');
+      await service.writeFile('/root/src/sub/b.txt', 'bb');
+      await service.getDirectoryStat('/root');
+
+      await service.copyDirectory('/root/src', '/root/dest');
+
+      const stats = await service.getDirectoryStat('/root/dest');
+      const paths = stats.map((s) => s.path).sort();
+      expect(paths).toEqual(['a.txt', 'sub/b.txt']);
+    });
+
+    it('should reflect ensureDirectoryExists in subsequent getDirectoryStat', async () => {
+      await service.writeFile('/root/a.txt', 'a');
+      await service.getDirectoryStat('/root');
+
+      await service.ensureDirectoryExists('/root/new-dir');
+
+      const stats = await service.getDirectoryStat('/root');
+      const hasEntry = stats.some((s) => s.path === 'a.txt');
+      expect(hasEntry).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getDirectoryStat abort signal
+  // ---------------------------------------------------------------------------
+
+  describe('getDirectoryStat abort signal', () => {
+    it('should throw AbortError when signal is already aborted', async () => {
+      await service.writeFile('/abort/a.txt', 'a');
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(service.getDirectoryStat('/abort', { signal: controller.signal })).rejects.toThrow('aborted');
+    });
+  });
+});
+
+// =============================================================================
+// Integration: FileService + DirectIdbProvider
+// =============================================================================
+
+describe('FileService integration [DirectIDB]', () => {
+  let service: FileService;
+
+  beforeEach(async () => {
+    const providerRegistry = new ProviderRegistry({
+      databasePrefix: `test-integration-${Date.now()}`,
+    });
+    await providerRegistry.switchActiveProvider('indexeddb');
+
+    const resourceQueue = new ResourceQueue();
+    const treeCache = new DirectoryTreeCache();
+    const eventBus = new ChangeEventBus();
+
+    service = new FileService({
+      providerRegistry,
+      resourceQueue,
+      treeCache,
+      eventBus,
+    });
+  });
+
+  it('should round-trip a string through write and read', async () => {
+    await service.writeFile('/test.txt', 'hello');
+    const result = await service.readFile('/test.txt', 'utf8');
+    expect(result).toBe('hello');
+  });
+
+  it('should support writing and reading binary data', async () => {
+    const data = new Uint8Array([1, 2, 3, 4]);
+    await service.writeFile('/bin.dat', data);
+    const result = await service.readFile('/bin.dat');
+    expect(result).toEqual(data);
+  });
+
+  it('should support batch writeFiles', async () => {
+    /* eslint-disable @typescript-eslint/naming-convention -- Path-keyed object */
+    await service.writeFiles({
+      '/batch/a.txt': { content: encoder.encode('a') },
+      '/batch/b.txt': { content: encoder.encode('b') },
+    });
+    /* eslint-enable @typescript-eslint/naming-convention -- Re-enable after path-keyed object */
+    expect(await service.readFile('/batch/a.txt', 'utf8')).toBe('a');
+    expect(await service.readFile('/batch/b.txt', 'utf8')).toBe('b');
+  });
+
+  it('should emit fileWritten change event on write', async () => {
+    const events: ChangeEvent[] = [];
+    const eventBus = new ChangeEventBus();
+
+    const providerRegistry = new ProviderRegistry({
+      databasePrefix: `test-events-${Date.now()}`,
+    });
+    await providerRegistry.switchActiveProvider('indexeddb');
+
+    const eventService = new FileService({
+      providerRegistry,
+      resourceQueue: new ResourceQueue(),
+      treeCache: new DirectoryTreeCache(),
+      eventBus,
+    });
+
+    eventBus.subscribe((event) => events.push(event));
+    await eventService.writeFile('/evented.txt', 'hello');
+
+    expect(events).toContainEqual(expect.objectContaining({ type: 'fileWritten', path: '/evented.txt' }));
+  });
+
+  it('should build in-memory tree via getDirectoryStat', async () => {
+    await service.writeFile('/tree/a.txt', 'a');
+    await service.writeFile('/tree/b/c.txt', 'c');
+    const stats = await service.getDirectoryStat('/');
+    expect(stats.length).toBeGreaterThan(0);
+  });
+
+  describe('searchFiles', () => {
+    it('should return matching files from InMemoryFileTree', async () => {
+      await service.writeFile('/src/main.ts', 'console.log("hi")');
+      await service.writeFile('/src/utils/helper.ts', 'export {}');
+      await service.writeFile('/README.md', '# Hello');
+      await service.getDirectoryStat('/');
+
+      const results = service.searchFiles('/', 'helper');
+      expect(results).toHaveLength(1);
+      expect(results[0]!.path).toBe('src/utils/helper.ts');
+    });
+
+    it('should return empty array when tree is not built', () => {
+      const results = service.searchFiles('/', 'anything');
+      expect(results).toEqual([]);
+    });
+
+    it('should forward maxResults option', async () => {
+      await service.writeFile('/a.ts', 'a');
+      await service.writeFile('/b.ts', 'b');
+      await service.writeFile('/c.ts', 'c');
+      await service.getDirectoryStat('/');
+
+      const results = service.searchFiles('/', '.ts', { maxResults: 2 });
+      expect(results).toHaveLength(2);
+    });
+
+    it('should forward includeDirectories option', async () => {
+      await service.writeFile('/src/main.ts', 'a');
+      await service.getDirectoryStat('/');
+
+      const results = service.searchFiles('/', 'src', { includeDirectories: true });
+      const types = results.map((r) => r.type);
+      expect(types).toContain('dir');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // SharedContentPool integration
+  // ---------------------------------------------------------------------------
+
+  describe('SharedContentPool integration', () => {
+    async function createFileServiceWithPool() {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- class constructor
+      const { SharedContentPool } = await import('#shared-content-pool.js');
+      const buffer = new SharedArrayBuffer(128 * 1024);
+      const pool = new SharedContentPool(buffer, { maxEntries: 128 });
+
+      const providerRegistry = new ProviderRegistry();
+      await providerRegistry.switchActiveProvider('memory');
+
+      const resourceQueue = new ResourceQueue();
+      const treeCache = new DirectoryTreeCache();
+      const eventBus = new ChangeEventBus();
+
+      const svc = new FileService({
+        providerRegistry,
+        resourceQueue,
+        treeCache,
+        eventBus,
+        contentPool: pool,
+      });
+
+      return { service: svc, pool, eventBus };
+    }
+
+    it('should store binary content in pool after readFile', async () => {
+      const { service: svc, pool } = await createFileServiceWithPool();
+      await svc.writeFile('/cached.txt', 'pooled content');
+
+      await svc.readFile('/cached.txt');
+
+      const cached = pool.resolve('/cached.txt');
+      expect(cached).toBeDefined();
+      expect(decoder.decode(cached)).toBe('pooled content');
+    });
+
+    it('should invalidate pool entry on writeFile', async () => {
+      const { service: svc, pool } = await createFileServiceWithPool();
+      await svc.writeFile('/update.txt', 'original');
+      await svc.readFile('/update.txt');
+      expect(pool.has('/update.txt')).toBe(true);
+
+      await svc.writeFile('/update.txt', 'updated');
+      expect(pool.has('/update.txt')).toBe(false);
+    });
+
+    it('should invalidate pool entries on rename', async () => {
+      const { service: svc, pool } = await createFileServiceWithPool();
+      await svc.writeFile('/old.txt', 'data');
+      await svc.readFile('/old.txt');
+      expect(pool.has('/old.txt')).toBe(true);
+
+      await svc.rename('/old.txt', '/new.txt');
+      expect(pool.has('/old.txt')).toBe(false);
+      expect(pool.has('/new.txt')).toBe(false);
+    });
+
+    it('should invalidate pool entry on unlink', async () => {
+      const { service: svc, pool } = await createFileServiceWithPool();
+      await svc.writeFile('/delete.txt', 'data');
+      await svc.readFile('/delete.txt');
+      expect(pool.has('/delete.txt')).toBe(true);
+
+      await svc.unlink('/delete.txt');
+      expect(pool.has('/delete.txt')).toBe(false);
+    });
+
+    it('should work identically without pool', async () => {
+      const { service: svc } = await createFileService();
+      await svc.writeFile('/no-pool.txt', 'data');
+
+      const content = await svc.readFile('/no-pool.txt', 'utf8');
+      expect(content).toBe('data');
     });
   });
 });

@@ -164,6 +164,8 @@ function getEventPath(event: ChangeEvent): string | undefined {
 export type WatchRegistryOptions = {
   caseSensitive?: boolean;
   maxQueueDepth?: number;
+  /** Coalescing window in milliseconds. Default: 50. */
+  windowMs?: number;
 };
 
 /**
@@ -176,6 +178,7 @@ export class WatchRegistry {
   private readonly _ownerHandlers = new Map<string, Map<string, Set<(event: WatchEvent) => void>>>();
   private readonly _eventBus: ChangeEventBus;
   private readonly _maxQueueDepth?: number;
+  private readonly _windowMs?: number;
   private _caseSensitive: boolean;
 
   /**
@@ -191,6 +194,7 @@ export class WatchRegistry {
     } else {
       this._caseSensitive = options?.caseSensitive ?? true;
       this._maxQueueDepth = options?.maxQueueDepth;
+      this._windowMs = options?.windowMs;
     }
   }
 
@@ -224,6 +228,7 @@ export class WatchRegistry {
           }
         },
         {
+          windowMs: this._windowMs,
           maxQueueDepth: this._maxQueueDepth,
           onOverflow: () => {
             this._dispatchOverflow(hash);

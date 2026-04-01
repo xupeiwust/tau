@@ -5,65 +5,87 @@ import type { FileSystemProvider } from '#types.js';
 
 const createMockHandle = (name: string): FileSystemDirectoryHandle => mock<FileSystemDirectoryHandle>({ name });
 
-vi.mock('#providers/indexeddb-provider.js', () => ({
-  createIndexedDbProvider: vi.fn(
-    async (_prefix: string): Promise<FileSystemProvider> => ({
-      id: 'indexeddb',
-      capabilities: { persistent: true, writable: true, quotaBased: true },
-      readFile: vi.fn() as FileSystemProvider['readFile'],
-      writeFile: vi.fn(),
-      readdir: vi.fn(),
-      stat: vi.fn(),
-      mkdir: vi.fn(),
-      unlink: vi.fn(),
-      rmdir: vi.fn(),
-      rename: vi.fn(),
-      exists: vi.fn(),
-      lstat: vi.fn(),
-      dispose: vi.fn(),
-    }),
-  ),
-}));
+vi.mock('#providers/direct-idb-provider.js', () => {
+  class MockDirectIdbProvider {
+    public id = 'indexeddb';
+    public capabilities = { persistent: true, writable: true, quotaBased: true };
+    public readFile = vi.fn() as FileSystemProvider['readFile'];
+    public writeFile = vi.fn();
+    public readdir = vi.fn();
+    public stat = vi.fn();
+    public mkdir = vi.fn();
+    public unlink = vi.fn();
+    public rmdir = vi.fn();
+    public rename = vi.fn();
+    public exists = vi.fn();
+    public lstat = vi.fn();
+    public dispose = vi.fn();
+    public initialize = vi.fn();
+  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Module export must match class name
+  return { DirectIdbProvider: MockDirectIdbProvider };
+});
 
-vi.mock('#providers/memory-provider.js', () => ({
-  createMemoryProvider: vi.fn(
-    async (): Promise<FileSystemProvider> => ({
-      id: 'memory',
-      capabilities: { persistent: false, writable: true, quotaBased: false },
-      readFile: vi.fn() as FileSystemProvider['readFile'],
-      writeFile: vi.fn(),
-      readdir: vi.fn(),
-      stat: vi.fn(),
-      mkdir: vi.fn(),
-      unlink: vi.fn(),
-      rmdir: vi.fn(),
-      rename: vi.fn(),
-      exists: vi.fn(),
-      lstat: vi.fn(),
-      dispose: vi.fn(),
-    }),
-  ),
-}));
+vi.mock('#providers/memory-provider.js', () => {
+  class MockMemoryProvider {
+    public id = 'memory';
+    public capabilities = { persistent: false, writable: true, quotaBased: false };
+    public readFile = vi.fn() as FileSystemProvider['readFile'];
+    public writeFile = vi.fn();
+    public readdir = vi.fn();
+    public stat = vi.fn();
+    public mkdir = vi.fn();
+    public unlink = vi.fn();
+    public rmdir = vi.fn();
+    public rename = vi.fn();
+    public exists = vi.fn();
+    public lstat = vi.fn();
+    public dispose = vi.fn();
+  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Module export must match class name
+  return { MemoryProvider: MockMemoryProvider };
+});
 
-vi.mock('#providers/webaccess-provider.js', () => ({
-  createWebAccessProvider: vi.fn(
-    async (): Promise<FileSystemProvider> => ({
-      id: 'webaccess',
-      capabilities: { persistent: true, writable: true, quotaBased: false },
-      readFile: vi.fn() as FileSystemProvider['readFile'],
-      writeFile: vi.fn(),
-      readdir: vi.fn(),
-      stat: vi.fn(),
-      mkdir: vi.fn(),
-      unlink: vi.fn(),
-      rmdir: vi.fn(),
-      rename: vi.fn(),
-      exists: vi.fn(),
-      lstat: vi.fn(),
-      dispose: vi.fn(),
-    }),
-  ),
-}));
+vi.mock('#providers/fs-access-provider.js', () => {
+  class MockFileSystemAccessProvider {
+    public id = 'webaccess';
+    public capabilities = { persistent: true, writable: true, quotaBased: false };
+    public readFile = vi.fn() as FileSystemProvider['readFile'];
+    public writeFile = vi.fn();
+    public readdir = vi.fn();
+    public stat = vi.fn();
+    public mkdir = vi.fn();
+    public unlink = vi.fn();
+    public rmdir = vi.fn();
+    public rename = vi.fn();
+    public exists = vi.fn();
+    public lstat = vi.fn();
+    public dispose = vi.fn();
+  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Module export must match class name
+  return { FileSystemAccessProvider: MockFileSystemAccessProvider };
+});
+
+vi.mock('#providers/opfs-provider.js', () => {
+  class MockOPFSProvider {
+    public id = 'opfs';
+    public capabilities = { persistent: true, writable: true, quotaBased: true };
+    public readFile = vi.fn() as FileSystemProvider['readFile'];
+    public writeFile = vi.fn();
+    public readdir = vi.fn();
+    public stat = vi.fn();
+    public mkdir = vi.fn();
+    public unlink = vi.fn();
+    public rmdir = vi.fn();
+    public rename = vi.fn();
+    public exists = vi.fn();
+    public lstat = vi.fn();
+    public dispose = vi.fn();
+    public initialize = vi.fn();
+  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- Module export must match class name
+  return { OPFSProvider: MockOPFSProvider };
+});
 
 describe('ProviderRegistry', () => {
   let registry: ProviderRegistry;
@@ -246,6 +268,28 @@ describe('ProviderRegistry', () => {
       await registry.switchActiveProvider('webaccess', mockHandle);
       const provider = await registry.getActiveProvider();
       expect(provider.id).toBe('webaccess');
+    });
+  });
+
+  describe('native provider instantiation', () => {
+    it('should create DirectIdbProvider for indexeddb backend', async () => {
+      const provider = await registry.getProvider('indexeddb');
+      expect(provider.id).toBe('indexeddb');
+      expect(provider.capabilities).toEqual({ persistent: true, writable: true, quotaBased: true });
+    });
+
+    it('should create OPFSProvider for opfs backend', async () => {
+      const provider = await registry.getProvider('opfs');
+      expect(provider.id).toBe('opfs');
+      expect(provider.capabilities).toEqual({ persistent: true, writable: true, quotaBased: true });
+    });
+
+    it('should create FileSystemAccessProvider for webaccess backend with handle', async () => {
+      const mockHandle = createMockHandle('local-dir');
+      registry.setDirectoryHandle(mockHandle);
+      const provider = await registry.getProvider('webaccess');
+      expect(provider.id).toBe('webaccess');
+      expect(provider.capabilities).toEqual({ persistent: true, writable: true, quotaBased: false });
     });
   });
 });

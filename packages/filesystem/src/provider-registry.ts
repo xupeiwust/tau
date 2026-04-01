@@ -1,8 +1,9 @@
 import type { FileSystemBackend } from '@taucad/types';
 import type { FileSystemProvider } from '#types.js';
-import { createIndexedDbProvider } from '#providers/indexeddb-provider.js';
-import { createWebAccessProvider } from '#providers/webaccess-provider.js';
-import { createMemoryProvider } from '#providers/memory-provider.js';
+import { MemoryProvider } from '#providers/memory-provider.js';
+import { DirectIdbProvider } from '#providers/direct-idb-provider.js';
+import { OPFSProvider } from '#providers/opfs-provider.js';
+import { FileSystemAccessProvider } from '#providers/fs-access-provider.js';
 
 /**
  * Configuration for {@link ProviderRegistry}.
@@ -165,21 +166,24 @@ export class ProviderRegistry {
   ): Promise<FileSystemProvider> {
     switch (backend) {
       case 'indexeddb': {
-        return createIndexedDbProvider(this._databasePrefix);
+        const provider = new DirectIdbProvider(this._databasePrefix);
+        await provider.initialize();
+        return provider;
       }
       case 'opfs': {
-        const rootHandle = await navigator.storage.getDirectory();
-        return createWebAccessProvider(rootHandle);
+        const provider = new OPFSProvider();
+        await provider.initialize();
+        return provider;
       }
       case 'webaccess': {
         const webHandle = handle ?? this._directoryHandle;
         if (!webHandle) {
           throw new Error('No directory handle set. Call setDirectoryHandle() before using webaccess backend.');
         }
-        return createWebAccessProvider(webHandle);
+        return new FileSystemAccessProvider(webHandle);
       }
       case 'memory': {
-        return createMemoryProvider();
+        return new MemoryProvider();
       }
       default: {
         throw new Error(`Unknown backend: ${backend as string}`);

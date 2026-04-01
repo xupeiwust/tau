@@ -59,8 +59,6 @@
   "dependencies": {
     "@taucad/types": "workspace:*",
     "@taucad/utils": "workspace:*",
-    "@zenfs/core": "catalog:",
-    "@zenfs/dom": "catalog:",
     "jszip": "^3.10.1"
   }
 }

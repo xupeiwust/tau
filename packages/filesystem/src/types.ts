@@ -2,7 +2,7 @@
  * Filesystem Architecture Types
  *
  * Core types for the layered filesystem architecture:
- * - FileSystemProvider: abstraction over ZenFS backends
+ * - FileSystemProvider: abstraction over filesystem backends
  * - ProviderCapabilities: what a provider supports
  * - ProviderFileStat: stat result from provider operations
  * - ChangeEvent: push-based change notifications
@@ -53,6 +53,23 @@ export type FileSystemProvider = {
   exists(path: string): Promise<boolean>;
   lstat(path: string): Promise<ProviderFileStat>;
   dispose(): void;
+  /** Optional streaming read. When present, service routes through this instead of buffered readFile. */
+  readFileStream?(path: string, options?: FileReadStreamOptions): ReadableStream<Uint8Array<ArrayBuffer>>;
+  /** Optional batched readdir+stat. When present, eliminates N+1 stat calls per directory listing. */
+  readdirWithStats?(path: string): Promise<Array<{ name: string } & ProviderFileStat>>;
+};
+
+/**
+ * Options for streaming file reads.
+ * @public
+ */
+export type FileReadStreamOptions = {
+  /** Byte offset to start reading from. */
+  position?: number;
+  /** Maximum number of bytes to read. */
+  length?: number;
+  /** Abort signal for cancellation. */
+  signal?: AbortSignal;
 };
 
 /**
