@@ -6,12 +6,21 @@ import { KernelSelector } from '#components/chat/kernel-selector.js';
 import { Button } from '#components/ui/button.js';
 import { CommunityProjectGrid } from '#components/project-grid.js';
 import { sampleProjects } from '#constants/project-examples.js';
-import { HeroViewer } from '#routes/_index/hero-viewer.js';
+import { LazySection } from '#components/ui/lazy-section.js';
+import { LazyHeroViewer } from '#routes/_index/hero-viewer-gate.js';
 import { HeroImage } from '#routes/_index/hero-image.js';
 import { KernelsSection } from '#routes/_index/kernels-section.js';
 import { IntegrationSection } from '#routes/_index/integration-section.js';
 import { ComingSoonSection } from '#routes/_index/coming-soon-section.js';
 import { CtaSection } from '#routes/_index/cta-section.js';
+import {
+  CommunityGridSkeleton,
+  HeroImageSkeleton,
+  KernelsSkeleton,
+  IntegrationSkeleton,
+  ComingSoonSkeleton,
+  CtaSkeleton,
+} from '#routes/_index/section-skeletons.js';
 import { ChatProvider } from '#hooks/use-chat.js';
 import { Separator } from '#components/ui/separator.js';
 import { InteractiveHoverButton } from '#components/magicui/interactive-hover-button.js';
@@ -93,35 +102,47 @@ export default function ChatStart(): React.JSX.Element {
       </div>
 
       {/* Community Projects */}
-      <div className='container mx-auto px-4 py-8'>
-        <div className='mb-2 flex flex-row items-center justify-between'>
-          <h1 className='text-lg font-medium tracking-tight'>From the Community</h1>
-          <Button asChild variant='link' size='lg' className='p-0'>
-            <Link to='/projects/community'>View All</Link>
-          </Button>
+      <LazySection minHeight='400px' rootMargin='200px' fallback={<CommunityGridSkeleton />}>
+        <div className='container mx-auto px-4 py-8'>
+          <div className='mb-2 flex flex-row items-center justify-between'>
+            <h1 className='text-lg font-medium tracking-tight'>From the Community</h1>
+            <Button asChild variant='link' size='lg' className='p-0'>
+              <Link to='/projects/community'>View All</Link>
+            </Button>
+          </div>
+          <CommunityProjectGrid projects={sampleProjects} limit={10} />
         </div>
-        <CommunityProjectGrid projects={sampleProjects} limit={10} />
-      </div>
+      </LazySection>
 
       {/* Hero Image with Features */}
-      <HeroImage />
+      <LazySection minHeight='600px' fallback={<HeroImageSkeleton />}>
+        <HeroImage />
+      </LazySection>
 
       {/* Kernels Section */}
-      <KernelsSection />
+      <LazySection minHeight='400px' fallback={<KernelsSkeleton />}>
+        <KernelsSection />
+      </LazySection>
 
       {/* Interactive Demo */}
       <div className='container mx-auto px-4 py-16'>
-        <HeroViewer />
+        <LazyHeroViewer />
       </div>
 
       {/* Integration Section */}
-      <IntegrationSection />
+      <LazySection minHeight='300px' fallback={<IntegrationSkeleton />}>
+        <IntegrationSection />
+      </LazySection>
 
       {/* Coming Soon Section */}
-      <ComingSoonSection />
+      <LazySection minHeight='200px' fallback={<ComingSoonSkeleton />}>
+        <ComingSoonSection />
+      </LazySection>
 
       {/* Final CTA Section */}
-      <CtaSection />
+      <LazySection minHeight='200px' fallback={<CtaSkeleton />}>
+        <CtaSection />
+      </LazySection>
     </>
   );
 }
