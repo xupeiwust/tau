@@ -22,6 +22,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['claude'],
         contextWindow: 200_000,
         maxTokens: 128_000,
+        knowledgeCutoff: '2025-08',
         cost: {
           inputTokens: 5,
           outputTokens: 25,
@@ -61,6 +62,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['claude'],
         contextWindow: 200_000,
         maxTokens: 64_000,
+        knowledgeCutoff: '2025-08',
         cost: {
           inputTokens: 3,
           outputTokens: 15,
@@ -100,6 +102,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['claude'],
         contextWindow: 200_000,
         maxTokens: 64_000,
+        knowledgeCutoff: '2025-07',
         cost: {
           inputTokens: 1,
           outputTokens: 5,
@@ -138,6 +141,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['GPT-5.4'],
         contextWindow: 1_050_000,
         maxTokens: 128_000,
+        knowledgeCutoff: '2025-08',
         cost: {
           inputTokens: 2.5,
           outputTokens: 15,
@@ -169,6 +173,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['GPT-5.3'],
         contextWindow: 400_000,
         maxTokens: 128_000,
+        knowledgeCutoff: '2025-08',
         cost: {
           inputTokens: 1.75,
           outputTokens: 14,
@@ -200,6 +205,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['GPT-4.1'],
         contextWindow: 1_047_576,
         maxTokens: 32_768,
+        knowledgeCutoff: '2024-06',
         cost: {
           inputTokens: 2,
           outputTokens: 8,
@@ -228,6 +234,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['gemini'],
         contextWindow: 1_048_576,
         maxTokens: 65_536,
+        knowledgeCutoff: '2025-01',
         cost: {
           inputTokens: 2,
           outputTokens: 12,
@@ -256,6 +263,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['gemini'],
         contextWindow: 1_048_576,
         maxTokens: 65_536,
+        knowledgeCutoff: '2025-01',
         cost: {
           inputTokens: 0.5,
           outputTokens: 3,
@@ -290,6 +298,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['deepseek'],
         contextWindow: 128_000,
         maxTokens: 64_000,
+        knowledgeCutoff: '2024-07',
         cost: {
           inputTokens: 0.6,
           outputTokens: 1.7,
@@ -319,6 +328,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['deepseek'],
         contextWindow: 128_000,
         maxTokens: 64_000,
+        knowledgeCutoff: '2024-07',
         cost: {
           inputTokens: 3,
           outputTokens: 7,
@@ -406,6 +416,7 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
         families: ['llama'],
         contextWindow: 1_048_576,
         maxTokens: 64_000,
+        knowledgeCutoff: '2024-08',
         cost: {
           inputTokens: 0.27,
           outputTokens: 0.85,

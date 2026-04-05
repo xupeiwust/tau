@@ -110,6 +110,11 @@ export class ModelService implements OnModuleInit {
     return modelConfig?.details.contextWindow;
   }
 
+  public getKnowledgeCutoff(modelId: string): string | undefined {
+    const modelConfig = this.models.find((model) => model.id === modelId);
+    return modelConfig?.details.knowledgeCutoff;
+  }
+
   public getModelCost(modelId: string, usage: ChatUsageTokens): ChatUsageCost {
     const modelConfig = this.models.find((model) => model.id === modelId);
     if (!modelConfig) {

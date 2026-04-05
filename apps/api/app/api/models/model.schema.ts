@@ -50,6 +50,7 @@ export const modelDetailsSchema = z.object({
   quantizationLevel: z.string().describe('The quantization level of the model').optional(),
   contextWindow: z.number().describe('The context window of the model'),
   maxTokens: z.number().describe('The max tokens the model is capable of generating'),
+  knowledgeCutoff: z.string().describe('Knowledge cutoff date in YYYY-MM format').optional(),
   cost: z.object({
     inputTokens: z.number().describe('The cost of the input tokens of the model'),
     outputTokens: z.number().describe('The cost of the output tokens of the model'),
