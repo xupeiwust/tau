@@ -3633,6 +3633,31 @@ export default function main() {
       assertSuccess(result2);
       await geometryHelpers.expectValidGltf(result2);
     });
+
+    it('should resolve .js import to .ts file and render successfully', async () => {
+      const worker = await createWorker({
+        'main.ts': `
+          import { makeBox } from './lib/box.js';
+          export default function main() {
+            return makeBox();
+          }
+        `,
+        'lib/box.ts': `
+          import { makeBaseBox } from 'replicad';
+          export function makeBox() {
+            return makeBaseBox(10, 10, 10);
+          }
+        `,
+      });
+
+      const geometryFile = createGeometryFile('main.ts');
+      const result = await worker.render({
+        file: geometryFile,
+        parameters: {},
+      });
+      assertSuccess(result);
+      await geometryHelpers.expectValidGltf(result);
+    });
   });
 });
 
