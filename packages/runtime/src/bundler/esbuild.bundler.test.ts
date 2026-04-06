@@ -620,6 +620,96 @@ describe('ESBuild Bundler – unresolved path tracking', () => {
     });
   });
 
+  describe('TypeScript ESM extension resolution (.js -> .ts)', () => {
+    it('should resolve .js import to .ts file when .js does not exist but .ts does', async () => {
+      filesystem.mocks.exists.mockImplementation(async (path: string) => path === '/project/lib/nozzle.ts');
+
+      const result = await mainOnResolve({
+        path: './lib/nozzle.js',
+        importer: 'main.ts',
+        namespace: esbuildNamespace.vfs,
+        kind: 'import-statement',
+        resolveDir: '/project',
+        suffix: '',
+        pluginData: undefined,
+        with: {},
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          path: 'lib/nozzle.ts',
+          namespace: esbuildNamespace.vfs,
+        }),
+      );
+    });
+
+    it('should resolve .jsx import to .tsx file when .jsx does not exist but .tsx does', async () => {
+      filesystem.mocks.exists.mockImplementation(async (path: string) => path === '/project/components/button.tsx');
+
+      const result = await mainOnResolve({
+        path: './components/button.jsx',
+        importer: 'main.ts',
+        namespace: esbuildNamespace.vfs,
+        kind: 'import-statement',
+        resolveDir: '/project',
+        suffix: '',
+        pluginData: undefined,
+        with: {},
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          path: 'components/button.tsx',
+          namespace: esbuildNamespace.vfs,
+        }),
+      );
+    });
+
+    it('should return .js path as-is when .js file exists', async () => {
+      filesystem.mocks.exists.mockImplementation(async (path: string) => path === '/project/lib/utils.js');
+
+      const result = await mainOnResolve({
+        path: './lib/utils.js',
+        importer: 'main.ts',
+        namespace: esbuildNamespace.vfs,
+        kind: 'import-statement',
+        resolveDir: '/project',
+        suffix: '',
+        pluginData: undefined,
+        with: {},
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          path: 'lib/utils.js',
+          namespace: esbuildNamespace.vfs,
+        }),
+      );
+    });
+
+    it('should return .ts path as-is when .ts file exists', async () => {
+      filesystem.mocks.exists.mockImplementation(async (path: string) => path === '/project/lib/utils.ts');
+
+      const result = await mainOnResolve({
+        path: './lib/utils.ts',
+        importer: 'main.ts',
+        namespace: esbuildNamespace.vfs,
+        kind: 'import-statement',
+        resolveDir: '/project',
+        suffix: '',
+        pluginData: undefined,
+        with: {},
+      });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          path: 'lib/utils.ts',
+          namespace: esbuildNamespace.vfs,
+        }),
+      );
+    });
+  });
+
   describe('onLoad failed path tracking', () => {
     it('should add failed absolute path to unresolvedPaths when readFile throws', async () => {
       filesystem.mocks.readFile.mockRejectedValue(new Error('ENOENT: no such file or directory'));

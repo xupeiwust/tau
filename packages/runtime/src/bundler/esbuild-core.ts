@@ -133,6 +133,12 @@ export async function initializeEsbuild(): Promise<void> {
 /** Default names to auto-export from CommonJS-style entry files */
 const defaultAutoExportNames = ['main', 'defaultParams'];
 
+/** TypeScript ESM convention: `.js`/`.jsx` specifiers resolve to `.ts`/`.tsx` source files */
+const tsExtensionSwap = new Map<string, readonly string[]>([
+  ['.js', ['.ts', '.tsx']],
+  ['.jsx', ['.tsx']],
+]);
+
 /**
  * Resolve file extension for imports without extension.
  * Needs filesystem access, so it lives inside the plugin scope.
@@ -142,8 +148,27 @@ const defaultAutoExportNames = ['main', 'defaultParams'];
  * @returns resolved path with file extension appended
  */
 async function resolveFileExtension(filesystem: RuntimeFileSystem, path: string): Promise<string> {
-  // If already has extension, return as-is
-  if (/\.[jt]sx?$/.test(path)) {
+  const extensionMatch = /\.[jt]sx?$/.exec(path);
+
+  if (extensionMatch) {
+    const fileExists = await filesystem.exists(path);
+    if (fileExists) {
+      return path;
+    }
+
+    const extension = extensionMatch[0];
+    const swaps = tsExtensionSwap.get(extension);
+    if (swaps) {
+      const stem = path.slice(0, -extension.length);
+      for (const swap of swaps) {
+        const candidate = stem + swap;
+        // oxlint-disable-next-line no-await-in-loop -- Intentional: short-circuits on first match
+        if (await filesystem.exists(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
     return path;
   }
 
