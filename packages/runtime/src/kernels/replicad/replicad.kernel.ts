@@ -619,6 +619,7 @@ export default defineKernel({
       linearTolerance: 0.01,
       angularTolerance: 30,
     };
+    const angularToleranceRad = resolvedTessellation.angularTolerance * (Math.PI / 180);
 
     if (nativeHandle.length === 0) {
       return createKernelError([
@@ -635,7 +636,7 @@ export default defineKernel({
         const { shape } = shapeConfig;
         const faces = shape.mesh({
           tolerance: resolvedTessellation.linearTolerance,
-          angularTolerance: resolvedTessellation.angularTolerance,
+          angularTolerance: angularToleranceRad,
         });
         return {
           format: 'replicad',
@@ -663,7 +664,7 @@ export default defineKernel({
       nativeHandle.map(async ({ shape, name }) => {
         const bytes = await buildExportBytes(shape, fileType, {
           tolerance: resolvedTessellation.linearTolerance,
-          angularTolerance: resolvedTessellation.angularTolerance,
+          angularTolerance: angularToleranceRad,
         });
         return createExportFile(fileType, name ?? 'Geometry', bytes);
       }),

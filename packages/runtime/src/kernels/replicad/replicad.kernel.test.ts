@@ -3918,6 +3918,61 @@ describe('withBrepEdges option', () => {
 });
 
 // =============================================================================
+// Angular tolerance (degree-to-radian conversion)
+// =============================================================================
+
+describe('Angular tolerance', () => {
+  const sphereCode = `
+    import { drawCircle } from 'replicad';
+    export default function main() {
+      return drawCircle(10).sketchOnPlane().revolve();
+    }
+  `;
+
+  const getVertexCount = async (glbData: Uint8Array<ArrayBuffer>): Promise<number> => {
+    const document = await new NodeIO().readBinary(glbData);
+    let count = 0;
+    for (const mesh of document.getRoot().listMeshes()) {
+      for (const primitive of mesh.listPrimitives()) {
+        if (primitive.getMode() === 4) {
+          count += primitive.getAttribute('POSITION')!.getCount();
+        }
+      }
+    }
+
+    return count;
+  };
+
+  it('should produce denser meshes with finer angular tolerance on curved surfaces', async () => {
+    const worker = await createWorker({ 'sphere.ts': sphereCode });
+    const geometryFile = createGeometryFile('sphere.ts');
+
+    const coarseResult = await worker.createGeometry({
+      file: geometryFile,
+      parameters: {},
+      tessellation: { linearTolerance: 1, angularTolerance: 60 },
+    });
+    assertSuccess(coarseResult);
+
+    const fineResult = await worker.createGeometry({
+      file: geometryFile,
+      parameters: {},
+      tessellation: { linearTolerance: 1, angularTolerance: 5 },
+    });
+    assertSuccess(fineResult);
+
+    const coarseVertices = await getVertexCount(extractGltfFromResult(coarseResult)!);
+    const fineVertices = await getVertexCount(extractGltfFromResult(fineResult)!);
+
+    // Fine angular tolerance (5°) must produce significantly more vertices
+    // than coarse (60°) on a sphere. If the deg→rad conversion is broken
+    // (raw degrees passed as radians), both values are meaninglessly large
+    // and produce identical mesh density driven only by linearTolerance.
+    expect(fineVertices).toBeGreaterThan(coarseVertices * 1.5);
+  });
+});
+
+// =============================================================================
 // Normal consistency (OCCT V8 regression guard)
 // =============================================================================
 

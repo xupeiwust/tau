@@ -137,15 +137,17 @@ function renderMesh(shapeConfig: MeshableConfiguration, tessellation: Tessellati
     },
   };
 
+  const angularToleranceRad = tessellation.angularTolerance * (Math.PI / 180);
+
   geometry.faces = shape.mesh({
     tolerance: tessellation.linearTolerance,
-    angularTolerance: tessellation.angularTolerance,
+    angularTolerance: angularToleranceRad,
   });
 
   if (withBrepEdges) {
     geometry.edges = shape.meshEdges({
       tolerance: tessellation.linearTolerance,
-      angularTolerance: tessellation.angularTolerance,
+      angularTolerance: angularToleranceRad,
     });
   }
 
