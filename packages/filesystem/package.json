@@ -57,6 +57,7 @@
     "#*": "./src/*"
   },
   "dependencies": {
+    "@taucad/memory": "workspace:*",
     "@taucad/types": "workspace:*",
     "@taucad/utils": "workspace:*",
     "jszip": "^3.10.1"

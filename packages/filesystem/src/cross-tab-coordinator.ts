@@ -7,6 +7,8 @@
  * Progressive enhancement: no-op when `navigator.locks` is unavailable.
  */
 
+import { generatePrefixedId } from '@taucad/utils/id';
+
 const lockPrefix = 'tau-fs-write:';
 const channelName = 'tau-fs-changes';
 
@@ -40,7 +42,7 @@ export class CrossTabCoordinator {
   private _changeHandler: ((notification: ChangeNotification) => void) | undefined;
 
   public constructor() {
-    this._tabId = crypto.randomUUID();
+    this._tabId = generatePrefixedId('tab');
     if (typeof BroadcastChannel !== 'undefined') {
       this._channel = new BroadcastChannel(channelName);
     }
