@@ -34,7 +34,7 @@ import {
   requestHandlePermission,
 } from '#filesystem/handle-store.js';
 import type { FileTreeNode } from '@taucad/filesystem';
-import { parentDirectory } from '@taucad/utils/path';
+import { joinPath, parentDirectory } from '@taucad/utils/path';
 
 export const handle: Handle = {
   breadcrumb() {
@@ -764,7 +764,7 @@ export default function FilesRoute(): React.JSX.Element {
       const deleteRecursive = async (directoryPath: string): Promise<void> => {
         const entries = await proxy.readdir(directoryPath);
         for (const entry of entries) {
-          const fullPath = `${directoryPath}/${entry}`.replace('//', '/');
+          const fullPath = joinPath(directoryPath, entry);
           // oxlint-disable-next-line no-await-in-loop -- need sequential processing for correct deletion order
           const stats = await proxy.stat(fullPath);
           // oxlint-disable-next-line no-await-in-loop -- need sequential processing for correct deletion order
