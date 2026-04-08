@@ -3,13 +3,13 @@
  * Tests the wrap-style hook with onion model execution.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
 import type { CreateGeometryResult, KernelIssue } from '#types/runtime.types.js';
 import type { CreateGeometryHandler, KernelMiddlewareRuntime } from '#types/runtime-middleware.types.js';
 import type { Dependency } from '#types/runtime-dependency.types.js';
 import type { CreateGeometryInput } from '#types/runtime-kernel.types.js';
-import { geometryCacheMiddleware } from '#middleware/geometry-cache.middleware.js';
+import { geometryCacheMiddleware, geometryMemoryCache } from '#middleware/geometry-cache.middleware.js';
 import {
   createMockRuntime,
   createMockInput,
@@ -82,6 +82,10 @@ function createCacheTestContext(options?: {
 }
 
 describe('geometryCacheMiddleware', () => {
+  beforeEach(() => {
+    geometryMemoryCache.clear();
+  });
+
   describe('wrapCreateGeometry', () => {
     describe('cache hit', () => {
       it('should return cached result and not call handler', async () => {
@@ -606,5 +610,121 @@ describe('geometryCacheMiddleware', () => {
       // Handler should NOT be called because cache hit
       expect(handler).not.toHaveBeenCalled();
     });
+  });
+
+  describe('L1 cache storage', () => {
+    it('should store result directly in L1 without cloning', async () => {
+      const originalContent = new Uint8Array([1, 2, 3]);
+      const handlerResult = createGltfSuccessResult(originalContent);
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const handler = createMockCreateGeometryHandler(handlerResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      const cached = geometryMemoryCache.get(runtime.dependencyHash);
+      expect(cached).toBeDefined();
+      if (cached?.success && cached.data[0]?.format === 'gltf') {
+        expect(cached.data[0].content.buffer).toBe(originalContent.buffer);
+        expect(cached.data[0].content).toEqual(originalContent);
+      }
+    });
+  });
+
+  describe('memory cache', () => {
+    it('should return from memory cache on second call without filesystem access', async () => {
+      const handlerResult = createGltfSuccessResult(new Uint8Array([1, 2, 3]));
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const handler = createMockCreateGeometryHandler(handlerResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      runtime.filesystem.mocks.readFile.mockClear();
+      runtime.filesystem.mocks.writeFile.mockClear();
+
+      const result = await wrapCreateGeometry!(input, handler, runtime);
+
+      expect(handler).toHaveBeenCalledOnce();
+      expect(runtime.filesystem.mocks.readFile).not.toHaveBeenCalled();
+      expect(runtime.filesystem.mocks.writeFile).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0]?.format).toBe('gltf');
+      }
+    });
+
+    it('should populate memory cache on filesystem cache hit', async () => {
+      const gltfContent = new Uint8Array([1, 2, 3]);
+      const { input, runtime } = createCacheTestContext({
+        cacheExists: true,
+        cachedContent: gltfContent,
+      });
+      const handler = createMockCreateGeometryHandler();
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      runtime.filesystem.mocks.readFile.mockClear();
+
+      const result = await wrapCreateGeometry!(input, handler, runtime);
+
+      expect(runtime.filesystem.mocks.readFile).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[0]?.format).toBe('gltf');
+      }
+    });
+
+    it('should log memory cache hit', async () => {
+      const handlerResult = createGltfSuccessResult(new Uint8Array([1, 2, 3]));
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const handler = createMockCreateGeometryHandler(handlerResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      expect(runtime.logger.debug).toHaveBeenCalledWith(expect.stringContaining('memory cache hit'));
+    });
+
+    it('should not populate memory cache for webrtc geometry', async () => {
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const mockStream = new ReadableStream();
+      const videoStreamResult = {
+        success: true,
+        data: [{ format: 'webrtc', stream: mockStream } as const],
+        issues: [],
+      };
+      const handler = createMockCreateGeometryHandler(videoStreamResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      expect(geometryMemoryCache.size).toBe(0);
+    });
+  });
+
+  it('should store result directly in L1 without cloning on fresh compute', async () => {
+    const { input, runtime } = createCacheTestContext({ cacheExists: false });
+    const content = new Uint8Array([1, 2, 3]);
+    const handlerResult = createGltfSuccessResult(content);
+    const handler = createMockCreateGeometryHandler(handlerResult);
+
+    const { wrapCreateGeometry } = geometryCacheMiddleware;
+    await wrapCreateGeometry!(input, handler, runtime);
+
+    const cached = geometryMemoryCache.get(runtime.dependencyHash);
+    expect(cached).toBeDefined();
+    expect(cached?.success).toBe(true);
+    if (cached?.success && cached.data[0]?.format === 'gltf') {
+      expect(cached.data[0].content.buffer).toBe(content.buffer);
+    }
   });
 });
