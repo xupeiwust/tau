@@ -249,14 +249,7 @@ export function GltfMesh({
 
     const loadGltf = async (): Promise<void> => {
       try {
-        if (typeof SharedArrayBuffer === 'function' && gltfFile.buffer instanceof SharedArrayBuffer) {
-          throw new TypeError('SharedArrayBuffer is not supported in <GltfMesh />');
-        }
-
-        const gltf = await gltfLoader.parseAsync(
-          gltfFile.buffer,
-          '', // Path (not needed for ArrayBuffer)
-        );
+        const gltf = await gltfLoader.parseAsync(gltfFile.buffer, '');
 
         if (cancelled) {
           disposeSceneResources(gltf.scene);
