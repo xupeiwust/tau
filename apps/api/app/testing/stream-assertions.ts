@@ -185,6 +185,63 @@ export function expectContextCompaction(chunks: UIMessageChunk[]): void {
 }
 
 /**
+ * Extracted tool call part with input args and output (when available).
+ */
+export type ToolCallPartInfo = {
+  toolName: string;
+  toolCallId: string;
+  state: string;
+  input: unknown;
+  output: unknown;
+};
+
+/**
+ * Extract all tool invocation parts for a given tool name from the final UIMessage.
+ * Returns their input args, output, and state for structured assertions.
+ */
+export function extractToolCallParts(message: UIMessage, toolName: string): ToolCallPartInfo[] {
+  const results: ToolCallPartInfo[] = [];
+
+  for (const part of message.parts) {
+    const matchesName = part.type === 'dynamic-tool' ? part.toolName === toolName : part.type === `tool-${toolName}`;
+    if (!matchesName) {
+      continue;
+    }
+
+    if (!('state' in part)) {
+      continue;
+    }
+
+    results.push({
+      toolName,
+      toolCallId: 'toolCallId' in part ? part.toolCallId : 'unknown',
+      state: part.state as string,
+      input: 'input' in part ? part.input : undefined,
+      output: 'output' in part ? part.output : undefined,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Assert that a tool call for the given name completed successfully and its
+ * output satisfies the predicate. Throws with a descriptive message if no
+ * matching tool call is found or the predicate fails.
+ */
+export function expectToolCallOutput(message: UIMessage, toolName: string, predicate: (output: unknown) => void): void {
+  const parts = extractToolCallParts(message, toolName);
+  const completed = parts.filter((p) => p.state === 'output-available');
+
+  expect(
+    completed.length,
+    `Expected at least one completed tool call '${toolName}' with output-available, found ${completed.length}`,
+  ).toBeGreaterThan(0);
+
+  predicate(completed[0]!.output);
+}
+
+/**
  * Assert that cache token normalization is plausible: when cacheReadTokens > 0,
  * inputTokens should represent only non-cached input (the cached portion was
  * subtracted by normalizeUsageTokens).

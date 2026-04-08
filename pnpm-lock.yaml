@@ -231,6 +231,9 @@ catalogs:
     '@types/react-dom':
       specifier: 19.0.4
       version: 19.0.4
+    '@types/turndown':
+      specifier: ^5.0.6
+      version: 5.0.6
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260223.1
       version: 7.0.0-dev.20260223.1
@@ -363,6 +366,9 @@ catalogs:
     oxlint-tsgolint:
       specifier: ^0.16.0
       version: 0.16.0
+    pdf-parse:
+      specifier: ^2.4.5
+      version: 2.4.5
     publint:
       specifier: ^0.3.17
       version: 0.3.17
@@ -390,6 +396,9 @@ catalogs:
     tslib:
       specifier: ^2.8.1
       version: 2.8.1
+    turndown:
+      specifier: ^7.2.4
+      version: 7.2.4
     type-fest:
       specifier: ^4.41.0
       version: 4.41.0
@@ -515,7 +524,7 @@ importers:
         version: 1.0.20(@langchain/core@1.1.37(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(cheerio@1.2.0)(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
       '@langchain/community':
         specifier: 'catalog:'
-        version: 1.1.19(f275bdcd2b4570f1ea1dd1e4e151a51e)
+        version: 1.1.19(466cb43ae43f30176885ede922d39598)
       '@langchain/core':
         specifier: 'catalog:'
         version: 1.1.37(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6))
@@ -936,6 +945,9 @@ importers:
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 0.16.0
+      pdf-parse:
+        specifier: 'catalog:'
+        version: 2.4.5
       pgvector:
         specifier: ^0.2.1
         version: 0.2.1
@@ -1003,8 +1015,8 @@ importers:
         specifier: ^2.0.4
         version: 2.0.4(react-router@7.12.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       replicad:
-        specifier: file:tarballs/replicad-0.21.0-v8.40.tgz
-        version: file:tarballs/replicad-0.21.0-v8.40.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977)
+        specifier: file:tarballs/replicad-0.21.0-v8.41.tgz
+        version: file:tarballs/replicad-0.21.0-v8.41.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977)
       replicad-opencascadejs:
         specifier: file:tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz
         version: file:tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz
@@ -1050,6 +1062,9 @@ importers:
       tslib:
         specifier: 'catalog:'
         version: 2.8.1
+      turndown:
+        specifier: 'catalog:'
+        version: 7.2.4
       typescript-eslint:
         specifier: 'catalog:'
         version: 8.56.1(eslint@9.32.0(jiti@2.6.1))(typescript@5.9.3)
@@ -1201,6 +1216,9 @@ importers:
       '@types/three':
         specifier: ^0.178.1
         version: 0.178.1
+      '@types/turndown':
+        specifier: 'catalog:'
+        version: 5.0.6
       '@types/uzip':
         specifier: ^0.20201231.2
         version: 0.20201231.2
@@ -1391,6 +1409,9 @@ importers:
       '@taucad/json-schema':
         specifier: workspace:*
         version: link:../../packages/json-schema
+      '@taucad/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@taucad/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -1500,6 +1521,9 @@ importers:
 
   packages/filesystem:
     dependencies:
+      '@taucad/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@taucad/types':
         specifier: workspace:*
         version: link:../../libs/types
@@ -1521,6 +1545,8 @@ importers:
       '@types/json-schema':
         specifier: 'catalog:'
         version: 7.0.15
+
+  packages/memory: {}
 
   packages/react:
     dependencies:
@@ -1582,6 +1608,9 @@ importers:
       '@taucad/kcl-wasm-lib':
         specifier: 'catalog:'
         version: 0.1.130(patch_hash=a5113ece295fc5a140b912793b5b08236be48a8ab797e0c981c91cd6cf7bad83)
+      '@taucad/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@taucad/types':
         specifier: workspace:*
         version: link:../../libs/types
@@ -1616,8 +1645,8 @@ importers:
         specifier: 'catalog:'
         version: 1.2.0
       replicad:
-        specifier: file:../../tarballs/replicad-0.21.0-v8.40.tgz
-        version: file:tarballs/replicad-0.21.0-v8.40.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977)
+        specifier: file:../../tarballs/replicad-0.21.0-v8.41.tgz
+        version: file:tarballs/replicad-0.21.0-v8.41.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977)
       replicad-opencascadejs:
         specifier: file:../../tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz
         version: file:tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz
@@ -4565,6 +4594,9 @@ packages:
   '@microsoft/tsdoc@0.16.0':
     resolution: {integrity: sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==}
 
+  '@mixmark-io/domino@2.2.0':
+    resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
+
   '@mjackson/node-fetch-server@0.2.0':
     resolution: {integrity: sha512-EMlH1e30yzmTpGLQjlFmaDAjyOeZhng1/XCd7DExR8PNAnG/G1tyruZxEoUe11ClnwGhGrtsdnyyUx1frSzjng==}
 
@@ -4788,6 +4820,75 @@ packages:
   '@msgpack/msgpack@3.1.3':
     resolution: {integrity: sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA==}
     engines: {node: '>= 18'}
+
+  '@napi-rs/canvas-android-arm64@0.1.80':
+    resolution: {integrity: sha512-sk7xhN/MoXeuExlggf91pNziBxLPVUqF2CAVnB57KLG/pz7+U5TKG8eXdc3pm0d7Od0WreB6ZKLj37sX9muGOQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@napi-rs/canvas-darwin-arm64@0.1.80':
+    resolution: {integrity: sha512-O64APRTXRUiAz0P8gErkfEr3lipLJgM6pjATwavZ22ebhjYl/SUbpgM0xcWPQBNMP1n29afAC/Us5PX1vg+JNQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@napi-rs/canvas-darwin-x64@0.1.80':
+    resolution: {integrity: sha512-FqqSU7qFce0Cp3pwnTjVkKjjOtxMqRe6lmINxpIZYaZNnVI0H5FtsaraZJ36SiTHNjZlUB69/HhxNDT1Aaa9vA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.80':
+    resolution: {integrity: sha512-eyWz0ddBDQc7/JbAtY4OtZ5SpK8tR4JsCYEZjCE3dI8pqoWUC8oMwYSBGCYfsx2w47cQgQCgMVRVTFiiO38hHQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-gnu@0.1.80':
+    resolution: {integrity: sha512-qwA63t8A86bnxhuA/GwOkK3jvb+XTQaTiVML0vAWoHyoZYTjNs7BzoOONDgTnNtr8/yHrq64XXzUoLqDzU+Uuw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-arm64-musl@0.1.80':
+    resolution: {integrity: sha512-1XbCOz/ymhj24lFaIXtWnwv/6eFHXDrjP0jYkc6iHQ9q8oXKzUX1Lc6bu+wuGiLhGh2GS/2JlfORC5ZcXimRcg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@napi-rs/canvas-linux-riscv64-gnu@0.1.80':
+    resolution: {integrity: sha512-XTzR125w5ZMs0lJcxRlS1K3P5RaZ9RmUsPtd1uGt+EfDyYMu4c6SEROYsxyatbbu/2+lPe7MPHOO/0a0x7L/gw==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-x64-gnu@0.1.80':
+    resolution: {integrity: sha512-BeXAmhKg1kX3UCrJsYbdQd3hIMDH/K6HnP/pG2LuITaXhXBiNdh//TVVVVCBbJzVQaV5gK/4ZOCMrQW9mvuTqA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-x64-musl@0.1.80':
+    resolution: {integrity: sha512-x0XvZWdHbkgdgucJsRxprX/4o4sEed7qo9rCQA9ugiS9qE2QvP0RIiEugtZhfLH3cyI+jIRFJHV4Fuz+1BHHMg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@napi-rs/canvas-win32-x64-msvc@0.1.80':
+    resolution: {integrity: sha512-Z8jPsM6df5V8B1HrCHB05+bDiCxjE9QA//3YrkKIdVDEwn5RKaqOxCJDRJkl48cJbylcrJbW4HxZbTte8juuPg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@napi-rs/canvas@0.1.80':
+    resolution: {integrity: sha512-DxuT1ClnIPts1kQx8FBmkk4BQDTfI5kIzywAaMjQSXfNnra5UFU9PwurXrl+Je3bJ6BGsp/zmshVVFbCmyI+ww==}
+    engines: {node: '>= 10'}
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
@@ -9320,6 +9421,9 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/turndown@5.0.6':
+    resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -15726,6 +15830,15 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
+  pdf-parse@2.4.5:
+    resolution: {integrity: sha512-mHU89HGh7v+4u2ubfnevJ03lmPgQ5WU4CxAVmTSh/sxVTEDYd1er/dKS/A6vg77NX47KTEoihq8jZBLr8Cxuwg==}
+    engines: {node: '>=20.16.0 <21 || >=22.3.0'}
+    hasBin: true
+
+  pdfjs-dist@5.4.296:
+    resolution: {integrity: sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==}
+    engines: {node: '>=20.16.0 || >=22.3.0'}
+
   peberminta@0.9.0:
     resolution: {integrity: sha512-XIxfHpEuSJbITd1H3EeQwpcZbTLHc+VVr8ANI9t5sit565tsI4/xK3KWTUFE2e6QiangUkh3B0jihzmGnNrRsQ==}
 
@@ -16838,9 +16951,9 @@ packages:
     resolution: {integrity: sha512-MaA7LbYJqKyc86cPH/Hdd/6sJsE0tG3O+ihEl6Am0XstjdyIYQce//3qxYCcaWCnIiIa13z5KZ3Fjy6fgS2+cA==, tarball: file:tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz}
     version: 0.21.0-v8.40
 
-  replicad@file:tarballs/replicad-0.21.0-v8.40.tgz:
-    resolution: {integrity: sha512-4IIvDljSgkqkrwrV2kW4PVo2lgtBN2UD7SUBFTU1ZzNqUEr2RF/ZDOJqPApJrN5Nu8BpwOkU8r3jRVHintPw4w==, tarball: file:tarballs/replicad-0.21.0-v8.40.tgz}
-    version: 0.21.0-v8.40
+  replicad@file:tarballs/replicad-0.21.0-v8.41.tgz:
+    resolution: {integrity: sha512-couV4gM983Ds+KP99S59ZH9f71CEJkCpCLzmDim+Sn8ZnMYLkWlAPTh5VI7RRj9nODCCWUYV1hqSpmtPzEj+zA==, tarball: file:tarballs/replicad-0.21.0-v8.41.tgz}
+    version: 0.21.0-v8.41
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -18243,6 +18356,10 @@ packages:
 
   turbo-stream@2.4.1:
     resolution: {integrity: sha512-v8kOJXpG3WoTN/+at8vK7erSzo6nW6CIaeOvNOkHQVDajfz1ZVeSxCbc6tOH4hrGZW7VUCV0TOXd8CPzYnYkrw==}
+
+  turndown@7.2.4:
+    resolution: {integrity: sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==}
+    engines: {node: '>=18', npm: '>=9'}
 
   tw-animate-css@1.4.0:
     resolution: {integrity: sha512-7bziOlRqH0hJx80h/3mbicLW7o8qLsH5+RaLR2t+OHM3D0JlWGODQKQ4cxbK7WlvmUxpcj6Kgu6EKqjrGFe3QQ==}
@@ -21653,7 +21770,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.19(f275bdcd2b4570f1ea1dd1e4e151a51e)':
+  '@langchain/community@1.1.19(466cb43ae43f30176885ede922d39598)':
     dependencies:
       '@browserbasehq/stagehand': 1.12.0(@playwright/test@1.58.2)(deepmerge@4.3.1)(dotenv@17.3.1)(encoding@0.1.13)(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6))(zod@4.3.6)
       '@ibm-cloud/watsonx-ai': 1.5.0(@langchain/core@1.1.37(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.213.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.6.0(@opentelemetry/api@1.9.0))(openai@4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6)))
@@ -21681,6 +21798,7 @@ snapshots:
       jsdom: 26.0.0(canvas@3.2.1)
       jsonwebtoken: 9.0.3
       lodash: 4.17.23
+      pdf-parse: 2.4.5
       pg: 8.18.0
       playwright: 1.58.2
       ws: 8.19.0
@@ -21934,6 +22052,8 @@ snapshots:
       resolve: 1.22.11
 
   '@microsoft/tsdoc@0.16.0': {}
+
+  '@mixmark-io/domino@2.2.0': {}
 
   '@mjackson/node-fetch-server@0.2.0': {}
 
@@ -22309,6 +22429,49 @@ snapshots:
   '@msgpack/msgpack@2.8.0': {}
 
   '@msgpack/msgpack@3.1.3': {}
+
+  '@napi-rs/canvas-android-arm64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-darwin-arm64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-darwin-x64@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-musl@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-riscv64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-gnu@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-musl@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas-win32-x64-msvc@0.1.80':
+    optional: true
+
+  '@napi-rs/canvas@0.1.80':
+    optionalDependencies:
+      '@napi-rs/canvas-android-arm64': 0.1.80
+      '@napi-rs/canvas-darwin-arm64': 0.1.80
+      '@napi-rs/canvas-darwin-x64': 0.1.80
+      '@napi-rs/canvas-linux-arm-gnueabihf': 0.1.80
+      '@napi-rs/canvas-linux-arm64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-arm64-musl': 0.1.80
+      '@napi-rs/canvas-linux-riscv64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-x64-gnu': 0.1.80
+      '@napi-rs/canvas-linux-x64-musl': 0.1.80
+      '@napi-rs/canvas-win32-x64-msvc': 0.1.80
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
@@ -27237,6 +27400,8 @@ snapshots:
 
   '@types/trusted-types@2.0.7':
     optional: true
+
+  '@types/turndown@5.0.6': {}
 
   '@types/unist@2.0.11': {}
 
@@ -35103,6 +35268,15 @@ snapshots:
 
   pathe@2.0.3: {}
 
+  pdf-parse@2.4.5:
+    dependencies:
+      '@napi-rs/canvas': 0.1.80
+      pdfjs-dist: 5.4.296
+
+  pdfjs-dist@5.4.296:
+    optionalDependencies:
+      '@napi-rs/canvas': 0.1.80
+
   peberminta@0.9.0: {}
 
   peek-readable@4.1.0: {}
@@ -36449,7 +36623,7 @@ snapshots:
 
   replicad-opencascadejs@file:tarballs/replicad-opencascadejs-0.21.0-v8.40.tgz: {}
 
-  replicad@file:tarballs/replicad-0.21.0-v8.40.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977):
+  replicad@file:tarballs/replicad-0.21.0-v8.41.tgz(patch_hash=59cf5cbe6dcb0ce32119979689ef3a990770acec19c449981b1e943fdce85977):
     dependencies:
       '@types/opentype.js': 1.3.4
       flatbush: 4.5.0
@@ -38070,6 +38244,10 @@ snapshots:
   turbo-stream@2.4.0: {}
 
   turbo-stream@2.4.1: {}
+
+  turndown@7.2.4:
+    dependencies:
+      '@mixmark-io/domino': 2.2.0
 
   tw-animate-css@1.4.0: {}
 
