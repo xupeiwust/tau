@@ -48,6 +48,9 @@ export type SharedPoolOptions = {
  * - **Writer** (owning thread): {@link store}, {@link invalidate}, {@link clear}
  * - **Reader** (any thread): {@link resolve}, {@link resolveCopy}, {@link has}
  *
+ * The writer maintains a bidirectional key-to-index mapping for
+ * O(1) invalidation. Only the storing thread can invalidate entries.
+ *
  * @public
  */
 export class SharedPool {
@@ -56,6 +59,8 @@ export class SharedPool {
   private readonly _maxEntryBytes: number;
   /** Writer-side mapping from key to entry index for O(1) invalidation. */
   private readonly _keyToIndex = new Map<string, number>();
+  /** Reverse mapping from entry index to key, kept in sync with {@link _keyToIndex} for eviction cleanup. */
+  private readonly _indexToKey = new Map<number, string>();
 
   /**
    * Create or attach to a shared pool.
@@ -90,6 +95,11 @@ export class SharedPool {
       return false;
     }
 
+    const evictedKey = this._indexToKey.get(entryIndex);
+    if (evictedKey !== undefined) {
+      this._keyToIndex.delete(evictedKey);
+    }
+
     const entry = this._arena.readEntry(entryIndex)!;
     if (data.byteLength > 0) {
       const target = new Uint8Array(this._buffer, entry.dataOffset, entry.dataLength);
@@ -99,6 +109,7 @@ export class SharedPool {
     const [hashHi, hashLo] = fnv1a64(key);
     this._arena.publishEntry(entryIndex, hashHi, hashLo);
     this._keyToIndex.set(key, entryIndex);
+    this._indexToKey.set(entryIndex, key);
 
     return true;
   }
@@ -158,14 +169,18 @@ export class SharedPool {
   /**
    * Mark a cached entry as stale, causing subsequent reads to miss.
    *
+   * Writer-only: uses the local `_keyToIndex` map for O(1) lookup.
+   *
    * @param key - String key to invalidate.
    */
   public invalidate(key: string): void {
-    const index = this._keyToIndex.get(key);
-    if (index !== undefined) {
-      this._arena.markStale(index);
-      this._keyToIndex.delete(key);
+    const localIndex = this._keyToIndex.get(key);
+    if (localIndex === undefined) {
+      return;
     }
+    this._arena.markStale(localIndex);
+    this._keyToIndex.delete(key);
+    this._indexToKey.delete(localIndex);
   }
 
   /**
@@ -176,6 +191,7 @@ export class SharedPool {
       this._arena.markStale(index);
     }
     this._keyToIndex.clear();
+    this._indexToKey.clear();
   }
 
   /**

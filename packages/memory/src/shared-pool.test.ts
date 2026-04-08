@@ -172,6 +172,27 @@ describe('SharedPool', () => {
     expect(decoder.decode(freshCopy)).toBe('copy content');
   });
 
+  it('should no-op when reader-side instance calls invalidate (writer-only invariant)', () => {
+    const buffer = new SharedArrayBuffer(256 * 1024);
+    const writer = new SharedPool(buffer, { maxEntries: 128 });
+    const reader = new SharedPool(buffer, { maxEntries: 128 });
+
+    writer.store('params.json', encoder.encode('{"version":1}'));
+    expect(decoder.decode(reader.resolveCopy('params.json'))).toBe('{"version":1}');
+
+    reader.invalidate('params.json');
+
+    expect(reader.resolve('params.json')).toBeDefined();
+    expect(writer.resolve('params.json')).toBeDefined();
+  });
+
+  it('should no-op when invalidating a key that does not exist', () => {
+    const pool = createPool();
+    expect(() => {
+      pool.invalidate('nonexistent');
+    }).not.toThrow();
+  });
+
   it('should accept maxEntryBytes option', () => {
     const pool = new SharedPool(new SharedArrayBuffer(256 * 1024), {
       maxEntries: 256,
@@ -183,5 +204,57 @@ describe('SharedPool', () => {
 
     const oversized = new Uint8Array(101);
     expect(pool.store('oversized', oversized)).toBe(false);
+  });
+
+  describe('LRU eviction', () => {
+    function createLruPool(totalBytes = 256 * 1024, maxEntries = 3): SharedPool {
+      const buffer = new SharedArrayBuffer(totalBytes);
+      return new SharedPool(buffer, { maxEntries, eviction: 'lru' });
+    }
+
+    it('should evict least-recently-used entry when pool is full', () => {
+      const pool = createLruPool();
+
+      pool.store('a', encoder.encode('alpha'));
+      pool.store('b', encoder.encode('bravo'));
+      pool.store('c', encoder.encode('charlie'));
+
+      pool.store('d', encoder.encode('delta'));
+
+      expect(pool.resolve('a')).toBeUndefined();
+      expect(decoder.decode(pool.resolveCopy('b'))).toBe('bravo');
+      expect(decoder.decode(pool.resolveCopy('c'))).toBe('charlie');
+      expect(decoder.decode(pool.resolveCopy('d'))).toBe('delta');
+    });
+
+    it('should not corrupt _keyToIndex when LRU evicts an entry', () => {
+      const pool = createLruPool();
+
+      pool.store('a', encoder.encode('alpha'));
+      pool.store('b', encoder.encode('bravo'));
+      pool.store('c', encoder.encode('charlie'));
+
+      pool.store('d', encoder.encode('delta'));
+
+      pool.invalidate('a');
+
+      expect(decoder.decode(pool.resolveCopy('b'))).toBe('bravo');
+      expect(decoder.decode(pool.resolveCopy('c'))).toBe('charlie');
+      expect(decoder.decode(pool.resolveCopy('d'))).toBe('delta');
+    });
+
+    it('should allow re-storing a key after its slot was LRU-evicted', () => {
+      const pool = createLruPool();
+
+      pool.store('a', encoder.encode('original'));
+      pool.store('b', encoder.encode('bravo'));
+      pool.store('c', encoder.encode('charlie'));
+
+      pool.store('d', encoder.encode('delta'));
+      expect(pool.resolve('a')).toBeUndefined();
+
+      pool.store('a', encoder.encode('updated'));
+      expect(decoder.decode(pool.resolveCopy('a'))).toBe('updated');
+    });
   });
 });
