@@ -194,6 +194,10 @@ describe('paneviewStyleOverrides', () => {
     expect(paneviewStyleOverrides).toContain('--dv-paneview-header-border-color');
   });
 
+  it('should disable active outline on focused pane panels', () => {
+    expect(paneviewStyleOverrides).toContain('--dv-paneview-active-outline-color:transparent');
+  });
+
   it('should set sash idle color to transparent', () => {
     expect(paneviewStyleOverrides).toContain('--dv-sash-color:transparent');
   });

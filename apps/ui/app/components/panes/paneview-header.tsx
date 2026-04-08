@@ -16,10 +16,14 @@ const defaultExpandedHeight = 200;
 export const paneviewStyleOverrides = cn(
   'h-full',
   '[--dv-paneview-header-border-color:var(--border)]',
+  '[--dv-paneview-active-outline-color:transparent]',
   '[--dv-sash-color:transparent]',
   '[--dv-active-sash-color:var(--primary)]',
   '[--dv-active-sash-transition-duration:0.1s]',
   '[--dv-active-sash-transition-delay:0.5s]',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-enabled]:!cursor-row-resize',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-maximum]:!cursor-row-resize',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-minimum]:!cursor-row-resize',
 );
 
 /**

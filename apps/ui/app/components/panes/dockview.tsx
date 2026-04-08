@@ -48,9 +48,26 @@ const dockviewTailwindOverrides = cn(
   '[--dv-active-sash-color:var(--primary)]',
   '[--dv-active-sash-transition-duration:0.1s]',
   '[--dv-active-sash-transition-delay:0.5s]',
+  // ── Sash cursor: col-resize / row-resize (adds the bar between arrows) ──
+  '[&_.dv-split-view-container.dv-horizontal_>_.dv-sash-container_>_.dv-sash.dv-enabled]:!cursor-col-resize',
+  '[&_.dv-split-view-container.dv-horizontal_>_.dv-sash-container_>_.dv-sash.dv-maximum]:!cursor-col-resize',
+  '[&_.dv-split-view-container.dv-horizontal_>_.dv-sash-container_>_.dv-sash.dv-minimum]:!cursor-col-resize',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-enabled]:!cursor-row-resize',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-maximum]:!cursor-row-resize',
+  '[&_.dv-split-view-container.dv-vertical_>_.dv-sash-container_>_.dv-sash.dv-minimum]:!cursor-row-resize',
   // ── Scrollbar ──
   '[--dv-tabs-container-scrollbar-color:var(--border)]',
   '[--dv-scrollbar-background-color:var(--border)]',
+  // ── Tab scroll shadows: horizontal fade preserving top/bottom borders ──
+  // Two mask layers composited with `add` (union):
+  //   Layer 1 – border strips: 1px top + 1px bottom always fully opaque
+  //   Layer 2 – horizontal scroll-fade gradient (animated via scroll-fade-x)
+  // The union ensures tab borders remain crisp at the fade edges.
+  '[&_.dv-tabs-container]:[--scroll-fade-size:14px]',
+  '[&_.dv-tabs-container]:[mask-image:linear-gradient(to_bottom,#000_1px,transparent_1px,transparent_calc(100%_-_1px),#000_calc(100%_-_1px)),linear-gradient(to_right,var(--scroll-fade-left),#000_var(--scroll-fade-size),#000_calc(100%_-_var(--scroll-fade-size)),var(--scroll-fade-right))]',
+  '[&_.dv-tabs-container]:[mask-composite:add]',
+  '[&_.dv-tabs-container]:[animation:scroll-fade-x_linear]',
+  '[&_.dv-tabs-container]:[animation-timeline:scroll(self_x)]',
   // ── Floating panels ──
   '[--dv-floating-box-shadow:0_4px_12px_color-mix(in_oklch,var(--foreground),transparent_85%)]',
   '[--dv-icon-hover-background-color:var(--accent)]',
