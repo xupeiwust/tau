@@ -75,8 +75,8 @@ export function ContextChip({
     <span
       ref={ref}
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border border-primary/20 px-1.5 py-0.5 text-xs',
-        'bg-primary/10 text-primary select-none',
+        'inline-flex items-center gap-0.5 rounded-xs px-1.5 py-px text-xs',
+        'bg-primary/10 text-primary',
         isInteractive ? 'cursor-pointer hover:bg-primary/15' : 'cursor-default',
         className,
       )}
