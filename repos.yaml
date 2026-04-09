@@ -68,6 +68,7 @@ groups:
       - rolldown
       - knip
       - agentfs
+      - primitives
   tscircuit:
     description: tscircuit EDA ecosystem
     repos:
@@ -366,3 +367,6 @@ repos:
   agentfs:
     upstream: tursodatabase/agentfs
     description: The filesystem for agents.
+  primitives:
+    upstream: radix-ui/primitives
+    description: Radix UI primitives - accessible component library
