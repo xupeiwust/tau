@@ -3,7 +3,7 @@ title: 'Filesystem Mount & Overlay Architecture'
 description: 'Analysis of mount-point support in the new multi-provider FS architecture: current limitations, concrete use cases, design patterns from VS Code/ZenFS/OverlayFS, and a proposed MountTable abstraction.'
 status: active
 created: '2026-03-28'
-updated: '2026-03-28'
+updated: '2026-04-06'
 category: architecture
 related:
   - docs/research/filesystem-architecture.md
@@ -23,15 +23,15 @@ Investigation into whether the new multi-provider filesystem architecture suppor
 
 ## Executive Summary
 
-~~The current architecture uses a **single active provider** model.~~ **UPDATE (March 2026)**: The `MountTable` abstraction has been implemented and integrated into `FileService`. It uses longest-prefix matching to route operations to different providers by path. The first production mount is an OPFS-backed `/node_modules/` cache, separate from the project's primary IndexedDB provider. Key capabilities delivered:
+~~The current architecture uses a **single active provider** model.~~ **UPDATE (April 2026)**: The `MountTable` abstraction has been implemented and integrated into `FileService`. It uses longest-prefix matching to route operations to different providers by path. The first production mount is an OPFS-backed `/node_modules/` cache, separate from the project's primary IndexedDB provider. Of 10 recommendations: **6 RESOLVED** (R1, R2, R5, R6, R7, R8), **3 NOT DONE** (R3, R4, R10), and **1 DEFERRED** (R9). Key capabilities delivered:
 
-- **`MountTable` class** (`packages/filesystem/src/mount-table.ts`): Pre-sorted mount list, longest-prefix resolution, `getMountsUnder` for readdir merge
-- **`FileService` integration**: All operations route through `_resolveProvider()`, which consults the mount table or falls back to the active provider. Cross-mount rename implemented as copy+delete. Readdir merges synthetic entries from child mounts.
-- **OPFS `/node_modules/` mount**: `file-manager.worker.ts` creates a `FileSystemAccessProvider` backed by an OPFS subdirectory handle (`tau-node-modules`) and mounts it at `/node_modules`, with graceful degradation when OPFS is unavailable.
-- **`readdirWithStats`**: Eliminates N+1 stat calls across all providers (`DirectIdbProvider` with `_fileSizes` cache, `FileSystemAccessProvider` via `entries()`, `MemoryProvider`).
-- **Directory handle LRU cache**: 10K-entry cache in `FileSystemAccessProvider._resolveDirectoryHandle` with prefix invalidation on mutations.
+- **`MountTable` class** (`packages/filesystem/src/mount-table.ts`): Pre-sorted mount list, longest-prefix resolution, `getMountsUnder` for readdir merge ✅
+- **`FileService` integration**: All operations route through `_resolveProvider()`, which consults the mount table or falls back to the active provider. Cross-mount rename implemented as copy+delete. Readdir merges synthetic entries from child mounts. ✅
+- **OPFS `/node_modules/` mount**: `file-manager.worker.ts` creates a `FileSystemAccessProvider` backed by an OPFS subdirectory handle (`tau-node-modules`) and mounts it at `/node_modules`, with graceful degradation when OPFS is unavailable. ✅
+- **`readdirWithStats`**: Eliminates N+1 stat calls across all providers (`DirectIdbProvider` with `_fileSizes` cache, `FileSystemAccessProvider` via `entries()`, `MemoryProvider`). ✅
+- **Directory handle LRU cache**: 10K-entry cache in `FileSystemAccessProvider._resolveDirectoryHandle` with prefix invalidation on mutations. ✅
 
-The original analysis below remains accurate for background context and future use cases (geometry cache mount, git isolation, overlay provider).
+Remaining: ephemeral `.tau/cache/` mount (R3 ❌), git isolation (R4 ❌), overlay provider (R9 ⏸️), mount resolution benchmarking (R10 ❌).
 
 ## Problem Statement
 
@@ -46,11 +46,13 @@ A user asked: "Can I mount files at a specific location using a different filesy
 - [Design Decisions](#design-decisions)
 - [Recommendations](#recommendations)
 
-## Current Architecture: Why Mounts Are Not Possible
+## ~~Current Architecture: Why Mounts Are Not Possible~~ ✅ RESOLVED
 
-### Single Active Provider Model
+> **Note**: This section documents the **original** single-provider limitations that motivated `MountTable`. These limitations have been fully resolved — `FileService` now routes all operations through `_resolveProvider()` which consults the `MountTable` for longest-prefix matching, falling back to the active provider only for unmounted paths.
 
-`ProviderRegistry` manages providers keyed by **backend type** (`indexeddb`, `opfs`, `webaccess`, `memory`), not by path. It exposes one "active" backend:
+### ~~Single Active Provider Model~~ ✅ RESOLVED
+
+~~`ProviderRegistry` manages providers keyed by **backend type** (`indexeddb`, `opfs`, `webaccess`, `memory`), not by path. It exposes one "active" backend:~~
 
 ```typescript
 // provider-registry.ts
@@ -61,7 +63,7 @@ public async getActiveProvider(): Promise<FileSystemProvider> {
 }
 ```
 
-`FileService` routes every operation through `getActiveProvider()`:
+~~`FileService` routes every operation through `getActiveProvider()`:~~
 
 ```typescript
 // file-service.ts — all reads/writes
@@ -71,7 +73,7 @@ public async readFile(path: string): Promise<Uint8Array<ArrayBuffer>> {
 }
 ```
 
-There is **no path inspection** in the routing layer. The path string passes through `FileService` → `ProviderRegistry` → provider unchanged. A second provider can only be reached via `getStandaloneProvider(backend)` with an explicit backend argument — used by the `/files` route for cross-backend browsing, not for transparent path-based routing.
+~~There is **no path inspection** in the routing layer.~~ **RESOLVED** — `FileService` now calls `_resolveProvider(path)` which checks the `MountTable` first, falling back to the active provider only if no mount matches. `MountTable.resolve(path)` uses longest-prefix matching with a pre-sorted mount list.
 
 ### What `reconfigure` Does
 
@@ -90,16 +92,16 @@ public async reconfigure(backend: FileSystemBackend): Promise<void> {
 
 ZenFS supported `configure({ mounts: { '/': Backend1, '/git': Backend2 } })` with longest-prefix path resolution. However, `zenfs-config.ts` only ever configured a single `'/'` mount per backend — the documented `'/git'` mount was never implemented. Git operations use a path prefix (`/git/projects/{projectId}`) on the same provider via `FileManagerProxy`.
 
-### Summary of Limitations
+### ~~Summary of Limitations~~ — Current Status
 
-| Capability                                                  | Status                                       |
-| ----------------------------------------------------------- | -------------------------------------------- |
-| Multiple providers active simultaneously                    | Cached but only one is "active" for I/O      |
-| Path-based provider selection                               | Not implemented; all paths → active provider |
-| Overlay / union reads (check layer A, fall back to layer B) | Not implemented                              |
-| Mount a provider at a sub-path (e.g., `/tmp` → memory)      | Not implemented                              |
-| Cross-mount rename (copy+delete fallback)                   | Not implemented                              |
-| Watch events across mount boundaries                        | Not needed (single provider)                 |
+| Capability                                                  | Original Status                                  | Current Status                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Multiple providers active simultaneously                    | ~~Cached but only one is "active" for I/O~~      | ✅ RESOLVED — `MountTable` supports multiple providers via longest-prefix routing |
+| Path-based provider selection                               | ~~Not implemented; all paths → active provider~~ | ✅ RESOLVED — `_resolveProvider(path)` consults `MountTable`                      |
+| Overlay / union reads (check layer A, fall back to layer B) | Not implemented                                  | ❌ NOT DONE (R9 — `OverlayProvider` deferred)                                     |
+| Mount a provider at a sub-path (e.g., `/tmp` → memory)      | ~~Not implemented~~                              | ✅ RESOLVED — `/node_modules/` mounted on OPFS via `MountTable`                   |
+| Cross-mount rename (copy+delete fallback)                   | ~~Not implemented~~                              | ✅ RESOLVED — R8 implemented                                                      |
+| Watch events across mount boundaries                        | ~~Not needed (single provider)~~                 | ✅ RESOLVED — Events use original absolute paths (R7)                             |
 
 ## Concrete Use Cases
 
@@ -341,18 +343,18 @@ This is a **readdir merge** at mount boundaries — the same pattern `unionfs` u
 
 ## Recommendations
 
-| #   | Action                                                                                     | Priority | Effort | Impact              | Status                                           |
-| --- | ------------------------------------------------------------------------------------------ | -------- | ------ | ------------------- | ------------------------------------------------ |
-| R1  | Implement `MountTable` with longest-prefix resolution and pre-sorted mount list            | P1       | Medium | High                | ✅ COMPLETE                                      |
-| R2  | Wire `MountTable` into `FileService` with single `'/'` mount (backward-compatible)         | P1       | Low    | Low (enables R3–R5) | ✅ COMPLETE                                      |
-| R3  | Mount `MemoryProvider` at `projectRoot/.tau/cache/` for ephemeral geometry/parameter cache | P1       | Low    | High                | Open                                             |
-| R4  | Mount isolated `DirectIdbProvider` at `/git/` for git object store separation              | P2       | Medium | Medium              | Open                                             |
-| R5  | Mount OPFS-backed provider at `/node_modules/` for CDN dependency cache                    | P2       | Low    | Medium              | ✅ COMPLETE                                      |
-| R6  | Implement readdir merge at mount boundaries                                                | P1       | Medium | High (correctness)  | ✅ COMPLETE                                      |
-| R7  | Implement event re-prefixing in mount table for cross-mount event propagation              | P1       | Medium | High (correctness)  | ✅ COMPLETE (events use original absolute paths) |
-| R8  | Implement cross-mount rename as copy+delete with warning                                   | P2       | Low    | Low                 | ✅ COMPLETE                                      |
-| R9  | Design `OverlayProvider` for union read-through semantics (template overlay)               | P3       | High   | Low (future)        | Open                                             |
-| R10 | Benchmark mount resolution overhead (target: <0.01ms per resolve for ≤6 mounts)            | P2       | Low    | Medium              | Open                                             |
+| #      | Action                                                                                     | Priority | Effort     | Impact       | Status                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------ | -------- | ---------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| ~~R1~~ | ~~Implement `MountTable` with longest-prefix resolution and pre-sorted mount list~~        | ~~P1~~   | ~~Medium~~ | ~~High~~     | ✅ RESOLVED — `packages/filesystem/src/mount-table.ts`                                                                 |
+| ~~R2~~ | ~~Wire `MountTable` into `FileService` with single `'/'` mount (backward-compatible)~~     | ~~P1~~   | ~~Low~~    | ~~Low~~      | ✅ RESOLVED — `_resolveProvider()` consults `MountTable`                                                               |
+| R3     | Mount `MemoryProvider` at `projectRoot/.tau/cache/` for ephemeral geometry/parameter cache | P1       | Low        | High         | ❌ NOT DONE — `.tau/cache/` still served by the root IndexedDB provider                                                |
+| R4     | Mount isolated `DirectIdbProvider` at `/git/` for git object store separation              | P2       | Medium     | Medium       | ❌ NOT DONE — `/git/` paths still served by root provider                                                              |
+| ~~R5~~ | ~~Mount OPFS-backed provider at `/node_modules/` for CDN dependency cache~~                | ~~P2~~   | ~~Low~~    | ~~Medium~~   | ✅ RESOLVED — `FileSystemAccessProvider` backed by OPFS `tau-node-modules` handle, mounted in `file-manager.worker.ts` |
+| ~~R6~~ | ~~Implement readdir merge at mount boundaries~~                                            | ~~P1~~   | ~~Medium~~ | ~~High~~     | ✅ RESOLVED — `getMountsUnder()` injects synthetic directory entries                                                   |
+| ~~R7~~ | ~~Implement event re-prefixing in mount table for cross-mount event propagation~~          | ~~P1~~   | ~~Medium~~ | ~~High~~     | ✅ RESOLVED — events use original absolute paths                                                                       |
+| ~~R8~~ | ~~Implement cross-mount rename as copy+delete with warning~~                               | ~~P2~~   | ~~Low~~    | ~~Low~~      | ✅ RESOLVED — cross-mount rename implemented as copy+delete                                                            |
+| R9     | Design `OverlayProvider` for union read-through semantics (template overlay)               | P3       | High       | Low (future) | ⏸️ DEFERRED — union overlay not needed yet; isolated mounts cover current use cases                                    |
+| R10    | Benchmark mount resolution overhead (target: <0.01ms per resolve for ≤6 mounts)            | P2       | Low        | Medium       | ❌ NOT DONE — no formal benchmark exists for mount resolution performance                                              |
 
 ## References
 

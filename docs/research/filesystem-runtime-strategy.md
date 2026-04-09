@@ -1,9 +1,9 @@
 ---
 title: 'Filesystem Runtime Strategy'
 description: 'Strategic analysis of browser filesystem approaches, ZenFS overhead, and the path to a world-class multi-runtime filesystem for Tau'
-status: draft
+status: active
 created: '2026-03-28'
-updated: '2026-03-28'
+updated: '2026-04-06'
 category: comparison
 related:
   - docs/research/shared-worker-gate-startup-performance.md
@@ -20,7 +20,7 @@ Strategic analysis of whether Tau should continue building on ZenFS or adopt a d
 
 ## Executive Summary
 
-Tau has built ~1500 lines of workaround code to compensate for ZenFS's architectural overhead: `InMemoryFileTree`, `BulkImportableStoreFS`, `ResourceWriteQueue`, `WriteCoordinator`, and `DirectoryTreeCache`. Meanwhile, VS Code's browser filesystem achieves superior performance in ~430 lines using a fundamentally simpler architecture: path-keyed IDB storage, no inodes, no directory listing blobs, zero IDB transactions for stat/readdir. The recommendation is to replace ZenFS's IndexedDB backend with a VS Code-style direct IDB provider, keep Tau's existing `FileSystemProvider` interface (which is already runtime-agnostic), and add OPFS as a high-performance backend for large files. This eliminates the inode layer, the TOCTOU vulnerability, and ~12 seconds of startup scan time while preserving multi-runtime extensibility.
+~~Tau has built ~1500 lines of workaround code to compensate for ZenFS's architectural overhead.~~ **✅ FULLY IMPLEMENTED** — All six migration phases are complete. ZenFS has been fully replaced by `DirectIdbProvider` (VS Code-style path-keyed IDB storage), `OPFSProvider` for large binary files (mounted at `/node_modules/` via `MountTable`), and `CrossTabCoordinator` for cross-tab synchronization via `navigator.locks` + `BroadcastChannel`. The inode layer, TOCTOU vulnerability, ZenFS workaround code (`BulkImportableStoreFS`, `tauIndexedDb`, `createZenFsProvider`, `WriteCoordinator`) have all been removed. Startup scan eliminated (shallow `readDirectory` replaces recursive `getDirectoryStat`). The `FileSystemProvider` interface remains runtime-agnostic as designed.
 
 ## Table of Contents
 
@@ -200,33 +200,37 @@ If a kernel needs synchronous filesystem access (some Emscripten modules require
 
 ## Recommendation
 
-### Strategy: Replace the ZenFS IDB Backend, Keep Everything Above It
+### Strategy: Replace the ZenFS IDB Backend, Keep Everything Above It ✅ COMPLETE
 
 ```
-                    KEEP (runtime-agnostic)
+                    KEPT (runtime-agnostic) ✅
 ┌─────────────────────────────────────────────────────────┐
 │  FileService  │  FileTreeService  │  FileContentService │
 │  InMemoryFileTree  │  WatchRegistry  │  ChangeEventBus  │
-│  BoundedFileCache  │  ResourceWriteQueue               │
+│  BoundedFileCache  │  ResourceQueue  │  MountTable      │
 ├─────────────────────────────────────────────────────────┤
 │              FileSystemProvider interface                │
 │              ProviderRegistry                           │
 ├─────────────────────────────────────────────────────────┤
 
-                    REPLACE
+                    REMOVED ✅
 ┌─────────────────────────────────────────────────────────┐
-│  ZenFS StoreFS + IndexedDB backend                      │
-│  BulkImportableStoreFS (becomes unnecessary)            │
-│  tauIndexedDb (becomes unnecessary)                     │
-│  WriteCoordinator (replaced by provider-level batching) │
-│  createZenFsProvider adapter (replaced by direct impl)  │
+│  ✅ ZenFS StoreFS + IndexedDB backend — removed         │
+│  ✅ BulkImportableStoreFS — removed                     │
+│  ✅ tauIndexedDb — removed                              │
+│  ✅ WriteCoordinator — replaced by ResourceQueue        │
+│  ✅ createZenFsProvider — removed                       │
 └─────────────────────────────────────────────────────────┘
 
-                    ADD
+                    ADDED ✅
 ┌─────────────────────────────────────────────────────────┐
-│  DirectIDBProvider (~300 lines, VS Code-style)          │
-│  OPFSProvider (for large binary files, future)          │
-│  BroadcastChannel cross-tab sync (VS Code pattern)     │
+│  ✅ DirectIdbProvider (VS Code-style, path-keyed)       │
+│  ✅ OPFSProvider (OPFS /node_modules/ mount)            │
+│  ✅ FileSystemAccessProvider (File System Access API)   │
+│  ✅ MemoryProvider (in-memory)                          │
+│  ✅ CrossTabCoordinator (navigator.locks + BC)          │
+│  ✅ MountTable (longest-prefix provider routing)        │
+│  ✅ SharedContentPool (SAB zero-IPC reads)              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -247,26 +251,26 @@ This eliminates: inode resolution, directory listing blobs, TOCTOU vulnerability
 
 ### Migration Path
 
-| Phase | Action                                                              | Effort | Risk                       |
-| ----- | ------------------------------------------------------------------- | ------ | -------------------------- |
-| 1     | Implement `DirectIDBProvider` behind `FileSystemProvider` interface | Medium | Low — runs alongside ZenFS |
-| 2     | Add feature flag to toggle between ZenFS and DirectIDB              | Low    | Low — reversible           |
-| 3     | Migrate existing ZenFS databases to path-keyed format               | Medium | Medium — data migration    |
-| 4     | Remove ZenFS workaround code (~930 lines)                           | Low    | Low — dead code removal    |
-| 5     | Add OPFS backend for large binary files (geometry cache, exports)   | Medium | Low — additive             |
-| 6     | Add `BroadcastChannel` cross-tab sync                               | Low    | Low — additive             |
+| Phase | Action                                                                  | Effort     | Risk       | Status                                                                                                  |
+| ----- | ----------------------------------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| ~~1~~ | ~~Implement `DirectIDBProvider` behind `FileSystemProvider` interface~~ | ~~Medium~~ | ~~Low~~    | ✅ RESOLVED                                                                                             |
+| ~~2~~ | ~~Add feature flag to toggle between ZenFS and DirectIDB~~              | ~~Low~~    | ~~Low~~    | ✅ RESOLVED — `DirectIdbProvider` is the default; ZenFS removed                                         |
+| ~~3~~ | ~~Migrate existing ZenFS databases to path-keyed format~~               | ~~Medium~~ | ~~Medium~~ | ✅ RESOLVED — ZenFS fully removed; no migration needed (fresh databases)                                |
+| ~~4~~ | ~~Remove ZenFS workaround code~~                                        | ~~Low~~    | ~~Low~~    | ✅ RESOLVED — ZenFS imports, `BulkImportableStoreFS`, `tauIndexedDb`, `createZenFsProvider` all removed |
+| ~~5~~ | ~~Add OPFS backend for large binary files~~                             | ~~Medium~~ | ~~Low~~    | ✅ RESOLVED — `OPFSProvider` implemented; `/node_modules/` mounted on OPFS via `MountTable`             |
+| ~~6~~ | ~~Add `BroadcastChannel` cross-tab sync~~                               | ~~Low~~    | ~~Low~~    | ✅ RESOLVED — `CrossTabCoordinator` with `navigator.locks` + `BroadcastChannel`                         |
 
 ### Multi-Runtime Extension Points
 
 The `FileSystemProvider` interface supports new runtimes without any changes to the service layer:
 
-| Runtime    | Provider                                         | Notes                                 |
-| ---------- | ------------------------------------------------ | ------------------------------------- |
-| Browser    | `DirectIDBProvider` + `OPFSProvider`             | Path-keyed IDB + OPFS for large files |
-| Node.js    | `NodeFSProvider` (wrap `node:fs/promises`)       | Already exists as `fromNodeFS`        |
-| Electron   | Same as Node.js                                  | Native FS access                      |
-| Deno       | `DenoFSProvider` (wrap `Deno.fs`)                | Similar to Node adapter               |
-| Cloudflare | `R2Provider` (objects) + `KVProvider` (metadata) | R2 for content, KV for tree           |
+| Runtime    | Provider                                                          | Notes                                 | Status            |
+| ---------- | ----------------------------------------------------------------- | ------------------------------------- | ----------------- |
+| Browser    | `DirectIdbProvider` + `OPFSProvider` + `FileSystemAccessProvider` | Path-keyed IDB + OPFS + FS Access API | ✅ Implemented    |
+| Node.js    | `NodeFSProvider` (wrap `node:fs/promises`)                        | Already exists as `fromNodeFS`        | ✅ Implemented    |
+| Electron   | Same as Node.js                                                   | Native FS access                      | ⏸️ Not yet needed |
+| Deno       | `DenoFSProvider` (wrap `Deno.fs`)                                 | Similar to Node adapter               | ⏸️ Not yet needed |
+| Cloudflare | `R2Provider` (objects) + `KVProvider` (metadata)                  | R2 for content, KV for tree           | ⏸️ Not yet needed |
 
 ## Trade-offs
 

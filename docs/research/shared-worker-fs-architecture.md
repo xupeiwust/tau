@@ -3,7 +3,7 @@ title: 'SharedWorker Filesystem Architecture Assessment'
 description: 'Deep analysis of SharedWorker suitability for cross-tab FS coordination in Tau, comparing against navigator.locks + BroadcastChannel and evaluating architectural trade-offs.'
 status: active
 created: '2026-03-28'
-updated: '2026-03-28'
+updated: '2026-04-06'
 category: architecture
 related:
   - docs/research/filesystem-architecture.md
@@ -22,7 +22,7 @@ Assessment of whether a SharedWorker is the right primitive for cross-tab filesy
 
 ## Executive Summary
 
-**SharedWorker is not a suitable replacement for Tau's file-manager dedicated worker.** Three blocking constraints eliminate it from consideration: (1) `SharedArrayBuffer` is inaccessible from SharedWorkers — even with COOP/COEP headers — breaking Tau's R20 `SharedContentPool` zero-IPC reads; (2) `FileSystemSyncAccessHandle` (OPFS synchronous I/O) is restricted to dedicated Workers, blocking the R21 OPFS fast path; (3) Android Chrome does not support SharedWorker, creating a critical mobile gap. Tau's current architecture — per-tab dedicated worker with `navigator.locks` for write serialization and `BroadcastChannel` for change notifications — is the architecturally correct approach, validated by VS Code's identical choice. `navigator.locks` is not redundant; it solves a problem (cross-tab mutual exclusion and tab-death detection) that SharedWorker alone cannot. The most performant architecture is the one Tau already has, with the R20 `SharedContentPool` providing zero-IPC reads that SharedWorker fundamentally cannot achieve.
+**SharedWorker is not a suitable replacement for Tau's file-manager dedicated worker.** Three blocking constraints eliminate it from consideration: (1) `SharedArrayBuffer` is inaccessible from SharedWorkers — even with COOP/COEP headers — breaking Tau's `SharedContentPool` (now `SharedPool` in `@taucad/memory`) zero-IPC reads; (2) `FileSystemSyncAccessHandle` (OPFS synchronous I/O) is restricted to dedicated Workers, blocking the R21 OPFS fast path; (3) Android Chrome does not support SharedWorker, creating a critical mobile gap. Tau's current architecture — per-tab dedicated worker with `navigator.locks` for write serialization and `BroadcastChannel` for change notifications — is the architecturally correct approach, validated by VS Code's identical choice. `navigator.locks` is not redundant; it solves a problem (cross-tab mutual exclusion and tab-death detection) that SharedWorker alone cannot. The most performant architecture is the one Tau already has, with the `SharedContentPool` / `SharedPool` providing zero-IPC reads that SharedWorker fundamentally cannot achieve. All four "recommendation against action" items (R-SW1–R-SW4) have been ✅ FOLLOWED. R-SW5 (strengthen cross-tab coordination) remains ❌ NOT DONE.
 
 ## Problem Statement
 
@@ -209,58 +209,39 @@ This pattern — dedicated worker + shared memory — is exactly what Tau's R20 
 
 ## Recommendations
 
-### R-SW1: Do Not Convert file-manager.worker.ts to SharedWorker
+### ~~R-SW1: Do Not Convert file-manager.worker.ts to SharedWorker~~ ✅ FOLLOWED
 
 **Priority**: N/A (recommendation against action)
 
-The file-manager worker must remain a dedicated Web Worker. Converting to SharedWorker would:
+**Status**: **FOLLOWED** — File-manager worker remains a dedicated Web Worker. No SharedWorker conversion was attempted.
 
-- Break R20 `SharedContentPool` (no `SharedArrayBuffer` access)
-- Block R21 OPFS fast-path (no `FileSystemSyncAccessHandle`)
-- Exclude Android Chrome users
-- Introduce lifecycle fragility (restart on single-tab reload, silent tab discarding)
-- Gain no meaningful benefit (cross-tab coordination is already handled by `navigator.locks` + `BroadcastChannel`)
-
-### R-SW2: Keep navigator.locks for Cross-Tab Write Coordination
+### ~~R-SW2: Keep navigator.locks for Cross-Tab Write Coordination~~ ✅ FOLLOWED
 
 **Priority**: N/A (maintain current architecture)
 
-`navigator.locks` is the correct primitive for per-file write serialization across tabs. It provides:
+**Status**: **FOLLOWED** — `CrossTabCoordinator` uses `navigator.locks` for per-file exclusive write serialization. No change to this pattern.
 
-- Crash-safe automatic lock release
-- Built-in FIFO queuing
-- Universal browser support (Baseline since March 2022)
-- Zero application-level state management
-
-`CrossTabCoordinator` is well-designed and should be retained. It is not redundant with any SharedWorker alternative.
-
-### R-SW3: Keep BroadcastChannel for Change Notifications
+### ~~R-SW3: Keep BroadcastChannel for Change Notifications~~ ✅ FOLLOWED
 
 **Priority**: N/A (maintain current architecture)
 
-`BroadcastChannel` via `CrossTabCoordinator` is the correct primitive for cross-tab change notifications. VS Code validates this exact pattern. It is simpler, more reliable, and more broadly supported than SharedWorker-based notification routing.
+**Status**: **FOLLOWED** — `CrossTabCoordinator` uses `BroadcastChannel` for cross-tab change notifications. No change to this pattern.
 
-### R-SW4: Consider SharedWorker as Future Routing Layer Only
+### ~~R-SW4: Consider SharedWorker as Future Routing Layer Only~~ ✅ FOLLOWED
 
 **Priority**: P3 (future, conditional)
 
-If Tau later needs centralized cross-tab query routing (e.g., for a SQLite-backed FS per R24, or for collaborative editing), a SharedWorker could serve as a **routing-only** layer — forwarding requests to a single active dedicated Worker. This is Notion's pattern. However, this is only warranted if:
+**Status**: **FOLLOWED** — No SharedWorker adopted. None of the three prerequisite conditions are met in April 2026: Android Chrome still lacks SharedWorker support, the underlying storage doesn't require single-writer semantics, and `SharedArrayBuffer` access from SharedWorkers remains unresolved in browser specs.
 
-1. Android Chrome ships SharedWorker support
-2. The underlying storage (SQLite/OPFS) requires single-writer semantics
-3. `SharedArrayBuffer` access from SharedWorkers is resolved in browser specs
-
-None of these conditions are met in 2026. The routing value does not justify the complexity today.
-
-### R-SW5: Strengthen Current Cross-Tab Architecture
+### R-SW5: Strengthen Current Cross-Tab Architecture — ❌ NOT DONE
 
 **Priority**: P2
 
-The existing `CrossTabCoordinator` can be enhanced without SharedWorker:
+The existing `CrossTabCoordinator` can be enhanced without SharedWorker. None of these enhancements have been implemented:
 
-1. **Tab-death detection via infinitely-open Web Lock** (Notion pattern) — each tab acquires `navigator.locks.request('tau-tab-{id}', () => new Promise(() => {}))`, enabling other tabs to detect crashes by attempting to acquire the same lock
-2. **Active-tab content pool invalidation** — when a tab detects another tab's death, it can invalidate stale `SharedContentPool` entries that were populated by the dead tab's worker
-3. **BroadcastChannel reliability** — add sequence numbers to `ChangeNotification` messages, enabling receivers to detect missed notifications and trigger a targeted resync
+1. ❌ **Tab-death detection via infinitely-open Web Lock** (Notion pattern) — `CrossTabCoordinator.withWriteLock` acquires exclusive locks for the duration of write operations only; no long-held liveness lock exists
+2. ❌ **Active-tab content pool invalidation** on tab death — `SharedContentPool` (now in `@taucad/memory`) has no cross-tab invalidation mechanism
+3. ❌ **BroadcastChannel reliability** with sequence-numbered `ChangeNotification` messages — `BroadcastChannel` notifications have no sequence numbers or delivery guarantees
 
 ## Trade-offs Summary
 
