@@ -14,7 +14,7 @@ import {
   FloatingPanelTrigger,
 } from '#components/ui/floating-panel.js';
 import { cn } from '#utils/ui.utils.js';
-import { PaneviewHeader, paneviewStyleOverrides } from '#components/panes/paneview-header.js';
+import { PaneviewHeader, PaneviewHeaderControls, paneviewStyleOverrides } from '#components/panes/paneview-header.js';
 import { useProject } from '#hooks/use-project.js';
 import type { cadMachine } from '#machines/cad.machine.js';
 import { sortCompilationEntries } from '#routes/projects_.$id/compilation-unit.utils.js';
@@ -54,7 +54,9 @@ function KernelPanelHeader({
 }): React.JSX.Element {
   return (
     <PaneviewHeader api={api} title={params.entryFile}>
-      <CompilationUnitSummary cadRef={params.cadRef} />
+      <PaneviewHeaderControls>
+        <CompilationUnitSummary cadRef={params.cadRef} />
+      </PaneviewHeaderControls>
     </PaneviewHeader>
   );
 }
