@@ -20,14 +20,11 @@ export const messagePortCallTimeoutMs = 30_000;
 /** Polling interval (ms) used when `Atomics.waitAsync` is unavailable. Matches one frame at 60 fps. */
 export const waitAsyncPollIntervalMs = 16;
 
-/** Byte length of the SharedArrayBuffer signal channel (4 Int32 slots x 4 bytes). */
-export const signalBufferByteLength = 16;
+/** Byte length of the SharedArrayBuffer signal channel (5 Int32 slots x 4 bytes). */
+export const signalBufferByteLength = 20;
 
 /** Maximum byte length the growable SharedArrayBuffer can expand to. */
 export const signalBufferMaxByteLength = 64;
-
-/** Default wall-clock render timeout in milliseconds. 0 = disabled. */
-export const defaultRenderTimeoutMs = 30_000;
 
 /** Message type posted by workers to signal that initialization is complete and they are ready to receive bridge connections. */
 export const workerReadyMessageType = '__worker_ready__';

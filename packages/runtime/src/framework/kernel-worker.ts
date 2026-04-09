@@ -49,18 +49,15 @@ import type {
   AssetDependency,
 } from '#types/runtime-dependency.types.js';
 import type { PerformanceEntryData, RenderPhase, WorkerState } from '#types/runtime-protocol.types.js';
-import { signalSlot, workerStateEnum } from '#types/runtime-protocol.types.js';
-import { isRenderAbortedError } from '#framework/runtime-worker-client.js';
-import type { FileSystemProxy, FilePool } from '#framework/runtime-filesystem-bridge.js';
+import { signalSlot, abortReason as abortReasonEnum, workerStateEnum } from '#types/runtime-protocol.types.js';
+import { isRenderAbortedError, RenderAbortedError } from '#framework/runtime-worker-client.js';
+import { setAbortContext, clearAbortContext } from '#framework/cooperative-abort.js';
+import type { FileSystemProxy } from '#framework/runtime-filesystem-bridge.js';
 import { createBridgeProxy } from '#framework/runtime-filesystem-bridge.js';
 import { createRuntimeFileSystem } from '#filesystem/create-runtime-filesystem.js';
 import { createKernelError } from '#kernels/kernel-helpers.js';
 import { cooperativeYield } from '#framework/async-polyfills.js';
-import {
-  parameterDebounceMs,
-  fileChangeDebounceMs,
-  defaultRenderTimeoutMs,
-} from '#framework/runtime-framework.constants.js';
+import { parameterDebounceMs, fileChangeDebounceMs } from '#framework/runtime-framework.constants.js';
 import { hashBytes, hashString } from '#utils/hash.utils.js';
 import { RuntimeTracer } from '#framework/runtime-tracer.js';
 import { WorkerTelemetryCollector } from '#framework/worker-telemetry.js';
@@ -443,7 +440,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     // Register file manager and create filesystem if port is provided
     if (input.transferables.fileSystemPort) {
       this.fileSystem = createBridgeProxy<RuntimeFileSystemBase>(input.transferables.fileSystemPort, {
-        filePool: this._filePool as FilePool | undefined,
+        filePool: this._filePool,
       });
       this._filesystem = this.createFileSystem();
     }
@@ -534,9 +531,10 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
     this.currentParameters = parameters ?? {};
     this.currentTessellation = tessellation;
 
-    this.renderGeneration++;
     if (this.signalView) {
-      Atomics.store(this.signalView, signalSlot.abortGeneration, this.renderGeneration);
+      this.renderGeneration = Atomics.add(this.signalView, signalSlot.abortGeneration, 1) + 1;
+    } else {
+      this.renderGeneration++;
     }
 
     clearTimeout(this.paramDebounceTimer);
@@ -560,9 +558,10 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
   public handleSetParameters(parameters: Record<string, unknown>): void {
     this.currentParameters = parameters;
 
-    this.renderGeneration++;
     if (this.signalView) {
-      Atomics.store(this.signalView, signalSlot.abortGeneration, this.renderGeneration);
+      this.renderGeneration = Atomics.add(this.signalView, signalSlot.abortGeneration, 1) + 1;
+    } else {
+      this.renderGeneration++;
     }
 
     this.scheduleRender(parameterDebounceMs);
@@ -1415,9 +1414,14 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       return;
     }
 
-    const generation = ++this.renderGeneration;
+    let generation: number;
     if (this.signalView) {
-      Atomics.store(this.signalView, signalSlot.abortGeneration, generation);
+      generation = Atomics.add(this.signalView, signalSlot.abortGeneration, 1) + 1;
+      this.renderGeneration = generation;
+      Atomics.store(this.signalView, signalSlot.abortReason, abortReasonEnum.none);
+      setAbortContext(this.signalView, generation);
+    } else {
+      generation = ++this.renderGeneration;
     }
 
     this.pushState('rendering');
@@ -1439,38 +1443,44 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
         return;
       }
 
-      const parametersResult = await this.getParameters(this.currentFile);
-      if (this.isAborted(generation)) {
-        return;
-      }
-      this.onParametersResolved?.(parametersResult);
-
-      let mergedParameters = this.currentParameters;
-      if (parametersResult.success) {
-        const extracted = parametersResult.data as {
-          defaultParameters?: Record<string, unknown>;
-        };
-        if (extracted.defaultParameters) {
-          mergedParameters = deepmerge(extracted.defaultParameters, this.currentParameters);
+      const renderWork = async (): Promise<HashedGeometryResult> => {
+        const parametersResult = await this.getParameters(this.currentFile!);
+        if (this.isAborted(generation)) {
+          throw new RenderAbortedError();
         }
-      }
+        this.onParametersResolved?.(parametersResult);
 
-      await cooperativeYield();
-      if (this.isAborted(generation)) {
-        return;
-      }
+        let mergedParameters = this.currentParameters;
+        if (parametersResult.success) {
+          const extracted = parametersResult.data as {
+            defaultParameters?: Record<string, unknown>;
+          };
+          if (extracted.defaultParameters) {
+            mergedParameters = deepmerge(extracted.defaultParameters, this.currentParameters);
+          }
+        }
 
-      this.pushProgress(30);
+        await cooperativeYield();
+        if (this.isAborted(generation)) {
+          throw new RenderAbortedError();
+        }
 
-      const result = await this.createGeometry({
-        file: this.currentFile,
-        parameters: mergedParameters,
-        tessellation: this.currentTessellation,
-      });
+        this.pushProgress(30);
 
-      if (this.isAborted(generation)) {
-        return;
-      }
+        const geometryResult = await this.createGeometry({
+          file: this.currentFile!,
+          parameters: mergedParameters,
+          tessellation: this.currentTessellation,
+        });
+
+        if (this.isAborted(generation)) {
+          throw new RenderAbortedError();
+        }
+
+        return geometryResult;
+      };
+
+      const result = await renderWork();
       this.pushProgress(100);
       this.onProgress = undefined;
       renderSpan.end();
@@ -1479,10 +1489,18 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       this.onGeometryComputed?.(result);
       this.pushState(this.paramDebounceTimer ? 'buffering' : 'idle');
     } catch (error) {
-      console.error('[KernelWorker] executeRender: error', error);
       this.onProgress = undefined;
       if (isRenderAbortedError(error) || this.isAborted(generation)) {
-        this.pushState(this.paramDebounceTimer ? 'buffering' : 'idle');
+        const reason = this.signalView ? Atomics.load(this.signalView, signalSlot.abortReason) : abortReasonEnum.none;
+
+        if (reason === abortReasonEnum.timeout) {
+          const timeoutMessage =
+            'Render timed out. Increase the timeout in viewer settings or simplify the model geometry.';
+          this.onError?.([{ message: timeoutMessage, type: 'runtime', severity: 'error' }]);
+          this.pushState('error');
+        } else {
+          this.pushState(this.paramDebounceTimer ? 'buffering' : 'idle');
+        }
         return;
       }
 
@@ -1490,6 +1508,7 @@ export abstract class KernelWorker<Options extends Record<string, unknown> = Rec
       this.onError?.([{ message: errorMessage, type: 'runtime', severity: 'error' }]);
       this.pushState('error');
     } finally {
+      clearAbortContext();
       if (generation === this.renderGeneration) {
         this._renderInProgress = false;
       }

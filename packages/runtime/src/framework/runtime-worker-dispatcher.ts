@@ -37,7 +37,7 @@ function toTransportGeometry(geometry: Geometry, geometryPool: SharedPool | unde
     if (geometryPool.has(geometry.hash)) {
       return {
         format: 'gltf',
-        contentRef: { delivery: 'pooled', key: geometry.hash },
+        content: { delivery: 'pooled', key: geometry.hash },
         hash: geometry.hash,
       };
     }
@@ -45,7 +45,7 @@ function toTransportGeometry(geometry: Geometry, geometryPool: SharedPool | unde
 
   return {
     format: 'gltf',
-    contentRef: { delivery: 'inline', bytes: geometry.content },
+    content: { delivery: 'inline', bytes: geometry.content },
     hash: geometry.hash,
   };
 }

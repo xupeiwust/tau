@@ -7,6 +7,8 @@ export {
   isRenderSupersededError,
   RenderAbortedError,
   isRenderAbortedError,
+  RenderTimeoutError,
+  isRenderTimeoutError,
 } from '#framework/runtime-worker-client.js';
 export type {
   RuntimeClient,

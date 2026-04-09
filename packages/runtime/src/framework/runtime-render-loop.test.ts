@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { signalSlot, workerStateEnum } from '#types/runtime-protocol.types.js';
-import { RenderAbortedError, isRenderAbortedError } from '#framework/runtime-worker-client.js';
+import {
+  RenderAbortedError,
+  isRenderAbortedError,
+  RenderTimeoutError,
+  isRenderTimeoutError,
+} from '#framework/runtime-worker-client.js';
 
 /**
  * Tests for the autonomous kernel render loop patterns.
@@ -248,6 +253,68 @@ describe('Autonomous render loop patterns', () => {
       expect(results).toHaveLength(1);
       expect(results[0]!.data).toBe('second');
       expect(results[0]!.generation).toBe(gen2);
+    });
+  });
+
+  describe('render timeout pattern', () => {
+    it('should reject with RenderTimeoutError when timeout elapses', async () => {
+      const timeoutMs = 500;
+
+      const renderWork = async (): Promise<string> =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve('done');
+          }, 5000);
+        });
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const result = Promise.race([
+        renderWork(),
+        new Promise<never>((_resolve, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new RenderTimeoutError(timeoutMs));
+          }, timeoutMs);
+        }),
+      ]).finally(() => {
+        clearTimeout(timeoutId!);
+      });
+
+      vi.advanceTimersByTime(timeoutMs);
+
+      await expect(result).rejects.toThrow(RenderTimeoutError);
+      try {
+        await result;
+      } catch (error) {
+        expect(isRenderTimeoutError(error)).toBe(true);
+        expect((error as Error).message).toContain('0.5 seconds');
+      }
+    });
+
+    it('should resolve normally when work completes before timeout', async () => {
+      const timeoutMs = 5000;
+
+      const renderWork = async (): Promise<string> =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve('geometry');
+          }, 100);
+        });
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const result = Promise.race([
+        renderWork(),
+        new Promise<never>((_resolve, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new RenderTimeoutError(timeoutMs));
+          }, timeoutMs);
+        }),
+      ]).finally(() => {
+        clearTimeout(timeoutId!);
+      });
+
+      vi.advanceTimersByTime(100);
+
+      await expect(result).resolves.toBe('geometry');
     });
   });
 });

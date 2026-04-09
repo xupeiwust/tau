@@ -33,6 +33,7 @@ import type {
 } from '#types/runtime-kernel.types.js';
 import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { KernelWorker } from '#framework/kernel-worker.js';
+import { isRenderAbortedError } from '#framework/runtime-worker-client.js';
 import { preserveMethodNames } from '#framework/named.js';
 import { isWorkerContext, getWorkerMessagePort } from '#framework/runtime-message-adapter.js';
 import { createWorkerDispatcher } from '#framework/runtime-worker-dispatcher.js';
@@ -149,6 +150,10 @@ class KernelRuntimeWorker extends KernelWorker<RuntimeWorkerOptions> {
         issues: output.issues ?? [],
       };
     } catch (error) {
+      if (isRenderAbortedError(error)) {
+        throw error;
+      }
+
       if (error instanceof Error && 'issues' in error && Array.isArray(error.issues)) {
         return { success: false, issues: error.issues as KernelIssue[] };
       }

@@ -16,40 +16,8 @@
 import type { OpenCascadeInstance } from 'replicad-opencascadejs';
 import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { OcKernelError } from '#kernels/replicad/oc-kernel-error.js';
-import { RenderAbortedError } from '#framework/runtime-worker-client.js';
-import { signalSlot } from '#types/runtime-protocol.types.js';
+import { checkAbort } from '#framework/cooperative-abort.js';
 import { named } from '#framework/named.js';
-
-// =============================================================================
-// Cooperative abort context (module-level, set per render cycle)
-// =============================================================================
-
-let abortSignalView: Int32Array | undefined;
-let abortGeneration = 0;
-
-/**
- * Configure the abort context before starting a render cycle.
- * The proxy checks this before every OC call (~1ns overhead per call).
- *
- * @param view - Int32Array view over the shared signal buffer
- * @param generation - current render generation (must match to continue)
- */
-export function setAbortContext(view: Int32Array, generation: number): void {
-  abortSignalView = view;
-  abortGeneration = generation;
-}
-
-/** Clear the abort context after a render cycle completes or is aborted. */
-export function clearAbortContext(): void {
-  abortSignalView = undefined;
-  abortGeneration = 0;
-}
-
-function checkAbort(): void {
-  if (abortSignalView && Atomics.load(abortSignalView, signalSlot.abortGeneration) !== abortGeneration) {
-    throw new RenderAbortedError();
-  }
-}
 
 /**
  * Configuration for OC API call tracing.

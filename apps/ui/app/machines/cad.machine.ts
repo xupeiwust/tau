@@ -38,6 +38,7 @@ export type CadContext = {
   jsonSchema?: JSONSchema7;
   renderPhase: RenderPhase | undefined;
   telemetryEntries: PerformanceEntryData[];
+  renderTimeout: number;
   kernelClient?: RuntimeClient;
   eventCleanups: Array<() => void>;
 };
@@ -61,6 +62,7 @@ type CadEvent =
   | { type: 'kernelTelemetry'; entries: PerformanceEntryData[] }
   | { type: 'kernelLog'; level: LogLevel; message: string; origin?: LogOrigin; data?: unknown }
   | { type: 'stateChanged'; state: WorkerState; detail?: string }
+  | { type: 'setRenderTimeout'; seconds: number }
   | { type: 'geometryExported'; blob: Blob; format: ExportFormat }
   | { type: 'geometryExportFailed'; errors: KernelIssue[] }
   | KernelConnectedEvent;
@@ -158,6 +160,9 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
     client.on('telemetry', (entries: PerformanceEntryData[]) => {
       machineRef.send({ type: 'kernelTelemetry', entries });
     }),
+    client.on('error', (issues: KernelIssue[]) => {
+      machineRef.send({ type: 'kernelIssue', errors: issues });
+    }),
   );
 
   signal.throwIfAborted();
@@ -181,7 +186,7 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
  * The worker self-schedules rendering internally. The main thread is a
  * display-only consumer of geometry results and worker state changes.
  * Debouncing is handled in the worker (500ms for files, 50ms for params).
- * Render timeout is forwarded to the worker via setRenderTimeout.
+ * Render timeout is enforced by the RuntimeClient via SharedArrayBuffer.
  */
 export const cadMachine = setup({
   types: {
@@ -338,6 +343,16 @@ export const cadMachine = setup({
       });
       context.kernelClient?.setFile(event.file);
     },
+    setRenderTimeout: assign({
+      renderTimeout({ event }) {
+        assertEvent(event, 'setRenderTimeout');
+        return event.seconds;
+      },
+    }),
+    forwardRenderTimeout: ({ context, event }) => {
+      assertEvent(event, 'setRenderTimeout');
+      context.kernelClient?.setRenderTimeout(event.seconds);
+    },
     dispatchExport: ({ context, event, self }) => {
       assertEvent(event, 'exportGeometry');
       if (!context.kernelClient) {
@@ -403,6 +418,7 @@ export const cadMachine = setup({
     jsonSchema: undefined,
     renderPhase: undefined,
     telemetryEntries: [],
+    renderTimeout: 30,
     kernelClient: undefined,
     eventCleanups: [],
   }),
@@ -451,11 +467,13 @@ export const cadMachine = setup({
               console.log('[CadMachine] forwarding buffered file to kernel', context.file);
               event.client.setFile(context.file);
             }
+            event.client.setRenderTimeout(context.renderTimeout);
           }),
         },
         initializeModel: { actions: 'initializeModel' },
         setFile: { actions: 'setFile' },
         setParameters: { actions: ['setParameters'] },
+        setRenderTimeout: { actions: ['setRenderTimeout'] },
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
@@ -472,6 +490,9 @@ export const cadMachine = setup({
         },
         setParameters: {
           actions: ['setParameters'],
+        },
+        setRenderTimeout: {
+          actions: ['setRenderTimeout', 'forwardRenderTimeout'],
         },
         setCodeIssues: { actions: 'setCodeIssues' },
         exportGeometry: { actions: 'dispatchExport' },
@@ -502,6 +523,9 @@ export const cadMachine = setup({
         setParameters: {
           actions: ['setParameters'],
         },
+        setRenderTimeout: {
+          actions: ['setRenderTimeout', 'forwardRenderTimeout'],
+        },
         setCodeIssues: { actions: 'setCodeIssues' },
         exportGeometry: { actions: 'dispatchExport' },
         geometryExported: { actions: 'setExportedBlob' },
@@ -531,6 +555,9 @@ export const cadMachine = setup({
         },
         setParameters: {
           actions: ['setParameters'],
+        },
+        setRenderTimeout: {
+          actions: ['setRenderTimeout', 'forwardRenderTimeout'],
         },
         setCodeIssues: { actions: 'setCodeIssues' },
         exportGeometry: { actions: 'dispatchExport' },
@@ -563,12 +590,16 @@ export const cadMachine = setup({
         setParameters: {
           actions: ['setParameters'],
         },
+        setRenderTimeout: {
+          actions: ['setRenderTimeout', 'forwardRenderTimeout'],
+        },
         setCodeIssues: { actions: 'setCodeIssues' },
         exportGeometry: { actions: 'dispatchExport' },
         geometryExported: { actions: 'setExportedBlob' },
         geometryExportFailed: { actions: 'setExportError' },
         geometryComputed: { actions: ['setGeometries'] },
         parametersParsed: { actions: 'setDefaultParameters' },
+        kernelIssue: { actions: 'setKernelIssue' },
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },

@@ -335,7 +335,7 @@ toTransportGeometry()
 
 The `resolveCopy()` step produces a `Uint8Array<ArrayBuffer>` (not SAB-backed) because downstream consumers (Three.js `GLTFLoader`, `TextDecoder`) reject `SharedArrayBuffer`-backed views. The copy is a single `slice()` — far cheaper than structured clone via `postMessage`.
 
-When SAB is unavailable (non-secure context, missing COEP/COOP), the dispatcher falls back to `inline` delivery and geometry flows via `postMessage` transfer. The `GeometryContentRef` discriminated union (`'pooled' | 'inline'`) makes this transparent to consumers.
+When SAB is unavailable (non-secure context, missing COEP/COOP), the dispatcher falls back to `inline` delivery and geometry flows via `postMessage` transfer. The `GltfContentDelivery` discriminated union (`'pooled' | 'inline'`) makes this transparent to consumers.
 
 **Configuration:**
 

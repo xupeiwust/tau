@@ -11,6 +11,9 @@ import type { KernelRuntime, CreateGeometryInput } from '#types/runtime-kernel.t
 import type { MockKernelWorkerOptions } from '#testing/kernel-testing.utils.js';
 import { MockKernelWorker, createMockFileSystem, createGeometryFile } from '#testing/kernel-testing.utils.js';
 import { defineMiddleware } from '#middleware/runtime-middleware.js';
+import { checkAbort } from '#framework/cooperative-abort.js';
+import { signalSlot } from '#types/runtime-protocol.types.js';
+import { signalBufferByteLength } from '#framework/runtime-framework.constants.js';
 
 // =============================================================================
 // Test Helpers
@@ -1016,6 +1019,99 @@ describe('KernelWorker lifecycle', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Render timeout
+// ---------------------------------------------------------------------------
+
+describe('abort reason propagation', () => {
+  it('should transition to error state when abortReason is timeout', async () => {
+    const sab = new SharedArrayBuffer(signalBufferByteLength);
+    const view = new Int32Array(sab);
+
+    class TimeoutKernelWorker extends MockKernelWorker {
+      protected override async onCreateGeometry(): Promise<CreateGeometryResult> {
+        // Simulate main-thread timeout firing during WASM: set reason then increment generation
+        Atomics.store(view, signalSlot.abortReason, 2);
+        Atomics.add(view, signalSlot.abortGeneration, 1);
+        checkAbort();
+        return { success: true, data: [], issues: [] };
+      }
+    }
+
+    const filesystem = createMockFileSystem();
+    filesystem.mocks.readFiles.mockResolvedValue({
+      '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+    });
+
+    const worker = new TimeoutKernelWorker({
+      middleware: [],
+      onLog: noopLog,
+      filesystem,
+    });
+
+    worker.setSignalBuffer(sab);
+    worker.onError = vi.fn();
+
+    const renderComplete = new Promise<void>((resolve) => {
+      worker.onStateChanged = (state) => {
+        if (state === 'error' || state === 'idle') {
+          resolve();
+        }
+      };
+    });
+
+    worker.handleSetFile(createGeometryFile('main.ts'), {});
+    await renderComplete;
+
+    expect(worker.onError).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining('timed out') })]),
+    );
+  });
+
+  it('should transition to idle when abortReason is superseded', async () => {
+    const sab = new SharedArrayBuffer(signalBufferByteLength);
+    const view = new Int32Array(sab);
+
+    class SupersededKernelWorker extends MockKernelWorker {
+      protected override async onCreateGeometry(): Promise<CreateGeometryResult> {
+        // Simulate main-thread supersession: set reason then increment generation
+        Atomics.store(view, signalSlot.abortReason, 1);
+        Atomics.add(view, signalSlot.abortGeneration, 1);
+        checkAbort();
+        return { success: true, data: [], issues: [] };
+      }
+    }
+
+    const filesystem = createMockFileSystem();
+    filesystem.mocks.readFiles.mockResolvedValue({
+      '/projects/test/main.ts': new Uint8Array([1, 2, 3]),
+    });
+
+    const worker = new SupersededKernelWorker({
+      middleware: [],
+      onLog: noopLog,
+      filesystem,
+    });
+
+    worker.setSignalBuffer(sab);
+    worker.onError = vi.fn();
+
+    const renderComplete = new Promise<void>((resolve) => {
+      worker.onStateChanged = (state) => {
+        if (state === 'error' || state === 'idle') {
+          resolve();
+        }
+      };
+    });
+
+    worker.handleSetFile(createGeometryFile('main.ts'), {});
+    await renderComplete;
+
+    expect(worker.onError).not.toHaveBeenCalled();
+  });
+});
+
 describe('shared pools', () => {
   it('should accept geometry pool buffer via setGeometryPoolBuffer', () => {
     const worker = createConfiguredWorker();

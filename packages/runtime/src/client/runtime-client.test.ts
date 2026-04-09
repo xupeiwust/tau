@@ -758,7 +758,7 @@ describe('geometry transport resolution', () => {
         data: [
           {
             format: 'gltf',
-            contentRef: { delivery: 'pooled', key: 'hash-0' },
+            content: { delivery: 'pooled', key: 'hash-0' },
             hash: 'hash-0',
           },
         ],
@@ -807,7 +807,7 @@ describe('geometry transport resolution', () => {
         data: [
           {
             format: 'gltf',
-            contentRef: { delivery: 'inline', bytes: inlineBytes },
+            content: { delivery: 'inline', bytes: inlineBytes },
             hash: 'h1',
           },
         ],
@@ -860,7 +860,7 @@ describe('geometry transport resolution', () => {
           data: [
             {
               format: 'gltf',
-              contentRef: { delivery: 'inline', bytes: inlineBytes },
+              content: { delivery: 'inline', bytes: inlineBytes },
               hash: 'fallback-h1',
             },
           ],
@@ -982,7 +982,7 @@ describe('geometry transport resolution', () => {
         data: [
           {
             format: 'gltf',
-            contentRef: { delivery: 'pooled', key: 'sab-test-0' },
+            content: { delivery: 'pooled', key: 'sab-test-0' },
             hash: 'sab-test-0',
           },
         ],
@@ -1060,7 +1060,7 @@ describe('geometry transport resolution', () => {
         data: [
           {
             format: 'gltf',
-            contentRef: { delivery: 'pooled', key: 'render-0' },
+            content: { delivery: 'pooled', key: 'render-0' },
             hash: 'render-0',
           },
         ],

@@ -155,6 +155,12 @@ export type RuntimeClientOptions = {
     export?: Tessellation;
   };
   /**
+   * Wall-clock render timeout in seconds. 0 disables the timeout.
+   * Enforced by the main-thread RuntimeWorkerClient via SharedArrayBuffer — the
+   * worker's cooperative abort proxy throws when the timeout fires.
+   */
+  renderTimeout?: number;
+  /**
    * Shared memory configuration for zero-IPC geometry data exchange.
    * Allocates a SharedArrayBuffer and creates a SharedPool on both the main thread and the worker.
    *
@@ -283,6 +289,16 @@ export type RuntimeClient = {
    * @param parameters - Updated parameters for the model
    */
   setParameters(parameters: Record<string, unknown>): void;
+
+  /**
+   * Set the wall-clock render timeout enforced by the main-thread RuntimeWorkerClient.
+   * When the timer fires, the abort generation is incremented via SharedArrayBuffer
+   * and the abort reason is set to `timeout`, causing the worker's cooperative
+   * abort proxy to throw.
+   *
+   * @param seconds - Timeout in seconds. 0 disables the timeout.
+   */
+  setRenderTimeout(seconds: number): void;
 
   /**
    * Proactive cache invalidation without triggering a render.
@@ -494,6 +510,10 @@ export function createRuntimeClient(options: RuntimeClientOptions): RuntimeClien
       filePoolBuffer: resolvedOptions.filePoolBuffer,
     });
 
+    if (options.renderTimeout !== undefined) {
+      workerClient.setRenderTimeout(options.renderTimeout * 1000);
+    }
+
     connected = true;
     return workerClient;
   }
@@ -503,14 +523,14 @@ export function createRuntimeClient(options: RuntimeClientOptions): RuntimeClien
       return geo;
     }
 
-    const { contentRef, hash } = geo;
-    if (contentRef.delivery === 'inline') {
-      return { format: 'gltf', content: contentRef.bytes, hash };
+    const { content, hash } = geo;
+    if (content.delivery === 'inline') {
+      return { format: 'gltf', content: content.bytes, hash };
     }
 
-    const view = geometryPool?.resolveCopy(contentRef.key);
+    const view = geometryPool?.resolveCopy(content.key);
     if (!view) {
-      throw new Error(`SharedPool entry not found: key=${contentRef.key}`);
+      throw new Error(`SharedPool entry not found: key=${content.key}`);
     }
     return { format: 'gltf', content: view, hash };
   }
@@ -670,6 +690,10 @@ export function createRuntimeClient(options: RuntimeClientOptions): RuntimeClien
 
     setParameters(parameters: Record<string, unknown>): void {
       workerClient?.setParameters(parameters);
+    },
+
+    setRenderTimeout(seconds: number): void {
+      workerClient?.setRenderTimeout(seconds * 1000);
     },
 
     notifyFileChanged(paths: string[]): void {

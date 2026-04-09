@@ -691,6 +691,33 @@ describe('cadMachine', () => {
       expect(actor.getSnapshot().value).toBe('rendering');
       actor.stop();
     });
+
+    it('should store kernel issues in error state on kernelIssue', async () => {
+      const result = await startAndConnect();
+      result.actor.send({ type: 'setFile', file: stubFile });
+      result.actor.send({ type: 'stateChanged', state: 'error' });
+      expect(result.actor.getSnapshot().value).toBe('error');
+
+      result.actor.send({ type: 'kernelIssue', errors: stubIssues });
+      expect(result.actor.getSnapshot().value).toBe('error');
+      expect(result.actor.getSnapshot().context.kernelIssues.get(stubFile.filename)).toBe(stubIssues);
+      result.actor.stop();
+    });
+
+    it('should preserve kernel issues set in rendering after transition to error', async () => {
+      const result = await startAndConnect();
+      result.actor.send({ type: 'setFile', file: stubFile });
+      result.actor.send({ type: 'stateChanged', state: 'rendering' });
+      expect(result.actor.getSnapshot().value).toBe('rendering');
+
+      result.actor.send({ type: 'kernelIssue', errors: stubIssues });
+      expect(result.actor.getSnapshot().context.kernelIssues.get(stubFile.filename)).toBe(stubIssues);
+
+      result.actor.send({ type: 'stateChanged', state: 'error' });
+      expect(result.actor.getSnapshot().value).toBe('error');
+      expect(result.actor.getSnapshot().context.kernelIssues.get(stubFile.filename)).toBe(stubIssues);
+      result.actor.stop();
+    });
   });
 
   // =========================================================================
@@ -918,6 +945,54 @@ describe('cadMachine', () => {
 
       actor.send({ type: 'setFile', file: stubFile });
       expect(actor.getSnapshot().context.kernelIssues.has('main.ts')).toBe(false);
+      actor.stop();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Render timeout forwarding
+  // ---------------------------------------------------------------------------
+
+  describe('render timeout', () => {
+    it('should forward setRenderTimeout to kernel client', async () => {
+      const { actor, mockClient } = await startAndConnect();
+
+      actor.send({ type: 'setRenderTimeout', seconds: 60 });
+
+      expect(actor.getSnapshot().context.renderTimeout).toBe(60);
+      expect(mockClient.setRenderTimeout).toHaveBeenCalledWith(60);
+      actor.stop();
+    });
+
+    it('should apply stored renderTimeout on kernel connection', async () => {
+      const mockClient = createMockRuntimeClient();
+      let resolveConnect!: () => void;
+      const connectGate = new Promise<void>((resolve) => {
+        resolveConnect = resolve;
+      });
+
+      const { actor } = createTestActor({
+        connectResult: async () => {
+          await connectGate;
+          return { type: 'kernelConnected', client: mockClient, cleanups: [] };
+        },
+      });
+
+      actor.start();
+
+      actor.send({ type: 'setRenderTimeout', seconds: 120 });
+      expect(actor.getSnapshot().context.renderTimeout).toBe(120);
+
+      resolveConnect();
+      await waitFor(actor, (s) => s.value !== 'connecting');
+
+      expect(mockClient.setRenderTimeout).toHaveBeenCalledWith(120);
+      actor.stop();
+    });
+
+    it('should default renderTimeout to 30', async () => {
+      const { actor } = await startAndConnect();
+      expect(actor.getSnapshot().context.renderTimeout).toBe(30);
       actor.stop();
     });
   });

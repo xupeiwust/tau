@@ -5,7 +5,6 @@
 
 import type { GeometryFile, ExportFormat, LogOrigin } from '@taucad/types';
 import type {
-  HashedGeometryResult,
   ExportGeometryResult,
   GetParametersResult,
   KernelIssue,
@@ -19,8 +18,9 @@ import type {
   PerformanceEntryData,
   RenderPhase,
   WorkerState,
+  HashedGeometryResultTransport,
 } from '#types/runtime-protocol.types.js';
-import { signalSlot, workerStateNames } from '#types/runtime-protocol.types.js';
+import { signalSlot, abortReason, workerStateNames } from '#types/runtime-protocol.types.js';
 import { waitForSlotChange } from '#framework/async-polyfills.js';
 import { signalBufferByteLength, signalBufferMaxByteLength } from '#framework/runtime-framework.constants.js';
 import type { RuntimeTransport } from '#transport/runtime-transport.js';
@@ -73,6 +73,31 @@ export function isRenderAbortedError(error: unknown): error is RenderAbortedErro
 }
 
 /**
+ * Error thrown when a render exceeds the configured wall-clock timeout.
+ * @public
+ */
+export class RenderTimeoutError extends Error {
+  public constructor(timeoutMs: number) {
+    super(
+      `Render timed out after ${timeoutMs / 1000} seconds. ` +
+        'Increase the timeout in viewer settings or simplify the model geometry.',
+    );
+    this.name = 'RenderTimeoutError';
+  }
+}
+
+/**
+ * Realm-safe type guard -- checks `error.name` instead of prototype chain.
+ *
+ * @param error - the value to test
+ * @returns `true` when the error is a {@link RenderTimeoutError}
+ * @public
+ */
+export function isRenderTimeoutError(error: unknown): error is RenderTimeoutError {
+  return error instanceof Error && error.name === 'RenderTimeoutError';
+}
+
+/**
  * Callback for worker log events.
  * @public
  */
@@ -107,7 +132,7 @@ export class RuntimeWorkerClient {
   private readonly onLog: OnLogCallback;
   private readonly onTelemetry?: OnTelemetryCallback;
   private readonly onStateChanged?: OnStateChangedCallback;
-  private readonly onGeometryComputed?: (result: HashedGeometryResult) => void;
+  private readonly onGeometryComputed?: (result: HashedGeometryResultTransport) => void;
   private readonly onParametersResolvedCb?: (result: GetParametersResult) => void;
   private readonly onProgressCb?: OnProgressCallback;
   private readonly onErrorCb?: (issues: KernelIssue[]) => void;
@@ -120,10 +145,12 @@ export class RuntimeWorkerClient {
   private readonly signalView: Int32Array | undefined;
   private stateMonitorTerminated = false;
   private lastReportedState?: WorkerState;
+  private renderTimeoutMs = 0;
+  private renderTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
   private pendingInit?: { resolve: () => void; reject: (error: Error) => void };
   private pendingRender?: {
-    resolve: (result: HashedGeometryResult) => void;
+    resolve: (result: HashedGeometryResultTransport) => void;
     reject: (error: Error) => void;
     onParametersResolved?: (result: GetParametersResult) => void;
     onProgress?: OnProgressCallback;
@@ -147,7 +174,7 @@ export class RuntimeWorkerClient {
     options?: {
       onTelemetry?: OnTelemetryCallback;
       onStateChanged?: OnStateChangedCallback;
-      onGeometryComputed?: (result: HashedGeometryResult) => void;
+      onGeometryComputed?: (result: HashedGeometryResultTransport) => void;
       onParametersResolved?: (result: GetParametersResult) => void;
       onProgress?: OnProgressCallback;
       onError?: (issues: KernelIssue[]) => void;
@@ -223,9 +250,10 @@ export class RuntimeWorkerClient {
    * @returns The new abort generation value.
    */
   public incrementAbortGeneration(): number {
-    this.abortGeneration++;
     if (this.signalView) {
-      Atomics.store(this.signalView, signalSlot.abortGeneration, this.abortGeneration);
+      this.abortGeneration = Atomics.add(this.signalView, signalSlot.abortGeneration, 1) + 1;
+    } else {
+      this.abortGeneration++;
     }
     return this.abortGeneration;
   }
@@ -267,8 +295,8 @@ export class RuntimeWorkerClient {
     onParametersResolved?: (result: GetParametersResult) => void;
     onProgress?: OnProgressCallback;
     tessellation?: Tessellation;
-  }): Promise<HashedGeometryResult> {
-    return new Promise<HashedGeometryResult>((resolve, reject) => {
+  }): Promise<HashedGeometryResultTransport> {
+    return new Promise<HashedGeometryResultTransport>((resolve, reject) => {
       this.pendingRender = {
         resolve,
         reject,
@@ -311,6 +339,9 @@ export class RuntimeWorkerClient {
    * @param tessellation - Optional tessellation quality settings
    */
   public setFile(file: GeometryFile, parameters?: Record<string, unknown>, tessellation?: Tessellation): void {
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.abortReason, abortReason.superseded);
+    }
     this.incrementAbortGeneration();
     const command: RuntimeCommand = {
       type: 'setFile',
@@ -328,6 +359,9 @@ export class RuntimeWorkerClient {
    * @param parameters - Updated parameters for the render
    */
   public setParameters(parameters: Record<string, unknown>): void {
+    if (this.signalView) {
+      Atomics.store(this.signalView, signalSlot.abortReason, abortReason.superseded);
+    }
     this.incrementAbortGeneration();
     const command: RuntimeCommand = {
       type: 'setParameters',
@@ -354,6 +388,18 @@ export class RuntimeWorkerClient {
   public configureMiddleware(entries: MiddlewareRegistrations): void {
     const command: RuntimeCommand = { type: 'configureMiddleware', entries };
     this.transport.send(command);
+  }
+
+  /**
+   * Set the wall-clock render timeout enforced by the main thread.
+   * When the timer fires, the abort generation is incremented via SharedArrayBuffer
+   * and the abort reason is set to `timeout`, causing the worker's cooperative
+   * abort checks to throw.
+   *
+   * @param timeoutMs - Timeout in milliseconds. 0 disables the timeout.
+   */
+  public setRenderTimeout(timeoutMs: number): void {
+    this.renderTimeoutMs = timeoutMs;
   }
 
   /**
@@ -384,6 +430,7 @@ export class RuntimeWorkerClient {
 
   /** Terminate the transport connection, rejecting any in-flight promises. */
   public terminate(): void {
+    this.clearRenderTimeout();
     this.stateMonitorTerminated = true;
     if (this.signalView) {
       Atomics.notify(this.signalView, signalSlot.workerState);
@@ -398,11 +445,38 @@ export class RuntimeWorkerClient {
     this.transport.close();
   }
 
+  private startRenderTimeout(): void {
+    this.clearRenderTimeout();
+    if (this.renderTimeoutMs <= 0 || !this.signalView) {
+      return;
+    }
+    this.renderTimeoutTimer = setTimeout(() => {
+      if (this.signalView) {
+        Atomics.store(this.signalView, signalSlot.abortReason, abortReason.timeout);
+      }
+      this.incrementAbortGeneration();
+    }, this.renderTimeoutMs);
+  }
+
+  private clearRenderTimeout(): void {
+    if (this.renderTimeoutTimer !== undefined) {
+      clearTimeout(this.renderTimeoutTimer);
+      this.renderTimeoutTimer = undefined;
+    }
+  }
+
   private reportState(state: WorkerState, detail?: string): void {
     if (state === this.lastReportedState && !detail) {
       return;
     }
     this.lastReportedState = state;
+
+    if (state === 'rendering') {
+      this.startRenderTimeout();
+    } else if (state === 'idle' || state === 'error') {
+      this.clearRenderTimeout();
+    }
+
     this.onStateChanged?.(state, detail);
   }
 

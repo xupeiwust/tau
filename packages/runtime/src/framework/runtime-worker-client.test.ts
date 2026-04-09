@@ -3,9 +3,11 @@ import {
   RuntimeWorkerClient,
   RenderSupersededError,
   isRenderSupersededError,
+  RenderTimeoutError,
+  isRenderTimeoutError,
 } from '#framework/runtime-worker-client.js';
 import { createRuntimeClient } from '#client/runtime-client.js';
-import { signalSlot } from '#types/runtime-protocol.types.js';
+import { signalSlot, abortReason } from '#types/runtime-protocol.types.js';
 import type { RuntimeTransport } from '#transport/runtime-transport.js';
 import type { RuntimeCommand, RuntimeResponse } from '#types/runtime-protocol.types.js';
 import { createMockFileSystem } from '#testing/kernel-testing.utils.js';
@@ -434,7 +436,7 @@ describe('RuntimeWorkerClient', () => {
       });
 
       const signalBuffer = extractSignalBuffer();
-      expect(signalBuffer.byteLength).toBe(16);
+      expect(signalBuffer.byteLength).toBe(20);
     });
 
     it('should make incrementAbortGeneration visible to the worker-side view', () => {
@@ -556,6 +558,220 @@ describe('RuntimeWorkerClient', () => {
       ]);
 
       runtimeClient.terminate();
+    });
+  });
+
+  describe('setRenderTimeout', () => {
+    it('should store timeout locally and not send a command to transport', () => {
+      const transport = createMockTransport();
+      const client = new RuntimeWorkerClient(transport, vi.fn());
+
+      client.setRenderTimeout(60_000);
+
+      expect(vi.mocked(transport.send).mock.calls).toHaveLength(0);
+    });
+  });
+
+  describe('RenderTimeoutError', () => {
+    it('should identify RenderTimeoutError via isRenderTimeoutError guard', () => {
+      const error = new RenderTimeoutError(30_000);
+      expect(isRenderTimeoutError(error)).toBe(true);
+      expect(error.message).toContain('30 seconds');
+    });
+
+    it('should not match unrelated errors', () => {
+      expect(isRenderTimeoutError(new Error('some other error'))).toBe(false);
+      expect(isRenderTimeoutError(null)).toBe(false);
+      expect(isRenderTimeoutError('string')).toBe(false);
+    });
+  });
+
+  describe('Atomics.add advancement', () => {
+    it('should advance SAB past a worker-written value', () => {
+      const transport = createMockTransport();
+      const client = new RuntimeWorkerClient(transport, vi.fn());
+      const channel = new MessageChannel();
+
+      const initPromise = client.initialize({
+        options: {},
+        fileSystemPort: channel.port1,
+        middlewareEntries: [],
+      });
+
+      const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+      const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+      const workerView = new Int32Array(buffer);
+
+      Atomics.store(workerView, signalSlot.abortGeneration, 42);
+
+      const result = client.incrementAbortGeneration();
+      expect(result).toBe(43);
+      expect(Atomics.load(workerView, signalSlot.abortGeneration)).toBe(43);
+
+      transport.simulateResponse({ type: 'initialized', requestId: '0' });
+      void initPromise;
+      channel.port1.close();
+      channel.port2.close();
+    });
+  });
+
+  describe('abortReason on setFile/setParameters', () => {
+    it('should set abortReason to superseded when setFile is called', () => {
+      const transport = createMockTransport();
+      const client = new RuntimeWorkerClient(transport, vi.fn());
+      const channel = new MessageChannel();
+
+      const initPromise = client.initialize({
+        options: {},
+        fileSystemPort: channel.port1,
+        middlewareEntries: [],
+      });
+
+      const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+      const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+      const view = new Int32Array(buffer);
+
+      client.setFile({ path: '/', filename: 'box.ts' }, {});
+      expect(Atomics.load(view, signalSlot.abortReason)).toBe(abortReason.superseded);
+
+      transport.simulateResponse({ type: 'initialized', requestId: '0' });
+      void initPromise;
+      channel.port1.close();
+      channel.port2.close();
+    });
+
+    it('should set abortReason to superseded when setParameters is called', () => {
+      const transport = createMockTransport();
+      const client = new RuntimeWorkerClient(transport, vi.fn());
+      const channel = new MessageChannel();
+
+      const initPromise = client.initialize({
+        options: {},
+        fileSystemPort: channel.port1,
+        middlewareEntries: [],
+      });
+
+      const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+      const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+      const view = new Int32Array(buffer);
+
+      client.setParameters({ width: 20 });
+      expect(Atomics.load(view, signalSlot.abortReason)).toBe(abortReason.superseded);
+
+      transport.simulateResponse({ type: 'initialized', requestId: '0' });
+      void initPromise;
+      channel.port1.close();
+      channel.port2.close();
+    });
+  });
+
+  describe('main-thread render timeout', () => {
+    it('should start render timeout timer when state changes to rendering', () => {
+      vi.useFakeTimers();
+      try {
+        const transport = createMockTransport();
+        const onStateChanged = vi.fn();
+        const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+        const channel = new MessageChannel();
+
+        const initPromise = client.initialize({
+          options: {},
+          fileSystemPort: channel.port1,
+          middlewareEntries: [],
+        });
+
+        const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+        const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+        const view = new Int32Array(buffer);
+
+        client.setRenderTimeout(5000);
+
+        transport.simulateResponse({ type: 'stateChanged', state: 'rendering' } as RuntimeResponse);
+
+        vi.advanceTimersByTime(5000);
+
+        expect(Atomics.load(view, signalSlot.abortReason)).toBe(abortReason.timeout);
+        expect(Atomics.load(view, signalSlot.abortGeneration)).toBeGreaterThan(0);
+
+        transport.simulateResponse({ type: 'initialized', requestId: '0' });
+        void initPromise;
+        channel.port1.close();
+        channel.port2.close();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should clear render timeout timer when state changes to idle', () => {
+      vi.useFakeTimers();
+      try {
+        const transport = createMockTransport();
+        const onStateChanged = vi.fn();
+        const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+        const channel = new MessageChannel();
+
+        const initPromise = client.initialize({
+          options: {},
+          fileSystemPort: channel.port1,
+          middlewareEntries: [],
+        });
+
+        const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+        const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+        const view = new Int32Array(buffer);
+
+        client.setRenderTimeout(5000);
+
+        transport.simulateResponse({ type: 'stateChanged', state: 'rendering' } as RuntimeResponse);
+        transport.simulateResponse({ type: 'stateChanged', state: 'idle' } as RuntimeResponse);
+
+        vi.advanceTimersByTime(10_000);
+
+        expect(Atomics.load(view, signalSlot.abortReason)).toBe(0);
+        expect(Atomics.load(view, signalSlot.abortGeneration)).toBe(0);
+
+        transport.simulateResponse({ type: 'initialized', requestId: '0' });
+        void initPromise;
+        channel.port1.close();
+        channel.port2.close();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should not start timer when renderTimeoutMs is 0', () => {
+      vi.useFakeTimers();
+      try {
+        const transport = createMockTransport();
+        const onStateChanged = vi.fn();
+        const client = new RuntimeWorkerClient(transport, vi.fn(), { onStateChanged });
+        const channel = new MessageChannel();
+
+        const initPromise = client.initialize({
+          options: {},
+          fileSystemPort: channel.port1,
+          middlewareEntries: [],
+        });
+
+        const initCall = vi.mocked(transport.send).mock.calls.find(([cmd]) => cmd.type === 'initialize');
+        const buffer = (initCall![0] as RuntimeCommand & { signalBuffer?: SharedArrayBuffer }).signalBuffer!;
+        const view = new Int32Array(buffer);
+
+        client.setRenderTimeout(0);
+
+        transport.simulateResponse({ type: 'stateChanged', state: 'rendering' } as RuntimeResponse);
+
+        vi.advanceTimersByTime(120_000);
+
+        expect(Atomics.load(view, signalSlot.abortGeneration)).toBe(0);
+
+        transport.simulateResponse({ type: 'initialized', requestId: '0' });
+        void initPromise;
+        channel.port1.close();
+        channel.port2.close();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

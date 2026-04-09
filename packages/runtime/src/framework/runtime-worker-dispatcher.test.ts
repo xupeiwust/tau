@@ -372,22 +372,6 @@ describe('createWorkerDispatcher', () => {
     });
   });
 
-  describe('setRenderTimeout', () => {
-    it('should call worker.setRenderTimeout on setRenderTimeout command', async () => {
-      const worker = createMockWorker();
-      const port = createMockPort();
-      createWorkerDispatcher(worker, port);
-
-      port.simulateMessage({
-        type: 'setRenderTimeout',
-        timeoutMs: 60_000,
-      } as RuntimeCommand);
-
-      await waitForMicrotasks();
-      expect(worker.setRenderTimeout).toHaveBeenCalledWith(60_000);
-    });
-  });
-
   describe('geometry transport types', () => {
     it('should auto-store geometry in pool and produce pooled delivery', async () => {
       const sab = new SharedArrayBuffer(256 * 1024);
@@ -428,10 +412,10 @@ describe('createWorkerDispatcher', () => {
       const result = (response as { result: { success: boolean; data: unknown[] } }).result;
       expect(result.success).toBe(true);
 
-      const geo = result.data[0] as { format: string; contentRef: { delivery: string; key: string } };
+      const geo = result.data[0] as { format: string; content: { delivery: string; key: string } };
       expect(geo.format).toBe('gltf');
-      expect(geo.contentRef.delivery).toBe('pooled');
-      expect(geo.contentRef.key).toBe('dep-hash-0');
+      expect(geo.content.delivery).toBe('pooled');
+      expect(geo.content.key).toBe('dep-hash-0');
     });
 
     it('should fall back to inline delivery when pool.store fails due to oversized entry', async () => {
@@ -464,10 +448,10 @@ describe('createWorkerDispatcher', () => {
       expect(response).toBeDefined();
 
       const result = (response as { result: { success: boolean; data: unknown[] } }).result;
-      const geo = result.data[0] as { format: string; contentRef: { delivery: string; bytes: Uint8Array } };
+      const geo = result.data[0] as { format: string; content: { delivery: string; bytes: Uint8Array } };
       expect(geo.format).toBe('gltf');
-      expect(geo.contentRef.delivery).toBe('inline');
-      expect(geo.contentRef.bytes).toEqual(content);
+      expect(geo.content.delivery).toBe('inline');
+      expect(geo.content.bytes).toEqual(content);
     });
 
     it('should not double-store when geometry already exists in pool', async () => {
@@ -503,8 +487,8 @@ describe('createWorkerDispatcher', () => {
 
       const response = port.sentMessages.find((m) => m.type === 'geometryComputed');
       const result = (response as { result: { data: unknown[] } }).result;
-      const geo = result.data[0] as { format: string; contentRef: { delivery: string } };
-      expect(geo.contentRef.delivery).toBe('pooled');
+      const geo = result.data[0] as { format: string; content: { delivery: string } };
+      expect(geo.content.delivery).toBe('pooled');
     });
 
     it('should produce inline delivery when no pool is configured', async () => {
@@ -533,10 +517,10 @@ describe('createWorkerDispatcher', () => {
       expect(response).toBeDefined();
 
       const result = (response as { result: { success: boolean; data: unknown[] } }).result;
-      const geo = result.data[0] as { format: string; contentRef: { delivery: string; bytes: Uint8Array } };
+      const geo = result.data[0] as { format: string; content: { delivery: string; bytes: Uint8Array } };
       expect(geo.format).toBe('gltf');
-      expect(geo.contentRef.delivery).toBe('inline');
-      expect(geo.contentRef.bytes).toEqual(content);
+      expect(geo.content.delivery).toBe('inline');
+      expect(geo.content.bytes).toEqual(content);
     });
 
     it('should pass SVG geometries through unchanged', async () => {
@@ -619,9 +603,9 @@ describe('createWorkerDispatcher', () => {
       expect(geoResponse).toBeDefined();
 
       const result = (geoResponse as { result: { data: unknown[] } }).result;
-      const geo = result.data[0] as { format: string; contentRef: { delivery: string } };
+      const geo = result.data[0] as { format: string; content: { delivery: string } };
       expect(geo.format).toBe('gltf');
-      expect(geo.contentRef.delivery).toBe('pooled');
+      expect(geo.content.delivery).toBe('pooled');
     });
 
     it('should not affect export transferables', async () => {
