@@ -42,6 +42,7 @@ export class FileTreeService {
   private _refreshAbortController: AbortController | undefined;
   private _cachedCompleteTree: FileItem[] | undefined;
   private _completeTreeVersion = 0;
+  private _searchIndexWarmed = false;
   private readonly _resolvedDirectories = new Set<string>();
 
   public constructor(init: FileTreeServiceInit) {
@@ -76,16 +77,14 @@ export class FileTreeService {
   }
 
   /**
-   * Return a shared, cached list of all files. Re-fetches from worker only
-   * when the cache has been invalidated by a tree change.
+   * Return a cached list of all file entries currently in the lazy tree.
+   * Derives synchronously from `_tree` — no worker RPC. The list grows
+   * progressively as directories are expanded via `loadDirectory`.
    */
-  public async getCachedFileItems(): Promise<FileItem[]> {
-    if (!this._cachedCompleteTree) {
-      const entries = await this.getCompleteFileTree();
-      this._cachedCompleteTree = entries
-        .filter((entry) => entry.type === 'file')
-        .map((entry) => ({ path: entry.path, size: entry.size }));
-    }
+  public getCachedFileItems(): FileItem[] {
+    this._cachedCompleteTree ??= [...this._tree.values()]
+      .filter((entry) => entry.type === 'file')
+      .map((entry) => ({ path: entry.path, size: entry.size }));
     return this._cachedCompleteTree;
   }
 
@@ -169,21 +168,6 @@ export class FileTreeService {
   }
 
   /**
-   * Return the complete project file tree from the worker's InMemoryFileTree.
-   * Paths are relative to the project root for consistency with the lazy tree.
-   * Single RPC call, zero IDB hits when the tree is already built.
-   */
-  public async getCompleteFileTree(): Promise<FileStatEntry[]> {
-    const entries = await this.getDirectoryStat('');
-    const prefix = normalizePath(this.rootDirectory);
-    const prefixSlash = prefix.endsWith('/') ? prefix : `${prefix}/`;
-    return entries.map((entry) => ({
-      ...entry,
-      path: entry.path.startsWith(prefixSlash) ? entry.path.slice(prefixSlash.length) : entry.path,
-    }));
-  }
-
-  /**
    * Get all file stats in a directory recursively via proxy.
    */
   public async getDirectoryStat(path: string): Promise<FileStatEntry[]> {
@@ -209,6 +193,10 @@ export class FileTreeService {
     options?: { maxResults?: number; includeDirectories?: boolean },
   ): Promise<FileStatEntry[]> {
     const absolutePath = normalizePath(this.rootDirectory);
+    if (!this._searchIndexWarmed) {
+      await this.proxy.getDirectoryStat(absolutePath);
+      this._searchIndexWarmed = true;
+    }
     return this.proxy.searchFiles(absolutePath, query, options);
   }
 
@@ -234,9 +222,26 @@ export class FileTreeService {
   public async deleteDirectory(path: string): Promise<void> {
     const absolutePath = joinPath(this.rootDirectory, path);
     const entries = await this.proxy.getDirectoryStat(absolutePath);
+
+    const subdirs = new Set<string>();
     for (const entry of entries) {
+      const entryPath = entry.path.startsWith('/') ? entry.path : joinPath(absolutePath, entry.path);
       // oxlint-disable-next-line no-await-in-loop -- sequential deletes required
-      await this.proxy.unlink(entry.path);
+      await this.proxy.unlink(entryPath);
+
+      // Derive intermediate directories between absolutePath and the file
+      const relativePart = entry.path.startsWith('/') ? entryPath.slice(absolutePath.length + 1) : entry.path;
+      const parts = relativePart.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        subdirs.add(joinPath(absolutePath, parts.slice(0, i).join('/')));
+      }
+    }
+
+    // Rmdir subdirectories deepest-first, then the top-level directory
+    const sortedSubdirs = [...subdirs].sort((a, b) => b.split('/').length - a.split('/').length);
+    for (const directory of sortedSubdirs) {
+      // oxlint-disable-next-line no-await-in-loop -- deepest-first ordering required
+      await this.proxy.rmdir(directory);
     }
     await this.proxy.rmdir(absolutePath);
 
@@ -404,21 +409,31 @@ export class FileTreeService {
   // === Worker Push Events ===
 
   public handleWorkerFileChanged(event: ChangeEvent): void {
-    const absolutePath = this.extractPathFromEvent(event);
-    if (!absolutePath) {
+    if (event.type === 'backendChanged') {
       this.scheduleRefresh('');
       return;
     }
 
     const rootPrefix = this.rootDirectory.endsWith('/') ? this.rootDirectory : `${this.rootDirectory}/`;
 
-    if (!absolutePath.startsWith(rootPrefix) && absolutePath !== this.rootDirectory) {
-      return;
+    switch (event.type) {
+      case 'fileWritten': {
+        this.handleFileWrittenEvent(event.path, rootPrefix);
+        break;
+      }
+      case 'fileDeleted': {
+        this.handleFileDeletedEvent(event.path, rootPrefix);
+        break;
+      }
+      case 'fileRenamed': {
+        this.handleFileRenamedEvent(event.oldPath, event.newPath, rootPrefix);
+        break;
+      }
+      case 'directoryChanged': {
+        this.handleDirectoryChangedEvent(event.path, rootPrefix);
+        break;
+      }
     }
-
-    const relativePath = absolutePath.startsWith(rootPrefix) ? absolutePath.slice(rootPrefix.length) : '';
-
-    this.scheduleRefreshForParent(relativePath);
   }
 
   // === Tree Subscriptions (useSyncExternalStore) ===
@@ -441,6 +456,7 @@ export class FileTreeService {
       this.refreshTimer = undefined;
     }
     this.pendingRefreshPath = '';
+    this._searchIndexWarmed = false;
     this._resolvedDirectories.clear();
 
     const newTree = new Map<string, FileEntry>();
@@ -489,19 +505,53 @@ export class FileTreeService {
     this._resolvedDirectories.clear();
   }
 
-  private extractPathFromEvent(event: ChangeEvent): string | undefined {
-    switch (event.type) {
-      case 'fileWritten':
-      case 'fileDeleted':
-      case 'directoryChanged': {
-        return event.path;
+  // === Private: Worker Event Handlers ===
+
+  private handleFileWrittenEvent(absolutePath: string, rootPrefix: string): void {
+    if (!absolutePath.startsWith(rootPrefix)) {
+      return;
+    }
+    const relativePath = absolutePath.slice(rootPrefix.length);
+    const parentPath = this.getParentPath(relativePath);
+    if (this._resolvedDirectories.has(parentPath)) {
+      this.optimisticAdd(relativePath, 0);
+    }
+  }
+
+  private handleFileDeletedEvent(absolutePath: string, rootPrefix: string): void {
+    if (!absolutePath.startsWith(rootPrefix)) {
+      return;
+    }
+    this.optimisticDelete(absolutePath.slice(rootPrefix.length));
+  }
+
+  private handleFileRenamedEvent(oldPath: string, newPath: string, rootPrefix: string): void {
+    const oldInScope = oldPath.startsWith(rootPrefix);
+    const newInScope = newPath.startsWith(rootPrefix);
+    if (!oldInScope && !newInScope) {
+      return;
+    }
+    const oldRelative = oldInScope ? oldPath.slice(rootPrefix.length) : undefined;
+    const newRelative = newInScope ? newPath.slice(rootPrefix.length) : undefined;
+    if (oldRelative && newRelative) {
+      this.optimisticRename(oldRelative, newRelative);
+    } else if (oldRelative) {
+      this.optimisticDelete(oldRelative);
+    } else if (newRelative) {
+      const parentPath = this.getParentPath(newRelative);
+      if (this._resolvedDirectories.has(parentPath)) {
+        this.optimisticAdd(newRelative, 0);
       }
-      case 'fileRenamed': {
-        return event.newPath;
-      }
-      case 'backendChanged': {
-        return undefined;
-      }
+    }
+  }
+
+  private handleDirectoryChangedEvent(absolutePath: string, rootPrefix: string): void {
+    if (!absolutePath.startsWith(rootPrefix) && absolutePath !== this.rootDirectory) {
+      return;
+    }
+    const relativePath = absolutePath === this.rootDirectory ? '' : absolutePath.slice(rootPrefix.length);
+    if (this._resolvedDirectories.has(relativePath)) {
+      this.scheduleRefresh(relativePath);
     }
   }
 
@@ -582,10 +632,13 @@ export class FileTreeService {
     this.notifyTreeSubscribers();
   }
 
-  private scheduleRefreshForParent(path: string): void {
+  private getParentPath(path: string): string {
     const lastSlash = path.lastIndexOf('/');
-    const parentPath = lastSlash > 0 ? path.slice(0, lastSlash) : '';
-    this.scheduleRefresh(parentPath);
+    return lastSlash > 0 ? path.slice(0, lastSlash) : '';
+  }
+
+  private scheduleRefreshForParent(path: string): void {
+    this.scheduleRefresh(this.getParentPath(path));
   }
 
   private async executeRefresh(path: string): Promise<void> {
