@@ -478,7 +478,7 @@ export default function ConverterRoute(): React.JSX.Element {
       provide={{
         actors: {
           loadProjectActor: fromSafeAsync(async () => {
-            return { type: 'projectRetrieved', project: converterProject };
+            return { type: 'projectRetrieved', project: converterProject, parameterEntries: new Map() };
           }),
         },
       }}
