@@ -19,31 +19,22 @@ export function usePreviewFileList(): PreviewFileEntry[] {
     if (!treeService) {
       return;
     }
-    let cancelled = false;
 
-    const load = async () => {
-      const items = await treeService.getCachedFileItems();
-      if (!cancelled) {
-        setFiles(
-          items.map((item) => ({
-            path: item.path,
-            name: item.path.split('/').pop() ?? item.path,
-            size: item.size,
-          })),
-        );
-      }
+    const sync = (): void => {
+      const items = treeService.getCachedFileItems();
+      setFiles(
+        items.map((item) => ({
+          path: item.path,
+          name: item.path.split('/').pop() ?? item.path,
+          size: item.size,
+        })),
+      );
     };
 
-    void load();
+    sync();
+    const unsubscribe = treeService.subscribeTree(sync);
 
-    const unsubscribe = treeService.subscribeTree(() => {
-      void load();
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [treeService]);
 
   return files;

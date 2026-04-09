@@ -31,29 +31,23 @@ export function useChatSnapshot(): ChatSnapshot | undefined {
     if (!treeService) {
       return;
     }
-    let cancelled = false;
 
-    const load = async (): Promise<void> => {
-      const items = await treeService.getCachedFileItems();
-      if (!cancelled) {
-        setFileTree(
-          items.map((item) => ({
-            path: item.path,
-            name: item.path.split('/').pop() ?? item.path,
-            type: 'file',
-            size: item.size,
-          })),
-        );
-      }
+    const sync = (): void => {
+      const items = treeService.getCachedFileItems();
+      setFileTree(
+        items.map((item) => ({
+          path: item.path,
+          name: item.path.split('/').pop() ?? item.path,
+          type: 'file',
+          size: item.size,
+        })),
+      );
     };
 
-    void load();
-    const unsubscribe = treeService.subscribeTree(load);
+    sync();
+    const unsubscribe = treeService.subscribeTree(sync);
 
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [treeService]);
 
   const editorState = useSelector(
