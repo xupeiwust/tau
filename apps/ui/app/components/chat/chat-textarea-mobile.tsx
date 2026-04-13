@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Plus, CircuitBoard, Wrench, Paperclip, ChevronRight } from 'lucide-react';
+import { Plus, Wrench, Paperclip, ChevronRight } from 'lucide-react';
 import type { ToolSelection } from '@taucad/chat';
 import { kernelConfigurations } from '@taucad/types/constants';
 import { Button } from '#components/ui/button.js';
@@ -217,7 +217,7 @@ export const ChatTextareaMobile = memo(function ({
                     <div className={menuItemClassName}>
                       <span className='flex w-full items-center justify-between'>
                         <div className='flex items-center gap-2'>
-                          <CircuitBoard className='size-4' />
+                          <SvgIcon id={selectedModel?.details.family ?? 'anthropic'} className='size-4 grayscale' />
                           <div className='flex flex-col items-start'>
                             <span>{selectedModel?.name ?? 'Select model'}</span>
                             <span className='text-xs text-muted-foreground'>AI model for responses</span>
@@ -244,7 +244,7 @@ export const ChatTextareaMobile = memo(function ({
                       <div className={menuItemClassName}>
                         <span className='flex w-full items-center justify-between'>
                           <div className='flex items-center gap-2'>
-                            <SvgIcon id={kernel?.id ?? selectedKernel?.id ?? 'openscad'} className='size-4' />
+                            <SvgIcon id={kernel?.id ?? selectedKernel?.id ?? 'openscad'} className='size-4 grayscale' />
                             <div className='flex flex-col items-start'>
                               <span>{kernel?.name ?? selectedKernel?.name ?? 'OpenSCAD'}</span>
                               <span className='text-xs text-muted-foreground'>CAD kernel for code execution</span>

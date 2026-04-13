@@ -4,7 +4,7 @@ import { formatNumberAbbreviation } from '#utils/number.utils.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 
 const size = 28;
-const strokeWidth = 3.5;
+const strokeWidth = 4;
 const radius = (size - strokeWidth) / 2;
 const circumference = 2 * Math.PI * radius;
 
@@ -44,7 +44,7 @@ export function ChatContextIndicatorDisplay({ data }: { readonly data: ContextUs
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className='flex size-7 cursor-default items-center justify-center'
+          className='flex size-5 cursor-default items-center justify-center'
           role='meter'
           aria-valuenow={clamped}
           aria-valuemin={0}
@@ -78,7 +78,7 @@ export function ChatContextIndicatorDisplay({ data }: { readonly data: ContextUs
       <TooltipContent side='top' className='text-xs'>
         <p className='font-medium'>{data.percentUsed.toFixed(1)}% context used</p>
         <p className='opacity-70'>
-          {used} / {total} tokens ({data.totalInputTokens.toLocaleString()} / {data.contextWindow.toLocaleString()})
+          {used} / {total} tokens
         </p>
       </TooltipContent>
     </Tooltip>

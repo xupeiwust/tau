@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
-import { ChevronDown, Paperclip, CircuitBoard, Wrench, AtSign } from 'lucide-react';
+import { ChevronDown, Paperclip, Wrench, AtSign } from 'lucide-react';
 import type { Chat, ToolSelection } from '@taucad/chat';
 import type { FileEntry } from '@taucad/types';
 import type { FileTreeService } from '#lib/file-tree-service.js';
@@ -317,7 +317,10 @@ const ChatTextareaLeftControls = memo(function ({
                 <span className='hidden truncate text-xs @[22rem]:block'>{selectedModel?.name ?? 'Offline'}</span>
                 <span className='relative flex size-4 items-center justify-center'>
                   <ChevronDown className='absolute scale-0 transition-transform duration-200 ease-in-out group-hover:scale-0 @[22rem]:scale-100' />
-                  <CircuitBoard className='absolute scale-100 transition-transform duration-200 ease-in-out group-hover:scale-100 @[22rem]:scale-0' />
+                  <SvgIcon
+                    id={selectedModel?.details.family ?? 'anthropic'}
+                    className='absolute scale-100 grayscale transition-transform duration-200 ease-in-out group-hover:scale-100 @[22rem]:scale-0'
+                  />
                 </span>
               </Button>
             </TooltipTrigger>
@@ -349,7 +352,7 @@ const ChatTextareaLeftControls = memo(function ({
                     <ChevronDown className='absolute scale-0 transition-transform duration-200 ease-in-out group-hover:scale-0 @[22rem]:scale-100' />
                     <SvgIcon
                       id={selectedKernel?.id ?? 'openscad'}
-                      className='absolute scale-100 transition-transform duration-200 ease-in-out group-hover:scale-100 @[22rem]:scale-0'
+                      className='absolute scale-100 grayscale transition-transform duration-200 ease-in-out group-hover:scale-100 @[22rem]:scale-0'
                     />
                   </span>
                 </Button>
@@ -452,7 +455,7 @@ const ChatTextareaRightControls = memo(function ({
             data-chat-textarea-focustrap={focusTrapAttribute}
             variant='outline'
             size='icon'
-            className='size-7 rounded-full text-muted-foreground hover:text-foreground'
+            className='size-6 rounded-full text-muted-foreground hover:text-foreground'
             onClick={handleAtButtonClick}
           >
             <AtSign className='size-3.5' />
@@ -467,11 +470,11 @@ const ChatTextareaRightControls = memo(function ({
           <Button
             variant='outline'
             size='icon'
-            className='size-7 rounded-full text-muted-foreground hover:text-foreground'
+            className='size-6 rounded-full text-muted-foreground hover:text-foreground'
             title='Add image'
             onClick={handleFileSelect}
           >
-            <Paperclip />
+            <Paperclip className='size-3.5' />
           </Button>
         </TooltipTrigger>
         <TooltipContent>

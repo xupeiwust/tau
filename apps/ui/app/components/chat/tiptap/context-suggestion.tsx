@@ -293,7 +293,7 @@ export const ContextSuggestionDropdown = memo(function ContextSuggestionDropdown
             setSelectedIndex(index);
           }}
         >
-          <Icon className='size-4 shrink-0' />
+          <Icon className='size-3 shrink-0' />
           <span className='truncate'>{category.label}</span>
           <ChevronRight className='ml-auto size-3.5 shrink-0 text-muted-foreground' />
         </button>
@@ -324,7 +324,7 @@ export const ContextSuggestionDropdown = memo(function ContextSuggestionDropdown
           setSelectedIndex(index);
         }}
       >
-        <ItemIcon item={item} className='size-4 shrink-0' />
+        <ItemIcon item={item} className='size-3 shrink-0' />
         <span className='truncate'>{item.label}</span>
         {item.path ? (
           <span className='ml-auto max-w-24 truncate text-xs text-muted-foreground'>{item.path}</span>
