@@ -371,6 +371,11 @@ export const draftMachine = setup({
               target: 'persisting',
               guard: 'canPersist',
             },
+            // Bypass debounce — persist the (now-empty) draft immediately
+            clearDraft: {
+              target: 'persisting',
+              guard: 'canPersist',
+            },
           },
         },
         persisting: {
@@ -388,6 +393,11 @@ export const draftMachine = setup({
             setDraftText: 'pending',
             addDraftImage: 'pending',
             removeDraftImage: 'pending',
+            // Cancel stale in-flight persist and re-persist with empty draft
+            clearDraft: {
+              target: 'persisting',
+              reenter: true,
+            },
           },
         },
       },
