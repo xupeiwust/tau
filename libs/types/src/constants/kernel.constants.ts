@@ -148,7 +148,7 @@ export default function main(p = defaultParams) {
   }
 }
 `,
-    recommended: 'Advanced CAD & Full OpenCascade Control',
+    recommended: 'Advanced CAD & Full Kernel Access',
     tags: ['OpenCASCADE', 'BRep', 'TypeScript', 'WASM', 'Precision'],
     features: [
       'Full OpenCascade API access',
