@@ -60,7 +60,7 @@ export const navRoutes: {
     },
     {
       title: 'Convert',
-      url: '/converter',
+      url: '/convert',
       icon: Shuffle,
     },
     {
