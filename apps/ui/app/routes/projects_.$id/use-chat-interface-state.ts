@@ -6,6 +6,7 @@ import { cookieName } from '#constants/cookie.constants.js';
 import type { chatTabs } from '#routes/projects_.$id/chat-interface-nav.js';
 import { useViewContext } from '#routes/projects_.$id/chat-interface-view-context.js';
 import { useProject } from '#hooks/use-project.js';
+import { useIsMobile } from '#hooks/use-mobile.js';
 import type { PanelId } from '#constants/editor.constants.js';
 import { allotmentPanelOrder, mobileDrawerSnapPoints } from '#constants/editor.constants.js';
 import type { PaneviewPanelState, PanelState } from '#types/editor.types.js';
@@ -65,6 +66,7 @@ export type ChatInterfaceState = {
 export function useChatInterfaceState(): ChatInterfaceState {
   const viewContext = useViewContext();
   const { editorRef } = useProject();
+  const isMobile = useIsMobile();
 
   // Check if editor state has been loaded from IndexedDB
   // This is used to defer Allotment rendering until saved panel sizes are available
@@ -111,6 +113,16 @@ export function useChatInterfaceState(): ChatInterfaceState {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(activeTab !== 'viewer');
   // oxlint-disable-next-line @typescript-eslint/no-restricted-types -- Vaul API
   const [snapPoint, setSnapPoint] = useState<number | string | null>(mobileDrawerSnapPoints[0]!);
+
+  // Opening a non-viewer tab via editor machine (e.g. header Export) must raise the drawer; tab changes
+  // from the bottom nav already sync drawer via handleTabChange.
+  useEffect(() => {
+    if (!isMobile || activeTab === 'viewer' || drawerOpen) {
+      return;
+    }
+
+    setDrawerOpen(true);
+  }, [isMobile, activeTab, drawerOpen]);
 
   const handleDrawerChange = useCallback(
     (value: boolean): void => {
