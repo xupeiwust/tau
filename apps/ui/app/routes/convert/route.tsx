@@ -17,8 +17,8 @@ import {
   FloatingPanelContentBody,
 } from '#components/ui/floating-panel.js';
 import { Dropzone, DropzoneEmptyState } from '#components/ui/dropzone.js';
-import { FormatsList } from '#routes/converter/formats-list.js';
-import { FormatsListMobile } from '#routes/converter/formats-list-mobile.js';
+import { FormatsList } from '#routes/convert/formats-list.js';
+import { FormatsListMobile } from '#routes/convert/formats-list-mobile.js';
 import {
   CodeBlock,
   CodeBlockHeader,
