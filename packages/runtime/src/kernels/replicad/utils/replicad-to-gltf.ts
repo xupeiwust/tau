@@ -6,6 +6,16 @@ import { writeGlb, writeGltfJson } from '#utils/glb-writer.js';
 import type { GlbInput, GlbNode, GlbPrimitive } from '#utils/glb-writer.js';
 
 /**
+ * `sRGB` EOTF: decode a single sRGB channel value to linear light.
+ *
+ * @param channel - the sRGB channel value
+ * @returns the linear light value
+ */
+function srgbToLinear(channel: number): number {
+  return channel <= 0.040_45 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+/**
  * Build a GlbNode from a single replicad geometry (surface + optional edge lines).
  *
  * @param geometry - the replicad geometry with face, edge, and color data
@@ -21,14 +31,14 @@ function buildNodeFromReplicadGeometry(geometry: GeometryReplicad, geometryIndex
     const normals = transformNormalArray(faces.normals);
     const indices = new Uint32Array(faces.triangles);
 
-    let baseColor: [number, number, number, number] = [0.8, 0.8, 0.8, 1];
+    let baseColor: [number, number, number, number] = [...cadMaterialDefaults.baseColorFactor];
     if (geometry.color) {
       try {
         const normalizedColor = normalizeColor(geometry.color);
         const hex = normalizedColor.color;
-        const r = Number.parseInt(hex.slice(1, 3), 16) / 255;
-        const g = Number.parseInt(hex.slice(3, 5), 16) / 255;
-        const b = Number.parseInt(hex.slice(5, 7), 16) / 255;
+        const r = srgbToLinear(Number.parseInt(hex.slice(1, 3), 16) / 255);
+        const g = srgbToLinear(Number.parseInt(hex.slice(3, 5), 16) / 255);
+        const b = srgbToLinear(Number.parseInt(hex.slice(5, 7), 16) / 255);
         const alpha = geometry.opacity ?? normalizedColor.alpha;
         baseColor = [r, g, b, alpha];
       } catch (error) {

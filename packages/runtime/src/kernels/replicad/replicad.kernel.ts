@@ -551,6 +551,8 @@ export default defineKernel({
 
       const defaultName = extractDefaultName(module);
 
+      const { tessellation } = options;
+
       let nativeHandle: InputShape[] = [];
       const renderedShapes = renderOutput({
         shapes,
@@ -598,12 +600,8 @@ export default defineKernel({
     }
   },
 
-  async exportGeometry({ fileType, tessellation, nativeHandle }, _runtime, _context) {
-    const resolvedTessellation = tessellation ?? {
-      linearTolerance: 0.01,
-      angularTolerance: 30,
-    };
-    const angularToleranceRad = resolvedTessellation.angularTolerance * (Math.PI / 180);
+  async exportGeometry(input, _runtime, _context) {
+    const { format, nativeHandle, options } = input;
 
     if (nativeHandle.length === 0) {
       return createKernelError([
@@ -615,80 +613,123 @@ export default defineKernel({
       ]);
     }
 
-    if (fileType === 'glb' || fileType === 'gltf') {
-      const temporaryShapes = nativeHandle.map((shapeConfig) => {
-        const { shape } = shapeConfig;
-        const faces = shape.mesh({
-          tolerance: resolvedTessellation.linearTolerance,
-          angularTolerance: angularToleranceRad,
+    switch (format) {
+      case 'glb':
+      case 'gltf': {
+        const { linearTolerance, angularTolerance } = options.tessellation;
+        const angularToleranceRad = angularTolerance * (Math.PI / 180);
+        const { coordinateSystem } = options;
+
+        const shapes =
+          coordinateSystem === 'y-up'
+            ? nativeHandle.map((s) => ({ ...s, shape: s.shape.clone().rotate(-90, [0, 0, 0], [1, 0, 0]) }))
+            : nativeHandle;
+
+        const temporaryShapes = shapes.map((shapeConfig) => {
+          const { shape } = shapeConfig;
+          const faces = shape.mesh({
+            tolerance: linearTolerance,
+            angularTolerance: angularToleranceRad,
+          });
+          return {
+            format: 'replicad',
+            name: shapeConfig.name ?? 'Geometry',
+            color: shapeConfig.color,
+            opacity: shapeConfig.opacity,
+            metalness: shapeConfig.metalness,
+            roughness: shapeConfig.roughness,
+            faces,
+            edges: { lines: [], edgeGroups: [] },
+          } satisfies GeometryReplicad;
         });
-        return {
-          format: 'replicad',
-          name: shapeConfig.name ?? 'Geometry',
-          color: shapeConfig.color,
-          opacity: shapeConfig.opacity,
-          faces,
-          edges: { lines: [], edgeGroups: [] },
-        } satisfies GeometryReplicad;
-      });
 
-      const gltfData = convertReplicadGeometriesToGltf(temporaryShapes, fileType);
-      return createKernelSuccess([
-        createExportFile(fileType, fileType === 'glb' ? 'model.glb' : 'model.gltf', asBuffer(gltfData)),
-      ]);
+        const gltfData = convertReplicadGeometriesToGltf(temporaryShapes, format);
+        return createKernelSuccess([
+          createExportFile(format, format === 'glb' ? 'model.glb' : 'model.gltf', asBuffer(gltfData)),
+        ]);
+      }
+
+      case 'step': {
+        const { coordinateSystem } = options;
+        const shapes =
+          coordinateSystem === 'y-up'
+            ? nativeHandle.map((s) => ({ ...s, shape: s.shape.clone().rotate(-90, [0, 0, 0], [1, 0, 0]) }))
+            : nativeHandle;
+
+        const stepShapes = shapes.map((s) => ({
+          shape: s.shape,
+          name: s.name,
+          color: s.color,
+          alpha: s.opacity,
+          metalness: s.metalness,
+          roughness: s.roughness,
+          density: s.density,
+        }));
+        const stepBlob: Blob = replicad.exportSTEP(stepShapes);
+        const stepBytes = new Uint8Array(await stepBlob.arrayBuffer());
+        return createKernelSuccess([createExportFile('step', 'assembly', stepBytes)]);
+      }
+
+      case 'stl': {
+        const { linearTolerance, angularTolerance } = options.tessellation;
+        const angularToleranceRad = angularTolerance * (Math.PI / 180);
+        const { coordinateSystem } = options;
+
+        const shapes =
+          coordinateSystem === 'y-up'
+            ? nativeHandle.map((s) => ({ ...s, shape: s.shape.clone().rotate(-90, [0, 0, 0], [1, 0, 0]) }))
+            : nativeHandle;
+
+        const result = await Promise.all(
+          shapes.map(async ({ shape, name }) => {
+            const bytes = await buildExportBytes(shape, {
+              tolerance: linearTolerance,
+              angularTolerance: angularToleranceRad,
+              binary: options.binary,
+            });
+            return createExportFile('stl', name ?? 'Geometry', bytes);
+          }),
+        );
+        return createKernelSuccess(result);
+      }
+
+      default: {
+        const _exhaustive: never = format;
+        return createKernelError([
+          { message: `Unsupported export format: ${_exhaustive as string}`, type: 'runtime', severity: 'error' },
+        ]);
+      }
     }
+  },
 
-    if (fileType === 'step-assembly') {
-      const stepBlob: Blob = replicad.exportSTEP(nativeHandle);
-      const stepBytes = new Uint8Array(await stepBlob.arrayBuffer());
-      return createKernelSuccess([createExportFile('step-assembly', 'assembly', stepBytes)]);
-    }
+  serializeHandle(nativeHandle) {
+    return nativeHandle.map((entry) => ({
+      brep: entry.shape.serialize(),
+      metadata: {
+        name: entry.name,
+        color: entry.color,
+        opacity: entry.opacity,
+        metalness: entry.metalness,
+        roughness: entry.roughness,
+        density: entry.density,
+      },
+    }));
+  },
 
-    const result = await Promise.all(
-      nativeHandle.map(async ({ shape, name }) => {
-        const bytes = await buildExportBytes(shape, fileType, {
-          tolerance: resolvedTessellation.linearTolerance,
-          angularTolerance: angularToleranceRad,
-        });
-        return createExportFile(fileType, name ?? 'Geometry', bytes);
-      }),
-    );
-
-    return createKernelSuccess(result);
+  deserializeHandle(data) {
+    console.log(data[0]?.brep);
+    return data.map((entry) => ({
+      shape: replicad.deserializeShape(entry.brep),
+      ...entry.metadata,
+    }));
   },
 });
 
 async function buildExportBytes(
   shape: replicad.AnyShape,
-  fileType: string,
-  tessellation: { tolerance: number; angularTolerance: number },
+  tessellation: { tolerance: number; angularTolerance: number; binary?: boolean },
 ): Promise<Uint8Array<ArrayBuffer>> {
-  let blob: Blob;
-
-  switch (fileType) {
-    case 'stl': {
-      blob = shape.blobSTL(tessellation);
-
-      break;
-    }
-
-    case 'stl-binary': {
-      blob = shape.blobSTL({ ...tessellation, binary: true });
-
-      break;
-    }
-
-    case 'step': {
-      blob = shape.blobSTEP();
-
-      break;
-    }
-
-    default: {
-      throw new Error(`Unsupported export format: ${fileType}`);
-    }
-  }
-
+  const blob = shape.blobSTL(tessellation.binary ? { ...tessellation, binary: true } : tessellation);
   return new Uint8Array(await blob.arrayBuffer());
 }
 

@@ -162,9 +162,29 @@ describe('convertReplicadGeometriesToGltf', () => {
     const material = document.getRoot().listMaterials()[0]!;
 
     const color = material.getBaseColorFactor();
-    expect(color[0]).toBeCloseTo(0.8);
-    expect(color[1]).toBeCloseTo(0.8);
-    expect(color[2]).toBeCloseTo(0.8);
+    expect(color[0]).toBeCloseTo(0.7);
+    expect(color[1]).toBeCloseTo(0.7);
+    expect(color[2]).toBeCloseTo(0.7);
     expect(color[3]).toBeCloseTo(1);
+  });
+
+  it('should use provided metalness/roughness values when set', async () => {
+    const geometry = createSimpleGeometry({ metalness: 0.9, roughness: 0.2 });
+    const glb = convertReplicadGeometriesToGltf([geometry], 'glb');
+    const document = await new NodeIO().readBinary(glb);
+    const material = document.getRoot().listMaterials()[0]!;
+
+    expect(material.getMetallicFactor()).toBeCloseTo(0.9, 2);
+    expect(material.getRoughnessFactor()).toBeCloseTo(0.2, 2);
+  });
+
+  it('should fall back to cadMaterialDefaults when metalness/roughness are not set', async () => {
+    const geometry = createSimpleGeometry();
+    const glb = convertReplicadGeometriesToGltf([geometry], 'glb');
+    const document = await new NodeIO().readBinary(glb);
+    const material = document.getRoot().listMaterials()[0]!;
+
+    expect(material.getMetallicFactor()).toBeCloseTo(0, 2);
+    expect(material.getRoughnessFactor()).toBeCloseTo(0.35, 2);
   });
 });
