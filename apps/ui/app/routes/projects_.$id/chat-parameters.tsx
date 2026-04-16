@@ -6,6 +6,7 @@ import type { PaneviewApi, PaneviewPanelApi } from 'dockview-react';
 import { PaneviewReact } from 'dockview-react';
 import { hasJsonSchemaObjectProperties } from '@taucad/utils/schema';
 import { KeyShortcut } from '#components/ui/key-shortcut.js';
+import { Tooltip, TooltipContent, TooltipTrigger } from '#components/ui/tooltip.js';
 import {
   FloatingPanel,
   FloatingPanelClose,
@@ -295,32 +296,37 @@ function ParameterGroupSelector({
   const selectedItem = useMemo(() => groupItems.find((item) => item.isActive), [groupItems]);
 
   return (
-    <ComboBoxResponsive
-      groupedItems={groupedItems}
-      renderLabel={renderLabel}
-      getValue={getItemValue}
-      defaultValue={selectedItem}
-      placeholder='Select a parameter group'
-      searchPlaceHolder='Search groups...'
-      title='Parameter Groups'
-      description='Select a parameter group to apply.'
-      isSearchEnabled={groupItems.length > 5}
-      shouldCloseOnSelect={shouldCloseOnSelect}
-      popoverProperties={{
-        align: 'end',
-        className: 'w-[260px]',
-      }}
-      onSelect={handleSelect}
-    >
-      <button
-        type='button'
-        aria-label='Parameter groups'
-        className='hover:text-accent-foreground flex h-5 max-w-24 items-center gap-0.5 rounded-sm px-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent'
+    <Tooltip>
+      <ComboBoxResponsive
+        groupedItems={groupedItems}
+        renderLabel={renderLabel}
+        getValue={getItemValue}
+        defaultValue={selectedItem}
+        placeholder='Select a parameter group'
+        searchPlaceHolder='Search groups...'
+        title='Parameter Groups'
+        description='Select a parameter group to apply.'
+        isSearchEnabled={groupItems.length > 5}
+        shouldCloseOnSelect={shouldCloseOnSelect}
+        popoverProperties={{
+          align: 'end',
+          className: 'w-[260px]',
+        }}
+        onSelect={handleSelect}
       >
-        <span className='truncate'>{activeGroup}</span>
-        <ChevronDown className='size-2.5 shrink-0 opacity-60' />
-      </button>
-    </ComboBoxResponsive>
+        <TooltipTrigger>
+          <button
+            type='button'
+            aria-label='Parameter groups'
+            className='hover:text-accent-foreground flex h-5 max-w-24 items-center gap-0.5 rounded-sm px-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent'
+          >
+            <span className='truncate'>{activeGroup}</span>
+            <ChevronDown className='size-2.5 shrink-0 opacity-60' />
+          </button>
+        </TooltipTrigger>
+      </ComboBoxResponsive>
+      <TooltipContent side='top'>Parameter groups</TooltipContent>
+    </Tooltip>
   );
 }
 
