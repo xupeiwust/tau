@@ -33,7 +33,8 @@ export const handle: Handle = {
       </Button>
     );
   },
-  enableOverflowY: false,
+  // Mobile: section scrolls as one page. Desktop: route uses h-full flex + inner list scroll (see layout).
+  enableOverflowY: true,
 };
 
 // Reusable component for kernel details content
@@ -173,65 +174,65 @@ export default function ProjectsNew(): React.JSX.Element {
   );
 
   return (
-    <div className='container mx-auto flex h-full max-w-4xl flex-col px-4 pb-6'>
-      <div className='mb-6 shrink-0 text-center'>
+    <div className='container mx-auto flex max-w-4xl flex-col px-4 pb-4 md:h-full md:min-h-0'>
+      <div className='mb-4 shrink-0 text-center'>
         <h1 className='mb-2 text-3xl font-semibold tracking-tight'>Create New Project</h1>
         <p className='text-muted-foreground'>Choose a CAD kernel and start building</p>
       </div>
 
-      <Card className='flex min-h-0 flex-1 flex-col'>
-        <CardContent className='shrink-0 space-y-4 border-b pb-6'>
-          <div className='flex flex-col gap-4'>
-            <div className='flex-1 space-y-2'>
-              <Label htmlFor='project-name'>Project Name *</Label>
-              <Input
-                autoFocus
-                autoComplete='off'
-                id='project-name'
-                value={projectName}
-                placeholder='Enter your project name...'
-                maxLength={100}
-                onChange={(event) => {
-                  setProjectName(event.target.value);
-                }}
-              />
+      <div className='md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-hidden'>
+        <Card className='flex flex-col bg-sidebar/70 md:min-h-0 md:flex-1 md:overflow-hidden'>
+          <CardContent className='shrink-0 space-y-4 border-b pb-6'>
+            <div className='flex flex-col gap-4'>
+              <div className='flex-1 space-y-2'>
+                <Label htmlFor='project-name'>Project Name *</Label>
+                <Input
+                  autoFocus
+                  autoComplete='off'
+                  id='project-name'
+                  value={projectName}
+                  placeholder='Enter your project name...'
+                  maxLength={100}
+                  onChange={(event) => {
+                    setProjectName(event.target.value);
+                  }}
+                />
+              </div>
+              <div className='flex-1 space-y-2'>
+                <Label htmlFor='project-description'>Description (optional)</Label>
+                <Input
+                  id='project-description'
+                  value={projectDescription}
+                  placeholder="Describe what you're building..."
+                  maxLength={500}
+                  onChange={(event) => {
+                    setProjectDescription(event.target.value);
+                  }}
+                />
+              </div>
             </div>
-            <div className='flex-1 space-y-2'>
-              <Label htmlFor='project-description'>Description (optional)</Label>
-              <Input
-                id='project-description'
-                value={projectDescription}
-                placeholder="Describe what you're building..."
-                maxLength={500}
-                onChange={(event) => {
-                  setProjectDescription(event.target.value);
+            <div className='space-y-2'>
+              <Label>Storage Backend</Label>
+              <BackendSelector
+                value={selectedBackend}
+                onSelect={(value) => {
+                  setSelectedBackend(value as FileSystemBackend);
                 }}
+                isInternalHidden
               />
+              <p className='text-xs text-muted-foreground'>
+                Where project files are stored. Can be changed later in project settings.
+              </p>
             </div>
-          </div>
-          <div className='space-y-2'>
-            <Label>Storage Backend</Label>
-            <BackendSelector
-              value={selectedBackend}
-              onSelect={(value) => {
-                setSelectedBackend(value as FileSystemBackend);
-              }}
-              isInternalHidden
-            />
-            <p className='text-xs text-muted-foreground'>
-              Where project files are stored. Can be changed later in project settings.
-            </p>
-          </div>
-        </CardContent>
+          </CardContent>
 
-        <CardHeader className='shrink-0 text-sm'>
-          <CardTitle className='font-medium'>Choose CAD Kernel *</CardTitle>
-          <CardDescription>Select the technology that best fits your project needs</CardDescription>
-        </CardHeader>
-        <CardContent className='min-h-0 flex-1'>
-          {/* Mobile Accordion Layout */}
-          <div className='block h-full overflow-hidden rounded-lg border border-border md:hidden'>
-            <div className='h-full scroll-shadows-y'>
+          <CardHeader className='shrink-0 text-sm'>
+            <CardTitle className='font-medium'>Choose CAD Kernel *</CardTitle>
+            <CardDescription>Select the technology that best fits your project needs</CardDescription>
+          </CardHeader>
+          <CardContent className='md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-hidden'>
+            {/* Mobile Accordion Layout */}
+            <div className='block rounded-lg border border-border bg-card md:hidden'>
               <RadioGroup
                 value={kernel}
                 onValueChange={(value) => {
@@ -290,54 +291,51 @@ export default function ProjectsNew(): React.JSX.Element {
                 </Accordion>
               </RadioGroup>
             </div>
-          </div>
 
-          {/* Desktop Side-by-Side Layout */}
-          <div className='hidden h-full md:flex md:gap-6'>
-            {/* Left side - Radio Group (scrollable, wrapped in border) */}
-            <div className='min-h-0 basis-1/2 overflow-hidden rounded-lg border border-border'>
-              <div className='h-full scroll-shadows-y'>
-                <RadioGroup
-                  value={kernel}
-                  className='gap-0'
-                  onValueChange={(value) => {
-                    setSelectedKernel(value as KernelProvider);
-                  }}
-                >
-                  {kernelConfigurations.map((option) => (
-                    <Label
-                      key={option.id}
-                      htmlFor={option.id}
-                      className={cn(
-                        'flex h-auto cursor-pointer items-start justify-start gap-3 border-b border-border p-4 text-left transition-all last:border-b-0 hover:bg-primary/5',
-                        kernel === option.id && 'bg-primary/5 hover:bg-primary/10',
-                      )}
-                    >
-                      <RadioGroupItem value={option.id} id={option.id} className='mt-1' />
-                      <SvgIcon id={option.id} className='mt-0.5 size-6 shrink-0' />
-                      <div className='flex w-full min-w-0 flex-col gap-1'>
-                        <div className='flex w-full items-start justify-between gap-2'>
-                          <span className='text-sm font-medium'>{option.name}</span>
-                          <span className='font-mono text-xs text-muted-foreground/70'>{option.backendProvider}</span>
+            {/* Desktop: only the kernel list column scrolls */}
+            <div className='hidden min-h-0 md:flex md:flex-1 md:gap-6'>
+              <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card md:basis-1/2'>
+                <div className='min-h-0 flex-1 scroll-shadows-y overflow-y-auto'>
+                  <RadioGroup
+                    value={kernel}
+                    className='gap-0'
+                    onValueChange={(value) => {
+                      setSelectedKernel(value as KernelProvider);
+                    }}
+                  >
+                    {kernelConfigurations.map((option) => (
+                      <Label
+                        key={option.id}
+                        htmlFor={option.id}
+                        className={cn(
+                          'flex h-auto cursor-pointer items-start justify-start gap-3 border-b border-border p-4 text-left transition-all last:border-b-0 hover:bg-primary/5',
+                          kernel === option.id && 'bg-primary/5 hover:bg-primary/10',
+                        )}
+                      >
+                        <RadioGroupItem value={option.id} id={option.id} className='mt-1' />
+                        <SvgIcon id={option.id} className='mt-0.5 size-6 shrink-0' />
+                        <div className='flex w-full min-w-0 flex-col gap-1'>
+                          <div className='flex w-full items-start justify-between gap-2'>
+                            <span className='text-sm font-medium'>{option.name}</span>
+                            <span className='font-mono text-xs text-muted-foreground/70'>{option.backendProvider}</span>
+                          </div>
+                          <span className='text-xs leading-relaxed text-muted-foreground'>{option.description}</span>
                         </div>
-                        <span className='text-xs leading-relaxed text-muted-foreground'>{option.description}</span>
-                      </div>
-                    </Label>
-                  ))}
-                </RadioGroup>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </div>
+              </div>
+
+              <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto rounded-lg border border-border bg-card p-6 md:basis-1/2'>
+                <KernelDetailsContent kernelId={kernel} />
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
 
-            {/* Right side - Content panel (fixed) */}
-            <div className='basis-1/2 rounded-lg border border-border bg-card p-6'>
-              <KernelDetailsContent kernelId={kernel} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons - pinned at bottom */}
-      <div className='flex shrink-0 flex-col gap-3 pt-6 sm:flex-row sm:justify-between sm:gap-4'>
+      <div className='flex shrink-0 flex-col gap-3 pt-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-between sm:gap-4'>
         <Button variant='outline' disabled={isCreating} onClick={handleCancel}>
           Cancel
         </Button>
