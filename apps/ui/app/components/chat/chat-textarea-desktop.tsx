@@ -259,6 +259,7 @@ export const ChatTextareaDesktop = memo(function ({
 
       {/* Bottom-right controls */}
       <ChatTextareaRightControls
+        enableContextActions={enableContextActions}
         handleAtButtonClick={handleAtButtonClick}
         handleFileSelect={handleFileSelect}
         status={status}
@@ -426,6 +427,7 @@ const ChatTextareaLeftControls = memo(function ({
  * Isolated to prevent Radix TooltipTrigger asChild composeRefs loops.
  */
 const ChatTextareaRightControls = memo(function ({
+  enableContextActions,
   handleAtButtonClick,
   handleFileSelect,
   status,
@@ -435,6 +437,7 @@ const ChatTextareaRightControls = memo(function ({
   handleSubmit,
   handleCancelClick,
 }: {
+  readonly enableContextActions: boolean;
   readonly handleAtButtonClick: () => void;
   readonly handleFileSelect: () => void;
   readonly status: string;
@@ -448,21 +451,23 @@ const ChatTextareaRightControls = memo(function ({
     <div className='absolute right-2 bottom-2 flex flex-row items-center gap-1'>
       <ChatContextIndicator />
 
-      {/* @ context button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            data-chat-textarea-focustrap={focusTrapAttribute}
-            variant='outline'
-            size='icon'
-            className='size-6 rounded-full text-muted-foreground hover:text-foreground'
-            onClick={handleAtButtonClick}
-          >
-            <AtSign className='size-3.5' />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Add context</TooltipContent>
-      </Tooltip>
+      {/* @ context button — hidden when no project/context to attach (e.g. homepage) */}
+      {enableContextActions ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              data-chat-textarea-focustrap={focusTrapAttribute}
+              variant='outline'
+              size='icon'
+              className='size-6 rounded-full text-muted-foreground hover:text-foreground'
+              onClick={handleAtButtonClick}
+            >
+              <AtSign className='size-3.5' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Add context</TooltipContent>
+        </Tooltip>
+      ) : null}
 
       {/* Upload button */}
       <Tooltip>
