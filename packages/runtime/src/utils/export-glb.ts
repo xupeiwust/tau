@@ -1,5 +1,5 @@
 import { cadMaterialDefaults } from '@taucad/types/constants';
-import type { Color, IndexedPolyhedron } from '#framework/common.js';
+import type { Color, IndexedPolyhedron, VertexTransformFunction } from '#framework/common.js';
 import { transformVerticesGltf } from '#framework/common.js';
 import { writeGlb, writeGltfJson } from '#utils/glb-writer.js';
 import type { GlbInput, GlbNode, GlbPrimitive } from '#utils/glb-writer.js';
@@ -82,7 +82,7 @@ type TriangleData = {
  * Group faces by their unique color and convert to geometry arrays.
  * Each unique color becomes a separate ColorGroupGeometry.
  *
- * Always transforms vertices from Z-up/mm to Y-up/meters for spec-compliant GLTF.
+ * Transforms vertices using the provided transform function (defaults to Z-up → Y-up / mm → m).
  *
  * This approach (like Replicad) ensures:
  * - Opaque colors get OPAQUE materials
@@ -90,9 +90,13 @@ type TriangleData = {
  * - No vertex color issues with transparency
  *
  * @param meshData - the indexed polyhedron with vertices, faces, and colors
+ * @param transform - vertex transform function (defaults to Y-up glTF-spec transform)
  * @returns array of color group geometries ready for primitive creation
  */
-function groupFacesByColor(meshData: IndexedPolyhedron): ColorGroupGeometry[] {
+function groupFacesByColor(
+  meshData: IndexedPolyhedron,
+  transform: VertexTransformFunction = transformVerticesGltf,
+): ColorGroupGeometry[] {
   const { vertices, faces, colors } = meshData;
 
   const colorGroups = new Map<string, { color: Color; triangles: TriangleData[] }>();
@@ -129,9 +133,9 @@ function groupFacesByColor(meshData: IndexedPolyhedron): ColorGroupGeometry[] {
         continue;
       }
 
-      const transformedV1 = transformVerticesGltf(v1);
-      const transformedV2 = transformVerticesGltf(v2);
-      const transformedV3 = transformVerticesGltf(v3);
+      const transformedV1 = transform(v1);
+      const transformedV2 = transform(v2);
+      const transformedV3 = transform(v3);
 
       const normal = calculateTriangleNormal(transformedV1, transformedV2, transformedV3);
 
@@ -233,10 +237,14 @@ function colorGroupToPrimitive(geometry: ColorGroupGeometry): GlbPrimitive {
  * Build a GlbInput from an IndexedPolyhedron.
  *
  * @param meshData - the indexed polyhedron to convert
+ * @param transform - vertex transform function
  * @returns the GlbInput for the writer
  */
-function buildGlbInput(meshData: IndexedPolyhedron): GlbInput {
-  const colorGroups = groupFacesByColor(meshData);
+function buildGlbInput(
+  meshData: IndexedPolyhedron,
+  transform: VertexTransformFunction = transformVerticesGltf,
+): GlbInput {
+  const colorGroups = groupFacesByColor(meshData, transform);
   const nodes: GlbNode[] = [];
 
   const primitives: GlbPrimitive[] = [];
@@ -277,7 +285,7 @@ function buildGlbInput(meshData: IndexedPolyhedron): GlbInput {
       }
 
       const vertex: [number, number, number] = [x, y, z];
-      const transformed = transformVerticesGltf(vertex);
+      const transformed = transform(vertex);
       linePositions[index] = transformed[0];
       linePositions[index + 1] = transformed[1];
       linePositions[index + 2] = transformed[2];
@@ -312,13 +320,12 @@ function buildGlbInput(meshData: IndexedPolyhedron): GlbInput {
 /**
  * Creates a GLB (binary glTF) byte array from mesh data with per-face colors.
  *
- * Always produces spec-compliant glTF with Y-up coordinates and meter units.
- *
  * @param meshData - the polyhedron geometry to encode
+ * @param transform - vertex transform function (defaults to Y-up glTF-spec transform)
  * @returns the GLB binary as a byte array
  */
-export function createGlb(meshData: IndexedPolyhedron): Uint8Array<ArrayBuffer> {
-  const input = buildGlbInput(meshData);
+export function createGlb(meshData: IndexedPolyhedron, transform?: VertexTransformFunction): Uint8Array<ArrayBuffer> {
+  const input = buildGlbInput(meshData, transform);
   return writeGlb(input);
 }
 
@@ -328,9 +335,10 @@ export function createGlb(meshData: IndexedPolyhedron): Uint8Array<ArrayBuffer> 
  * Binary data is base64-encoded inline so the result needs no separate `.bin` files.
  *
  * @param meshData - the polyhedron geometry to encode
+ * @param transform - vertex transform function (defaults to Y-up glTF-spec transform)
  * @returns the glTF JSON as a UTF-8-encoded byte array
  */
-export function createGltf(meshData: IndexedPolyhedron): Uint8Array<ArrayBuffer> {
-  const input = buildGlbInput(meshData);
+export function createGltf(meshData: IndexedPolyhedron, transform?: VertexTransformFunction): Uint8Array<ArrayBuffer> {
+  const input = buildGlbInput(meshData, transform);
   return writeGltfJson(input);
 }
