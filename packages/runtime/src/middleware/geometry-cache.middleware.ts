@@ -41,7 +41,7 @@ export const geometryMemoryCache = new LruMap<KernelSuccessResult<GeometryRespon
  * and any future additions) are persisted implicitly.
  */
 type CacheEntry = {
-  version: 2;
+  version: 3;
   result: KernelSuccessResult<GeometryResponse[]>;
 };
 
@@ -54,7 +54,7 @@ type CacheEntry = {
  * @returns Binary MessagePack-encoded data
  */
 function serializeResult(result: KernelSuccessResult<GeometryResponse[]>): Uint8Array<ArrayBuffer> {
-  const entry: CacheEntry = { version: 2, result };
+  const entry: CacheEntry = { version: 3, result };
   return msgpackEncode(entry);
 }
 
@@ -73,7 +73,7 @@ function deserializeResult(data: Uint8Array<ArrayBuffer>): KernelSuccessResult<G
     typeof decoded !== 'object' ||
     decoded === null ||
     !('version' in decoded) ||
-    decoded.version !== 2 ||
+    decoded.version !== 3 ||
     !('result' in decoded)
   ) {
     throw new Error('Invalid or incompatible cache format');

@@ -20,7 +20,7 @@ import {
 } from '#testing/kernel-testing.utils.js';
 
 /**
- * Create serialized cache content (MessagePack binary format, v2).
+ * Create serialized cache content (MessagePack binary format, v3).
  * Mirrors the CacheEntry structure: stores the full KernelSuccessResult.
  */
 function createSerializedCacheContent(
@@ -28,7 +28,7 @@ function createSerializedCacheContent(
   issues: KernelIssue[] = [],
 ): Uint8Array<ArrayBuffer> {
   return msgpackEncode({
-    version: 2,
+    version: 3,
     result: {
       success: true,
       data: [{ format: 'gltf', content }],
@@ -726,5 +726,72 @@ describe('geometryCacheMiddleware', () => {
     if (cached?.success && cached.data[0]?.format === 'gltf') {
       expect(cached.data[0].content.buffer).toBe(content.buffer);
     }
+  });
+
+  describe('serializedHandle storage', () => {
+    it('should store serializedHandle in cache entry when present in result', async () => {
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const serializedHandle = { brep: 'BREP_DATA', meta: { name: 'part' } };
+      const handlerResult: CreateGeometryResult = {
+        success: true,
+        data: [{ format: 'gltf', content: new Uint8Array([1, 2, 3]) }],
+        issues: [],
+        serializedHandle,
+      };
+      const handler = createMockCreateGeometryHandler(handlerResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      const cached = geometryMemoryCache.get(runtime.dependencyHash);
+      expect(cached).toBeDefined();
+      expect(cached?.serializedHandle).toEqual(serializedHandle);
+    });
+
+    it('should restore serializedHandle from L2 cache on cache hit', async () => {
+      const serializedHandle = { brep: 'CACHED_BREP' };
+      const cacheData = msgpackEncode({
+        version: 3,
+        result: {
+          success: true,
+          data: [{ format: 'gltf', content: new Uint8Array([4, 5, 6]) }],
+          issues: [],
+          serializedHandle,
+        },
+      });
+
+      const runtime = createMockRuntime<Record<string, never>, GeometryCacheOptions>({
+        filesystemOverrides: {
+          readFileResult: cacheData,
+        },
+        dependencies: createMockDependencies(),
+        dependencyHash: 'a'.repeat(64),
+        options: { maxEntries: 100, maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
+      });
+      const input = createMockInput();
+      const handler = createMockCreateGeometryHandler();
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+      const result = await wrapCreateGeometry!(input, handler, runtime);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.serializedHandle).toEqual(serializedHandle);
+      }
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('should omit serializedHandle when result has none', async () => {
+      const { input, runtime } = createCacheTestContext({ cacheExists: false });
+      const handlerResult = createGltfSuccessResult(new Uint8Array([1, 2, 3]));
+      const handler = createMockCreateGeometryHandler(handlerResult);
+
+      const { wrapCreateGeometry } = geometryCacheMiddleware;
+      await wrapCreateGeometry!(input, handler, runtime);
+
+      const cached = geometryMemoryCache.get(runtime.dependencyHash);
+      expect(cached).toBeDefined();
+      expect(cached?.serializedHandle).toBeUndefined();
+    });
   });
 });
