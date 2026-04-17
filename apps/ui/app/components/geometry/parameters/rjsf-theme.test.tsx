@@ -4,7 +4,7 @@ import type { WidgetProps, RJSFSchema, Registry } from '@rjsf/utils';
 import { mock } from 'vitest-mock-extended';
 import { widgets } from '#components/geometry/parameters/rjsf-theme.js';
 
-const SelectWidget = widgets.SelectWidget!;
+const SelectWidget = widgets['SelectWidget']!;
 
 const numberSchema: RJSFSchema = { type: 'number' };
 const stringSchema: RJSFSchema = { type: 'string' };
