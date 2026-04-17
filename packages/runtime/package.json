@@ -35,7 +35,9 @@
     "./middleware": "./src/plugins/middleware-entry.ts",
     "./bundler": "./src/plugins/bundler-entry.ts",
     "./transport": "./src/transport/index.ts",
+    "./node": "./src/node.ts",
     "./filesystem": "./src/filesystem/index.ts",
+    "./filesystem/node": "./src/filesystem/from-node-fs.ts",
     "./testing": "./src/testing/index.ts",
     "./worker": "./src/framework/kernel-runtime-worker.ts",
     "./kernels/replicad": "./src/kernels/replicad/replicad.kernel.ts",
@@ -266,6 +268,16 @@
           "default": "./dist/esm/middleware/gltf-edge-detection.middleware.js"
         }
       },
+      "./node": {
+        "require": {
+          "types": "./dist/cjs/node.d.cts",
+          "default": "./dist/cjs/node.cjs"
+        },
+        "import": {
+          "types": "./dist/esm/node.d.ts",
+          "default": "./dist/esm/node.js"
+        }
+      },
       "./filesystem": {
         "require": {
           "types": "./dist/cjs/filesystem/index.d.cts",
@@ -274,6 +286,16 @@
         "import": {
           "types": "./dist/esm/filesystem/index.d.ts",
           "default": "./dist/esm/filesystem/index.js"
+        }
+      },
+      "./filesystem/node": {
+        "require": {
+          "types": "./dist/cjs/filesystem/from-node-fs.d.cts",
+          "default": "./dist/cjs/filesystem/from-node-fs.cjs"
+        },
+        "import": {
+          "types": "./dist/esm/filesystem/from-node-fs.d.ts",
+          "default": "./dist/esm/filesystem/from-node-fs.js"
         }
       },
       "./testing": {
