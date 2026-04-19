@@ -154,6 +154,7 @@ describe('FileService', () => {
       const reader = stream.getReader();
       const chunks: Array<Uint8Array<ArrayBuffer>> = [];
 
+      // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- reader loop
       while (true) {
         // oxlint-disable-next-line no-await-in-loop -- inherent stream reading pattern
         const { done, value } = await reader.read();
