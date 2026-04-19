@@ -2,12 +2,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { createActor, waitFor } from 'xstate';
-import type { RuntimeClient, RuntimeClientOptions, KernelIssue, PerformanceEntryData } from '@taucad/runtime';
+import type { RuntimeClientOptions, KernelIssue, PerformanceEntryData } from '@taucad/runtime';
 import { createMockRuntimeClient } from '@taucad/runtime/testing';
 import type { Geometry, GeometryFile } from '@taucad/types';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { cadMachine } from '#machines/cad.machine.js';
 import type { CadContext } from '#machines/cad.machine.js';
+import type { AppRuntimeClient } from '#types/runtime-client.alias.js';
 
 const noop = () => {
   /* No-op */
@@ -20,7 +21,7 @@ const noop = () => {
 function createTestActor(options?: {
   connectResult?: () => Promise<{
     type: 'kernelConnected';
-    client: RuntimeClient;
+    client: AppRuntimeClient;
     cleanups: Array<() => void>;
   }>;
   connectError?: Error;

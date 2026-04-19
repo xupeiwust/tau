@@ -1187,7 +1187,7 @@ describe('projectMachine', () => {
       const otherWrite = writtenInputs.find((w) => w.filePath === 'other.ts');
       expect(otherWrite).toBeDefined();
       expect(otherWrite!.entry.activeGroup).toBe('default');
-      expect(otherWrite!.entry.groups.default.values).toEqual({ radius: 99 });
+      expect(otherWrite!.entry.groups['default']!.values).toEqual({ radius: 99 });
       actor.stop();
     });
   });

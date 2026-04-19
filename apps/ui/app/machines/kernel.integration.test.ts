@@ -29,6 +29,9 @@ import { esbuild } from '@taucad/runtime/bundler';
 import { createInProcessTransport } from '@taucad/runtime/transport';
 import type { HashedGeometryResult } from '@taucad/runtime/types';
 
+type TestKernels = readonly [ReturnType<typeof replicad>, ReturnType<typeof tau>];
+type TestRuntimeClient = RuntimeClient<TestKernels>;
+
 const hollowBoxSource = `
 import { drawRoundedRectangle } from 'replicad';
 import type { Shape3D } from 'replicad';
@@ -70,7 +73,7 @@ async function createFileService(): Promise<FileService> {
 }
 
 describe('Kernel Integration — FileService bridge', { timeout: 120_000 }, () => {
-  let client: RuntimeClient | undefined;
+  let client: TestRuntimeClient | undefined;
 
   afterEach(() => {
     client?.terminate();

@@ -1,12 +1,12 @@
 import { assign, assertEvent, setup, enqueueActions, waitFor } from 'xstate';
 import type { ActorRefFrom, AnyActorRef } from 'xstate';
-import type { CodeIssue, ExportFormat, Geometry, GeometryFile, LogLevel, LogOrigin } from '@taucad/types';
+import type { CodeIssue, FileExtension, Geometry, GeometryFile, LogLevel, LogOrigin } from '@taucad/types';
 import { createRuntimeClient } from '@taucad/runtime';
 import type {
+  CapabilitiesManifest,
   ExportResult,
   GetParametersResult,
   HashedGeometryResult,
-  RuntimeClient,
   RuntimeClientOptions,
   KernelIssue,
   RenderPhase,
@@ -15,11 +15,12 @@ import type {
 } from '@taucad/runtime';
 import { createFileSystemBridge } from '@taucad/runtime/filesystem';
 import { safeDispose } from '@taucad/utils/dispose';
-import type { JSONSchema7 } from 'json-schema';
+import type { JSONSchema7 } from '@taucad/json-schema';
 import type { LengthSymbol } from '@taucad/units';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import type { logMachine } from '#machines/logs.machine.js';
 import type { fileManagerMachine } from '#machines/file-manager.machine.js';
+import type { AppRuntimeClient } from '#types/runtime-client.alias.js';
 
 export type CadContext = {
   file: GeometryFile | undefined;
@@ -39,13 +40,15 @@ export type CadContext = {
   renderPhase: RenderPhase | undefined;
   telemetryEntries: PerformanceEntryData[];
   renderTimeout: number;
-  kernelClient?: RuntimeClient;
+  kernelClient?: AppRuntimeClient;
+  capabilities?: CapabilitiesManifest;
+  activeKernelId?: string;
   eventCleanups: Array<() => void>;
 };
 
 type KernelConnectedEvent = {
   type: 'kernelConnected';
-  client: RuntimeClient;
+  client: AppRuntimeClient;
   cleanups: Array<() => void>;
 };
 
@@ -54,7 +57,7 @@ type CadEvent =
   | { type: 'setFile'; file: GeometryFile }
   | { type: 'setParameters'; parameters: Record<string, unknown> }
   | { type: 'setCodeIssues'; errors: CadContext['codeIssues'] }
-  | { type: 'exportGeometry'; format: ExportFormat }
+  | { type: 'exportGeometry'; format: FileExtension; options?: Record<string, unknown> }
   | { type: 'geometryComputed'; geometries: Geometry[]; issues: KernelIssue[] }
   | { type: 'parametersParsed'; defaultParameters: Record<string, unknown>; jsonSchema: JSONSchema7 }
   | { type: 'kernelIssue'; errors: KernelIssue[] }
@@ -63,13 +66,15 @@ type CadEvent =
   | { type: 'kernelLog'; level: LogLevel; message: string; origin?: LogOrigin; data?: unknown }
   | { type: 'stateChanged'; state: WorkerState; detail?: string }
   | { type: 'setRenderTimeout'; seconds: number }
-  | { type: 'geometryExported'; blob: Blob; format: ExportFormat }
+  | { type: 'geometryExported'; blob: Blob; format: string }
   | { type: 'geometryExportFailed'; errors: KernelIssue[] }
+  | { type: 'capabilitiesUpdated'; capabilities: CapabilitiesManifest }
+  | { type: 'activeKernelChanged'; kernelId: string | undefined }
   | KernelConnectedEvent;
 
 type CadEmitted =
   | { type: 'geometryEvaluated'; geometries: Geometry[] }
-  | { type: 'geometryExported'; blob: Blob; format: ExportFormat }
+  | { type: 'geometryExported'; blob: Blob; format: string }
   | { type: 'exportFailed'; errors: KernelIssue[] };
 
 type CadInput = {
@@ -162,6 +167,12 @@ const connectKernelActor = fromSafeAsync<KernelConnectedEvent, ConnectKernelInpu
     }),
     client.on('error', (issues: KernelIssue[]) => {
       machineRef.send({ type: 'kernelIssue', errors: issues });
+    }),
+    client.on('capabilities', (capabilities: CapabilitiesManifest) => {
+      machineRef.send({ type: 'capabilitiesUpdated', capabilities });
+    }),
+    client.on('activeKernel', (kernelId: string | undefined) => {
+      machineRef.send({ type: 'activeKernelChanged', kernelId });
     }),
   );
 
@@ -353,6 +364,18 @@ export const cadMachine = setup({
       assertEvent(event, 'setRenderTimeout');
       context.kernelClient?.setRenderTimeout(event.seconds);
     },
+    setCapabilities: assign({
+      capabilities({ event }) {
+        assertEvent(event, 'capabilitiesUpdated');
+        return event.capabilities;
+      },
+    }),
+    setActiveKernelId: assign({
+      activeKernelId({ event }) {
+        assertEvent(event, 'activeKernelChanged');
+        return event.kernelId;
+      },
+    }),
     dispatchExport: ({ context, event, self }) => {
       assertEvent(event, 'exportGeometry');
       if (!context.kernelClient) {
@@ -361,7 +384,7 @@ export const cadMachine = setup({
 
       const handleExport = async () => {
         try {
-          const result: ExportResult = await context.kernelClient!.export(event.format);
+          const result: ExportResult = await context.kernelClient!.export(event.format, event.options);
           if (result.success) {
             const { data } = result;
             const blob = new Blob([data.bytes], { type: data.mimeType });
@@ -420,6 +443,8 @@ export const cadMachine = setup({
     telemetryEntries: [],
     renderTimeout: 30,
     kernelClient: undefined,
+    capabilities: undefined,
+    activeKernelId: undefined,
     eventCleanups: [],
   }),
   exit: ['destroyKernel'],
@@ -477,6 +502,8 @@ export const cadMachine = setup({
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
+        capabilitiesUpdated: { actions: 'setCapabilities' },
+        activeKernelChanged: { actions: 'setActiveKernelId' },
       },
     },
 
@@ -504,6 +531,8 @@ export const cadMachine = setup({
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
+        capabilitiesUpdated: { actions: 'setCapabilities' },
+        activeKernelChanged: { actions: 'setActiveKernelId' },
         stateChanged: [
           { guard: ({ event }) => event.state === 'buffering', target: 'buffering' },
           { guard: ({ event }) => event.state === 'rendering', target: 'rendering' },
@@ -536,6 +565,8 @@ export const cadMachine = setup({
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
+        capabilitiesUpdated: { actions: 'setCapabilities' },
+        activeKernelChanged: { actions: 'setActiveKernelId' },
         stateChanged: [
           { guard: ({ event }) => event.state === 'rendering', target: 'rendering' },
           { guard: ({ event }) => event.state === 'idle', target: 'idle' },
@@ -569,6 +600,8 @@ export const cadMachine = setup({
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
+        capabilitiesUpdated: { actions: 'setCapabilities' },
+        activeKernelChanged: { actions: 'setActiveKernelId' },
         stateChanged: [
           { guard: ({ event }) => event.state === 'buffering', target: 'buffering' },
           { guard: ({ event }) => event.state === 'idle', target: 'idle' },
@@ -603,6 +636,8 @@ export const cadMachine = setup({
         kernelLog: { actions: 'sendKernelLogs' },
         kernelProgress: { actions: 'trackProgress' },
         kernelTelemetry: { actions: 'storeTelemetry' },
+        capabilitiesUpdated: { actions: 'setCapabilities' },
+        activeKernelChanged: { actions: 'setActiveKernelId' },
         stateChanged: [
           { guard: ({ event }) => event.state === 'buffering', target: 'buffering' },
           { guard: ({ event }) => event.state === 'idle', target: 'idle' },

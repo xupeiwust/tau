@@ -1,6 +1,7 @@
 import { replicad, opencascade, zoo, openscad, jscad, manifold, tau } from '@taucad/runtime/kernels';
 import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
+import { converterTranscoder } from '@taucad/runtime/transcoder';
 import { createRuntimeClientOptions } from '@taucad/runtime';
 import { observability } from '@taucad/telemetry/middleware';
 import { parameterFileResolver } from '#middleware/parameter-file-resolver.factory.js';
@@ -13,9 +14,6 @@ import { ENV } from '#environment.config.js';
  * can handle a file wins.
  */
 export const defaultKernelOptions = createRuntimeClientOptions({
-  tessellation: {
-    preview: { linearTolerance: 0.1, angularTolerance: 30 },
-  },
   sharedMemory: {
     geometry: { bytes: 100 * 1024 * 1024, maxEntries: 20, eviction: 'lru' },
   },
@@ -37,6 +35,7 @@ export const defaultKernelOptions = createRuntimeClientOptions({
     gltfEdgeDetection(),
   ],
   bundlers: [esbuild()],
+  transcoders: [converterTranscoder()],
 });
 
 /**

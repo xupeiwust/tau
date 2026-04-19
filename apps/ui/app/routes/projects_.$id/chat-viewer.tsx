@@ -222,6 +222,7 @@ const ViewerContent = memo(function ({
   const cadRef = useCad();
   const geometries = useCadSelector((state) => state.context.geometries, []);
   const units = useCadSelector((state) => state.context.units, undefined);
+  const kernelClient = useCadSelector((state) => state.context.kernelClient, undefined);
 
   // Bridge geometry data from the headless CadMachine to the per-view GraphicsMachine
   const graphicsActor = useGraphics();
@@ -311,7 +312,7 @@ const ViewerContent = memo(function ({
       </div>
 
       {/* AR button — mobile iOS only, positioned bottom-right above controls */}
-      <ChatArButton geometries={geometries} className='absolute right-3 bottom-14 z-10' />
+      <ChatArButton geometries={geometries} kernelClient={kernelClient} className='absolute right-3 bottom-14 z-10' />
 
       {/* Bottom controls */}
       <div className='absolute right-2 bottom-2 left-2 z-10 flex shrink-0 flex-col gap-2'>

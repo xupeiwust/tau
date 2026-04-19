@@ -5,7 +5,7 @@ import { waitFor } from 'xstate';
 import type { ActorRefFrom } from 'xstate';
 import type { Geometry } from '@taucad/types';
 import type { RuntimeClientOptions } from '@taucad/runtime';
-import type { JSONSchema7 } from 'json-schema';
+import type { JSONSchema7 } from '@taucad/json-schema';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 import { cadMachine } from '#machines/cad.machine.js';
 import { cadPreviewMachine } from '#machines/cad-preview.machine.js';
