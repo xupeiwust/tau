@@ -47,12 +47,9 @@
     }
   },
   "dependencies": {
-    "@taucad/types": "workspace:*",
     "@taucad/json-schema": "workspace:*",
+    "@taucad/types": "workspace:*",
     "cdn-resolve": "catalog:"
-  },
-  "devDependencies": {
-    "@types/json-schema": "catalog:"
   },
   "imports": {
     "#*": "./src/*"
