@@ -41,9 +41,7 @@ export function validateImageParts(messages: MyUIMessage[]): void {
         const base64Data = part.url.slice(base64Start + dataPrefix.length);
         if (base64Data.length > MAX_BASE64_LENGTH) {
           const sizeMb = (base64Data.length / (1024 * 1024)).toFixed(1);
-          throw new Error(
-            `Image exceeds 5 MB base64 limit (${sizeMb} MB). ` + `Please resize the image before uploading.`,
-          );
+          throw new Error(`Image exceeds 5 MB base64 limit (${sizeMb} MB). Please resize the image before uploading.`);
         }
       }
     }

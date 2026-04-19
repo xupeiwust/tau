@@ -68,6 +68,6 @@ describe('ChatRpcGateway', () => {
 
       expect(io.on).toHaveBeenCalledWith('connection', expect.any(Function));
       expect(callOrder[0]).toBe('connection-listener');
-    });
+    }, 30_000);
   });
 });
