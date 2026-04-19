@@ -470,7 +470,7 @@ This is a high-reward, high-risk change. Consider introducing it as a parallel A
 ## References
 
 - Related: `docs/research/build-flag-audit.md`
-- Related: `docs/research/occt-wasm-optimization.md`
+- Related: `docs/research/ocjs-wasm-optimization.md`
 - Related: `docs/research/v76-vs-v8-binding-diff.md`
 - Related: `docs/research/occt-v8-migration.md`
 - Policy: `docs/policy/library-api-policy.md`

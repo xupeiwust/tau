@@ -6,9 +6,9 @@ created: '2026-03-20'
 updated: '2026-03-20'
 category: comparison
 related:
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-optimization.md
   - docs/research/build-flag-audit.md
-  - docs/research/occt-js-v8-dx-modernization.md
+  - docs/research/ocjs-v8-dx-modernization.md
 ---
 
 # OpenCASCADE.js Build System Cross-Project Comparison
@@ -251,6 +251,6 @@ Areas where our taucad fork leads:
 - [brepjs](https://github.com/andymai/brepjs) — Web CAD library with pluggable geometry kernel
 - [zalo/opencascade.js](https://github.com/zalo/opencascade.js) — WebIDL-based opencascade.js fork
 - [donalffons/opencascade.js](https://github.com/donalffons/opencascade.js) — Original opencascade.js
-- Related: `docs/research/occt-wasm-optimization.md`
+- Related: `docs/research/ocjs-wasm-optimization.md`
 - Related: `docs/research/build-flag-audit.md`
 - Emscripten settings: `repos/assimpjs/emsdk/upstream/emscripten/src/settings.js`

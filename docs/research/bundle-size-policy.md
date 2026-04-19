@@ -7,8 +7,8 @@ updated: '2026-03-24'
 category: comparison
 related:
   - docs/policy/library-api-policy.md
-  - docs/research/wasm-binary-size-forensics.md
-  - docs/research/occt-wasm-build-comparison.md
+  - docs/research/ocjs-wasm-binary-size-forensics.md
+  - docs/research/ocjs-wasm-build-comparison.md
 ---
 
 # Bundle Size Tracking
@@ -321,6 +321,6 @@ describe('WASM binary size budgets', () => {
 - [nx-size-limit](https://github.com/LironHazan/nx-size-limit) — Nx community plugin
 - [bundlewatch](https://bundlewatch.io/) — alternative bundle size tracker
 - [wasm-weight-tracker](https://rustwasm.github.io/wasm-weight-tracker/) — WASM size tracking by Rust/WASM Working Group
-- Related: `docs/research/wasm-binary-size-forensics.md`
-- Related: `docs/research/occt-wasm-build-comparison.md`
+- Related: `docs/research/ocjs-wasm-binary-size-forensics.md`
+- Related: `docs/research/ocjs-wasm-build-comparison.md`
 - Policy: `docs/policy/library-api-policy.md`

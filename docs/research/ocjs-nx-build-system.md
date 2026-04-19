@@ -6,9 +6,9 @@ created: '2026-03-22'
 updated: '2026-03-22'
 category: architecture
 related:
-  - docs/research/occt-wasm-optimization.md
-  - docs/research/occt-wasm-build-comparison.md
-  - docs/research/rbv-build-manifest-regressions.md
+  - docs/research/ocjs-wasm-optimization.md
+  - docs/research/ocjs-wasm-build-comparison.md
+  - docs/research/ocjs-rbv-build-manifest-regressions.md
 ---
 
 # Nx Build System for opencascade.js
@@ -715,8 +715,8 @@ Once Nx manages all caching, the custom `build-cache.py` / `cache/` directory sy
 - Nx docs: [How caching works](https://nx.dev/docs/concepts/how-caching-works)
 - Nx docs: [Task pipeline configuration](https://nx.dev/docs/concepts/task-pipeline-configuration)
 - Prior art: [donalffons/libclangjs](https://github.com/donalffons/libclangjs) — Turborepo + LLVM/Clang WASM
-- Related: `docs/research/occt-wasm-optimization.md`
-- Related: `docs/research/rbv-build-manifest-regressions.md`
+- Related: `docs/research/ocjs-wasm-optimization.md`
+- Related: `docs/research/ocjs-rbv-build-manifest-regressions.md`
 
 ## Appendix: Full Incident Cross-Reference
 

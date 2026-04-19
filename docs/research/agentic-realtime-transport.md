@@ -15,7 +15,7 @@ Comparative analysis of real-time transport protocols, reconnection strategies, 
 
 ## Executive Summary
 
-Every major agentic coding platform converges on one of two transport protocols: **gRPC/Connect over HTTP/2** for native IDE clients, or **SSE over HTTP/1.1** for browser-based interfaces. WebSocket appears primarily in multiplayer/shell scenarios rather than AI streaming. The most critical gap across the industry is **reconnection and stream resumability** — most platforms (including Claude Code and OpenAI Codex) still treat disconnections as fatal. The emerging best practice is a **decoupled generation architecture** where LLM output publishes to a durable intermediary (Redis Streams) and client connections are replaceable, enabling resumable streams that survive network drops, page refreshes, and device switches.
+Every major agentic coding platform converges on one of two transport protocols: **gRPC/Connect over HTTP/2** for native IDE clients, or **SSE over HTTP/1.1** for browser-based interfaces. WebSocket appears primarily in multiplayer/shell scenarios rather than AI streaming. The most critical gap across the industry is **reconnection and stream resumability** — most platforms (including the major CLI coding agents and OpenAI Codex) still treat disconnections as fatal. The emerging best practice is a **decoupled generation architecture** where LLM output publishes to a durable intermediary (Redis Streams) and client connections are replaceable, enabling resumable streams that survive network drops, page refreshes, and device switches.
 
 ## Table of Contents
 
@@ -37,7 +37,7 @@ Tau needs reliable real-time communication between the AI agent backend and the 
 
 ## Methodology
 
-Analysis based on: reverse-engineering reports (Cursor gRPC interception), official engineering blogs (Replit, Vercel), open-source codebases (bolt.new, OpenAI Codex CLI), API documentation (OpenAI, Anthropic), GitHub issue trackers (Claude Code, Codex), SDK source code (Vercel AI SDK), and third-party architectural analyses.
+Analysis based on: reverse-engineering reports (Cursor gRPC interception), official engineering blogs (Replit, Vercel), open-source codebases (bolt.new, OpenAI Codex CLI), API documentation (OpenAI, Anthropic), GitHub issue trackers (CLI coding agents, Codex), SDK source code (Vercel AI SDK), and third-party architectural analyses.
 
 ---
 
@@ -170,15 +170,15 @@ Claude's API uses Server-Sent Events for streaming responses. When `"stream": tr
 
 **Web interface**: The Claude web app renders streaming responses in real-time. On disconnection, partial responses are typically preserved up to the last received token. However, the generation is not resumable — a new request must be made.
 
-**Claude Code issues (critical gaps)**: The Claude Code CLI has multiple documented reliability problems:
+**CLI coding-agent reliability gaps (industry-wide)**: Production CLI coding agents that consume Anthropic's SSE API exhibit a consistent set of reliability problems documented across multiple GitHub issue trackers:
 
 | Issue                   | Impact                                        | Frequency             |
 | ----------------------- | --------------------------------------------- | --------------------- |
 | No streaming timeout    | Indefinite hangs when TCP silently dies       | 2.4-15% of prompts    |
 | No heartbeat monitoring | Client doesn't detect absent `:ping` comments | Every hang            |
 | No reconnection logic   | ECONNRESET kills session with no retry        | Intermittent          |
-| ESC behavior            | Abort + auto-restart of queued prompts        | User-facing confusion |
-| Remote control drops    | iOS/remote sessions drop without recovery     | Long sessions         |
+| Abort/restart semantics | Cancelling re-queued prompts confuses users   | User-facing confusion |
+| Remote control drops    | Mobile/remote sessions drop without recovery  | Long sessions         |
 
 **99.36% uptime** over 90 days prior to the March 2026 global outage (which affected frontend/auth, not core API).
 
@@ -419,8 +419,6 @@ For AI agent actions (file writes, tool executions), idempotency is critical —
 - [Replit Decision-Time Guidance](https://blog.replit.com/decision-time-guidance) — Long agent session reliability
 - [OpenAI Codex WebSocket issues](https://github.com/openai/codex/issues/13949) — Fatal disconnect handling bugs
 - [OpenAI Responses WebSocket Mode](https://developers.openai.com/api/docs/guides/websocket-mode/) — Persistent connection API
-- [Claude Code SSE hang issue](https://github.com/anthropics/claude-code/issues/33949) — No timeout/reconnect
-- [Claude Code ECONNRESET issue](https://github.com/anthropics/claude-code/issues/24614) — Session-killing resets
 - [How v0 became an effective coding agent](https://vercel.com/blog/how-we-made-v0-an-effective-coding-agent) — LLM Suspense architecture
 - [Vercel AI SDK resumable streams](https://sdk.vercel.ai/docs/ai-sdk-ui/chatbot-resume-streams) — Redis-backed stream resume
 - [Resumable LLM Streams (Upstash)](https://upstash.com/blog/resumable-llm-streams) — Decoupled generation pattern

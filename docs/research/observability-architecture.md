@@ -60,7 +60,7 @@ Traditional web application monitoring focuses on HTTP request latency and error
 ### Finding 2: Industry-standard observability tools for agentic platforms
 
 - **Agentlytics** — unified analytics dashboard across 16+ editors; tracks sessions, costs, models, and tool usage. Runs locally, no data egress.
-- **AgentProbe** — TypeScript library for passive observability; parses agent transcripts, normalizes events across platforms (Cursor, Claude Code).
+- **AgentProbe** — TypeScript library for passive observability; parses agent transcripts, normalizes events across platforms (Cursor, CLI coding agents).
 - **Cursor Enterprise APIs** — AI Code Tracking API (tracks lines added/deleted by AI vs human), Analytics API (active users, model usage), Admin API (usage data, spending). Rate limited at 20-100 req/min.
 - **VS Code Copilot** — uses OpenTelemetry GenAI semantic conventions for monitoring agent usage with hierarchical span trees capturing tool execution, LLM calls, and token usage.
 

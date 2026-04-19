@@ -6,7 +6,7 @@ created: '2026-03-23'
 updated: '2026-03-24'
 category: audit
 related:
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-optimization.md
 ---
 
 # OpenCascade.js Full Build Audit

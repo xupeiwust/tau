@@ -6,10 +6,10 @@ created: '2026-03-24'
 updated: '2026-03-25'
 category: optimization
 related:
-  - docs/research/wasm-binary-size-forensics.md
-  - docs/research/wasm-size-analysis-v762-vs-v8rc4.md
+  - docs/research/ocjs-wasm-binary-size-forensics.md
+  - docs/research/ocjs-wasm-size-analysis-v762-vs-v8rc4.md
   - docs/research/emscripten-optimization-flags.md
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-optimization.md
 ---
 
 # WASM Binary Size Forensics v2: Function-Level Dissection and Inflation Analysis
@@ -514,10 +514,10 @@ Future work should prioritize **speed improvements** (threading, PGO, Emscripten
 
 ## References
 
-- v1 forensics report: `docs/research/wasm-binary-size-forensics.md`
-- v7 vs v8 size analysis: `docs/research/wasm-size-analysis-v762-vs-v8rc4.md`
+- v1 forensics report: `docs/research/ocjs-wasm-binary-size-forensics.md`
+- v7 vs v8 size analysis: `docs/research/ocjs-wasm-size-analysis-v762-vs-v8rc4.md`
 - Emscripten flags reference: `docs/research/emscripten-optimization-flags.md`
-- OCCT WASM optimization: `docs/research/occt-wasm-optimization.md`
+- OCCT WASM optimization: `docs/research/ocjs-wasm-optimization.md`
 - OCCT patches: `repos/opencascade.js/src/patches/`
 - Build configs: `repos/opencascade.js/build-configs/configurations.json`
 

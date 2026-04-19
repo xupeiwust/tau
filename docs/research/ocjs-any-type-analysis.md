@@ -7,7 +7,7 @@ updated: '2026-03-26'
 category: audit
 related:
   - docs/research/ocjs-test-failure-resolution.md
-  - docs/research/embind-js-dispatch-failures.md
+  - docs/research/ocjs-embind-js-dispatch-failures.md
 ---
 
 # OCJS Any Type Analysis

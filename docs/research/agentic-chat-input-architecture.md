@@ -54,7 +54,7 @@ Tau's chat input uses a native HTML `<textarea>` element, which fundamentally ca
 2. **Dockview drag-drop audit**: Read `chat-editor-dockview.tsx` (639 lines), `chat-viewer-dockview.tsx` (602 lines), and `file.constants.ts` (MIME type definitions)
 3. **Cursor UX analysis**: Examined 4 screenshots of Cursor's chat input showing @-mention dropdowns, slash command menus, inline file chips, and file tree navigation within the context menu
 4. **Library research**: Evaluated Tiptap (ProseMirror), Plate (Slate), Lexical (Meta), Mentis, fude, react-rich-mentions, and Lobe Editor via documentation, GitHub repos, npm stats, and production references
-5. **Competing tool analysis**: Researched Cursor, Windsurf, Zed, Claude Code, and GitHub Copilot chat input implementations
+5. **Competing tool analysis**: Researched Cursor, Windsurf, Zed, CLI coding agents, and GitHub Copilot chat input implementations
 
 ## Finding 1: Current Implementation Audit
 

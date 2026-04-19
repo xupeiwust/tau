@@ -6,8 +6,8 @@ created: '2026-03-24'
 updated: '2026-03-25'
 category: optimization
 related:
-  - docs/research/wasm-size-analysis-v762-vs-v8rc4.md
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-size-analysis-v762-vs-v8rc4.md
+  - docs/research/ocjs-wasm-optimization.md
   - docs/research/emscripten-optimization-flags.md
 ---
 
@@ -473,8 +473,8 @@ Exceptions (`replicad_with_exceptions.wasm`):
 
 ## References
 
-- Previous forensic analysis: `docs/research/wasm-size-analysis-v762-vs-v8rc4.md`
-- Optimization audit: `docs/research/occt-wasm-optimization.md`
+- Previous forensic analysis: `docs/research/ocjs-wasm-size-analysis-v762-vs-v8rc4.md`
+- Optimization audit: `docs/research/ocjs-wasm-optimization.md`
 - Emscripten flag reference: `docs/research/emscripten-optimization-flags.md`
 - OCCT cmake flags: `repos/opencascade.js/deps/occt/adm/cmake/occt_defs_flags.cmake`
 - Existing patches: `repos/opencascade.js/src/patches/`

@@ -20,7 +20,7 @@ Research into chat-scoped filesystem checkpointing: automatically tracking which
 
 ## Executive Summary
 
-Tau's AI chat currently writes files via RPC to the browser filesystem worker, but no mechanism exists to snapshot file state at chat message boundaries or to restore files to a previous point in the conversation. This investigation surveys checkpoint implementations across Cursor, Claude Code, Codex CLI, Replit, snaprevert, vibetracer, and VS Code local history, then proposes a checkpoint architecture tailored to Tau's browser-based, IndexedDB-backed filesystem. The recommended design is a **per-chat checkpoint log** storing copy-on-first-write file snapshots at each user message boundary, with a bidirectional cursor for forward/backward navigation and a conflict-aware merge strategy for concurrent chats touching the same files.
+Tau's AI chat currently writes files via RPC to the browser filesystem worker, but no mechanism exists to snapshot file state at chat message boundaries or to restore files to a previous point in the conversation. This investigation surveys checkpoint implementations across Cursor, CLI-style coding agents, Codex CLI, Replit, snaprevert, vibetracer, and VS Code local history, then proposes a checkpoint architecture tailored to Tau's browser-based, IndexedDB-backed filesystem. The recommended design is a **per-chat checkpoint log** storing copy-on-first-write file snapshots at each user message boundary, with a bidirectional cursor for forward/backward navigation and a conflict-aware merge strategy for concurrent chats touching the same files.
 
 ## Problem Statement
 
@@ -35,7 +35,7 @@ These requirements are driven by `docs/policy/vision-policy.md`: Tau must delive
 
 ## Methodology
 
-- Surveyed documentation and source code for 7 checkpoint/undo systems (Cursor, Claude Code, Codex CLI, Replit, snaprevert, vibetracer, VS Code local history)
+- Surveyed documentation and source code for 7 checkpoint/undo systems (Cursor, CLI-style coding agents, Codex CLI, Replit, snaprevert, vibetracer, VS Code local history)
 - Explored Tau's current chat-to-filesystem flow via source analysis of `rpc-handlers.ts`, `file-content-service.ts`, `FileService`, `chat-rpc.service.ts`, transcript middleware, and chat persistence
 - Analyzed the mount-overlay architecture research for applicability
 - Evaluated architectural patterns against Tau's constraints: browser-only runtime, IndexedDB storage, Web Worker filesystem, concurrent multi-chat sessions
@@ -47,7 +47,7 @@ These requirements are driven by `docs/policy/vision-policy.md`: Tau must delive
 | System                    | Storage                          | Granularity                     | Tracking Scope              | Bidirectional                       | Concurrent Agents                       | Open Source                 |
 | ------------------------- | -------------------------------- | ------------------------------- | --------------------------- | ----------------------------------- | --------------------------------------- | --------------------------- |
 | **Cursor**                | Local session (ephemeral)        | Per-agent-response              | Files changed by Agent      | Restore only (no re-apply)          | No                                      | No                          |
-| **Claude Code**           | Session-scoped (30-day TTL)      | Per-user-prompt                 | Write/Edit tool calls only  | Restore code, conversation, or both | No (warns external changes not tracked) | SDK API only                |
+| **CLI coding agents**     | Session-scoped (30-day TTL)      | Per-user-prompt                 | Write/Edit tool calls only  | Restore code, conversation, or both | No (warns external changes not tracked) | SDK API only                |
 | **Codex CLI**             | Git ghost commits                | Per-tool-call                   | Git-tracked files only      | /undo restores latest snapshot      | No                                      | Partially (ghost commit PR) |
 | **Replit**                | Copy-on-Write block device + Git | Per-agent-task                  | Full filesystem + database  | Full rollback via manifest swap     | Parallel sampling (isolated forks)      | No                          |
 | **snaprevert**            | `.snaprevert/` directory (diffs) | Per-file-change (debounced ~3s) | All file changes (chokidar) | Snapshot branching                  | AI tool detection per-agent             | Yes (npm)                   |
@@ -56,31 +56,31 @@ These requirements are driven by `docs/policy/vision-policy.md`: Tau must delive
 
 Key observations:
 
-- **Copy-on-first-write** is the dominant pattern: save the original content before the first modification, not a diff. Cursor, Claude Code, VS Code, and Codex all use this approach.
+- **Copy-on-first-write** is the dominant pattern: save the original content before the first modification, not a diff. Cursor, CLI coding agents, VS Code, and Codex all use this approach.
 - **Diff-based** approaches (snaprevert, vibetracer) are more space-efficient but add complexity for restoration — you need to replay diffs in order, and corruption of any intermediate diff breaks the chain.
 - **Git-based** approaches (Codex, Replit) provide excellent tooling but require a git repository. Tau's browser filesystem has no git requirement.
 - **Bidirectional navigation** (forward after restore) is rare. Only snaprevert explicitly preserves rolled-back snapshots for re-application. Most systems treat restore as a destructive operation.
 - **Concurrent agent tracking** is only addressed by vibetracer (conflict detection within 5s window) and Replit (full isolation via forked environments). No system supports non-destructive concurrent chat restoration.
 
-### Finding 2: Claude Code Agent SDK — The Most Relevant Reference
+### Finding 2: Per-Prompt Tool-Call-Scoped Checkpointing Is the Most Relevant Reference Pattern
 
-Claude Code's Agent SDK provides the closest architectural match to Tau's needs:
+The reference pattern from production CLI coding-agent SDKs provides the closest architectural match to Tau's needs:
 
 - **Per-user-prompt checkpoints** with UUID-based identification
-- **Tool-call-scoped tracking** (only Write/Edit/NotebookEdit — not bash commands)
+- **Tool-call-scoped tracking** (only file-write tool calls — not shell/bash commands)
 - **Session-persisted** checkpoints with configurable TTL
 - **Restore is code-only** — conversation history is handled separately
 
-Implementation details from the SDK documentation:
+Architectural shape:
 
 ```
-Enable checkpointing → SDK creates backup before each file modification
+Enable checkpointing → backup created before each file modification
 User messages carry checkpoint UUID → serves as restore point
 rewindFiles(checkpointUUID) → restores files to that checkpoint state
 Created files are deleted, modified files have content restored
 ```
 
-The SDK's limitation — tracking only tool-call-driven edits, not bash/external changes — maps directly to Tau's architecture where file writes via RPC carry `source: 'machine'` (AI) vs `source: 'user'` (human) vs `source: 'editor'` (editor auto-save).
+This pattern's limitation — tracking only tool-call-driven edits, not shell/external changes — maps directly to Tau's architecture where file writes via RPC carry `source: 'machine'` (AI) vs `source: 'user'` (human) vs `source: 'editor'` (editor auto-save).
 
 ### Finding 3: Tau's Current Architecture Has Natural Checkpoint Anchors
 
@@ -418,16 +418,14 @@ Eviction policy: Delete checkpoint logs when the associated chat is deleted. Con
 | **User mental model** | "Undo what the AI did after my last message" | "Undo this specific edit"                      |
 | **Storage**           | Lower — fewer checkpoints                    | Higher — more checkpoints                      |
 
-**Verdict**: Per message (matching Claude Code and Cursor). Per-tool-call granularity can be added later as a refinement. The per-message model aligns with the user's mental model of chat interaction.
+**Verdict**: Per message (matching the dominant reference pattern from F2 and Cursor). Per-tool-call granularity can be added later as a refinement. The per-message model aligns with the user's mental model of chat interaction.
 
 ## References
 
 - [Cursor Checkpoints Documentation](https://docs.cursor.com/agent/chat/checkpoints)
-- [Claude Code Checkpointing](https://code.claude.com/docs/en/checkpointing)
-- [Claude Agent SDK File Checkpointing](https://platform.claude.com/docs/en/agent-sdk/file-checkpointing)
 - [OpenAI Codex Ghost Commit PR #4608](https://github.com/openai/codex/pull/4608)
 - [Replit Snapshot Engine Blog Post](https://blog.replit.com/inside-replits-snapshot-engine)
-- [snaprevert: AI Coding Checkpoint Tool](https://dev.to/hadifrt20/i-lost-3-hours-of-work-to-claude-code-so-i-built-an-undo-button-for-ai-assisted-coding-511c)
+- [snaprevert: AI Coding Checkpoint Tool](https://www.npmjs.com/package/snaprevert)
 - [vibetracer: Multi-Agent Edit Tracking](https://github.com/omeedcs/vibetracer)
 - VS Code Local History: `repos/vscode/src/vs/workbench/services/workingCopy/common/workingCopyHistoryTracker.ts`
 - VS Code `ResourceQueue`: `repos/vscode/src/vs/base/common/async.ts`

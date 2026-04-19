@@ -8,7 +8,7 @@ category: architecture
 related:
   - docs/research/emscripten-idiomatic-js.md
   - docs/research/occt-v8-migration.md
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-optimization.md
   - docs/policy/library-api-policy.md
 ---
 
@@ -463,7 +463,7 @@ The unique-arity collapsing (M8) is already partially implemented and well-under
 
 - Related: `docs/research/emscripten-idiomatic-js.md` -- full API audit with 15 findings
 - Related: `docs/research/occt-v8-migration.md` -- V8 migration specifics
-- Related: `docs/research/occt-wasm-optimization.md` -- WASM build optimization
+- Related: `docs/research/ocjs-wasm-optimization.md` -- WASM build optimization
 - Related: `docs/policy/library-api-policy.md` -- TypeScript API conventions
 - Light OCCT: https://dpasukhi.github.io/OCCT-Light/
 - Light OCCT OCCT issue: https://github.com/Open-Cascade-SAS/OCCT/issues/791

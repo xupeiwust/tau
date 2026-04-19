@@ -8,7 +8,7 @@ category: optimization
 related:
   - docs/research/replicad-occt-usage-refinement.md
   - docs/research/occt-v8-migration.md
-  - docs/research/occt-wasm-build-comparison.md
+  - docs/research/ocjs-wasm-build-comparison.md
 ---
 
 # Replicad OCCT v8 Performance & API Opportunities
@@ -310,4 +310,4 @@ brepjs introduces C++ batch helpers that eliminate JS↔WASM call overhead. Thes
 - [brepjs C++ helpers](https://github.com/andymai/brepjs/tree/main/packages/brepjs-opencascade/build-source)
 - Related: `docs/research/replicad-occt-usage-refinement.md`
 - Related: `docs/research/occt-v8-migration.md`
-- Related: `docs/research/occt-wasm-build-comparison.md`
+- Related: `docs/research/ocjs-wasm-build-comparison.md`

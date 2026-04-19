@@ -6,7 +6,7 @@ created: '2026-03-26'
 updated: '2026-03-26'
 category: investigation
 related:
-  - docs/research/embind-js-dispatch-failures.md
+  - docs/research/ocjs-embind-js-dispatch-failures.md
 ---
 
 # OCJS Test Failure Resolution

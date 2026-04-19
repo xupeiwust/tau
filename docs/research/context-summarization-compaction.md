@@ -51,7 +51,7 @@ The context engineering policy (`docs/policy/context-engineering-policy.md`) des
 ## Methodology
 
 1. **Literature review**: 30+ sources from Anthropic, LangChain, Cursor, JetBrains, Factory.ai, Sourcegraph, Morph, Chroma, Microsoft Research, and academic papers (2023–2026).
-2. **Product analysis**: Claude Code, Cursor Composer, OpenAI Codex, LangChain Deep Agents, JetBrains Junie, Sourcegraph Amp, Morph SDK.
+2. **Product analysis**: CLI coding agents, Cursor Composer, OpenAI Codex, LangChain Deep Agents, JetBrains Junie, Sourcegraph Amp, Morph SDK.
 3. **Benchmark evaluation**: Factory.ai's 36K message eval, ACON's three-benchmark suite, JetBrains' SWE-bench study, Chroma's 18-model context rot study.
 4. **Morph API analysis**: Full documentation review of Compact SDK, API endpoints, `<keepContext>` tags, query-conditioned compression, and integration patterns.
 5. **Architecture mapping**: Analysis of Tau's `chat.controller.ts`, LangGraph agent pipeline, and existing context engineering policy.
@@ -72,7 +72,7 @@ Seven distinct approaches to context compression have emerged, each operating at
 
 ### 1. LLM Summarization
 
-An LLM rewrites conversation history into organized sections. Claude Code generates structured summaries of 7,000–12,000 characters covering analysis completed, files modified, key decisions, and pending tasks (Anthropic, 2025). Factory.ai's anchored iterative approach merges new information into a persistent summary state rather than regenerating from scratch, scoring 4.04/5 on accuracy — but multi-session retention was only 37% (Factory.ai, 2025).
+An LLM rewrites conversation history into organized sections. The dominant CLI coding-agent pattern generates structured summaries of 7,000–12,000 characters covering analysis completed, files modified, key decisions, and pending tasks (Anthropic, 2025). Factory.ai's anchored iterative approach merges new information into a persistent summary state rather than regenerating from scratch, scoring 4.04/5 on accuracy — but multi-session retention was only 37% (Factory.ai, 2025).
 
 ### 2. Opaque Compression
 
@@ -201,15 +201,15 @@ Sourcegraph retired compaction in Amp entirely, replacing it with "Handoff" — 
 
 ### Product Implementations
 
-| Product                   | Approach                                                | Trigger                                            | Key Details                                                                                                                 |
-| ------------------------- | ------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Claude Code**           | Three-layer: micro-compaction, auto-compact, `/compact` | Auto at ~95% capacity; manual any time             | Structured summaries 7K–12K chars; custom focus instructions; `compact-2026-01-12` API beta                                 |
-| **Cursor Composer**       | RL-trained self-summarization                           | Fixed token-length trigger                         | Self-summarization trained via RL reduces compaction errors 50%; 5× token efficiency; Composer 2 scores 61.3 on CursorBench |
-| **OpenAI Codex**          | Opaque server-side compression                          | Every turn (inline)                                | `/responses/compact` endpoint; 99.3% compression; not inspectable; vendor-locked                                            |
-| **LangChain Deep Agents** | Three-tier cascade + autonomous tool                    | 85% of model window; autonomous at task boundaries | Offloads tool results >20K tokens; filesystem preservation; summarization as last resort                                    |
-| **JetBrains Junie**       | Observation masking + hybrid                            | After tool processing                              | Matches summarization quality at zero cost; NeurIPS 2025; hybrid adds 7–11% savings                                         |
-| **Sourcegraph Amp**       | Handoff (retired compaction)                            | Context exhaustion                                 | Spawns new agent with structured task summary; reframes as coordination problem                                             |
-| **Morph**                 | Verbatim compaction + prevention                        | Inline/continuous or threshold                     | 33K tok/s; query-conditioned; `<keepContext>` tags; zero hallucination; 1M window                                           |
+| Product                   | Approach                                            | Trigger                                            | Key Details                                                                                                                 |
+| ------------------------- | --------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **CLI coding agents**     | Three-layer: micro-compaction, auto-compact, manual | Auto at ~95% capacity; manual any time             | Structured summaries 7K–12K chars; custom focus instructions; provider-specific compaction API betas                        |
+| **Cursor Composer**       | RL-trained self-summarization                       | Fixed token-length trigger                         | Self-summarization trained via RL reduces compaction errors 50%; 5× token efficiency; Composer 2 scores 61.3 on CursorBench |
+| **OpenAI Codex**          | Opaque server-side compression                      | Every turn (inline)                                | `/responses/compact` endpoint; 99.3% compression; not inspectable; vendor-locked                                            |
+| **LangChain Deep Agents** | Three-tier cascade + autonomous tool                | 85% of model window; autonomous at task boundaries | Offloads tool results >20K tokens; filesystem preservation; summarization as last resort                                    |
+| **JetBrains Junie**       | Observation masking + hybrid                        | After tool processing                              | Matches summarization quality at zero cost; NeurIPS 2025; hybrid adds 7–11% savings                                         |
+| **Sourcegraph Amp**       | Handoff (retired compaction)                        | Context exhaustion                                 | Spawns new agent with structured task summary; reframes as coordination problem                                             |
+| **Morph**                 | Verbatim compaction + prevention                    | Inline/continuous or threshold                     | 33K tok/s; query-conditioned; `<keepContext>` tags; zero hallucination; 1M window                                           |
 
 ### Academic Research
 
@@ -403,29 +403,27 @@ Evaluate agent hand-off for sessions requiring multiple compaction cycles.
 ### Primary Sources
 
 1. Anthropic (Sep 2025) — [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
-2. Anthropic (2026) — [Compaction API](https://platform.claude.com/docs/en/build-with-claude/compaction) (`compact-2026-01-12` beta)
-3. Anthropic — [Claude Code Auto-Compact analysis](https://morphllm.com/claude-code-auto-compact) (via Morph)
-4. Chroma (2025) — [Context Rot: How Increasing Input Tokens Impacts LLM Performance](https://research.trychroma.com/context-rot)
-5. Chen et al. (2025) — [ACON: Optimizing Context Compression for Long-horizon LLM Agents](https://arxiv.org/abs/2510.00615)
-6. Cursor (2026) — [Training Composer for Longer Horizons (Self-Summarization)](https://cursor.com/blog/self-summarization)
-7. Cursor (Feb 2026) — [Dynamic Context Discovery](https://cursor.com/blog/dynamic-context-discovery)
-8. Factory.ai (2025) — [Evaluating Context Compression](https://factory.ai/news/evaluating-compression); [Compressing Context](https://factory.ai/news/compressing-context)
-9. JetBrains Research (NeurIPS 2025) — [Efficient Context Management for LLM-Powered Agents](https://blog.jetbrains.com/research/2025/12/efficient-context-management/)
-10. LangChain (2026) — [Autonomous Context Compression](https://blog.langchain.com/autonomous-context-compression/)
-11. LangChain (2026) — [Context Management for Deep Agents](https://blog.langchain.com/context-management-for-deepagents/)
-12. LangChain (Mar 2026) — [Deep Agents: Structured Runtime for Planning, Memory, and Context Isolation](https://www.marktechpost.com/2026/03/15/langchain-releases-deep-agents/)
-13. Li et al. (EMNLP 2023) — [LLMlingua: Compressing Prompts for Accelerated Inference](https://arxiv.org/abs/2310.05736)
-14. Liu et al. (2023) — [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)
-15. Morph (2026) — [Compact SDK Documentation](https://docs.morphllm.com/sdk/components/compact)
-16. Morph (2026) — [Compaction vs Summarization](https://morphllm.com/compaction-vs-summarization)
-17. Morph (2026) — [Context Compression for LLMs: 7 Methods Compared](https://morphllm.com/context-compression)
-18. Pan et al. (ACL 2024) — [LLMlingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression](https://arxiv.org/abs/2403.12968)
-19. Sourcegraph (2026) — [Amp: Handoff (No More Compaction)](https://ampcode.com/news/handoff)
-20. SWE-Pruner (2025) — [Self-Adaptive Context Pruning for Coding Agents](https://arxiv.org/abs/2601.16746v2)
-21. Yuksel (Dec 2025) — PAACE: Plan-Aware Automated Context Engineering
-22. Will Larson (2026) — [Context Management for LLM Agents](https://lethain.com/context-management/)
-23. Mei et al. (Jul 2025) — [A Survey of Context Engineering for LLMs](https://huggingface.co/papers/2507.13334)
-24. Jiang & Nam (Dec 2025) — [Empirical Study on Developer-Provided Context](https://arxiv.org/abs/2512.18925)
+2. Chroma (2025) — [Context Rot: How Increasing Input Tokens Impacts LLM Performance](https://research.trychroma.com/context-rot)
+3. Chen et al. (2025) — [ACON: Optimizing Context Compression for Long-horizon LLM Agents](https://arxiv.org/abs/2510.00615)
+4. Cursor (2026) — [Training Composer for Longer Horizons (Self-Summarization)](https://cursor.com/blog/self-summarization)
+5. Cursor (Feb 2026) — [Dynamic Context Discovery](https://cursor.com/blog/dynamic-context-discovery)
+6. Factory.ai (2025) — [Evaluating Context Compression](https://factory.ai/news/evaluating-compression); [Compressing Context](https://factory.ai/news/compressing-context)
+7. JetBrains Research (NeurIPS 2025) — [Efficient Context Management for LLM-Powered Agents](https://blog.jetbrains.com/research/2025/12/efficient-context-management/)
+8. LangChain (2026) — [Autonomous Context Compression](https://blog.langchain.com/autonomous-context-compression/)
+9. LangChain (2026) — [Context Management for Deep Agents](https://blog.langchain.com/context-management-for-deepagents/)
+10. LangChain (Mar 2026) — [Deep Agents: Structured Runtime for Planning, Memory, and Context Isolation](https://www.marktechpost.com/2026/03/15/langchain-releases-deep-agents/)
+11. Li et al. (EMNLP 2023) — [LLMlingua: Compressing Prompts for Accelerated Inference](https://arxiv.org/abs/2310.05736)
+12. Liu et al. (2023) — [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)
+13. Morph (2026) — [Compact SDK Documentation](https://docs.morphllm.com/sdk/components/compact)
+14. Morph (2026) — [Compaction vs Summarization](https://morphllm.com/compaction-vs-summarization)
+15. Morph (2026) — [Context Compression for LLMs: 7 Methods Compared](https://morphllm.com/context-compression)
+16. Pan et al. (ACL 2024) — [LLMlingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression](https://arxiv.org/abs/2403.12968)
+17. Sourcegraph (2026) — [Amp: Handoff (No More Compaction)](https://ampcode.com/news/handoff)
+18. SWE-Pruner (2025) — [Self-Adaptive Context Pruning for Coding Agents](https://arxiv.org/abs/2601.16746v2)
+19. Yuksel (Dec 2025) — PAACE: Plan-Aware Automated Context Engineering
+20. Will Larson (2026) — [Context Management for LLM Agents](https://lethain.com/context-management/)
+21. Mei et al. (Jul 2025) — [A Survey of Context Engineering for LLMs](https://huggingface.co/papers/2507.13334)
+22. Jiang & Nam (Dec 2025) — [Empirical Study on Developer-Provided Context](https://arxiv.org/abs/2512.18925)
 
 ### Tau Internal References
 

@@ -8,7 +8,7 @@ category: architecture
 related:
   - docs/research/replicad-occt-v8-opportunities.md
   - docs/research/replicad-occt-usage-refinement.md
-  - docs/research/zalo-occt-v8-fork-analysis.md
+  - docs/research/ocjs-zalo-occt-v8-fork-analysis.md
   - docs/research/occt-v8-migration.md
 ---
 
@@ -673,4 +673,4 @@ These numbers represent the _overhead_ reduction. The actual wall-clock speedup 
 - [zalo/opencascade.js cascadestudio-v2](https://github.com/zalo/opencascade.js/tree/cascadestudio-v2) — OCCT 8 RC4 patterns
 - Related: `docs/research/replicad-occt-v8-opportunities.md`
 - Related: `docs/research/replicad-occt-usage-refinement.md`
-- Related: `docs/research/zalo-occt-v8-fork-analysis.md`
+- Related: `docs/research/ocjs-zalo-occt-v8-fork-analysis.md`

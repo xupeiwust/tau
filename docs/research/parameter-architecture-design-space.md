@@ -6,7 +6,6 @@ created: '2026-04-08'
 updated: '2026-04-08'
 category: architecture
 related:
-  - docs/research/content-aware-watch-filtering.md
   - docs/research/parameter-storage-architecture.md
   - docs/research/parameter-middleware-architecture.md
   - docs/policy/filesystem-policy.md

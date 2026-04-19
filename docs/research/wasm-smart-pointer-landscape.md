@@ -7,7 +7,7 @@ updated: '2026-03-18'
 category: comparison
 related:
   - docs/research/embind-smart-pointer-stale-ptr.md
-  - docs/research/occt-wasm-optimization.md
+  - docs/research/ocjs-wasm-optimization.md
 ---
 
 # WASM Smart Pointer Binding Landscape
@@ -384,4 +384,4 @@ JS caller  ──►  Embind invoker  ──►  C++ method  ──►  Return t
 - opencascade.js Embind migration: [PR #8](https://github.com/donalffons/opencascade.js/pull/8)
 - Kitware VTK WASM: [Surviving the Stack Unwind](https://www.kitware.com/surviving-the-stack-unwind-a-vtk-wasm-story/)
 - Related: `docs/research/embind-smart-pointer-stale-ptr.md`
-- Related: `docs/research/occt-wasm-optimization.md`
+- Related: `docs/research/ocjs-wasm-optimization.md`
