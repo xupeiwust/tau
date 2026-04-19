@@ -154,7 +154,7 @@ export class FileSystemAccessProvider extends AbstractFileSystemProvider {
 
           let buffer = new Uint8Array(0);
 
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- reader loop
+          // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- reader loop
           while (true) {
             if (options?.signal?.aborted) {
               controller.error(new DOMException('The operation was aborted.', 'AbortError'));

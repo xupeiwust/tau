@@ -117,7 +117,7 @@ describe('CrossTabCoordinator', () => {
     });
 
     await coordinator.withWriteLock('/self.txt', async () => {
-      /* no-op */
+      /* No-op */
     });
 
     await new Promise((resolve) => {

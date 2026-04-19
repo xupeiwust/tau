@@ -1349,8 +1349,9 @@ describe('FileService integration [DirectIDB]', () => {
       await service.writeFile('/ziptest/root.txt', 'root content');
 
       const blob = await service.getZippedDirectory('/ziptest');
-      const JSZip = (await import('jszip')).default;
-      const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+      const jszipModule = await import('jszip');
+      const jszip = jszipModule.default;
+      const zip = await jszip.loadAsync(await blob.arrayBuffer());
 
       const paths = Object.keys(zip.files).sort();
       expect(paths).toContain('root.txt');
