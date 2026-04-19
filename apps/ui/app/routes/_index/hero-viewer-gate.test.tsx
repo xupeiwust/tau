@@ -6,6 +6,8 @@ vi.mock('#routes/_index/hero-viewer.js', () => ({
   HeroViewer: () => <div data-testid='hero-viewer'>HeroViewer</div>,
 }));
 
+const { LazyHeroViewer } = await import('#routes/_index/hero-viewer-gate.js');
+
 describe('LazyHeroViewer', () => {
   let intersectionCallback: IntersectionObserverCallback;
 
@@ -23,17 +25,13 @@ describe('LazyHeroViewer', () => {
     );
   });
 
-  it('should not render HeroViewer before intersection', async () => {
-    const { LazyHeroViewer } = await import('#routes/_index/hero-viewer-gate.js');
-
+  it('should not render HeroViewer before intersection', () => {
     render(<LazyHeroViewer />);
 
     expect(screen.queryByTestId('hero-viewer')).toBeNull();
-  }, 30_000);
+  });
 
   it('should render HeroViewer after intersection observer triggers', async () => {
-    const { LazyHeroViewer } = await import('#routes/_index/hero-viewer-gate.js');
-
     render(<LazyHeroViewer />);
 
     const emptyRect: DOMRectReadOnly = new DOMRect();
@@ -61,15 +59,13 @@ describe('LazyHeroViewer', () => {
     });
 
     expect(await screen.findByTestId('hero-viewer')).toBeDefined();
-  }, 30_000);
+  });
 
-  it('should render a loading placeholder before intersection', async () => {
-    const { LazyHeroViewer } = await import('#routes/_index/hero-viewer-gate.js');
-
+  it('should render a loading placeholder before intersection', () => {
     const { container } = render(<LazyHeroViewer />);
 
     // The sentinel div should exist with min-height to reserve space
     const sentinel = container.firstElementChild;
     expect(sentinel).toBeDefined();
-  }, 30_000);
+  });
 });
