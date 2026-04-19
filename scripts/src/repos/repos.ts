@@ -1,3 +1,5 @@
+/* oxlint-disable no-restricted-imports -- standalone scripts use relative imports */
+
 import process from 'node:process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -17,6 +19,6 @@ if (command) {
     process.exit(1);
   }
 
-  const { launch } = await import(tuiPath);
-  launch();
+  const tui = (await import(tuiPath)) as { launch: () => void };
+  tui.launch();
 }

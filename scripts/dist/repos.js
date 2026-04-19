@@ -3201,8 +3201,7 @@ else {
     console.error('Or use CLI mode: pnpm repos help');
     process.exit(1);
   }
-  const { launch } = await import(tuiPath);
-  launch();
+  (await import(tuiPath)).launch();
 }
 
 //#endregion
