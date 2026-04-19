@@ -196,9 +196,10 @@ type FilterEmpty<T> = IsRecordStringNever<T> extends true ? never : T;
  *
  * @internal
  */
-// oxlint-disable-next-line @typescript-eslint/no-explicit-any -- variance: matches arbitrary KernelPlugin generics
+/* oxlint-disable @typescript-eslint/no-explicit-any -- variance: matches arbitrary KernelPlugin generics */
 type ContributorFor<P, K extends string> =
   P extends KernelPlugin<infer M, any, any> ? (K extends keyof M ? FilterEmpty<M[K]> : never) : never;
+/* oxlint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Collects the unified format-to-options map from an array of kernel plugins.
@@ -219,13 +220,13 @@ type ContributorFor<P, K extends string> =
  *
  * @public
  */
-// oxlint-disable-next-line @typescript-eslint/no-explicit-any -- variance: accepts any KernelPlugin generic
+/* oxlint-disable @typescript-eslint/no-explicit-any -- variance: accepts any KernelPlugin generic */
 export type CollectFormatMap<Plugins extends readonly KernelPlugin<any, any, any>[]> = {
-  // oxlint-disable-next-line @typescript-eslint/no-explicit-any -- required for conditional type inference
   [K in keyof UnionToIntersection<
     Plugins[number] extends KernelPlugin<infer M, any, any> ? M : never
   >]: UnionToIntersection<ContributorFor<Plugins[number], K & string>>;
 };
+/* oxlint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Drops the default `Record<string, unknown>` phantom from a render-options
