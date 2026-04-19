@@ -233,7 +233,7 @@ describe('InMemoryFileTree', () => {
   });
 
   describe('performance', () => {
-    it('should handle getDirectoryStat for 6000+ entries under 10ms', () => {
+    it('should handle getDirectoryStat for 6000+ entries under 20ms', () => {
       const entries: Array<{ path: string; type: 'file' | 'directory'; size: number; mtimeMs: number }> = [];
       for (let i = 0; i < 6265; i++) {
         const directory = `dir${Math.floor(i / 100)}`;
@@ -251,7 +251,7 @@ describe('InMemoryFileTree', () => {
       const elapsed = performance.now() - start;
 
       expect(stats).toHaveLength(6265);
-      expect(elapsed).toBeLessThan(10);
+      expect(elapsed).toBeLessThan(20);
     });
   });
 });

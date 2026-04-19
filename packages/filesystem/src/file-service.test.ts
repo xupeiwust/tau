@@ -28,6 +28,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000, pollMs = 5): 
     if (Date.now() - start > timeoutMs) {
       throw new Error(`waitFor timed out after ${timeoutMs}ms`);
     }
+    // oxlint-disable-next-line no-await-in-loop -- Sequential execution is intentional for polling
     await new Promise((resolve) => {
       setTimeout(resolve, pollMs);
     });
