@@ -11,6 +11,13 @@ import { TauRpcBackendFactory } from '#api/chat/tau-rpc-backend.js';
 import { ModelService } from '#api/models/model.service.js';
 import { ChatRpcService } from '#api/chat/chat-rpc.service.js';
 import { appendTranscriptLine } from '#api/chat/middleware/transcript.middleware.js';
+import {
+  isImageBlock,
+  IMAGE_TOKEN_ESTIMATE,
+  extractTextFromContent,
+  countImageBlocks,
+  stripImageBlocks,
+} from '#api/chat/utils/image-block.utils.js';
 
 /** Default fraction of maxInputTokens that triggers compaction. */
 // eslint-disable-next-line @typescript-eslint/naming-convention -- Domain constant
@@ -112,14 +119,121 @@ function truncateToolArgs(messages: BaseMessage[]): BaseMessage[] {
   });
 }
 
-function estimateMessageTokens(messages: BaseMessage[]): number {
-  let totalChars = 0;
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Domain constant
+const POST_COMPACTION_CONTINUITY = `\n\nContinue from where you left off. Anchor your next action in the user's exact words from the summary — do not paraphrase or reinterpret the request. Do not acknowledge the summary, do not recap, do not preface with "I'll continue." Pick up the task as if no break occurred.`;
+
+function addContinuityInstructions(messages: BaseMessage[]): BaseMessage[] {
+  return messages.map((message) => {
+    if (!(message instanceof HumanMessage)) {
+      return message;
+    }
+
+    if (typeof message.content === 'string') {
+      return new HumanMessage(message.content + POST_COMPACTION_CONTINUITY);
+    }
+
+    if (Array.isArray(message.content)) {
+      return new HumanMessage({
+        content: [...(message.content as Array<{ type: string }>), { type: 'text', text: POST_COMPACTION_CONTINUITY }],
+      });
+    }
+
+    return message;
+  });
+}
+
+export function estimateMessageTokens(messages: BaseMessage[]): number {
+  let totalTokens = 0;
   for (const message of messages) {
-    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
-    totalChars += content.length;
+    if (typeof message.content === 'string') {
+      totalTokens += Math.ceil(message.content.length / CHARS_PER_TOKEN);
+    } else if (Array.isArray(message.content)) {
+      for (const block of message.content as Array<Record<string, unknown>>) {
+        if (isImageBlock(block)) {
+          totalTokens += IMAGE_TOKEN_ESTIMATE;
+        } else {
+          const text = (block['text'] ?? block['reasoning'] ?? '') as string;
+          totalTokens += Math.ceil(text.length / CHARS_PER_TOKEN);
+        }
+      }
+    }
+  }
+  return totalTokens;
+}
+
+/**
+ * Serializes evicted messages into JSONL transcript lines.
+ * Image blocks are replaced with `[user attached image]` markers.
+ */
+function serializeEvictedMessages(evictedMessages: BaseMessage[], timestamp: string): string[] {
+  const lines: string[] = [];
+
+  for (const m of evictedMessages) {
+    const role = m.type === 'human' ? 'user' : m.type === 'ai' ? 'assistant' : m.type;
+
+    if (typeof m.content === 'string') {
+      lines.push(JSON.stringify({ role, content: m.content, timestamp }));
+    } else if (Array.isArray(m.content)) {
+      for (const block of m.content as Array<Record<string, unknown>>) {
+        if (isImageBlock(block)) {
+          lines.push(JSON.stringify({ role, type: 'image', content: '[user attached image]', timestamp }));
+        } else if (block['type'] === 'reasoning' && block['reasoning']) {
+          lines.push(JSON.stringify({ role, type: 'thinking', content: block['reasoning'], timestamp }));
+        } else if (block['type'] === 'text' && block['text']) {
+          lines.push(JSON.stringify({ role, content: block['text'], timestamp }));
+        }
+      }
+    }
   }
 
-  return Math.ceil(totalChars / CHARS_PER_TOKEN);
+  return lines;
+}
+
+/** Default media limit per request (Anthropic API limit). */
+// eslint-disable-next-line @typescript-eslint/naming-convention -- Domain constant
+const DEFAULT_MEDIA_LIMIT = 100;
+
+/**
+ * Strips oldest image blocks from messages when total media count exceeds the limit.
+ * Replaces stripped blocks with text markers. Returns new message instances.
+ *
+ * @public
+ */
+export function stripExcessMedia(messages: BaseMessage[], limit = DEFAULT_MEDIA_LIMIT): BaseMessage[] {
+  const totalMedia = countImageBlocks(messages);
+  if (totalMedia <= limit) {
+    return messages;
+  }
+
+  const excess = totalMedia - limit;
+  let stripped = 0;
+
+  return messages.map((message) => {
+    if (stripped >= excess) {
+      return message;
+    }
+    if (typeof message.content === 'string') {
+      return message;
+    }
+    if (!Array.isArray(message.content)) {
+      return message;
+    }
+
+    const newContent = (message.content as Array<Record<string, unknown>>).map((block) => {
+      if (stripped >= excess) {
+        return block;
+      }
+      if (isImageBlock(block)) {
+        stripped++;
+        return { type: 'text', text: '[image removed — media limit]' };
+      }
+      return block;
+    });
+
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Constructor name is PascalCase by convention
+    const MessageType = message.constructor as new (fields: { content: unknown }) => BaseMessage;
+    return new MessageType({ ...message, content: newContent });
+  });
 }
 
 /**
@@ -174,12 +288,12 @@ export const createCompactionMiddleware = (
             return handler({ ...request, messages: processedMessages });
           }
 
-          // Extract the last user query for query-conditioned compression
+          // Extract text-only parts from the last user query for query-conditioned compression
           let lastQuery = '';
           for (let i = recentMessages.length - 1; i >= 0; i--) {
             const message = recentMessages[i];
             if (message instanceof HumanMessage) {
-              lastQuery = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+              lastQuery = extractTextFromContent(message.content);
               break;
             }
           }
@@ -189,23 +303,7 @@ export const createCompactionMiddleware = (
           try {
             const backend = rpcBackendFactory.create(chatId, 'compaction-offload');
             const timestamp = new Date().toISOString();
-            const lines: string[] = [];
-
-            for (const m of evictedMessages) {
-              const role = m.type === 'human' ? 'user' : m.type === 'ai' ? 'assistant' : m.type;
-
-              if (typeof m.content === 'string') {
-                lines.push(JSON.stringify({ role, content: m.content, timestamp }));
-              } else if (Array.isArray(m.content)) {
-                for (const block of m.content as Array<{ type: string; text?: string; reasoning?: string }>) {
-                  if (block.type === 'reasoning' && block.reasoning) {
-                    lines.push(JSON.stringify({ role, type: 'thinking', content: block.reasoning, timestamp }));
-                  } else if (block.type === 'text' && block.text) {
-                    lines.push(JSON.stringify({ role, content: block.text, timestamp }));
-                  }
-                }
-              }
-            }
+            const lines = serializeEvictedMessages(evictedMessages, timestamp);
 
             if (lines.length > 0) {
               await backend.append(transcriptFilePath, lines.join('\n') + '\n');
@@ -220,7 +318,7 @@ export const createCompactionMiddleware = (
               query: lastQuery,
             });
 
-            processedMessages = [...compactedMessages, ...recentMessages];
+            processedMessages = [...addContinuityInstructions(compactedMessages), ...recentMessages];
 
             if (writer) {
               writer({
@@ -260,6 +358,8 @@ export const createCompactionMiddleware = (
         }
       }
 
+      processedMessages = stripExcessMedia(processedMessages);
+
       try {
         return await handler({
           ...request,
@@ -272,7 +372,7 @@ export const createCompactionMiddleware = (
 
           const emergencyKeep = Math.max(2, Math.floor(processedMessages.length * 0.05));
           const keep = findSafeCutoffPoint(processedMessages, emergencyKeep);
-          const emergencyMessages = processedMessages.slice(processedMessages.length - keep);
+          const emergencyMessages = stripImageBlocks(processedMessages.slice(processedMessages.length - keep));
 
           return handler({
             ...request,

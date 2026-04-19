@@ -1,21 +1,21 @@
 import { AIMessage } from '@langchain/core/messages';
 import { describe, it, expect } from 'vitest';
-import { transformAIMessageContent } from '#api/chat/utils/transform-ai-message-content.js';
+import { transformAiMessageContent } from '#api/chat/utils/transform-ai-message-content.js';
 
 const toUpperCase = (text: string): string => text.toUpperCase();
 const identity = (text: string): string => text;
 
-describe('transformAIMessageContent', () => {
+describe('transformAiMessageContent', () => {
   describe('string content', () => {
     it('should apply fn to string content', () => {
       const message = new AIMessage({ content: 'hello world' });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.content).toBe('HELLO WORLD');
     });
 
     it('should short-circuit when fn returns identical string', () => {
       const message = new AIMessage({ content: 'unchanged' });
-      const result = transformAIMessageContent(message, identity);
+      const result = transformAiMessageContent(message, identity);
       expect(result).toBe(message);
     });
   });
@@ -25,7 +25,7 @@ describe('transformAIMessageContent', () => {
       const message = new AIMessage({
         content: [{ type: 'text', text: 'hello' }],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<{ type: string; text: string }>;
       expect(blocks[0]!.text).toBe('HELLO');
     });
@@ -34,7 +34,7 @@ describe('transformAIMessageContent', () => {
       const message = new AIMessage({
         content: [{ type: 'text', text: 'ALREADY UPPER' }],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result).toBe(message);
     });
   });
@@ -44,7 +44,7 @@ describe('transformAIMessageContent', () => {
       const message = new AIMessage({
         content: [{ type: 'reasoning', reasoning: 'thinking' }],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<{ type: string; reasoning: string }>;
       expect(blocks[0]!.reasoning).toBe('THINKING');
     });
@@ -53,7 +53,7 @@ describe('transformAIMessageContent', () => {
       const message = new AIMessage({
         content: [{ type: 'reasoning', reasoning: 'UPPER' }],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result).toBe(message);
     });
   });
@@ -66,7 +66,7 @@ describe('transformAIMessageContent', () => {
           { type: 'text', text: 'response' },
         ],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
       expect(blocks[0]!.reasoning).toBe('THINKING');
       expect(blocks[1]!.text).toBe('RESPONSE');
@@ -78,7 +78,7 @@ describe('transformAIMessageContent', () => {
       const message = new AIMessage({
         content: [imageBlock, { type: 'text', text: 'caption' }],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<Record<string, unknown>>;
       expect(blocks[0]).toEqual(imageBlock);
       expect(blocks[1]).toEqual({ type: 'text', text: 'CAPTION' });
@@ -91,7 +91,7 @@ describe('transformAIMessageContent', () => {
           { type: 'text', text: 'needs change' },
         ],
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
       expect(blocks[0]!.reasoning).toBe('ALREADY UPPER');
       expect(blocks[1]!.text).toBe('NEEDS CHANGE');
@@ -101,7 +101,7 @@ describe('transformAIMessageContent', () => {
   describe('metadata preservation', () => {
     it('should preserve message id', () => {
       const message = new AIMessage({ content: 'hello', id: 'msg_123' });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.id).toBe('msg_123');
     });
 
@@ -112,7 +112,7 @@ describe('transformAIMessageContent', () => {
         // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
         tool_calls: toolCalls,
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.tool_calls).toEqual(toolCalls);
     });
 
@@ -122,7 +122,7 @@ describe('transformAIMessageContent', () => {
         // eslint-disable-next-line @typescript-eslint/naming-convention -- LangChain API uses snake_case
         additional_kwargs: { custom: 'value' },
       });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.additional_kwargs).toEqual({ custom: 'value' });
     });
 
@@ -133,8 +133,8 @@ describe('transformAIMessageContent', () => {
         content: 'hello',
         response_metadata: responseMetadata,
       });
-      /* eslint-enable @typescript-eslint/naming-convention */
-      const result = transformAIMessageContent(message, toUpperCase);
+      /* eslint-enable @typescript-eslint/naming-convention -- LangChain API uses snake_case */
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.response_metadata).toEqual(responseMetadata);
     });
 
@@ -150,8 +150,8 @@ describe('transformAIMessageContent', () => {
         content: 'hello',
         usage_metadata: usageMetadata,
       });
-      /* eslint-enable @typescript-eslint/naming-convention */
-      const result = transformAIMessageContent(message, toUpperCase);
+      /* eslint-enable @typescript-eslint/naming-convention -- LangChain API uses snake_case */
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result.usage_metadata).toEqual(usageMetadata);
     });
 
@@ -177,9 +177,9 @@ describe('transformAIMessageContent', () => {
         usage_metadata: usageMetadata,
         // oxlint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- AIMessage constructor union type
       } as any);
-      /* eslint-enable @typescript-eslint/naming-convention */
+      /* eslint-enable @typescript-eslint/naming-convention -- LangChain API uses snake_case */
 
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       const blocks = result.content as Array<{ type: string; reasoning?: string; text?: string }>;
 
       expect(blocks[0]!.reasoning).toBe('THINKING');
@@ -195,13 +195,13 @@ describe('transformAIMessageContent', () => {
   describe('edge cases', () => {
     it('should handle empty string content', () => {
       const message = new AIMessage({ content: '' });
-      const result = transformAIMessageContent(message, toUpperCase);
+      const result = transformAiMessageContent(message, toUpperCase);
       expect(result).toBe(message);
     });
 
     it('should handle empty array content', () => {
       const message = new AIMessage({ content: [] });
-      const result = transformAIMessageContent(message, identity);
+      const result = transformAiMessageContent(message, identity);
       expect(result).toBe(message);
     });
   });

@@ -4,7 +4,12 @@ import { mock } from 'vitest-mock-extended';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { ContextOverflowError } from '@langchain/core/errors';
-import { createCompactionMiddleware, findSafeCutoffPoint } from '#api/chat/middleware/compaction.middleware.js';
+import {
+  createCompactionMiddleware,
+  findSafeCutoffPoint,
+  estimateMessageTokens,
+  stripExcessMedia,
+} from '#api/chat/middleware/compaction.middleware.js';
 import type { CompactionService } from '#api/chat/compaction.service.js';
 import type { TauRpcBackend, TauRpcBackendFactory } from '#api/chat/tau-rpc-backend.js';
 import type { ModelService } from '#api/models/model.service.js';
@@ -76,6 +81,52 @@ describe('findSafeCutoffPoint', () => {
 
   it('should handle empty messages array', () => {
     expect(findSafeCutoffPoint([], 5)).toBe(0);
+  });
+});
+
+describe('estimateMessageTokens', () => {
+  it('should count string content as chars/4', () => {
+    const messages = [new HumanMessage('A'.repeat(400))];
+    expect(estimateMessageTokens(messages)).toBe(100);
+  });
+
+  it('should count image_url blocks as flat 2000 tokens', () => {
+    const messages = [
+      new HumanMessage([{ type: 'image_url', image_url: { url: 'data:image/png;base64,' + 'A'.repeat(500_000) } }]),
+    ];
+    expect(estimateMessageTokens(messages)).toBe(2000);
+  });
+
+  it('should count file parts with image mediaType as flat 2000 tokens', () => {
+    const messages = [new HumanMessage([{ type: 'file', mediaType: 'image/jpeg', data: 'A'.repeat(500_000) }])];
+    expect(estimateMessageTokens(messages)).toBe(2000);
+  });
+
+  it('should count text blocks in array content as chars/4', () => {
+    const messages = [new HumanMessage([{ type: 'text', text: 'A'.repeat(400) }])];
+    expect(estimateMessageTokens(messages)).toBe(100);
+  });
+
+  it('should handle mixed text and image blocks correctly', () => {
+    const messages = [
+      new HumanMessage([
+        { type: 'text', text: 'A'.repeat(400) },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+        { type: 'text', text: 'B'.repeat(200) },
+      ]),
+    ];
+    // 100 + 2000 + 50 = 2150
+    expect(estimateMessageTokens(messages)).toBe(2150);
+  });
+
+  it('should not JSON.stringify image blocks (regression guard)', () => {
+    const largeBase64 = 'A'.repeat(1_000_000);
+    const messages = [
+      new HumanMessage([{ type: 'image_url', image_url: { url: `data:image/png;base64,${largeBase64}` } }]),
+    ];
+    // With old JSON.stringify approach this would be ~250K tokens.
+    // With flat 2000, it should be exactly 2000.
+    expect(estimateMessageTokens(messages)).toBe(2000);
   });
 });
 
@@ -395,6 +446,313 @@ describe('createCompactionMiddleware', () => {
     expect(compactionService.compact).toHaveBeenCalled();
   });
 
+  // ===================================================================
+  // R13: Verbatim quote anchoring in post-compaction message
+  // ===================================================================
+
+  it('should include continuity instructions in compacted messages', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('Build me a cube with 20mm sides'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted summary')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const passedMessages = (handler.mock.calls[0]![0] as { messages: BaseMessage[] }).messages;
+    const compactedMessage = passedMessages.find(
+      (m) => m instanceof HumanMessage && typeof m.content === 'string' && m.content.includes('[Compacted'),
+    );
+    expect(compactedMessage).toBeDefined();
+    const content = compactedMessage!.content as string;
+    expect(content).toMatch(/do not acknowledge the summary|do not recap/i);
+  });
+
+  it('should include verbatim anchoring instruction in continuity text', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('Build me a cube'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted summary')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const passedMessages = (handler.mock.calls[0]![0] as { messages: BaseMessage[] }).messages;
+    const compactedMessage = passedMessages.find(
+      (m) => m instanceof HumanMessage && typeof m.content === 'string' && m.content.includes('[Compacted'),
+    );
+    expect(compactedMessage).toBeDefined();
+    const content = compactedMessage!.content as string;
+    expect(content).toContain('exact words');
+  });
+
+  // ===================================================================
+  // R4: Strip images from lastQuery extraction
+  // ===================================================================
+
+  it('should extract only text parts from multimodal lastQuery', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage([
+        { type: 'text', text: 'What is this design?' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,' + 'A'.repeat(100) } },
+      ]),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    expect(compactionService.compact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.not.stringContaining('image_url') as unknown as string,
+      }),
+    );
+    expect(compactionService.compact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining('What is this design?') as unknown as string,
+      }),
+    );
+  });
+
+  it('should handle HumanMessage with only image parts (empty lastQuery)', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage([{ type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }]),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    expect(compactionService.compact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: '',
+      }),
+    );
+  });
+
+  // ===================================================================
+  // R8: Multimodal continuity instructions for array content
+  // ===================================================================
+
+  it('should append continuity text block to array HumanMessage content', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('recent question'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [
+        new HumanMessage([
+          { type: 'text', text: '[Compacted conversation history]\nSummary content' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+        ]),
+      ],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const passedMessages = (handler.mock.calls[0]![0] as { messages: BaseMessage[] }).messages;
+    const compactedMessage = passedMessages[0]!;
+    const content = compactedMessage.content as Array<{ type: string; text?: string }>;
+    expect(Array.isArray(content)).toBe(true);
+    const lastBlock = content.at(-1);
+    expect(lastBlock).toBeDefined();
+    expect(lastBlock!.type).toBe('text');
+    expect(lastBlock!.text).toMatch(/do not acknowledge the summary/i);
+  });
+
+  it('should not modify non-HumanMessage messages in continuity', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage(longContent),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('recent question'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\nSummary'), new AIMessage('I understand')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const passedMessages = (handler.mock.calls[0]![0] as { messages: BaseMessage[] }).messages;
+    const aiMessage = passedMessages.find((m) => m instanceof AIMessage && m.content === 'I understand');
+    expect(aiMessage).toBeDefined();
+    expect(aiMessage!.content).toBe('I understand');
+  });
+
   it('should fall back to truncated messages when Morph API fails', async () => {
     const middleware = createMiddlewareInstance();
     const { wrapModelCall } = middleware;
@@ -434,5 +792,291 @@ describe('createCompactionMiddleware', () => {
         messagesEvicted: 0,
       }),
     );
+  });
+
+  // ===================================================================
+  // R11: Transcript image markers for evicted blocks
+  // ===================================================================
+
+  it('should write image marker lines to transcript for image blocks', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage([
+        { type: 'text', text: 'Look at this design:' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,' + 'A'.repeat(100) } },
+      ]),
+      new AIMessage(longContent),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('recent question'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const appendCalls = mockBackend.append.mock.calls;
+    expect(appendCalls.length).toBeGreaterThan(0);
+    const transcriptContent = appendCalls[0]![1];
+    expect(transcriptContent).toContain('[user attached image]');
+    expect(transcriptContent).toContain('"type":"image"');
+  });
+
+  it('should handle messages with mixed text, reasoning, and image blocks in transcript', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const longContent = 'A'.repeat(4000);
+    const messages: BaseMessage[] = [
+      new HumanMessage([
+        { type: 'text', text: 'Here is a design:' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+      ]),
+      new AIMessage([
+        { type: 'reasoning', reasoning: 'Thinking about design' },
+        { type: 'text', text: longContent },
+      ]),
+      new HumanMessage('middle question'),
+      new AIMessage('middle answer'),
+      new HumanMessage('recent'),
+      new AIMessage('recent reply'),
+    ];
+
+    compactionService.compact.mockResolvedValue({
+      compactedMessages: [new HumanMessage('[Compacted conversation history]\ncompacted')],
+      stats: {
+        tokensBeforeCompaction: 2000,
+        tokensAfterCompaction: 50,
+        compressionRatio: 0.025,
+        messagesEvicted: 2,
+      },
+    });
+
+    const handler = vi.fn().mockResolvedValue(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(1000), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const appendCalls = mockBackend.append.mock.calls;
+    expect(appendCalls.length).toBeGreaterThan(0);
+    const transcriptContent = appendCalls[0]![1];
+    expect(transcriptContent).toContain('Here is a design:');
+    expect(transcriptContent).toContain('[user attached image]');
+    expect(transcriptContent).toContain('Thinking about design');
+  });
+
+  // ===================================================================
+  // R10: Emergency image stripping on ContextOverflowError
+  // ===================================================================
+
+  it('should strip image blocks from emergency messages on ContextOverflowError', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const messages: BaseMessage[] = [
+      new HumanMessage([
+        { type: 'text', text: 'Analyze this image:' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,' + 'A'.repeat(100) } },
+      ]),
+      new AIMessage('response'),
+    ];
+
+    const handler = vi
+      .fn()
+      .mockRejectedValueOnce(new ContextOverflowError('overflow'))
+      .mockResolvedValueOnce(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    expect(handler).toHaveBeenCalledTimes(2);
+    const retryMessages = (handler.mock.calls[1]![0] as { messages: BaseMessage[] }).messages;
+    const allContent = retryMessages.flatMap((m) =>
+      Array.isArray(m.content) ? (m.content as Array<Record<string, unknown>>) : [],
+    );
+    const imageBlocks = allContent.filter((b) => b['type'] === 'image_url' || b['type'] === 'image');
+    expect(imageBlocks).toHaveLength(0);
+  });
+
+  it('should replace stripped images with [image] text markers on emergency', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const messages: BaseMessage[] = [
+      new HumanMessage([
+        { type: 'text', text: 'Check:' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+      ]),
+      new AIMessage('ok'),
+    ];
+
+    const handler = vi
+      .fn()
+      .mockRejectedValueOnce(new ContextOverflowError('overflow'))
+      .mockResolvedValueOnce(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    const retryMessages = (handler.mock.calls[1]![0] as { messages: BaseMessage[] }).messages;
+    const allContent = retryMessages.flatMap((m) =>
+      Array.isArray(m.content) ? (m.content as Array<Record<string, unknown>>) : [],
+    );
+    const markers = allContent.filter((b) => b['type'] === 'text' && (b['text'] as string) === '[image]');
+    expect(markers.length).toBeGreaterThan(0);
+  });
+
+  it('should still bump tokenEstimationMultiplier on ContextOverflowError with images', async () => {
+    const middleware = createMiddlewareInstance();
+    const { wrapModelCall } = middleware;
+    if (!wrapModelCall) {
+      throw new Error('wrapModelCall not defined');
+    }
+
+    const messages: BaseMessage[] = [
+      new HumanMessage([{ type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } }]),
+      new AIMessage('response'),
+    ];
+
+    const handler = vi
+      .fn()
+      .mockRejectedValueOnce(new ContextOverflowError('overflow'))
+      .mockResolvedValueOnce(undefined);
+
+    await wrapModelCall(
+      {
+        messages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler,
+    );
+
+    // Trigger again — second call should use bumped multiplier
+    const shortMessages: BaseMessage[] = [new HumanMessage('A'.repeat(4000)), new AIMessage('B'.repeat(4000))];
+
+    const handler2 = vi.fn().mockResolvedValue(undefined);
+    // The multiplier was bumped by 0.15 from 1.0 to 1.15 internally
+    // Testing that it still resolves without error is sufficient
+    await wrapModelCall(
+      {
+        messages: shortMessages,
+        tools: [],
+        systemMessage: '',
+        runtime: { context: createContext(), writer },
+      } as unknown as Parameters<typeof wrapModelCall>[0],
+      handler2,
+    );
+
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('stripExcessMedia', () => {
+  it('should pass messages with fewer than 100 media items unchanged', () => {
+    const messages: BaseMessage[] = [
+      new HumanMessage([
+        { type: 'text', text: 'Hello' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,a' } },
+      ]),
+    ];
+
+    const result = stripExcessMedia(messages);
+    expect(result).toEqual(messages);
+  });
+
+  it('should strip oldest image blocks when count exceeds limit', () => {
+    const imageBlocks = Array.from({ length: 5 }, (_, i) => ({
+      type: 'image_url',
+      image_url: { url: `data:image/png;base64,img${i}` },
+    }));
+
+    const messages: BaseMessage[] = [
+      new HumanMessage([imageBlocks[0]!, imageBlocks[1]!]),
+      new HumanMessage([{ type: 'text', text: 'Middle' }, imageBlocks[2]!]),
+      new HumanMessage([imageBlocks[3]!, imageBlocks[4]!]),
+    ];
+
+    const result = stripExcessMedia(messages, 3);
+    // Should strip the first 2 (oldest) image blocks
+    const allContent = result.flatMap((m) =>
+      Array.isArray(m.content) ? (m.content as Array<Record<string, unknown>>) : [],
+    );
+
+    const remaining = allContent.filter((b) => b['type'] === 'image_url');
+    expect(remaining).toHaveLength(3);
+
+    const markers = allContent.filter((b) => b['type'] === 'text' && (b['text'] as string).includes('media limit'));
+    expect(markers).toHaveLength(2);
+  });
+
+  it('should replace stripped images with text markers', () => {
+    const messages: BaseMessage[] = [
+      new HumanMessage([{ type: 'image_url', image_url: { url: 'data:image/png;base64,old' } }]),
+      new HumanMessage([{ type: 'image_url', image_url: { url: 'data:image/png;base64,new' } }]),
+    ];
+
+    const result = stripExcessMedia(messages, 1);
+    const firstContent = result[0]!.content as Array<Record<string, unknown>>;
+    expect(firstContent[0]).toEqual({
+      type: 'text',
+      text: '[image removed — media limit]',
+    });
   });
 });

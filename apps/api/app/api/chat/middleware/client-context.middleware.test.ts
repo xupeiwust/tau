@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { SystemMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage, ContentBlock } from '@langchain/core/messages';
 import type { ContextPayload } from '@taucad/chat';
 import {
   createClientContextMiddleware,
@@ -11,17 +12,41 @@ import {
 } from '#api/chat/middleware/client-context.middleware.js';
 import { resolveMiddlewareHook } from '#testing/middleware-testing.utils.js';
 
+/* eslint-disable @typescript-eslint/naming-convention -- Anthropic API uses snake_case for cache_control */
+type ContentBlockWithCacheControl = ContentBlock & {
+  cache_control?: { type: string; scope?: string };
+};
+
 function makeSystemMessage(text: string): SystemMessage {
   return new SystemMessage({ content: [{ type: 'text', text }] });
 }
 
-function extractSystemText(handler: ReturnType<typeof vi.fn>): string {
+function make3BlockSystemMessage(): SystemMessage {
+  return new SystemMessage({
+    content: [
+      { type: 'text', text: 'static prompt', cache_control: { type: 'ephemeral', scope: 'global' } },
+      { type: 'text', text: 'dynamic prompt' },
+    ],
+  });
+}
+/* eslint-enable @typescript-eslint/naming-convention -- Anthropic API uses snake_case for cache_control */
+
+function extractSystemBlocks(handler: ReturnType<typeof vi.fn>): ContentBlockWithCacheControl[] {
   /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vi.fn mock.calls is typed as any[][] */
   const passedRequest = handler.mock.calls[0]![0] as { systemMessage: SystemMessage };
   const { content } = passedRequest.systemMessage;
-  return Array.isArray(content)
-    ? content.map((block) => (block.type === 'text' ? block.text : '')).join('\n')
-    : String(content);
+  return Array.isArray(content) ? (content as ContentBlockWithCacheControl[]) : [];
+}
+
+function extractSystemText(handler: ReturnType<typeof vi.fn>): string {
+  const blocks = extractSystemBlocks(handler);
+  return blocks.map((block) => (block.type === 'text' ? (block as unknown as { text: string }).text : '')).join('\n');
+}
+
+function extractMessages(handler: ReturnType<typeof vi.fn>): BaseMessage[] {
+  /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vi.fn mock.calls is typed as any[][] */
+  const passedRequest = handler.mock.calls[0]![0] as { messages: BaseMessage[] };
+  return passedRequest.messages;
 }
 
 // ===================================================================
@@ -114,7 +139,7 @@ describe('createClientContextMiddleware', () => {
     const originalMessage = makeSystemMessage('Base prompt');
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
 
-    await wrapModelCall({ systemMessage: originalMessage, state: {} }, handler);
+    await wrapModelCall({ systemMessage: originalMessage, messages: [], state: {} }, handler);
 
     expect(handler).toHaveBeenCalledOnce();
     /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vi.fn mock.calls is typed as any[][] */
@@ -130,14 +155,18 @@ describe('createClientContextMiddleware', () => {
     const originalMessage = makeSystemMessage('Base prompt');
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
 
-    await wrapModelCall({ systemMessage: originalMessage, state: {} }, handler);
+    await wrapModelCall({ systemMessage: originalMessage, messages: [], state: {} }, handler);
 
     /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vi.fn mock.calls is typed as any[][] */
     const passedRequest = handler.mock.calls[0]![0] as { systemMessage: SystemMessage };
     expect(passedRequest.systemMessage).toBe(originalMessage);
   });
 
-  it('should append skills catalog to system message when payload has skills', async () => {
+  // ===================================================================
+  // R1: Skills as Block 2 with workspace cache_control
+  // ===================================================================
+
+  it('should insert skills as Block 2 between static and dynamic blocks', async () => {
     const payload: ContextPayload = {
       skills: [{ name: 'test-skill', description: 'For testing', path: '.tau/skills/test-skill' }],
     };
@@ -146,15 +175,51 @@ describe('createClientContextMiddleware', () => {
 
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
 
-    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), state: {} }, handler);
+    await wrapModelCall({ systemMessage: make3BlockSystemMessage(), messages: [], state: {} }, handler);
 
-    const fullText = extractSystemText(handler);
-    expect(fullText).toContain('## Skills System');
-    expect(fullText).toContain('- **test-skill**: For testing');
-    expect(fullText).toContain('Base');
+    const blocks = extractSystemBlocks(handler);
+    expect(blocks).toHaveLength(3);
+    expect(blocks[0]!['text']).toBe('static prompt');
+    expect(blocks[1]!['text']).toContain('## Skills System');
+    expect(blocks[2]!['text']).toBe('dynamic prompt');
   });
 
-  it('should append memory section to system message when payload has memory', async () => {
+  it('should add workspace cache_control to skills block (Block 2)', async () => {
+    const payload: ContextPayload = {
+      skills: [{ name: 'test-skill', description: 'For testing', path: '.tau/skills/test-skill' }],
+    };
+    const middleware = createClientContextMiddleware(payload);
+    const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
+
+    const handler = vi.fn().mockResolvedValue({ content: 'response' });
+
+    await wrapModelCall({ systemMessage: make3BlockSystemMessage(), messages: [], state: {} }, handler);
+
+    const blocks = extractSystemBlocks(handler);
+    expect(blocks[1]!.cache_control).toEqual({ type: 'ephemeral' });
+    expect(blocks[1]!.cache_control).not.toHaveProperty('scope');
+  });
+
+  it('should preserve Block 1 global scope after skills insertion', async () => {
+    const payload: ContextPayload = {
+      skills: [{ name: 's', description: 'd', path: 'p' }],
+    };
+    const middleware = createClientContextMiddleware(payload);
+    const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
+
+    const handler = vi.fn().mockResolvedValue({ content: 'response' });
+
+    await wrapModelCall({ systemMessage: make3BlockSystemMessage(), messages: [], state: {} }, handler);
+
+    const blocks = extractSystemBlocks(handler);
+    expect(blocks[0]!.cache_control).toEqual({ type: 'ephemeral', scope: 'global' });
+  });
+
+  // ===================================================================
+  // R2: Memory as HumanMessage (not SystemMessage)
+  // ===================================================================
+
+  it('should inject memory as a HumanMessage prepended to messages', async () => {
     const agentsKey = '.tau/AGENTS.md';
     const payload: ContextPayload = {
       memory: { [agentsKey]: '# Rules\n\nUse early returns.' },
@@ -163,17 +228,68 @@ describe('createClientContextMiddleware', () => {
     const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
 
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
+    const existingMessages = [new HumanMessage('user question')];
 
-    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), state: {} }, handler);
+    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), messages: existingMessages, state: {} }, handler);
 
-    const fullText = extractSystemText(handler);
-    expect(fullText).toContain('<agent_memory>');
-    expect(fullText).toContain('Use early returns.');
-    expect(fullText).toContain('<memory_guidelines>');
-    expect(fullText).toContain('Base');
+    const messages = extractMessages(handler);
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toBeInstanceOf(HumanMessage);
+    expect(messages[1]).toBeInstanceOf(HumanMessage);
   });
 
-  it('should append both skills and memory sections when both present', async () => {
+  it('should wrap memory in <system-reminder> tags', async () => {
+    const agentsKey = '.tau/AGENTS.md';
+    const payload: ContextPayload = {
+      memory: { [agentsKey]: 'Use early returns.' },
+    };
+    const middleware = createClientContextMiddleware(payload);
+    const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
+
+    const handler = vi.fn().mockResolvedValue({ content: 'response' });
+
+    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), messages: [], state: {} }, handler);
+
+    const messages = extractMessages(handler);
+    const memoryMessage = messages[0]!;
+    expect(typeof memoryMessage.content).toBe('string');
+    expect(memoryMessage.content as string).toContain('<system-reminder>');
+    expect(memoryMessage.content as string).toContain('</system-reminder>');
+  });
+
+  it('should include "may or may not be relevant" caveat in memory message', async () => {
+    const agentsKey = '.tau/AGENTS.md';
+    const payload: ContextPayload = {
+      memory: { [agentsKey]: 'Content' },
+    };
+    const middleware = createClientContextMiddleware(payload);
+    const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
+
+    const handler = vi.fn().mockResolvedValue({ content: 'response' });
+
+    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), messages: [], state: {} }, handler);
+
+    const messages = extractMessages(handler);
+    expect(messages[0]!.content as string).toContain('may or may not be relevant');
+  });
+
+  it('should NOT inject memory into the system message', async () => {
+    const agentsKey = '.tau/AGENTS.md';
+    const payload: ContextPayload = {
+      memory: { [agentsKey]: 'Memory content unique string' },
+    };
+    const middleware = createClientContextMiddleware(payload);
+    const wrapModelCall = resolveMiddlewareHook(middleware.wrapModelCall);
+
+    const handler = vi.fn().mockResolvedValue({ content: 'response' });
+
+    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), messages: [], state: {} }, handler);
+
+    const fullText = extractSystemText(handler);
+    expect(fullText).not.toContain('Memory content unique string');
+  });
+
+  it('should handle both skills and memory together', async () => {
     const agentsKey = '.tau/AGENTS.md';
     const payload: ContextPayload = {
       skills: [{ name: 'dual', description: 'Both present', path: '.tau/skills/dual' }],
@@ -184,13 +300,20 @@ describe('createClientContextMiddleware', () => {
 
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
 
-    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), state: {} }, handler);
+    await wrapModelCall(
+      { systemMessage: make3BlockSystemMessage(), messages: [new HumanMessage('test')], state: {} },
+      handler,
+    );
 
     const fullText = extractSystemText(handler);
     expect(fullText).toContain('## Skills System');
     expect(fullText).toContain('- **dual**: Both present');
-    expect(fullText).toContain('<agent_memory>');
-    expect(fullText).toContain('Memory content');
+    expect(fullText).not.toContain('<agent_memory>');
+
+    const messages = extractMessages(handler);
+    expect(messages[0]).toBeInstanceOf(HumanMessage);
+    expect(messages[0]!.content as string).toContain('<agent_memory>');
+    expect(messages[0]!.content as string).toContain('Memory content');
   });
 
   it('should call handler exactly once', async () => {
@@ -204,7 +327,7 @@ describe('createClientContextMiddleware', () => {
 
     const handler = vi.fn().mockResolvedValue({ content: 'response' });
 
-    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), state: {} }, handler);
+    await wrapModelCall({ systemMessage: makeSystemMessage('Base'), messages: [], state: {} }, handler);
 
     expect(handler).toHaveBeenCalledOnce();
   });

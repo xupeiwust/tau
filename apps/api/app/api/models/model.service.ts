@@ -110,6 +110,11 @@ export class ModelService implements OnModuleInit {
     return modelConfig?.details.contextWindow;
   }
 
+  public getProviderId(modelId: string): ProviderId | undefined {
+    const modelConfig = this.models.find((model) => model.id === modelId);
+    return modelConfig?.provider.id;
+  }
+
   public getKnowledgeCutoff(modelId: string): string | undefined {
     const modelConfig = this.models.find((model) => model.id === modelId);
     return modelConfig?.details.knowledgeCutoff;

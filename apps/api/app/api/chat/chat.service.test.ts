@@ -28,11 +28,11 @@ vi.mock('langchain', () => ({
 }));
 
 vi.mock('#api/chat/prompts/cad-agent.prompt.js', () => ({
-  getCadSystemPrompt: vi.fn().mockResolvedValue('system prompt'),
+  getCadSystemPrompt: vi.fn().mockResolvedValue({ static: 'static prompt', dynamic: 'dynamic prompt' }),
 }));
 
 vi.mock('#api/chat/utils/create-cached-system-message.js', () => ({
-  createCachedSystemMessage: vi.fn((text: unknown) => text),
+  createCachedSystemMessage: vi.fn((options: unknown) => options),
 }));
 
 describe('ChatService', () => {
@@ -47,6 +47,9 @@ describe('ChatService', () => {
 
   const mockModelService = {
     buildModel: vi.fn(() => ({ model: 'mock-model' })),
+    getContextWindow: vi.fn(() => 200_000),
+    getProviderId: vi.fn(() => 'openai'),
+    getKnowledgeCutoff: vi.fn(() => '2025-08'),
   };
 
   const mockToolService = {

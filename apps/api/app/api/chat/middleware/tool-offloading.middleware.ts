@@ -30,6 +30,7 @@ const excludedTools = new Set([
   'edit_file',
   'create_file',
   'delete_file',
+  'screenshot',
 ]);
 
 const offloadingContextSchema = z.object({

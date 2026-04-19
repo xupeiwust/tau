@@ -60,6 +60,7 @@ export function Span(name?: string): MethodDecorator {
                     throw error;
                   },
                 )
+                // oxlint-disable-next-line eslint-plugin-promise/prefer-await-to-then -- must use .finally to preserve Promise chain without wrapping in async
                 .finally(() => {
                   span.end();
                 })

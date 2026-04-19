@@ -92,6 +92,8 @@ export class ProviderService {
               // Improve model performance by allowing it to think between tool calls
               // @see https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking
               'interleaved-thinking-2025-05-14',
+              // Global cache scope (`prompt-caching-scope-2026-01-05`) is intentionally not enabled here:
+              // it requires beta access on the API key, and falls back to per-request caching when omitted.
             ],
             maxRetries: 2,
           }),

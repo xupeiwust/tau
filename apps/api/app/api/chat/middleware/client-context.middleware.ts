@@ -1,6 +1,7 @@
 import { createMiddleware } from 'langchain';
 import type { AgentMiddleware } from 'langchain';
-import { SystemMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage } from '@langchain/core/messages';
+import type { ContentBlock } from '@langchain/core/messages';
 import type { ContextPayload, SkillMetadata } from '@taucad/chat';
 
 const skillsSources = ['.tau/skills/'];
@@ -120,9 +121,22 @@ export function formatMemoryPrompt(contents: Record<string, string>, sources: st
 }
 
 /**
- * Middleware that injects skills catalog and memory (AGENTS.md) into the system prompt
- * from a client-assembled context payload. Replaces deepagents createSkillsMiddleware
- * and createMemoryMiddleware — zero RPC round-trips.
+ * Type for a content block with cache_control for skills insertion (Block 2).
+ */
+type ContentBlockWithCacheControl = ContentBlock & {
+  cache_control?: { type: 'ephemeral' };
+};
+
+/**
+ * Middleware that injects skills catalog and memory (AGENTS.md) into the
+ * agent's context from a client-assembled context payload.
+ *
+ * Skills are injected as a new content block (Block 2) on the SystemMessage
+ * with workspace-scoped cache_control, inserted between the static prompt
+ * (Block 1) and the dynamic prompt (last block).
+ *
+ * Memory is injected as a HumanMessage prepended to the messages array,
+ * wrapped in <system-reminder> tags (R2: two-channel context injection).
  */
 export const createClientContextMiddleware = (contextPayload?: ContextPayload): AgentMiddleware =>
   createMiddleware({
@@ -133,28 +147,45 @@ export const createClientContextMiddleware = (contextPayload?: ContextPayload): 
       }
 
       let { systemMessage } = request;
+      let { messages } = request;
 
       if (contextPayload.skills && contextPayload.skills.length > 0) {
         const skillsSection = formatSkillsPrompt(contextPayload.skills, skillsSources);
-        // oxlint-disable-next-line unicorn/prefer-spread -- SystemMessage.concat is not Array.concat
-        systemMessage = systemMessage.concat(skillsSection);
+        const { content: existingContent } = systemMessage;
+
+        const existingBlocks: ContentBlockWithCacheControl[] =
+          typeof existingContent === 'string'
+            ? [{ type: 'text', text: existingContent }]
+            : Array.isArray(existingContent)
+              ? (existingContent as ContentBlockWithCacheControl[])
+              : [];
+
+        const skillsBlock: ContentBlockWithCacheControl = {
+          type: 'text',
+          text: skillsSection,
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- Anthropic API uses snake_case
+          cache_control: { type: 'ephemeral' },
+        };
+
+        // Insert skills block before the last block (dynamic content)
+        const insertIndex = Math.max(existingBlocks.length - 1, 1);
+        const newBlocks = [...existingBlocks.slice(0, insertIndex), skillsBlock, ...existingBlocks.slice(insertIndex)];
+
+        systemMessage = new SystemMessage({ content: newBlocks });
       }
 
       if (contextPayload.memory && Object.keys(contextPayload.memory).length > 0) {
         const memorySection = formatMemoryPrompt(contextPayload.memory, Object.keys(contextPayload.memory));
-        const { content: existingContent } = systemMessage;
-        systemMessage = new SystemMessage({
-          content: [
-            ...(typeof existingContent === 'string'
-              ? [{ type: 'text', text: existingContent }]
-              : Array.isArray(existingContent)
-                ? existingContent
-                : []),
-            { type: 'text', text: memorySection },
-          ],
-        });
+        const memoryMessage = new HumanMessage(
+          `<system-reminder>
+IMPORTANT: this context may or may not be relevant to your current task.
+
+${memorySection}
+</system-reminder>`,
+        );
+        messages = [memoryMessage, ...messages];
       }
 
-      return handler({ ...request, systemMessage });
+      return handler({ ...request, systemMessage, messages });
     },
   });

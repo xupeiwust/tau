@@ -23,8 +23,8 @@ import { getCadSystemPrompt } from '#api/chat/prompts/cad-agent.prompt.js';
 import { toolResultTrimmerMiddleware } from '#api/chat/middleware/tool-result-trimmer.middleware.js';
 import { promptCachingMiddleware } from '#api/chat/middleware/prompt-caching.middleware.js';
 import { messageContentSanitizerMiddleware } from '#api/chat/middleware/message-content-sanitizer.middleware.js';
-import { newlineTrimmerMiddleware } from '#api/chat/middleware/newline-trimmer.middleware.js';
 import { latexDelimiterMiddleware } from '#api/chat/middleware/latex-delimiter.middleware.js';
+import { newlineTrimmerMiddleware } from '#api/chat/middleware/newline-trimmer.middleware.js';
 import { createCompactionMiddleware } from '#api/chat/middleware/compaction.middleware.js';
 import { createToolOffloadingMiddleware } from '#api/chat/middleware/tool-offloading.middleware.js';
 import { createTranscriptMiddleware } from '#api/chat/middleware/transcript.middleware.js';
@@ -88,27 +88,34 @@ export class ChatService {
     ].filter((tool) => tool !== undefined);
 
     // ==========================================================================
-    // Prompt Caching Strategy (2 breakpoints)
+    // Prompt Caching Strategy (3 breakpoints)
     // ==========================================================================
-    // We use TWO cache breakpoints for optimal caching:
+    // Block 1 (static): Globally-cached system prompt (role, workflow, kernel config)
+    //   → cache_control: { type: 'ephemeral', scope: 'global' } (Anthropic only)
+    // Block 2 (workspace): Skills + memory, injected by clientContextMiddleware
+    //   → cache_control: { type: 'ephemeral' }
+    // Block 3 (dynamic): Per-request content (model info, git status, transcript path)
+    //   → No cache_control
+    // Last message: Incremental conversation caching via promptCachingMiddleware
+    //   → cache_control: { type: 'ephemeral' }
     //
-    // 1. SYSTEM MESSAGE (here): Large (~15K+ tokens), stable content.
-    //    - Cached via createCachedSystemMessage
-    //    - Written once, read on every subsequent model call
-    //    - Cannot be moved to middleware because systemPrompt is passed
-    //      separately to createAgent, not in the messages array
-    //
-    // 2. LAST MESSAGE (middleware): Dynamic, growing conversation.
-    //    - Cached via promptCachingMiddleware on every model call
-    //    - Incrementally caches as conversation grows
-    //    - Handles HumanMessage, AIMessage, and ToolMessage
-    //
-    // Anthropic allows up to 4 breakpoints per request. This 2-breakpoint
-    // strategy ensures the stable system prompt is cached separately from
-    // the dynamic conversation, maximizing cache hits.
+    // 3 of 4 Anthropic breakpoint slots used, 1 reserved.
     // ==========================================================================
-    const systemPromptText = await getCadSystemPrompt(kernel, mode, testingEnabled, { chatId });
-    const systemPrompt = createCachedSystemMessage(systemPromptText);
+    const contextWindow = this.modelService.getContextWindow(modelId);
+    const knowledgeCutoff = this.modelService.getKnowledgeCutoff(modelId);
+    const gitStatus = contextPayload?.gitStatus;
+    const { static: staticPrompt, dynamic: dynamicPrompt } = await getCadSystemPrompt(kernel, mode, testingEnabled, {
+      chatId,
+      modelId,
+      contextWindow,
+      knowledgeCutoff,
+      gitStatus,
+    });
+    // Global cache scope is currently disabled: enabling it requires the
+    // `prompt-caching-scope-2026-01-05` Anthropic beta on the configured API key.
+    // When the beta is available switch this to `getProviderId(modelId) === 'anthropic'`.
+    const useGlobalScope = false;
+    const systemPrompt = createCachedSystemMessage({ staticPrompt, dynamicPrompt, useGlobalScope });
 
     const agent = createAgent({
       model,

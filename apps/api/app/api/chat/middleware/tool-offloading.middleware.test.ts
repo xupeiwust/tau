@@ -101,32 +101,38 @@ describe('createToolOffloadingMiddleware', () => {
     expect(content).toContain('lines truncated');
   });
 
-  it.each(['list_directory', 'glob_search', 'grep', 'read_file', 'edit_file', 'create_file', 'delete_file'])(
-    'should skip excluded tool: %s',
-    async (toolName) => {
-      const middleware = createToolOffloadingMiddleware(rpcBackendFactory, { tokenThreshold: 10 });
+  it.each([
+    'list_directory',
+    'glob_search',
+    'grep',
+    'read_file',
+    'edit_file',
+    'create_file',
+    'delete_file',
+    'screenshot',
+  ])('should skip excluded tool: %s', async (toolName) => {
+    const middleware = createToolOffloadingMiddleware(rpcBackendFactory, { tokenThreshold: 10 });
 
-      const largeContent = 'X'.repeat(200);
-      const largeResult = new ToolMessage({
-        content: largeContent,
-        tool_call_id: 'tc1',
-        name: toolName,
-      });
+    const largeContent = 'X'.repeat(200);
+    const largeResult = new ToolMessage({
+      content: largeContent,
+      tool_call_id: 'tc1',
+      name: toolName,
+    });
 
-      const handler = vi.fn().mockResolvedValue(largeResult);
+    const handler = vi.fn().mockResolvedValue(largeResult);
 
-      const result = await invokeWrapToolCall(
-        middleware,
-        {
-          toolCall: { name: toolName, id: 'tc1', args: {} },
-          runtime: { context: { chatId: 'chat-1' } },
-        },
-        handler,
-      );
+    const result = await invokeWrapToolCall(
+      middleware,
+      {
+        toolCall: { name: toolName, id: 'tc1', args: {} },
+        runtime: { context: { chatId: 'chat-1' } },
+      },
+      handler,
+    );
 
-      expect(result).toBe(largeResult);
-    },
-  );
+    expect(result).toBe(largeResult);
+  });
 
   it('should handle RPC write failures gracefully', async () => {
     const middleware = createToolOffloadingMiddleware(rpcBackendFactory, { tokenThreshold: 10 });
@@ -163,14 +169,14 @@ describe('createToolOffloadingMiddleware', () => {
     it('should compact large string values within JSON structure', async () => {
       const middleware = createToolOffloadingMiddleware(rpcBackendFactory, { tokenThreshold: 10 });
 
-      const screenshotOutput = {
+      const toolOutput = {
         images: [{ view: 'composite', dataUrl: 'data:image/webp;base64,' + 'A'.repeat(2000) }],
       };
-      const jsonContent = JSON.stringify(screenshotOutput);
+      const jsonContent = JSON.stringify(toolOutput);
       const largeResult = new ToolMessage({
         content: jsonContent,
         tool_call_id: 'tc1',
-        name: 'screenshot',
+        name: 'test_model',
       });
 
       const handler = vi.fn().mockResolvedValue(largeResult);
@@ -178,7 +184,7 @@ describe('createToolOffloadingMiddleware', () => {
       const result = await invokeWrapToolCall(
         middleware,
         {
-          toolCall: { name: 'screenshot', id: 'tc1', args: {} },
+          toolCall: { name: 'test_model', id: 'tc1', args: {} },
           runtime: { context: { chatId: 'chat-1' } },
         },
         handler,
@@ -297,14 +303,14 @@ describe('createToolOffloadingMiddleware', () => {
     it('should write full original content to offloaded file', async () => {
       const middleware = createToolOffloadingMiddleware(rpcBackendFactory, { tokenThreshold: 10 });
 
-      const screenshotOutput = {
+      const toolOutput = {
         images: [{ view: 'front', dataUrl: 'data:image/png;base64,' + 'D'.repeat(2000) }],
       };
-      const jsonContent = JSON.stringify(screenshotOutput);
+      const jsonContent = JSON.stringify(toolOutput);
       const largeResult = new ToolMessage({
         content: jsonContent,
         tool_call_id: 'tc1',
-        name: 'screenshot',
+        name: 'web_search',
       });
 
       const handler = vi.fn().mockResolvedValue(largeResult);
@@ -312,7 +318,7 @@ describe('createToolOffloadingMiddleware', () => {
       await invokeWrapToolCall(
         middleware,
         {
-          toolCall: { name: 'screenshot', id: 'tc1', args: {} },
+          toolCall: { name: 'web_search', id: 'tc1', args: {} },
           runtime: { context: { chatId: 'chat-1' } },
         },
         handler,

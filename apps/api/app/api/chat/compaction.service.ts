@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import type { BaseMessage } from '@langchain/core/messages';
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { Environment } from '#config/environment.config.js';
+import { formatCompactSummary } from '#api/chat/utils/format-compact-summary.js';
+import { isImageBlock, countImageBlocks } from '#api/chat/utils/image-block.utils.js';
 
 /**
  * Statistics from a compaction operation.
@@ -48,6 +50,25 @@ export class CompactionService {
     const morphMessages = this.toMorphFormat(messages, keepContextTags);
     const inputTokenEstimate = this.estimateTokens(morphMessages);
 
+    const compactionPrompt = `${query}
+
+Respond with TEXT ONLY. Your response must be an <analysis> block followed by a <summary> block.
+
+Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts. In your analysis, chronologically examine each message, identify user requests, decisions, code patterns, errors, and user feedback. Then produce the structured summary inside <summary> tags.
+
+<summary> sections:
+1. Primary Request and Intent
+2. Key Technical Concepts
+3. Files and Code Sections
+4. Errors and Fixes
+5. Problem Solving
+6. All User Messages (verbatim quotes of key requests)
+7. Pending Tasks
+8. Current Work
+9. Optional Next Step — ensure this step is DIRECTLY in line with the user's most recent explicit requests
+
+Use verbatim quotes from the conversation where possible to anchor context.`;
+
     const response = await fetch(this.apiUrl, {
       method: 'POST',
       headers: {
@@ -57,7 +78,7 @@ export class CompactionService {
       },
       body: JSON.stringify({
         model: 'morph-compactor',
-        messages: [...morphMessages, { role: 'user', content: query }],
+        messages: [...morphMessages, { role: 'user', content: compactionPrompt }],
       }),
     });
 
@@ -72,8 +93,10 @@ export class CompactionService {
       usage?: { prompt_tokens: number; completion_tokens: number };
     };
 
-    const compactedContent = data.choices[0]?.message.content ?? '';
-    const compactedMessages = this.parseCompactedOutput(compactedContent);
+    const rawContent = data.choices[0]?.message.content ?? '';
+    const compactedContent = formatCompactSummary(rawContent);
+    const evictedImageCount = countImageBlocks(messages);
+    const compactedMessages = this.parseCompactedOutput(compactedContent, evictedImageCount);
     const outputTokenEstimate = this.estimateTokens(
       compactedMessages.map((m) => ({
         role: m instanceof HumanMessage ? 'user' : m instanceof AIMessage ? 'assistant' : 'system',
@@ -99,7 +122,26 @@ export class CompactionService {
 
   private toMorphFormat(messages: BaseMessage[], keepContextTags: string[]): Array<{ role: string; content: string }> {
     return messages.map((message) => {
-      let content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+      let content: string;
+
+      if (typeof message.content === 'string') {
+        content = message.content;
+      } else if (Array.isArray(message.content)) {
+        const parts: string[] = [];
+        for (const block of message.content as Array<Record<string, unknown>>) {
+          if (isImageBlock(block)) {
+            parts.push('[image]');
+          } else {
+            const text = (block['text'] ?? block['reasoning'] ?? '') as string;
+            if (text) {
+              parts.push(text);
+            }
+          }
+        }
+        content = parts.join('\n');
+      } else {
+        content = JSON.stringify(message.content);
+      }
 
       for (const tag of keepContextTags) {
         if (content.includes(tag)) {
@@ -121,14 +163,13 @@ export class CompactionService {
     });
   }
 
-  private parseCompactedOutput(content: string): BaseMessage[] {
-    // Morph returns compacted content as a single assistant message
-    // containing the compressed conversation context
+  private parseCompactedOutput(content: string, evictedImageCount: number): BaseMessage[] {
     if (!content.trim()) {
       return [];
     }
 
-    return [new HumanMessage(`[Compacted conversation history]\n${content}`)];
+    const imageNote = evictedImageCount > 0 ? ` — ${evictedImageCount} image(s) from prior context omitted` : '';
+    return [new HumanMessage(`[Compacted conversation history${imageNote}]\n${content}`)];
   }
 
   private estimateTokens(messages: Array<{ role: string; content: string }>): number {

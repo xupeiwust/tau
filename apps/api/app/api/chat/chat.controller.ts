@@ -26,6 +26,7 @@ import { MetricsService } from '#telemetry/metrics.js';
 import { Span } from '#telemetry/tracer.service.js';
 import { AttributeKey } from '@taucad/telemetry';
 import { TtftCallbackHandler } from '#api/chat/middleware/ttft-callback.handler.js';
+import { validateImageParts } from '#api/chat/utils/validate-image-parts.js';
 
 type LangChainMessages = Awaited<ReturnType<typeof toBaseMessages>>;
 
@@ -227,6 +228,8 @@ export class ChatController {
     messages: CreateChatDto['messages'],
     snapshot: ChatSnapshot | undefined,
   ): Promise<LangChainMessages> {
+    validateImageParts(messages);
+
     const messagesWithContext = snapshot ? injectSnapshotContext(messages, snapshot) : messages;
 
     if (snapshot) {
