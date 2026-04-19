@@ -160,3 +160,11 @@ export type FileParameterEntry = {
 export type ParameterGroup = {
   values: Record<string, unknown>;
 };
+
+/**
+ * Export fidelity level: boundary representation (`brep`) preserves exact
+ * topology and surfaces, whereas `mesh` is a tessellated approximation.
+ *
+ * @public
+ */
+export type ExportFidelity = 'brep' | 'mesh';
