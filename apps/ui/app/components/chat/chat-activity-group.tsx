@@ -14,11 +14,15 @@ type ChatActivityGroupProps = {
   readonly summaryDetail: string;
   readonly children: React.ReactNode;
   /**
-   * When true, this is the trailing live group: render children inline with no
-   * header, no border, and no indent. The user can still explicitly collapse
-   * to surface the header (escape hatch).
+   * Live marker: this is the trailing group AND the chat is actively streaming
+   * it right now. While `true` (and the user has not explicitly collapsed),
+   * children render inline with no header, no border, and no indent — matching
+   * Cursor's streaming research UX. When the chat finishes/cancels, callers
+   * flip this to `false` and the group naturally collapses to its past-tense
+   * summary header (`Explored …`); no special end-of-stream code path needed.
+   * The user can still explicitly toggle the header (escape hatch).
    */
-  readonly isLast?: boolean;
+  readonly isActive?: boolean;
 };
 
 /**
@@ -30,23 +34,26 @@ type ChatActivityGroupProps = {
  *   already carries the summary, so this group renders children inline with no
  *   chrome at all. The user toggle does not surface a header in this mode —
  *   the ancestor's toggle is the user's control surface.
- * - **Live (`isLast=true` and not user-collapsed):** children render inline
+ * - **Live (`isActive=true` and not user-collapsed):** children render inline
  *   with no chrome at all — matches Cursor's streaming research UX where the
- *   latest group is visually flat until a downstream part closes it.
- * - **Closed (`isLast=false`, or user collapsed a live group):** a one-line
+ *   latest group is visually flat until a downstream part (or end-of-stream)
+ *   closes it. Verb tense is present-participle (`Exploring…`) when the user
+ *   has explicitly collapsed mid-stream.
+ * - **Closed (`isActive=false`, or user collapsed a live group):** a one-line
  *   two-tone summary header (verb + detail) with a chevron expands to reveal
- *   the same children flat (no border, no indent).
+ *   the same children flat (no border, no indent). Past-tense verb
+ *   (`Explored …`) once `isActive` flips to `false`.
  *
- * User toggles are persistent across `isLast` transitions: once a user
+ * User toggles are persistent across `isActive` transitions: once a user
  * explicitly opens or closes the group, that preference wins over the
- * automatic `isLast` behavior.
+ * automatic `isActive` behavior.
  */
 export function ChatActivityGroup({
   summaryVerbPast,
   summaryVerbActive,
   summaryDetail,
   children,
-  isLast = false,
+  isActive = false,
 }: ChatActivityGroupProps): React.ReactNode {
   const { disableInnerFold } = useActivityFoldContext();
   const [userToggleState, setUserToggleState] = useState<'expanded' | 'collapsed' | undefined>(undefined);
@@ -55,7 +62,7 @@ export function ChatActivityGroup({
     return children;
   }
 
-  if (isLast && userToggleState !== 'collapsed') {
+  if (isActive && userToggleState !== 'collapsed') {
     return children;
   }
 
@@ -79,7 +86,7 @@ export function ChatActivityGroup({
             verb={summaryVerbPast}
             verbActive={summaryVerbActive}
             detail={summaryDetail}
-            isActive={isLast}
+            isActive={isActive}
           />
         </Button>
       </CollapsibleTrigger>

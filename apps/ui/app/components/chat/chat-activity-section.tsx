@@ -20,8 +20,21 @@ type ChatActivitySectionProps = {
    * already visible, so the activity trace can be tucked away.
    */
   readonly hasDownstreamText?: boolean;
-  /** When true, auto-opens this section (it is the trailing activity with no text after it yet). */
+  /**
+   * Structural marker: this is the trailing activity in the message (no
+   * downstream non-text run yet). Controls the default-open behavior so the
+   * just-finished activity stays expanded after streaming concludes.
+   */
   readonly isLast?: boolean;
+  /**
+   * Live marker: the chat is actively streaming this section right now. Drives
+   * the present-participle verb (`Exploring…`); when `false` the header reverts
+   * to the past-tense, two-tone summary (`Explored 12 searches, 2 fetches`).
+   * Callers must combine `isLast` with the chat status (`'streaming'`) — a
+   * structurally trailing section that has finished/cancelled is
+   * `isLast=true, isActive=false`.
+   */
+  readonly isActive?: boolean;
 };
 
 /**
@@ -29,9 +42,15 @@ type ChatActivitySectionProps = {
  * Wraps reasoning + aggregated tool groups in a single collapsible region.
  *
  * Uses controlled open state driven by `isLast` / `hasDownstreamText` (auto)
- * with user toggle override. Header label matches the inner
- * `ChatActivityGroup` header via the shared {@link ChatActivitySummary}
- * component so both fold levels share the same verb/detail typography.
+ * with user toggle override. The `isActive` prop is decoupled from `isLast`:
+ * `isLast` controls default-open semantics (purely structural — the trailing
+ * activity stays expanded so the user can see it after streaming ends), while
+ * `isActive` controls the verb tense (`Exploring…` vs `Explored …`) and
+ * should only be `true` while the chat is actually streaming this section.
+ *
+ * Header label matches the inner `ChatActivityGroup` header via the shared
+ * {@link ChatActivitySummary} component so both fold levels share the same
+ * verb/detail typography.
  */
 export function ChatActivitySection({
   summaryVerbPast,
@@ -40,6 +59,7 @@ export function ChatActivitySection({
   children,
   hasDownstreamText = false,
   isLast = false,
+  isActive = false,
 }: ChatActivitySectionProps): React.JSX.Element {
   const [userToggleState, setUserToggleState] = useState<'expanded' | 'collapsed' | undefined>(undefined);
 
@@ -64,7 +84,7 @@ export function ChatActivitySection({
             verb={summaryVerbPast}
             verbActive={summaryVerbActive}
             detail={summaryDetail}
-            isActive={isLast}
+            isActive={isActive}
           />
         </Button>
       </CollapsibleTrigger>

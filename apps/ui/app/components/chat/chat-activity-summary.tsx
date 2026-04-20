@@ -1,3 +1,5 @@
+import { AnimatedShinyText } from '#components/magicui/animated-shiny-text.js';
+
 type ChatActivitySummaryProps = {
   /** Past-tense verb fragment, e.g. `"Explored"`. Rendered when the header is closed. */
   readonly verb: string;
@@ -13,7 +15,9 @@ type ChatActivitySummaryProps = {
    * When true, the activity is still live — i.e. it has not been "concluded"
    * by a downstream message part (text, file edit, transfer, …). Live
    * activities render only the present-participle verb followed by an
-   * ellipsis, regardless of the header's open/closed state.
+   * ellipsis (e.g. `Exploring…`) wrapped in the same shimmer treatment used
+   * by individual loading tool cards (see {@link AnimatedShinyText}), so the
+   * outer activity title visually matches the in-flight tool rows beneath it.
    */
   readonly isActive?: boolean;
 };
@@ -26,7 +30,9 @@ type ChatActivitySummaryProps = {
  * (e.g. `Explored 12 searches, 2 fetches`).
  *
  * Live state (`isActive=true`): `${verbActive}…` (verb-only with an ellipsis,
- * e.g. `Exploring…`). The tense is fixed by whether the activity is still
+ * e.g. `Exploring…`) rendered with the shared shimmer animation so the
+ * activity header reads as in-flight at a glance, matching the per-tool
+ * loading state. The tense is fixed by whether the activity is still
  * trailing/in-progress, independent of whether the user has expanded or
  * collapsed the surrounding fold.
  */
@@ -41,7 +47,7 @@ export function ChatActivitySummary({
     if (activeVerb === '') {
       return undefined;
     }
-    return <span className='shrink-0 font-medium text-foreground/60'>{`${activeVerb}…`}</span>;
+    return <AnimatedShinyText className='shrink-0 font-medium'>{`${activeVerb}…`}</AnimatedShinyText>;
   }
 
   return (

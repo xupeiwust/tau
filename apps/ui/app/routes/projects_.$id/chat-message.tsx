@@ -147,6 +147,7 @@ type PartRenderContext = {
   readonly messageId: string;
   readonly lastMeaningfulIndex: number;
   readonly isLastGroup: boolean;
+  readonly isActiveGroup: boolean;
 };
 
 // oxlint-disable-next-line complexity -- Part type dispatch requires many branches
@@ -275,7 +276,7 @@ function renderActivityGroup(
       summaryVerbPast={group.summaryVerbPast}
       summaryVerbActive={group.summaryVerbActive}
       summaryDetail={group.summaryDetail}
-      isLast={context.isLastGroup}
+      isActive={context.isActiveGroup}
     >
       {group.parts.map((part, i) => renderAssistantPart(part, group.partIndices[i]!, context))}
     </ChatActivityGroup>
@@ -325,14 +326,19 @@ function AssistantParts({
   const runs = useMemo(() => partitionActivityRuns(groups), [groups]);
   const lastMeaningfulIndex = useMemo(() => findLastMeaningfulPartIndex(parts), [parts]);
   const lastGroupIndex = groups.length - 1;
+  const isStreaming = useChatSelector((state) => state.status === 'streaming');
 
   const renderContextForGroup = useCallback(
-    (absoluteIndex: number): PartRenderContext => ({
-      messageId,
-      lastMeaningfulIndex,
-      isLastGroup: absoluteIndex === lastGroupIndex,
-    }),
-    [messageId, lastMeaningfulIndex, lastGroupIndex],
+    (absoluteIndex: number): PartRenderContext => {
+      const isLastGroup = absoluteIndex === lastGroupIndex;
+      return {
+        messageId,
+        lastMeaningfulIndex,
+        isLastGroup,
+        isActiveGroup: isLastGroup && isStreaming,
+      };
+    },
+    [messageId, lastMeaningfulIndex, lastGroupIndex, isStreaming],
   );
 
   return (
@@ -364,6 +370,7 @@ function AssistantParts({
             summaryDetail={summary.detail}
             hasDownstreamText={!isLastRun}
             isLast={isLastRun}
+            isActive={isLastRun && isStreaming}
           >
             {run.groups.map((group, j) => {
               const absoluteIndex = run.startIndex + j;

@@ -25,13 +25,14 @@ describe('ChatActivitySection', () => {
     expect(detailSpan).toHaveClass('text-foreground/50');
   });
 
-  it('should render only the present-participle verb with an ellipsis when isLast', () => {
+  it('should render only the present-participle verb with an ellipsis when isActive', () => {
     render(
       <ChatActivitySection
         summaryVerbPast='Explored'
         summaryVerbActive='Exploring'
         summaryDetail='12 searches, 2 fetches'
         isLast
+        isActive
       >
         <div>activity content</div>
       </ChatActivitySection>,
@@ -42,13 +43,47 @@ describe('ChatActivitySection', () => {
     expect(screen.queryByText('12 searches, 2 fetches')).not.toBeInTheDocument();
   });
 
-  it('should keep present tense even when the user collapses a live (isLast) section', async () => {
+  it('should apply the shimmer animation to the active title so it matches per-tool loading states', () => {
     render(
       <ChatActivitySection
         summaryVerbPast='Explored'
         summaryVerbActive='Exploring'
         summaryDetail='12 searches, 2 fetches'
         isLast
+        isActive
+      >
+        <div>activity content</div>
+      </ChatActivitySection>,
+    );
+
+    const activeLabel = screen.getByText('Exploring…');
+    expect(activeLabel).toHaveClass('animate-shiny-text');
+  });
+
+  it('should not apply the shimmer animation to past-tense (concluded) titles', () => {
+    render(
+      <ChatActivitySection
+        summaryVerbPast='Explored'
+        summaryVerbActive='Exploring'
+        summaryDetail='12 searches, 2 fetches'
+        hasDownstreamText
+      >
+        <div>activity content</div>
+      </ChatActivitySection>,
+    );
+
+    expect(screen.getByText('Explored')).not.toHaveClass('animate-shiny-text');
+    expect(screen.getByText('12 searches, 2 fetches')).not.toHaveClass('animate-shiny-text');
+  });
+
+  it('should keep present tense even when the user collapses a live (isActive) section', async () => {
+    render(
+      <ChatActivitySection
+        summaryVerbPast='Explored'
+        summaryVerbActive='Exploring'
+        summaryDetail='12 searches, 2 fetches'
+        isLast
+        isActive
       >
         <div>activity content</div>
       </ChatActivitySection>,
@@ -58,6 +93,41 @@ describe('ChatActivitySection', () => {
 
     expect(screen.getByText('Exploring…')).toBeInTheDocument();
     expect(screen.queryByText('Explored')).not.toBeInTheDocument();
+  });
+
+  it('should render past-tense two-tone header on the trailing section after streaming ends (isLast, !isActive)', () => {
+    render(
+      <ChatActivitySection
+        summaryVerbPast='Explored'
+        summaryVerbActive='Exploring'
+        summaryDetail='12 searches, 2 fetches'
+        isLast
+      >
+        <div data-testid='body'>activity content</div>
+      </ChatActivitySection>,
+    );
+
+    expect(screen.getByText('Explored')).toBeInTheDocument();
+    expect(screen.getByText('12 searches, 2 fetches')).toBeInTheDocument();
+    expect(screen.queryByText('Exploring…')).not.toBeInTheDocument();
+    // Default-open behavior is preserved by isLast — body is still visible after cancel.
+    expect(screen.getByTestId('body')).toBeInTheDocument();
+  });
+
+  it('should render past-tense header on a concluded (non-trailing) section regardless of isActive', () => {
+    render(
+      <ChatActivitySection
+        summaryVerbPast='Explored'
+        summaryVerbActive='Exploring'
+        summaryDetail='12 searches, 2 fetches'
+        hasDownstreamText
+      >
+        <div>activity content</div>
+      </ChatActivitySection>,
+    );
+
+    expect(screen.getByText('Explored')).toBeInTheDocument();
+    expect(screen.queryByText('Exploring…')).not.toBeInTheDocument();
   });
 
   it('should keep past tense even when the user expands a concluded section', async () => {
