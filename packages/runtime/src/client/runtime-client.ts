@@ -440,12 +440,12 @@ export type RuntimeClient<
  * @example <caption>Browser setup</caption>
  * ```typescript
  * import { createRuntimeClient } from '@taucad/runtime';
- * import { replicad, openscad } from '@taucad/runtime/kernels';
+ * import { replicad, jscad } from '@taucad/runtime/kernels';
  * import { geometryCache } from '@taucad/runtime/middleware';
  * import { esbuild } from '@taucad/runtime/bundler';
  *
  * const client = createRuntimeClient({
- *   kernels: [replicad(), openscad()],
+ *   kernels: [replicad(), jscad()],
  *   middleware: [geometryCache()],
  *   bundlers: [esbuild()],
  * });

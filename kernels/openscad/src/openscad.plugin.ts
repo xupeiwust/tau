@@ -5,8 +5,8 @@
  * OpenSCAD tessellation maps to native $fn/$fa/$fs parameters.
  */
 
-import { createKernelPlugin } from '#plugins/plugin-helpers.js';
-import { openscadRenderSchema, openscadExportSchemas } from '#kernels/openscad/openscad.schemas.js';
+import { createKernelPlugin } from '@taucad/runtime/kernel';
+import { openscadRenderSchema, openscadExportSchemas } from '#openscad.schemas.js';
 
 /**
  * Create an OpenSCAD kernel plugin registration.

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Download, Check, ChevronDown, ArrowUpRight } from 'lucide-react';
 import { createRuntimeClientOptions } from '@taucad/runtime';
-import { openscad } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
 import { converterTranscoder } from '@taucad/runtime/transcoder';

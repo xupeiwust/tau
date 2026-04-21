@@ -1,6 +1,6 @@
 import { createRuntimeClient } from '@taucad/runtime';
 import { createInProcessTransport } from '@taucad/runtime/transport';
-import { openscad } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { gltfCoordinateTransform } from '@taucad/runtime/middleware';
 import type { MeasurementTestRequirement } from '@taucad/testing';
 import { analyzeGlb, evaluateRequirement } from '@taucad/testing/geometry';

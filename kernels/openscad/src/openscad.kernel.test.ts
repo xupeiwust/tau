@@ -1,16 +1,17 @@
 /* oxlint-disable max-lines -- comprehensive kernel test suite */
 import { describe, it, expect } from 'vitest';
 import { NodeIO } from '@gltf-transform/core';
-import openscadKernel from '#kernels/openscad/openscad.kernel.js';
-import { createGeometryTestHelpers, extractGltfFromResult } from '#testing/kernel-geometry-testing.utils.js';
+import openscadKernel from '#openscad.kernel.js';
 import {
   assertSuccess,
   createGeometryFile,
-  createTestWorker,
+  createGeometryTestHelpers,
   createTestGeometry,
-  getTestParameters,
+  createTestWorker,
+  extractGltfFromResult,
   getTestFileSystem,
-} from '#testing/kernel-testing.utils.js';
+  getTestParameters,
+} from '@taucad/runtime/testing';
 
 /* eslint-disable @typescript-eslint/naming-convention -- OpenSCAD uses snake_case for parameter names */
 

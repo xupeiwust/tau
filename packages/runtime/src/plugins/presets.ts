@@ -3,7 +3,7 @@
  */
 
 import type { KernelPlugin, MiddlewarePlugin, BundlerPlugin, TranscoderPlugin } from '#plugins/plugin-types.js';
-import { replicad, opencascade, zoo, openscad, jscad, manifold, tau } from '#plugins/kernel-factories.js';
+import { replicad, opencascade, zoo, jscad, manifold, tau } from '#plugins/kernel-factories.js';
 import {
   parameterCache,
   geometryCache,
@@ -51,7 +51,7 @@ export const presets = {
   // oxlint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- intentional: rely on inference so per-kernel/per-transcoder phantom generics survive into `createRuntimeClient`. An explicit `PresetOptions` return type would widen `kernels`/`transcoders` to the erased `KernelPlugin[]`/`TranscoderPlugin[]` aliases and break `CollectFormatMap`/`MergeExportMap` typesafety on `client.export(...)`.
   all() {
     return {
-      kernels: [openscad(), zoo(), replicad(), opencascade(), manifold(), jscad(), tau()],
+      kernels: [zoo(), replicad(), opencascade(), manifold(), jscad(), tau()],
       middleware: [parameterCache(), geometryCache(), gltfCoordinateTransform(), gltfEdgeDetection()],
       bundlers: [esbuild()],
       transcoders: [converterTranscoder()],

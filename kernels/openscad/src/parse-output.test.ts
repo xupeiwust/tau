@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { KernelIssue } from '#types/runtime.types.js';
-import type { GetFileContentsFunction } from '#kernels/openscad/parse-output.js';
-import { parseStderrLine, OpenScadStderrParser } from '#kernels/openscad/parse-output.js';
+import type { KernelIssue } from '@taucad/runtime/types';
+import type { GetFileContentsFunction } from '#parse-output.js';
+import { parseStderrLine, OpenScadStderrParser } from '#parse-output.js';
 
 /**
  * Helper to create a GetFileContentsFunction from a map of file contents.

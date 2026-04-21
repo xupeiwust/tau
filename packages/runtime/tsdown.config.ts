@@ -6,10 +6,10 @@ const baseConfig: Options = {
     'src/index.ts',
     'src/framework/kernel-runtime-worker.ts',
     'src/middleware/runtime-middleware.ts',
+    'src/plugins/kernel-plugin-entry.ts',
     'src/kernels/replicad/replicad.kernel.ts',
     'src/kernels/jscad/jscad.kernel.ts',
     'src/kernels/manifold/manifold.kernel.ts',
-    'src/kernels/openscad/openscad.kernel.ts',
     'src/kernels/opencascade/opencascade.kernel.ts',
     'src/kernels/zoo/zoo.kernel.ts',
     'src/kernels/zoo/engine-connection.ts',
@@ -30,10 +30,6 @@ const baseConfig: Options = {
     {
       from: 'src/kernels/replicad/fonts',
       to: `${options.outDir}/kernels/replicad/fonts`,
-    },
-    {
-      from: 'src/kernels/openscad/fonts',
-      to: `${options.outDir}/kernels/openscad/fonts`,
     },
     {
       from: 'src/bundler/wasm',

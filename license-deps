@@ -10,15 +10,16 @@ files authored by the Tau project.
 Some third-party dependencies impose additional obligations on **combined
 distributions** that include them:
 
-- **`openscad-wasm-prebuilt` (GPL-2.0-or-later)** — Bundled by the OpenSCAD
-  kernel module (`@taucad/runtime/kernels/openscad`). A distribution that
-  includes the OpenSCAD kernel is a GPL-2.0-or-later combined work; source
-  must be available (it is, at https://github.com/taucad/tau) and the GPL
-  license text must accompany the OpenSCAD WASM.
+- **`openscad-wasm-prebuilt` (GPL-2.0-or-later)** — Bundled exclusively by
+  the standalone `@taucad/openscad` package, which is itself published under
+  GPL-2.0-or-later for license clarity. A distribution that includes
+  `@taucad/openscad` is a GPL-2.0-or-later combined work; source must be
+  available (it is, at https://github.com/taucad/tau) and the GPL license
+  text must accompany the OpenSCAD WASM.
 - **LGPL-2.1 / LGPL-3.0 libraries** (see sections below) — Library-style
   copyleft; satisfied by attribution and source availability.
 
-Distributions that exclude the OpenSCAD kernel carry no GPL obligation.
+Distributions that exclude `@taucad/openscad` carry no GPL obligation.
 
 By using Tau, you agree to comply with the license terms of all included dependencies.
 

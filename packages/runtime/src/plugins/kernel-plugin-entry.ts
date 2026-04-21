@@ -1,0 +1,54 @@
+// oxlint-disable no-barrel-files/no-barrel-files -- package entry file
+/**
+ * Public author surface for kernels living outside `@taucad/runtime`.
+ *
+ * Out-of-tree kernels (e.g. `@taucad/openscad`) consume this entry instead
+ * of reaching into the runtime's `#`-prefixed internals. The surface is
+ * intentionally minimal: defineKernel, the lifecycle types it touches,
+ * the plugin-registration helper, and a couple of pure helpers that every
+ * existing first-party kernel already depends on.
+ *
+ * @module
+ * @public
+ */
+
+export { defineKernel } from '#types/runtime-kernel.types.js';
+export type {
+  AnyKernelDefinition,
+  CreateGeometryInput,
+  CreateGeometryOutput,
+  ExportGeometryInput,
+  GetDependenciesInput,
+  GetDependenciesResult,
+  GetParametersInput,
+  InitializeInput,
+  KernelDefinition,
+  KernelRuntime,
+  RuntimeFileSystem,
+  RuntimeFileSystemBase,
+  RuntimeLogger,
+  RuntimeLogOptions,
+  RuntimeWatchEvent,
+  RuntimeWatchEventFilter,
+  RuntimeWatchRequest,
+} from '#types/runtime-kernel.types.js';
+
+export type {
+  CreateGeometryResult,
+  ErrorLocation,
+  ExportGeometryResult,
+  GetParametersResult,
+  KernelErrorResult,
+  KernelIssue,
+  KernelIssueType,
+  KernelStackFrame,
+  KernelSuccessResult,
+} from '#types/runtime.types.js';
+
+export type { KernelPlugin } from '#plugins/plugin-types.js';
+export { createKernelPlugin } from '#plugins/plugin-helpers.js';
+export { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
+export { loadBinaryFile, resolveToRelative } from '#kernels/kernel-module-helpers.js';
+export { convertOffToGltf } from '#utils/off-to-gltf.js';
+export { coordinateSystemSchema } from '#types/export-option-schemas.js';
+export type { CoordinateSystemOptions } from '#types/export-option-schemas.js';

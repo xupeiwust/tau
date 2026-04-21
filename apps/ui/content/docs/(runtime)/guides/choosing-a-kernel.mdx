@@ -101,9 +101,11 @@ Use OpenSCAD when you have:
 - CSG-based designs for 3D printing
 - Familiarity with OpenSCAD syntax
 
+> **Note:** OpenSCAD ships as the standalone `@taucad/openscad` package (GPL-2.0-or-later) so it stays isolated from the MIT-licensed runtime. Install it explicitly: `pnpm add @taucad/openscad`.
+
 ```typescript
 import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
-import { openscad } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 
 const client = createRuntimeClient({
   kernels: [openscad()],
@@ -201,7 +203,8 @@ Or configure kernels individually for tree-shaking:
 
 ```typescript
 import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
-import { replicad, opencascade, manifold, openscad, jscad, tau } from '@taucad/runtime/kernels';
+import { replicad, opencascade, manifold, jscad, tau } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { esbuild } from '@taucad/runtime/bundler';
 
 const client = createRuntimeClient({

@@ -18,17 +18,20 @@ import type { GeometryGltf, LogLevel } from '@taucad/types';
 import { logLevels, createExportFile } from '@taucad/types/constants';
 import { asBuffer } from '@taucad/utils/file';
 import { joinPath, joinRelativePath } from '@taucad/utils/path';
-import type { KernelIssue } from '#types/runtime.types.js';
-import type { RuntimeFileSystem, RuntimeLogger } from '#types/runtime-kernel.types.js';
-import { defineKernel } from '#types/runtime-kernel.types.js';
-import type { OpenScadParameterExport } from '#kernels/openscad/parse-parameters.js';
-import { processOpenScadParameters, flattenParametersForInjection } from '#kernels/openscad/parse-parameters.js';
-import { convertOffToGltf } from '#utils/off-to-gltf.js';
-import { openscadRenderSchema, openscadExportSchemas } from '#kernels/openscad/openscad.schemas.js';
-import { resolveToRelative, loadBinaryFile } from '#kernels/kernel-module-helpers.js';
-import { createKernelError, createKernelSuccess } from '#kernels/kernel-helpers.js';
-import type { AddErrorFunction, GetFileContentsFunction } from '#kernels/openscad/parse-output.js';
-import { OpenScadStderrParser } from '#kernels/openscad/parse-output.js';
+import type { KernelIssue, RuntimeFileSystem, RuntimeLogger } from '@taucad/runtime/kernel';
+import {
+  convertOffToGltf,
+  createKernelError,
+  createKernelSuccess,
+  defineKernel,
+  loadBinaryFile,
+  resolveToRelative,
+} from '@taucad/runtime/kernel';
+import type { OpenScadParameterExport } from '#parse-parameters.js';
+import { processOpenScadParameters, flattenParametersForInjection } from '#parse-parameters.js';
+import { openscadRenderSchema, openscadExportSchemas } from '#openscad.schemas.js';
+import type { AddErrorFunction, GetFileContentsFunction } from '#parse-output.js';
+import { OpenScadStderrParser } from '#parse-output.js';
 
 const geistRegularUrl = new URL('fonts/Geist-Regular.ttf', import.meta.url).href;
 const geistBoldUrl = new URL('fonts/Geist-Bold.ttf', import.meta.url).href;

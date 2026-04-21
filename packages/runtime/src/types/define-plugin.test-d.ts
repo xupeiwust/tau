@@ -2934,10 +2934,10 @@ describe('presets.all() — multi-kernel preset typesafety (R17)', () => {
     });
   });
 
-  it('should accept mix-and-match tessellation fields from OCCT and OpenSCAD on the same call (Finding 8)', () => {
+  it('should accept OCCT-style tessellation fields on the multi-kernel preset (Finding 8)', () => {
     const client = createRuntimeClient(presets.all());
     void client.export('glb', {
-      tessellation: { linearTolerance: 0.05, angularTolerance: 10, segments: 64 },
+      tessellation: { linearTolerance: 0.05, angularTolerance: 10 },
     });
   });
 

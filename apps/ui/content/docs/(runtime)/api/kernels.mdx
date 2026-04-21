@@ -27,16 +27,19 @@ Use kernel factories when registering CAD engines with `createRuntimeClient`. Ea
 | `replicad(options?)`    | `ts`, `js` | OpenCASCADE-based parametric BRep via Replicad API  |
 | `opencascade(options?)` | `ts`, `js` | Direct OpenCASCADE API access                       |
 | `manifold(options?)`    | `ts`, `js` | Mesh-first manifold modeling with robust booleans   |
-| `openscad()`            | `scad`     | CSG modeling with OpenSCAD language                 |
+| `openscad()` \*         | `scad`     | CSG modeling with OpenSCAD language                 |
 | `jscad()`               | `ts`, `js` | @jscad/modeling parametric CSG                      |
 | `zoo(options)`          | `kcl`      | KCL via Zoo WebSocket API                           |
 | `tau()`                 | `*`        | Catch-all converter for STEP, STL, 3MF, OBJ imports |
+
+\* `openscad()` ships from the standalone [`@taucad/openscad`](https://www.npmjs.com/package/@taucad/openscad) package (GPL-2.0-or-later) so the MIT-licensed `@taucad/runtime` stays GPL-free. Install it with `pnpm add @taucad/openscad` to opt in.
 
 ## Usage
 
 ```typescript
 import { createRuntimeClient, fromMemoryFS } from '@taucad/runtime';
-import { replicad, opencascade, manifold, openscad, jscad, zoo, tau } from '@taucad/runtime/kernels';
+import { replicad, opencascade, manifold, jscad, zoo, tau } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { esbuild } from '@taucad/runtime/bundler';
 
 const client = createRuntimeClient({

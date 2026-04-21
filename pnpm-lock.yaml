@@ -1357,6 +1357,9 @@ importers:
       '@taucad/chat':
         specifier: workspace:*
         version: link:../../libs/chat
+      '@taucad/openscad':
+        specifier: workspace:*
+        version: link:../../kernels/openscad
       '@taucad/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -1403,6 +1406,9 @@ importers:
       '@taucad/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@taucad/openscad':
+        specifier: workspace:*
+        version: link:../../kernels/openscad
       '@taucad/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -1437,6 +1443,31 @@ importers:
       '@taucad/vite':
         specifier: workspace:*
         version: link:../../libs/vite
+
+  kernels/openscad:
+    dependencies:
+      '@taucad/json-schema':
+        specifier: workspace:*
+        version: link:../../packages/json-schema
+      '@taucad/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@taucad/types':
+        specifier: workspace:*
+        version: link:../../libs/types
+      '@taucad/utils':
+        specifier: workspace:*
+        version: link:../../libs/utils
+      json-schema-default:
+        specifier: 'catalog:'
+        version: 1.0.2
+      openscad-wasm-prebuilt:
+        specifier: 'catalog:'
+        version: 1.2.0
+    devDependencies:
+      geist:
+        specifier: 'catalog:'
+        version: 1.7.0(next@15.5.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.97.3))
 
   libs/api-extractor: {}
 
@@ -1640,9 +1671,6 @@ importers:
       opencascade.js:
         specifier: file:../../tarballs/opencascade.js-3.0.0-beta.d453dbf.tgz
         version: '@taucad/opencascade.js@file:tarballs/opencascade.js-3.0.0-beta.d453dbf.tgz(ws@8.19.0)'
-      openscad-wasm-prebuilt:
-        specifier: 'catalog:'
-        version: 1.2.0
       replicad:
         specifier: file:../../tarballs/replicad-0.21.0-v8.56.tgz
         version: file:tarballs/replicad-0.21.0-v8.56.tgz(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)

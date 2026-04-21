@@ -14,6 +14,11 @@ export {
   createMockCreateGeometryHandler,
   createMockGetParametersHandler,
   createMockResponse,
+  assertSuccess,
+  createGeometryFile,
+  createTestGeometry,
+  getTestParameters,
+  getTestFileSystem,
   MockKernelWorker,
 } from '#testing/kernel-testing.utils.js';
 

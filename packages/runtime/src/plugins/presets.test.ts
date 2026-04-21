@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { presets } from '#plugins/presets.js';
 
 describe('presets.all', () => {
-  it('should return all 7 kernel plugins with correct IDs', () => {
+  it('should return all 6 kernel plugins with correct IDs', () => {
     const { kernels } = presets.all();
 
-    expect(kernels).toHaveLength(7);
+    expect(kernels).toHaveLength(6);
 
     const ids = kernels.map((k) => k.id);
-    expect(ids).toEqual(['openscad', 'zoo', 'replicad', 'opencascade', 'manifold', 'jscad', 'tau']);
+    expect(ids).toEqual(['zoo', 'replicad', 'opencascade', 'manifold', 'jscad', 'tau']);
   });
 
   it('should return all 4 middleware plugins with correct IDs', () => {

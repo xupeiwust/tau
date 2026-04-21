@@ -1,4 +1,5 @@
-import { replicad, opencascade, zoo, openscad, jscad, manifold, tau } from '@taucad/runtime/kernels';
+import { replicad, opencascade, zoo, jscad, manifold, tau } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { parameterCache, geometryCache, gltfCoordinateTransform, gltfEdgeDetection } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
 import { converterTranscoder } from '@taucad/runtime/transcoder';

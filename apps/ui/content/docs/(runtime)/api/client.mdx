@@ -46,7 +46,8 @@ Smart-merges a base with overrides using three strategies based on field type:
 
 ```typescript
 import { createRuntimeClientOptions } from '@taucad/runtime';
-import { openscad, replicad, jscad } from '@taucad/runtime/kernels';
+import { replicad, jscad } from '@taucad/runtime/kernels';
+import { openscad } from '@taucad/openscad';
 import { parameterCache, geometryCache } from '@taucad/runtime/middleware';
 import { esbuild } from '@taucad/runtime/bundler';
 

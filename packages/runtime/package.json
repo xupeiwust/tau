@@ -20,7 +20,6 @@
     "cad",
     "replicad",
     "zoo",
-    "openscad",
     "jscad",
     "kernel",
     "worker",
@@ -31,6 +30,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./types": "./src/types/index.ts",
+    "./kernel": "./src/plugins/kernel-plugin-entry.ts",
     "./kernels": "./src/plugins/kernels-entry.ts",
     "./middleware": "./src/plugins/middleware-entry.ts",
     "./bundler": "./src/plugins/bundler-entry.ts",
@@ -44,7 +44,6 @@
     "./kernels/replicad": "./src/kernels/replicad/replicad.kernel.ts",
     "./kernels/jscad": "./src/kernels/jscad/jscad.kernel.ts",
     "./kernels/manifold": "./src/kernels/manifold/manifold.kernel.ts",
-    "./kernels/openscad": "./src/kernels/openscad/openscad.kernel.ts",
     "./kernels/opencascade": "./src/kernels/opencascade/opencascade.kernel.ts",
     "./kernels/zoo": "./src/kernels/zoo/zoo.kernel.ts",
     "./kernels/zoo/engine-connection": "./src/kernels/zoo/engine-connection.ts",
@@ -87,6 +86,16 @@
         "import": {
           "types": "./dist/esm/types/index.d.ts",
           "default": "./dist/esm/types/index.js"
+        }
+      },
+      "./kernel": {
+        "require": {
+          "types": "./dist/cjs/plugins/kernel-plugin-entry.d.cts",
+          "default": "./dist/cjs/plugins/kernel-plugin-entry.cjs"
+        },
+        "import": {
+          "types": "./dist/esm/plugins/kernel-plugin-entry.d.ts",
+          "default": "./dist/esm/plugins/kernel-plugin-entry.js"
         }
       },
       "./kernels": {
@@ -177,16 +186,6 @@
         "import": {
           "types": "./dist/esm/kernels/manifold/manifold.kernel.d.ts",
           "default": "./dist/esm/kernels/manifold/manifold.kernel.js"
-        }
-      },
-      "./kernels/openscad": {
-        "require": {
-          "types": "./dist/cjs/kernels/openscad/openscad.kernel.d.cts",
-          "default": "./dist/cjs/kernels/openscad/openscad.kernel.cjs"
-        },
-        "import": {
-          "types": "./dist/esm/kernels/openscad/openscad.kernel.d.ts",
-          "default": "./dist/esm/kernels/openscad/openscad.kernel.js"
         }
       },
       "./kernels/opencascade": {
@@ -345,7 +344,6 @@
     "json-schema-default": "catalog:",
     "manifold-3d": "catalog:",
     "opencascade.js": "file:../../tarballs/opencascade.js-3.0.0-beta.d453dbf.tgz",
-    "openscad-wasm-prebuilt": "catalog:",
     "replicad": "file:../../tarballs/replicad-0.21.0-v8.56.tgz",
     "replicad-opencascadejs": "file:../../tarballs/replicad-opencascadejs-0.21.0-v8.55.tgz",
     "source-map-js": "catalog:",

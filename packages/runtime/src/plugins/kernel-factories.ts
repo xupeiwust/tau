@@ -10,7 +10,6 @@
 export { replicad } from '#kernels/replicad/replicad.plugin.js';
 export { opencascade } from '#kernels/opencascade/opencascade.plugin.js';
 export { zoo } from '#kernels/zoo/zoo.plugin.js';
-export { openscad } from '#kernels/openscad/openscad.plugin.js';
 export { jscad } from '#kernels/jscad/jscad.plugin.js';
 export { manifold } from '#kernels/manifold/manifold.plugin.js';
 export { tau } from '#kernels/tau/tau.plugin.js';

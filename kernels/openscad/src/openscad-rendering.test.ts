@@ -7,16 +7,18 @@
  * `baseColorFactor`. See docs/policy/color-space-policy.md.
  */
 import { describe, expect, it } from 'vitest';
-import openscadKernel from '#kernels/openscad/openscad.kernel.js';
+import openscadKernel from '#openscad.kernel.js';
 import {
+  assertSuccess,
   colorParityCases,
+  createGeometryFile,
+  createTestWorker,
   expectLinearBaseColor,
   getAllMaterialBaseColors,
   getMaterialAlphaMode,
   getMaterialBaseColor,
-} from '#testing/color-testing.utils.js';
-import { assertSuccess, createGeometryFile, createTestWorker } from '#testing/kernel-testing.utils.js';
-import type { CreateGeometryResult } from '#types/runtime.types.js';
+} from '@taucad/runtime/testing';
+import type { CreateGeometryResult } from '@taucad/runtime/types';
 
 function hexToOscadVector(hex: string, opacity: number): string {
   const clean = hex.startsWith('#') ? hex.slice(1) : hex;

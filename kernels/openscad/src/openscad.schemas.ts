@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { coordinateSystemSchema } from '#types/export-option-schemas.js';
+import { coordinateSystemSchema } from '@taucad/runtime/kernel';
 
 /**
  * OpenSCAD-native tessellation schema fragment for exports.

@@ -46,9 +46,6 @@ describe('ESM import smoke tests', () => {
     const manifold = await import('#kernels/manifold/manifold.kernel.js');
     expect(manifold.default).toBeDefined();
 
-    const openscad = await import('#kernels/openscad/openscad.kernel.js');
-    expect(openscad.default).toBeDefined();
-
     const tau = await import('#kernels/tau/tau.kernel.js');
     expect(tau.default).toBeDefined();
 

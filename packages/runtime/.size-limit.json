@@ -20,11 +20,6 @@
     "limit": "5 kB"
   },
   {
-    "name": "kernel: openscad",
-    "path": "dist/esm/kernels/openscad/openscad.kernel.js",
-    "limit": "4 kB"
-  },
-  {
     "name": "kernel: zoo",
     "path": "dist/esm/kernels/zoo/zoo.kernel.js",
     "limit": "3 kB"
