@@ -401,7 +401,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **vite-plugin-devtools-json** v0.2.1 — [Repository](https://github.com/ChromeDevTools/vite-plugin-devtools-json)
 - **vite-plugin-dts** v4.5.4 — [Repository](https://github.com/qmhc/vite-plugin-dts)
 - **vite-plugin-node** v7.0.0 — [Repository](https://github.com/axe-me/vite-plugin-node)
-- **vite-plugin-static-copy** v3.2.0 — [Repository](https://github.com/sapphi-red/vite-plugin-static-copy)
+- **vite-plugin-static-copy** v4.1.0 — [Repository](https://github.com/sapphi-red/vite-plugin-static-copy)
 - **vite-svg-sprite-wrapper** v1.5.0 — [Repository](https://github.com/vshepel/vite-svg-sprite-wrapper)
 - **vite-tsconfig-paths** v5.1.4 — [Repository](https://github.com/aleclarson/vite-tsconfig-paths)
 - **vitest** v4.1.0-beta.6 — [Repository](https://github.com/vitest-dev/vitest)
