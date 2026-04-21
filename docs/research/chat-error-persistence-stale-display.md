@@ -1,7 +1,7 @@
 ---
 title: 'Chat Error Persistence Stale Display'
 description: 'Root cause analysis of chat error banner not clearing after a new successful message is sent'
-status: resolved
+status: active
 created: '2026-04-15'
 updated: '2026-04-20'
 category: investigation
