@@ -677,3 +677,238 @@ describe('3MF export options', () => {
   });
 });
 /* eslint-enable @typescript-eslint/naming-convention -- re-enable after 3MF tests */
+
+// ============================================================================
+// 3MF Rendering Artifact Regressions (R6)
+// ============================================================================
+// Guards the fixes from docs/research/3mf-export-rendering-artifacts.md:
+//   R1 - lib3mf decimal precision raised from 6 to 9 (default) so vertex
+//        truncation no longer creates µm-scale gaps at shared mesh boundaries.
+//   R2 - aiProcess_Triangulate + aiProcess_JoinIdenticalVertices enforced for
+//        the 3MF exporter; vertex welding runs per-aiMesh, so multi-primitive
+//        scenes keep one <object> per primitive and per-material colors stay
+//        intact.
+//   R3 - Lib3MFBridge converts non-triangle aiFaces with push_back, so any
+//        residual N-gon never leaves a zero-initialised degenerate slot that
+//        lib3mf would otherwise reject.
+//   R4 - aiProcess_FindDegenerates + aiProcess_FindInvalidData guard against
+//        malformed input slipping through to the bridge.
+
+/**
+ * Build a minimal, valid multi-primitive GLB in-memory: one mesh with two
+ * primitives that reference distinct materials. Vertex coordinates use values
+ * that require >= 9 fractional digits to round-trip without loss, which is the
+ * R1 precision regression assertion.
+ */
+const buildMultiPrimitiveGlb = (): Uint8Array<ArrayBuffer> => {
+  const triangleA = {
+    positions: [
+      [0, 0, 0],
+      [1.123_456_789, 0, 0],
+      [0, 1.234_567_891, 0],
+    ] as const,
+    min: [0, 0, 0] as const,
+    max: [1.123_456_789, 1.234_567_891, 0] as const,
+  };
+  const triangleB = {
+    positions: [
+      [2, 2, 2],
+      [3.555_555_555, 2, 2],
+      [2, 3.777_777_777, 2],
+    ] as const,
+    min: [2, 2, 2] as const,
+    max: [3.555_555_555, 3.777_777_777, 2] as const,
+  };
+
+  const positionsBytesPerPrim = 3 * 3 * 4; // 3 verts * vec3 * f32
+  const indicesBytesPerPrim = 3 * 4; // 3 indices * u32
+  const bufferLength = (positionsBytesPerPrim + indicesBytesPerPrim) * 2;
+
+  const binary = new ArrayBuffer(bufferLength);
+  const f32 = new Float32Array(binary);
+  const u32 = new Uint32Array(binary);
+
+  // Buffer layout (matches the bufferView byteOffsets below):
+  //   [0..36)   posA (36B)
+  //   [36..72)  posB (36B)
+  //   [72..84)  idxA (12B)
+  //   [84..96)  idxB (12B)
+  let cursor = 0;
+  for (const tri of [triangleA, triangleB]) {
+    for (const [x, y, z] of tri.positions) {
+      f32[cursor] = x;
+      f32[cursor + 1] = y;
+      f32[cursor + 2] = z;
+      cursor += 3;
+    }
+  }
+  const indexStartU32 = (positionsBytesPerPrim * 2) / 4;
+  u32[indexStartU32] = 0;
+  u32[indexStartU32 + 1] = 1;
+  u32[indexStartU32 + 2] = 2;
+  u32[indexStartU32 + 3] = 0;
+  u32[indexStartU32 + 4] = 1;
+  u32[indexStartU32 + 5] = 2;
+
+  const json = {
+    asset: { version: '2.0', generator: 'tau-3mf-regression' },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ mesh: 0 }],
+    meshes: [
+      {
+        name: 'MultiPrimMesh',
+        primitives: [
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- POSITION is the glTF 2.0 attribute name mandated by the spec.
+          { attributes: { POSITION: 0 }, indices: 1, material: 0, mode: 4 },
+          // eslint-disable-next-line @typescript-eslint/naming-convention -- POSITION is the glTF 2.0 attribute name mandated by the spec.
+          { attributes: { POSITION: 2 }, indices: 3, material: 1, mode: 4 },
+        ],
+      },
+    ],
+    materials: [
+      {
+        name: 'MatRed',
+        pbrMetallicRoughness: { baseColorFactor: [1, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1 },
+      },
+      {
+        name: 'MatBlue',
+        pbrMetallicRoughness: { baseColorFactor: [0, 0, 1, 1], metallicFactor: 0, roughnessFactor: 1 },
+      },
+    ],
+    accessors: [
+      {
+        bufferView: 0,
+        componentType: 5126,
+        count: 3,
+        type: 'VEC3',
+        min: [...triangleA.min],
+        max: [...triangleA.max],
+      },
+      { bufferView: 1, componentType: 5125, count: 3, type: 'SCALAR' },
+      {
+        bufferView: 2,
+        componentType: 5126,
+        count: 3,
+        type: 'VEC3',
+        min: [...triangleB.min],
+        max: [...triangleB.max],
+      },
+      { bufferView: 3, componentType: 5125, count: 3, type: 'SCALAR' },
+    ],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: positionsBytesPerPrim, target: 34_962 },
+      {
+        buffer: 0,
+        byteOffset: positionsBytesPerPrim * 2,
+        byteLength: indicesBytesPerPrim,
+        target: 34_963,
+      },
+      {
+        buffer: 0,
+        byteOffset: positionsBytesPerPrim,
+        byteLength: positionsBytesPerPrim,
+        target: 34_962,
+      },
+      {
+        buffer: 0,
+        byteOffset: positionsBytesPerPrim * 2 + indicesBytesPerPrim,
+        byteLength: indicesBytesPerPrim,
+        target: 34_963,
+      },
+    ],
+    buffers: [{ byteLength: bufferLength }],
+  };
+
+  const jsonText = JSON.stringify(json);
+  const jsonBytes = Buffer.from(jsonText, 'utf8');
+  // GLTF spec requires JSON chunk padded to 4-byte boundary with 0x20 (space).
+  const jsonPadding = (4 - (jsonBytes.length % 4)) % 4;
+  const jsonChunkLength = jsonBytes.length + jsonPadding;
+
+  const binaryPadding = (4 - (binary.byteLength % 4)) % 4;
+  const binaryChunkLength = binary.byteLength + binaryPadding;
+
+  const totalLength = 12 + 8 + jsonChunkLength + 8 + binaryChunkLength;
+  const out = Buffer.alloc(totalLength);
+  out.writeUInt32LE(0x46_54_6c_67, 0); // 'glTF'
+  out.writeUInt32LE(2, 4);
+  out.writeUInt32LE(totalLength, 8);
+
+  out.writeUInt32LE(jsonChunkLength, 12);
+  out.writeUInt32LE(0x4e_4f_53_4a, 16); // 'JSON'
+  jsonBytes.copy(out, 20);
+  out.fill(0x20, 20 + jsonBytes.length, 20 + jsonChunkLength);
+
+  const binChunkOffset = 20 + jsonChunkLength;
+  out.writeUInt32LE(binaryChunkLength, binChunkOffset);
+  out.writeUInt32LE(0x00_4e_49_42, binChunkOffset + 4); // 'BIN\0'
+  Buffer.from(binary).copy(out, binChunkOffset + 8);
+  // Binary chunk pads with 0x00 (Buffer.alloc default).
+
+  return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
+};
+
+/**
+ * Parse vertex elements from a 3MF model XML and return the maximum number of
+ * fractional digits seen across any x/y/z attribute.
+ */
+const maxVertexFractionalDigits = (xml: string): number => {
+  const vertexRegex = /<vertex\b[^/]*\/>/g;
+  const coordRegex = /[x-z]="(-?\d+(?:\.(\d+))?)"/g;
+  let max = 0;
+  for (const vertex of xml.match(vertexRegex) ?? []) {
+    coordRegex.lastIndex = 0;
+    let match: RegExpExecArray | undefined = coordRegex.exec(vertex) ?? undefined;
+    while (match !== undefined) {
+      const fractional = match[2] ?? '';
+      if (fractional.length > max) {
+        max = fractional.length;
+      }
+      match = coordRegex.exec(vertex) ?? undefined;
+    }
+  }
+  return max;
+};
+
+describe('3MF rendering artifact regressions', () => {
+  it('preserves one <object> per glTF primitive (R2 — JoinIdenticalVertices runs per-aiMesh)', async () => {
+    const multiPrimGlb = buildMultiPrimitiveGlb();
+    const files = await exportFiles(multiPrimGlb, '3mf');
+    const xml = extract3mfModelXml(files[0]!.bytes);
+
+    const objectMatches = xml.match(/<object\b[^>]*\stype="model"/g) ?? [];
+    expect(objectMatches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('emits at least 9 fractional digits for vertex coordinates by default (R1)', async () => {
+    const multiPrimGlb = buildMultiPrimitiveGlb();
+    const files = await exportFiles(multiPrimGlb, '3mf');
+    const xml = extract3mfModelXml(files[0]!.bytes);
+
+    expect(maxVertexFractionalDigits(xml)).toBeGreaterThanOrEqual(9);
+  });
+
+  it('honours an explicit higher precision via 3MF_EXPORT_DECIMAL_PRECISION (R1)', async () => {
+    const multiPrimGlb = buildMultiPrimitiveGlb();
+    const files = await exportFiles(multiPrimGlb, '3mf', {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- Assimp property key uses CONSTANT_CASE
+      '3MF_EXPORT_DECIMAL_PRECISION': 12,
+    });
+    const xml = extract3mfModelXml(files[0]!.bytes);
+
+    expect(maxVertexFractionalDigits(xml)).toBeGreaterThanOrEqual(10);
+  });
+
+  it('exports a normal cube without polygon-face fallout (R3 + R4)', async () => {
+    const cubeGlb = loadFixture('cube.glb');
+    const files = await exportFiles(cubeGlb, '3mf');
+    const xml = extract3mfModelXml(files[0]!.bytes);
+
+    const triangleCount = (xml.match(/<triangle\b/g) ?? []).length;
+    const vertexCount = (xml.match(/<vertex\b/g) ?? []).length;
+    expect(triangleCount).toBeGreaterThan(0);
+    expect(vertexCount).toBeGreaterThan(0);
+    expect(xml).not.toContain('v1="0" v2="0" v3="0"');
+  });
+});
