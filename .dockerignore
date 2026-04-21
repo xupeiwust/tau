@@ -13,6 +13,11 @@
 # -- External dependency repos (86 GB locally, gitignored but not dockerignored) --
 repos
 
+# -- Benchmark and report artifacts (937 MB of HTML/JSON/GLB outputs) --------
+apps/api/reports
+packages/runtime/reports
+packages/runtime/occt-reports
+
 # -- E2E test projects (trigger @nx/playwright plugin in Nx project graph) ----
 apps/ui-e2e
 apps/api-e2e

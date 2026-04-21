@@ -417,6 +417,9 @@ catalogs:
     vite:
       specifier: 8.0.0-beta.16
       version: 8.0.0-beta.16
+    vite-plugin-static-copy:
+      specifier: ^4.1.0
+      version: 4.1.0
     vitest-mock-extended:
       specifier: ^3.1.0
       version: 3.1.0
@@ -1328,8 +1331,8 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0(@swc/core@1.15.8(@swc/helpers@0.5.19))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       vite-plugin-static-copy:
-        specifier: ^3.2.0
-        version: 3.2.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        specifier: 'catalog:'
+        version: 4.1.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       vite-svg-sprite-wrapper:
         specifier: ^1.5.0
         version: 1.5.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -20532,11 +20535,11 @@ packages:
       '@swc/core':
         optional: true
 
-  vite-plugin-static-copy@3.2.0:
-    resolution: {integrity: sha512-g2k9z8B/1Bx7D4wnFjPLx9dyYGrqWMLTpwTtPHhcU+ElNZP2O4+4OsyaficiDClus0dzVhdGvoGFYMJxoXZ12Q==}
-    engines: {node: ^18.0.0 || >=20.0.0}
+  vite-plugin-static-copy@4.1.0:
+    resolution: {integrity: sha512-9XOarNV7LgP0KBB7AApxdgFikLXx3daZdqjC3AevYsL6MrUH62zphonLUs2a6LZc1HN1GY+vQdheZ8VVJb6dQQ==}
+    engines: {node: ^22.0.0 || >=24.0.0}
     peerDependencies:
-      vite: ^5.0.0 || ^6.0.0 || ^7.0.0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
 
   vite-svg-sprite-wrapper@1.5.0:
     resolution: {integrity: sha512-IedO8KQYgW69C2wDAAWfRgNpPq3rq3n2vV5/326g3kwACyJM6+SVII61Zl89rVExTa1GcAO1LmKIsv93Wvi2yg==}
@@ -26970,7 +26973,7 @@ snapshots:
   '@parcel/watcher-wasm@2.5.6':
     dependencies:
       is-glob: 4.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   '@parcel/watcher-win32-arm64@2.5.6':
     optional: true
@@ -26986,7 +26989,7 @@ snapshots:
       detect-libc: 2.1.2
       is-glob: 4.0.3
       node-addon-api: 7.1.1
-      picomatch: 4.0.3
+      picomatch: 4.0.4
     optionalDependencies:
       '@parcel/watcher-android-arm64': 2.5.6
       '@parcel/watcher-darwin-arm64': 2.5.6
@@ -29592,7 +29595,7 @@ snapshots:
     dependencies:
       minimatch: 10.2.3
       path-browserify: 1.0.1
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.16
 
   '@tsconfig/node10@1.0.12': {}
 
@@ -30142,7 +30145,7 @@ snapshots:
       debug: 4.4.3(supports-color@10.2.2)
       minimatch: 10.2.3
       semver: 7.7.4
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.16
       ts-api-utils: 2.4.0(typescript@5.9.3)
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -30334,7 +30337,7 @@ snapshots:
       glob: 10.5.0
       graceful-fs: 4.2.11
       node-gyp-build: 4.8.4
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       resolve-from: 5.0.0
     transitivePeerDependencies:
       - encoding
@@ -30409,7 +30412,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
-      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.9(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/utils@4.1.0-beta.6':
     dependencies:
@@ -35943,7 +35946,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   jest-validate@30.2.0:
     dependencies:
@@ -42526,7 +42529,7 @@ snapshots:
   unplugin-utils@0.2.5:
     dependencies:
       pathe: 2.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   unrs-resolver@1.11.1:
     dependencies:
@@ -42865,12 +42868,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  vite-plugin-static-copy@3.2.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+  vite-plugin-static-copy@4.1.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       chokidar: 3.6.0
       p-map: 7.0.4
       picocolors: 1.1.1
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.16
       vite: 8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
   vite-svg-sprite-wrapper@1.5.0(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
@@ -42973,7 +42976,7 @@ snapshots:
     dependencies:
       ts-essentials: 10.1.1(typescript@5.9.3)
       typescript: 5.9.3
-      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.9(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   vitest@4.1.0-beta.6(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/ui@4.1.0-beta.6)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.0-beta.16(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:

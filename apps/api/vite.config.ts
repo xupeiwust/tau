@@ -33,10 +33,18 @@ export default defineConfig(({ mode }) => {
       tsModuleUrlServePlugin(),
       nxViteTsPaths(),
       viteStaticCopy({
+        // `vite-plugin-node` builds an SSR environment; the plugin defaults to
+        // 'client' and silently no-ops without this override (broke when
+        // vite-plugin-static-copy went 3 -> 4, which introduced the option).
+        environment: 'ssr',
         targets: [
           {
             src: 'app/database/migrations/**/*',
             dest: 'migrations',
+            // Strip the `app/database/migrations/` prefix so files land at
+            // `dist/migrations/<file>` (drizzle expects `meta/_journal.json`
+            // directly under the migrations folder).
+            rename: { stripBase: 3 },
           },
         ],
       }),

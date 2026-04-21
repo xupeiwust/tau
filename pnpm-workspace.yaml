@@ -147,6 +147,7 @@ catalog:
   uint8array-extras: ^1.5.0
   uzip: ^0.20201231.0
   vite: 8.0.0-beta.16
+  vite-plugin-static-copy: ^4.1.0
   vitest: 4.1.0-beta.6
   vitest-mock-extended: ^3.1.0
   ws: ^8.19.0
