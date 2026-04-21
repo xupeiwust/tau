@@ -1,20 +1,12 @@
 import { memo, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Code, ChevronDown, Download, FileCode } from 'lucide-react';
+import { FileCode } from 'lucide-react';
 import { Loader } from '#components/ui/loader.js';
 import { Button } from '#components/ui/button.js';
 import { Tabs, TabsContent } from '#components/ui/tabs.js';
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from '#components/ui/drawer.js';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#components/ui/dropdown-menu.js';
-import { downloadBlob } from '@taucad/utils/file';
 import { toast } from '#components/ui/sonner.js';
 import { cn } from '#utils/ui.utils.js';
-import { useFileManager } from '#hooks/use-file-manager.js';
 import { useProjectManager } from '#hooks/use-project-manager.js';
 import { useCadPreview } from '#hooks/use-cad-preview.js';
 import { CadPreviewViewer, CadPreviewStatus } from '#components/cad-preview.js';
@@ -30,7 +22,6 @@ export const PreviewMobile = memo(function (): React.JSX.Element {
   const navigate = useNavigate();
   const { project, isStaticProject, staticProjectFiles } = usePreviewProject();
   const { geometries, cadRef } = useCadPreview();
-  const fileManager = useFileManager();
   const projectManager = useProjectManager();
   const files = usePreviewFileList();
 
@@ -40,27 +31,6 @@ export const PreviewMobile = memo(function (): React.JSX.Element {
     usePreviewState();
 
   const isModelTab = activeTab === 'model';
-
-  const handleDownloadZip = useCallback(async (): Promise<void> => {
-    if (!project) {
-      return;
-    }
-
-    toast.promise(
-      async () => {
-        const zipBlob = await fileManager.getZippedDirectory(`/projects/${project.id}`);
-        return zipBlob;
-      },
-      {
-        loading: 'Creating ZIP archive...',
-        success(blob) {
-          downloadBlob(blob, `${project.name}.zip`);
-          return 'ZIP downloaded successfully';
-        },
-        error: 'Failed to create ZIP archive',
-      },
-    );
-  }, [project, fileManager]);
 
   const handleRemix = useCallback(async () => {
     if (!isStaticProject || !staticProjectFiles || !project) {
@@ -132,25 +102,16 @@ export const PreviewMobile = memo(function (): React.JSX.Element {
             !isModelTab && 'hidden',
           )}
         >
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='default' size='lg' className='shadow-lg rounded-full'>
-                <Code className='mr-2 size-4' />
-                Code
-                <ChevronDown className='ml-2 size-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem disabled={isCloning} onClick={handleRemix}>
-                {isCloning ? <Loader /> : <FileCode />}
-                {isCloning ? 'Remixing...' : 'Remix'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadZip}>
-                <Download />
-                Download ZIP
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant='default'
+            size='lg'
+            disabled={isCloning}
+            className='shadow-lg rounded-full'
+            onClick={handleRemix}
+          >
+            {isCloning ? <Loader /> : <FileCode className='mr-2 size-4' />}
+            {isCloning ? 'Remixing...' : isStaticProject ? 'Remix' : 'Edit'}
+          </Button>
         </div>
       </div>
 

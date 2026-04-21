@@ -1,18 +1,11 @@
 import { memo, useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Download, FileCode, Eye, Code, ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { Loader } from '#components/ui/loader.js';
+import { FileCode, Eye, SlidersHorizontal } from 'lucide-react';
 import { Button } from '#components/ui/button.js';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '#components/ui/tabs.js';
 import { Avatar, AvatarImage, AvatarFallback } from '#components/ui/avatar.js';
 import { Separator } from '#components/ui/separator.js';
 import { ProjectSettingsDialog } from '#routes/projects_.$id_.preview/project-settings-dialog.js';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#components/ui/dropdown-menu.js';
 import { downloadBlob } from '@taucad/utils/file';
 import { toast } from '#components/ui/sonner.js';
 import { cn } from '#utils/ui.utils.js';
@@ -22,6 +15,7 @@ import { useCadPreview } from '#hooks/use-cad-preview.js';
 import { CadPreviewViewer, CadPreviewStatus } from '#components/cad-preview.js';
 import { usePreviewProject } from '#routes/projects_.$id_.preview/preview-project-context.js';
 import { PreviewDetails } from '#routes/projects_.$id_.preview/preview-details.js';
+import { PreviewCodeActions } from '#routes/projects_.$id_.preview/preview-code-actions.js';
 import { PreviewFiles } from '#routes/projects_.$id_.preview/preview-files.js';
 import { PreviewParameters } from '#routes/projects_.$id_.preview/preview-parameters.js';
 import { usePreviewFileList } from '#routes/projects_.$id_.preview/use-preview-file-list.js';
@@ -128,25 +122,12 @@ export const PreviewDesktop = memo(function (): React.JSX.Element {
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='default'>
-                <Code className='mr-2 size-4' />
-                Code
-                <ChevronDown className='ml-2 size-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem disabled={isCloning} onClick={handleEditOnline}>
-                {isCloning ? <Loader /> : <FileCode />}
-                {isCloning ? 'Remixing...' : 'Remix'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadZip}>
-                <Download />
-                Download ZIP
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <PreviewCodeActions
+            isStaticProject={isStaticProject}
+            isCloning={isCloning}
+            onRemix={handleEditOnline}
+            onDownloadZip={handleDownloadZip}
+          />
           {isStaticProject ? null : <ProjectSettingsDialog />}
         </div>
       </div>
