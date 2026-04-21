@@ -15,7 +15,7 @@ the combined work is subject to GPL-2.0-or-later terms.
 
 By using Tau, you agree to comply with the license terms of all included dependencies.
 
-*Generated on 2026-04-19*
+*Generated on 2026-04-21*
 
 ## Summary
 
@@ -376,7 +376,7 @@ By using Tau, you agree to comply with the license terms of all included depende
 - **recharts** v3.7.0 — [Repository](https://github.com/recharts/recharts)
 - **remark-math** v6.0.0 — [Repository](https://github.com/remarkjs/remark-math/tree/main/packages/remark-math)
 - **remix-themes** v2.0.4 — [Repository](https://github.com/abereghici/remix-themes)
-- **replicad** v0.21.0-v8.55
+- **replicad** v0.21.0-v8.56
 - **replicad-opencascadejs** v0.21.0-v8.55
 - **rollup-plugin-visualizer** v6.0.5 — [Repository](https://github.com/btd/rollup-plugin-visualizer)
 - **safe-regex** v2.1.1 — [Repository](https://github.com/davisjam/safe-regex)
