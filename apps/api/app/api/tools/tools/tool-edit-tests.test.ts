@@ -179,7 +179,7 @@ describe('createEditTestsTool', () => {
       expect(editCall?.originalContent).toBeDefined();
       const parsed = JSON.parse(editCall!.originalContent) as Record<string, unknown>;
       expect(parsed).toEqual({});
-      expect(Array.isArray(parsed.requirements)).toBe(false);
+      expect(Array.isArray(parsed['requirements'])).toBe(false);
     });
 
     it('should propagate ToolError when readFile returns a non-FILE_NOT_FOUND client error', async () => {
