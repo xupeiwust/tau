@@ -8,6 +8,8 @@ category: investigation
 related:
   - docs/research/3mf-activation-status.md
   - docs/research/3mf-assimp-audit.md
+  - docs/research/3mf-export-rendering-artifacts.md
+  - docs/research/openscad-3mf-coordinate-orientation.md
   - docs/research/export-pipeline-v6-implementation-audit.md
   - docs/research/export-options-kernel-mismatch.md
   - docs/research/export-option-schema-architecture.md
@@ -710,3 +712,5 @@ Everything else lives in assimp where it belongs, benefits the whole ecosystem, 
 - Assimp X File exporter precedent: `repos/assimpjs/assimp/code/Common/Exporter.cpp` line 157
 - Long-running upstream tickets: [#115](https://github.com/assimp/assimp/issues/115), [#165](https://github.com/assimp/assimp/issues/165), [#849](https://github.com/assimp/assimp/issues/849), [#2166](https://github.com/assimp/assimp/issues/2166), [#2622](https://github.com/assimp/assimp/issues/2622), [#3153](https://github.com/assimp/assimp/issues/3153), [#3308](https://github.com/assimp/assimp/issues/3308), [#4052](https://github.com/assimp/assimp/issues/4052), [#5337](https://github.com/assimp/assimp/issues/5337), [#6131](https://github.com/assimp/assimp/pull/6131)
 - Related Tau research: `docs/research/tinyusdz-fork-fixes-vs-upstream.md` (precedent for upstream-first fix pattern), `docs/research/3mf-activation-status.md`
+- Related Tau research: `docs/research/3mf-export-rendering-artifacts.md` — follow-on investigation that uncovered a separate Bambu Studio rendering-artifact class (vertex-coordinate truncation in `lib3mf` + multi-mesh `aiMesh` preservation + a latent degenerate-face bug in `Lib3MFBridge`); resolved in `taucad-assimpjs-0.0.18` and validated by the `3mf rendering artifact regressions` block in `packages/converter/src/export.test.ts`.
+- Related Tau research: `docs/research/openscad-3mf-coordinate-orientation.md` — Smoking Gun 2 reformulated for the OpenSCAD kernel where the coordinate-system drop manifests as a visible defect.
