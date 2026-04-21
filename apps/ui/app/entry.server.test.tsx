@@ -1,7 +1,7 @@
 import type { AppLoadContext, EntryContext } from 'react-router';
 import { describe, it, expect } from 'vitest';
 
-import handleRequest from './entry.server.js';
+import handleRequest from '#entry.server.js';
 
 const entryContext = {} as unknown as EntryContext;
 const loadContext = {} as unknown as AppLoadContext;
