@@ -700,7 +700,7 @@ function MyComponent({ actorRef }: Props): React.JSX.Element {
 
 ### Limit spawned actor count
 
-Each spawned actor is a live object with subscriptions. For variable-count actors (compilation units, graphics views), set reasonable limits and clean up eagerly.
+Each spawned actor is a live object with subscriptions. For variable-count actors (geometry units, graphics views), set reasonable limits and clean up eagerly.
 
 ---
 
@@ -718,3 +718,4 @@ Each spawned actor is a live object with subscriptions. For variable-count actor
 - [XState Patterns Research](../research/xstate-patterns.md)
 - [TypeScript Policy](./typescript-policy.md) — type assertion rules, `as never` ban, mock typing patterns
 - [TypeScript Overloads Research](../research/typescript-overloads.md) — overloaded function patterns and mock compatibility
+- [Storage Policy](./storage-policy.md) — atomic read-modify-write rules for any storage primitive consumed by multiple actors
