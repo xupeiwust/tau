@@ -506,7 +506,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
     >
       <div
         className={cn(
-          'flex flex-col space-y-2 overflow-y-auto',
+          'flex flex-col space-y-2 min-w-0',
           'w-full',
           // Vary width for user and assistant messages to achieve visual differentiation
           isUser ? 'mx-2' : 'mx-4',
@@ -534,7 +534,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
         <When shouldRender={!isEditing}>
           <div
             className={cn(
-              'flex flex-col gap-0',
+              'flex flex-col gap-0 min-w-0',
               isUser && 'cursor-pointer rounded-sm border bg-background px-3 py-1 hover:border-primary',
               shouldCollapseUserMessage && 'max-h-58.5 overflow-hidden',
               fileParts.length > 0 && 'pt-3',
