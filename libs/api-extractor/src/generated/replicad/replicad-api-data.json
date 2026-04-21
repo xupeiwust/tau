@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "extractionDate": "2026-04-19T04:32:00.768Z",
+    "extractionDate": "2026-04-21T11:00:47.854Z",
     "source": "TypeScript Compiler API (replicad)",
     "totalEntries": 219,
     "breakdown": {
@@ -1644,7 +1644,7 @@
       "name": "ShapeConfig",
       "kind": "type",
       "category": "Geometry Types",
-      "signature": "export declare type ShapeConfig = {\n    shape: AnyShape;\n    color?: string;\n    alpha?: number;\n    name?: string;\n    metallic?: number;\n    roughness?: number;\n    density?: number;\n};"
+      "signature": "export declare type ShapeConfig = {\n    shape: AnyShape;\n    color?: string;\n    alpha?: number;\n    name?: string;\n    metalness?: number;\n    roughness?: number;\n    density?: number;\n};"
     },
     {
       "name": "ShapeMesh",

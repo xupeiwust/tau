@@ -50,6 +50,61 @@ const monacoScrollbarStyles = [
   '[&_.monaco-scrollable-element_>_.scrollbar_>_.slider]:!bg-(--scrollbar-thumb)/80',
 ] as const;
 
+// Restore native list/blockquote/heading rendering inside Monaco overflow
+// widgets. Tailwind v4 Preflight strips list-style globally; hover, suggest,
+// and parameter-hints widgets render JSDoc Markdown that needs them back.
+// Applied directly to overflowWidgetsDomNode (lives on document.body, outside
+// the editor wrapper DOM, so Tailwind descendant selectors from `classNames`
+// would never reach it).
+// @see docs/research/monaco-intellisense-jsdoc-rendering.md (R1)
+const monacoOverlayRestoreStyles = [
+  // Lists — restore bullets/numbers, indent, vertical rhythm
+  '[&_.monaco-hover_ul]:[list-style:revert]',
+  '[&_.monaco-hover_ol]:[list-style:revert]',
+  '[&_.monaco-hover_ul]:ps-5',
+  '[&_.monaco-hover_ol]:ps-5',
+  '[&_.monaco-hover_ul]:[margin-block:0.25rem]',
+  '[&_.monaco-hover_ol]:[margin-block:0.25rem]',
+  '[&_.monaco-hover_li+li]:[margin-block-start:0.125rem]',
+  '[&_.suggest-widget_ul]:[list-style:revert]',
+  '[&_.suggest-widget_ol]:[list-style:revert]',
+  '[&_.suggest-widget_ul]:ps-5',
+  '[&_.suggest-widget_ol]:ps-5',
+  '[&_.suggest-widget_ul]:[margin-block:0.25rem]',
+  '[&_.suggest-widget_ol]:[margin-block:0.25rem]',
+  '[&_.suggest-widget_li+li]:[margin-block-start:0.125rem]',
+  '[&_.parameter-hints-widget_ul]:[list-style:revert]',
+  '[&_.parameter-hints-widget_ol]:[list-style:revert]',
+  '[&_.parameter-hints-widget_ul]:ps-5',
+  '[&_.parameter-hints-widget_ol]:ps-5',
+  '[&_.parameter-hints-widget_ul]:[margin-block:0.25rem]',
+  '[&_.parameter-hints-widget_ol]:[margin-block:0.25rem]',
+  '[&_.parameter-hints-widget_li+li]:[margin-block-start:0.125rem]',
+  // Blockquotes — themed left rule using Monaco's own VS Code tokens
+  '[&_.monaco-hover_blockquote]:border-s-2',
+  '[&_.monaco-hover_blockquote]:border-s-(--vscode-editorHoverWidget-border)',
+  '[&_.monaco-hover_blockquote]:ps-2',
+  '[&_.monaco-hover_blockquote]:[margin-block:0.25rem]',
+  '[&_.monaco-hover_blockquote]:text-(--vscode-descriptionForeground)',
+  '[&_.suggest-widget_blockquote]:border-s-2',
+  '[&_.suggest-widget_blockquote]:border-s-(--vscode-editorHoverWidget-border)',
+  '[&_.suggest-widget_blockquote]:ps-2',
+  '[&_.suggest-widget_blockquote]:[margin-block:0.25rem]',
+  '[&_.suggest-widget_blockquote]:text-(--vscode-descriptionForeground)',
+  '[&_.parameter-hints-widget_blockquote]:border-s-2',
+  '[&_.parameter-hints-widget_blockquote]:border-s-(--vscode-editorHoverWidget-border)',
+  '[&_.parameter-hints-widget_blockquote]:ps-2',
+  '[&_.parameter-hints-widget_blockquote]:[margin-block:0.25rem]',
+  '[&_.parameter-hints-widget_blockquote]:text-(--vscode-descriptionForeground)',
+  // Headings — restore weight + vertical rhythm for @example / section headers
+  '[&_.monaco-hover_:is(h1,h2,h3,h4)]:font-semibold',
+  '[&_.monaco-hover_:is(h1,h2,h3,h4)]:[margin-block:0.5rem_0.25rem]',
+  '[&_.suggest-widget_:is(h1,h2,h3,h4)]:font-semibold',
+  '[&_.suggest-widget_:is(h1,h2,h3,h4)]:[margin-block:0.5rem_0.25rem]',
+  '[&_.parameter-hints-widget_:is(h1,h2,h3,h4)]:font-semibold',
+  '[&_.parameter-hints-widget_:is(h1,h2,h3,h4)]:[margin-block:0.5rem_0.25rem]',
+] as const;
+
 await configureMonaco();
 
 export function CodeEditor({ className, ...rest }: CodeEditorProperties): React.JSX.Element {
@@ -69,6 +124,7 @@ export function CodeEditor({ className, ...rest }: CodeEditorProperties): React.
       '![--monaco-monospace-font:var(--font-mono)]',
       '![font-family:var(--font-sans)]',
       ...monacoScrollbarStyles,
+      ...monacoOverlayRestoreStyles,
     );
   }, [theme]);
 
