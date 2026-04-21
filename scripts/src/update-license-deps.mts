@@ -255,20 +255,33 @@ function getLicenseNotice(license: string): string[] {
     return ['> This package is dual-licensed. Tau uses it under the **MIT License** terms.', ''];
   }
 
-  // GPL-2.0 specific notice
+  // LGPL notice (library copyleft — checked before plain GPL so LGPL-3.0 doesn't
+  // fall through to the GPL-3.0 branch)
+  if (upper.includes('LGPL')) {
+    return [
+      '> **LGPL License Notice**',
+      '>',
+      '> Library-style copyleft. Tau consumes these packages as libraries; the LGPL',
+      '> obligation is satisfied by attribution and source availability.',
+      '>',
+      '> Source for Tau forks of LGPL libraries is available at: https://github.com/taucad',
+      '',
+    ];
+  }
+
+  // GPL-2.0 specific notice (applies to openscad-wasm-prebuilt — the only
+  // plain-GPL dependency in Tau)
   if (upper.includes('GPL-2.0')) {
     return [
-      '> **GPL-2.0 License Notice**',
+      '> **GPL-2.0-or-later License Notice**',
       '>',
-      '> This component is licensed under the GNU General Public License v2.0 or later.',
-      '> When you use Tau with this component, you have the following rights:',
+      '> A distribution of Tau that includes this component is a GPL-2.0-or-later',
+      '> combined work. To comply:',
       '>',
-      '> - **Freedom to use** the software for any purpose',
-      '> - **Freedom to study** how the program works (source code available)',
-      '> - **Freedom to redistribute** copies',
-      '> - **Freedom to modify** and distribute modified versions',
+      '> - **Make source available** — the Tau source is published at https://github.com/taucad/tau',
+      '> - **Ship the GPL license text** alongside the bundled WASM/binary',
       '>',
-      '> The complete source code is available at: https://github.com/taucad/tau',
+      '> Distributions that exclude this component carry no GPL obligation.',
       '>',
       '> Full license text: https://www.gnu.org/licenses/gpl-2.0.html',
       '',
@@ -280,7 +293,10 @@ function getLicenseNotice(license: string): string[] {
     return [
       '> **GPL-3.0 License Notice**',
       '>',
-      '> This component is licensed under the GNU General Public License v3.0.',
+      '> A distribution of Tau that includes this component is a GPL-3.0 combined',
+      '> work; source must be available (https://github.com/taucad/tau) and the GPL',
+      '> license text must ship with the binary.',
+      '>',
       '> Full license text: https://www.gnu.org/licenses/gpl-3.0.html',
       '',
     ];
@@ -316,14 +332,21 @@ function generateMarkdown(groups: LicenseGroup[]): string {
     '',
     '## Licensing Overview',
     '',
-    'Tau is dual-licensed:',
+    'Tau source is **[MIT-licensed](./license)**. The MIT license applies to all',
+    'files authored by the Tau project.',
     '',
-    '- **MIT License** — For all components except the OpenSCAD kernel',
-    '- **GPL-2.0-or-later** — When using the OpenSCAD kernel (due to `openscad-wasm-prebuilt`)',
+    'Some third-party dependencies impose additional obligations on **combined',
+    'distributions** that include them:',
     '',
-    'If you use Tau **without** the OpenSCAD kernel, the entire codebase is available under',
-    'the permissive [MIT License](./license). If you use Tau **with** the OpenSCAD kernel,',
-    'the combined work is subject to GPL-2.0-or-later terms.',
+    '- **`openscad-wasm-prebuilt` (GPL-2.0-or-later)** — Bundled by the OpenSCAD',
+    '  kernel module (`@taucad/runtime/kernels/openscad`). A distribution that',
+    '  includes the OpenSCAD kernel is a GPL-2.0-or-later combined work; source',
+    '  must be available (it is, at https://github.com/taucad/tau) and the GPL',
+    '  license text must accompany the OpenSCAD WASM.',
+    '- **LGPL-2.1 / LGPL-3.0 libraries** (see sections below) — Library-style',
+    '  copyleft; satisfied by attribution and source availability.',
+    '',
+    'Distributions that exclude the OpenSCAD kernel carry no GPL obligation.',
     '',
     'By using Tau, you agree to comply with the license terms of all included dependencies.',
     '',

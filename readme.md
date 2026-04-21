@@ -92,11 +92,10 @@ Special thanks to [OpenSCAD Playground](https://github.com/openscad/openscad-pla
 
 ## License
 
-Tau is dual-licensed:
+Tau is **[MIT-licensed](license)**. The Tau source code is, and remains, MIT.
 
-- **[MIT License](license)** — For all components except the OpenSCAD kernel
-- **GPL-2.0-or-later** — When using the OpenSCAD kernel
+One optional bundled component — the OpenSCAD kernel — pulls in [`openscad-wasm-prebuilt`](https://www.npmjs.com/package/openscad-wasm-prebuilt), which is **[GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.html)**. When you build, install, or deploy a Tau distribution that includes the OpenSCAD kernel, the resulting **combined distribution** must satisfy the GPL-2.0-or-later terms (notably, source availability — already satisfied by this public repository — and shipping the GPL license text alongside the OpenSCAD WASM).
 
-If you use Tau **without** the OpenSCAD kernel (e.g., only Replicad, Zoo, or JSCAD), the entire codebase is available under the permissive MIT License. If you use Tau **with** the OpenSCAD kernel, the combined work is subject to [GPL-2.0-or-later](https://www.gnu.org/licenses/gpl-2.0.html) terms due to the `openscad-wasm-prebuilt` dependency.
+If you build, install, or deploy a Tau distribution **without** the OpenSCAD kernel (for example, only Replicad, JSCAD, Manifold, OpenCascade, or Zoo), no GPL obligation attaches to your distribution.
 
-Third-party license information is available in [license-deps](license-deps).
+Full third-party license inventory: [license-deps](license-deps).

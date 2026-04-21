@@ -88,8 +88,6 @@ catalog:
   '@vitest/coverage-v8': 4.1.0-beta.6
   '@vitest/ui': 4.1.0-beta.6
   '@xyflow/react': ^12.10.1
-  '@zenfs/core': ^2.5.0
-  '@zenfs/dom': ^1.2.7
   cdn-resolve: ^2.1.2
   citty: ^0.2.2
   comlink: ^4.4.2

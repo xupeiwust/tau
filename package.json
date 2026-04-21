@@ -1,6 +1,6 @@
 {
   "name": "@taucad/tau-source",
-  "description": "CAD primitives for the Web · Kernel Agnostic",
+  "description": "The AI-Native CAD Platform",
   "homepage": "https://github.com/taucad/tau",
   "license": "MIT",
   "private": true,
@@ -149,8 +149,6 @@
     "@typescript/vfs": "catalog:",
     "@xstate/react": "^5.0.5",
     "@xyflow/react": "catalog:",
-    "@zenfs/core": "catalog:",
-    "@zenfs/dom": "catalog:",
     "ai": "^6.0.99",
     "allotment": "^1.20.5",
     "autoprefixer": "10.4.21",
@@ -359,7 +357,6 @@
     "patchedDependencies": {
       "@kittycad/lib": "patches/@kittycad__lib.patch",
       "@taucad/kcl-wasm-lib": "patches/@taucad__kcl-wasm-lib.patch",
-      "@zenfs/core": "patches/@zenfs__core.patch",
       "replicad": "patches/replicad.patch",
       "@langchain/openai@1.4.0": "patches/@langchain__openai@1.4.0.patch"
     },

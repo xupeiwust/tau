@@ -249,12 +249,6 @@ catalogs:
     '@xyflow/react':
       specifier: ^12.10.1
       version: 12.10.1
-    '@zenfs/core':
-      specifier: ^2.5.0
-      version: 2.5.0
-    '@zenfs/dom':
-      specifier: ^1.2.7
-      version: 1.2.7
     cdn-resolve:
       specifier: ^2.1.2
       version: 2.1.2
@@ -451,9 +445,6 @@ patchedDependencies:
   '@taucad/kcl-wasm-lib':
     hash: a5113ece295fc5a140b912793b5b08236be48a8ab797e0c981c91cd6cf7bad83
     path: patches/@taucad__kcl-wasm-lib.patch
-  '@zenfs/core':
-    hash: d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7
-    path: patches/@zenfs__core.patch
   replicad:
     hash: b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39
     path: patches/replicad.patch
@@ -762,12 +753,6 @@ importers:
       '@xyflow/react':
         specifier: 'catalog:'
         version: 12.10.1(@types/react@19.0.12)(immer@10.2.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@zenfs/core':
-        specifier: 'catalog:'
-        version: 2.5.0(patch_hash=d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7)
-      '@zenfs/dom':
-        specifier: 'catalog:'
-        version: 1.2.7(@zenfs/core@2.5.0(patch_hash=d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7))(kerium@1.3.8)(utilium@2.7.0)
       ai:
         specifier: ^6.0.99
         version: 6.0.99(zod@4.3.6)
@@ -9779,9 +9764,6 @@ packages:
   '@types/node@24.0.15':
     resolution: {integrity: sha512-oaeTSbCef7U/z7rDeJA138xpG3NuKc64/rZ2qmUFkFJmnMsAPaluIifqyWd8hSSMxyP9oie3dLAqYPblag9KgA==}
 
-  '@types/node@24.10.13':
-    resolution: {integrity: sha512-oH72nZRfDv9lADUBSo104Aq7gPHpQZc4BTx38r9xf9pg5LfP6EzSyH2n7qFmmxRQXh7YlUXODcYsg6PuTDSxGg==}
-
   '@types/node@25.3.0':
     resolution: {integrity: sha512-4K3bqJpXpqfg2XKGK9bpDTc6xO/xoUP/RBWS7AtRMug6zZFaRekiLzjVtAoZMquxoAbzBvy5nxQ7veS5eYzf8A==}
 
@@ -10356,9 +10338,6 @@ packages:
       xstate:
         optional: true
 
-  '@xterm/xterm@5.5.0':
-    resolution: {integrity: sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==}
-
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
 
@@ -10380,19 +10359,6 @@ packages:
   '@yarnpkg/parsers@3.0.2':
     resolution: {integrity: sha512-/HcYgtUSiJiot/XWGLOlGxPYUG65+/31V8oqk17vZLW1xlCoR4PampyePljOxY2n8/3jz9+tIFzICsyGujJZoA==}
     engines: {node: '>=18.12.0'}
-
-  '@zenfs/core@2.5.0':
-    resolution: {integrity: sha512-8yiSZLnFRJz9gfsBC+U1lvbeJprHJJNWSGNnadO+0AyYhW68owhNdoxVkTrP1ugbTDVvbUGiT3iWSBHDd93VZQ==}
-    engines: {node: '>= 18'}
-    hasBin: true
-
-  '@zenfs/dom@1.2.7':
-    resolution: {integrity: sha512-f0V512ROaUf44fKItRvZV3DQLMwo4jnQoprWGyasDSwn2oDG1TPkJ+vak3iuhqZgWD/wTWmXbpv3KE/yKDBGiA==}
-    engines: {node: '>= 22'}
-    peerDependencies:
-      '@zenfs/core': ^2.3.11
-      kerium: ^1.3.4
-      utilium: ^2.5.0
 
   '@zkochan/js-yaml@0.0.7':
     resolution: {integrity: sha512-nrUSn7hzt7J6JWgWGz78ZYI8wj+gdIJdk0Ynjpp8l+trkn58Uqsf6RYrYkEK+3X18EX+TNdtJI0WxAtc+L84SQ==}
@@ -15026,9 +14992,6 @@ packages:
     resolution: {integrity: sha512-XDYA44ccm6W2MXZeQcDZykS5srkTpPf6Z59AEuOFbfuqdQ5TVxhAjxgzAEFBpr8XpsCEgr/XeCBFAmc9x6wRmQ==}
     engines: {node: '>=16.17.0'}
 
-  kerium@1.3.8:
-    resolution: {integrity: sha512-tOtOOsTZ85Wt4h8TwV4ItgTi6paj2U1buOC/v9Rdon0ndtqASm5fn/rBRfEsif1czW4+u73T7XPbQAIBUF4tzg==}
-
   keygrip@1.1.0:
     resolution: {integrity: sha512-iYSchDJ+liQ8iwbSI2QqsQOvqv58eJCEanyJPJi+Khyu8smkcKSFUCbPwzFcL7YVtZ6eONjqRX/38caJ7QjRAQ==}
     engines: {node: '>= 0.6'}
@@ -15730,9 +15693,6 @@ packages:
     resolution: {integrity: sha512-eLvzyrwqLHnLYalJP7YZ3wBe79MXktMdfQbvMrVD80K+NhrIukCVBvgP30zTJYEEDh9hZ/ep9z0KOdD7FSHo7w==}
     peerDependencies:
       tslib: '2'
-
-  memium@0.3.11:
-    resolution: {integrity: sha512-CwmIpLVSG7UToDj2sYAZFDkpco30OPsXpaCnt+7Z7JQaulCjH5UvwJIctTIHmgQdFqk8pliBsPLnH5OZcDLZyQ==}
 
   memoize-one@6.0.0:
     resolution: {integrity: sha512-rkpe71W0N0c0Xz6QD0eJETuWAJGnJ9afsl1srmwPrI+yBCkge5EycXXbYRyvL29zZVUWQCY7InPRCv3GDXuZNw==}
@@ -19888,9 +19848,6 @@ packages:
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
 
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
-
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
@@ -20191,11 +20148,6 @@ packages:
   utility-types@3.11.0:
     resolution: {integrity: sha512-6Z7Ma2aVEWisaL6TvBCy7P8rm2LQoPv6dJ7ecIaIixHcwfbJ0x7mWdbcwlIM5IGQxPZSFYeqRCqlOOeKoJYMkw==}
     engines: {node: '>= 4'}
-
-  utilium@2.7.0:
-    resolution: {integrity: sha512-tRbXqiX9t/xJ/HDgixonAhCX6KdPNxO/FmFfI8HWqAU1/NQjpaK7sGGzN/bVGR9B3aktoIbJNvA9HV405GZVTQ==}
-    engines: {node: '>=22.0.0'}
-    hasBin: true
 
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
@@ -28063,7 +28015,7 @@ snapshots:
       gunzip-maybe: 1.4.2
       jsesc: 3.0.2
       json5: 2.2.3
-      lodash: 4.17.23
+      lodash: 4.18.1
       lodash.debounce: 4.0.8
       minimatch: 9.0.7
       ora: 5.4.1
@@ -29625,10 +29577,6 @@ snapshots:
     dependencies:
       undici-types: 7.8.0
 
-  '@types/node@24.10.13':
-    dependencies:
-      undici-types: 7.16.0
-
   '@types/node@25.3.0':
     dependencies:
       undici-types: 7.18.2
@@ -29998,8 +29946,8 @@ snapshots:
       eval: 0.1.8
       find-up: 5.0.0
       javascript-stringify: 2.1.0
-      lodash: 4.17.23
-      mlly: 1.8.0
+      lodash: 4.18.1
+      mlly: 1.8.2
       outdent: 0.8.0
       vite: 5.4.21(@types/node@24.0.15)(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)
       vite-node: 1.6.1(@types/node@24.0.15)(less@4.5.1)(lightningcss@1.31.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)
@@ -30326,9 +30274,6 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@xterm/xterm@5.5.0':
-    optional: true
-
   '@xtuc/ieee754@1.2.0': {}
 
   '@xtuc/long@4.2.2': {}
@@ -30362,22 +30307,6 @@ snapshots:
     dependencies:
       js-yaml: 3.14.2
       tslib: 2.8.1
-
-  '@zenfs/core@2.5.0(patch_hash=d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7)':
-    dependencies:
-      '@types/node': 24.10.13
-      buffer: 6.0.3
-      eventemitter3: 5.0.4
-      kerium: 1.3.8
-      memium: 0.3.11
-      readable-stream: 4.7.0
-      utilium: 2.7.0
-
-  '@zenfs/dom@1.2.7(@zenfs/core@2.5.0(patch_hash=d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7))(kerium@1.3.8)(utilium@2.7.0)':
-    dependencies:
-      '@zenfs/core': 2.5.0(patch_hash=d9d7cd937ff8ce80054e4317ec2f10a876f4cd7ccb5cb5e78c79b2400ab730f7)
-      kerium: 1.3.8
-      utilium: 2.7.0
 
   '@zkochan/js-yaml@0.0.7':
     dependencies:
@@ -35878,10 +35807,6 @@ snapshots:
     dependencies:
       mimic-fn: 4.0.0
 
-  kerium@1.3.8:
-    dependencies:
-      utilium: 2.7.0
-
   keygrip@1.1.0:
     dependencies:
       tsscmp: 1.0.6
@@ -36821,11 +36746,6 @@ snapshots:
       thingies: 2.5.0(tslib@2.8.1)
       tree-dump: 1.1.0(tslib@2.8.1)
       tslib: 2.8.1
-
-  memium@0.3.11:
-    dependencies:
-      kerium: 1.3.8
-      utilium: 2.7.0
 
   memoize-one@6.0.0: {}
 
@@ -41960,8 +41880,6 @@ snapshots:
 
   undici-types@5.26.5: {}
 
-  undici-types@7.16.0: {}
-
   undici-types@7.18.2: {}
 
   undici-types@7.8.0: {}
@@ -42258,12 +42176,6 @@ snapshots:
       which-typed-array: 1.1.20
 
   utility-types@3.11.0: {}
-
-  utilium@2.7.0:
-    dependencies:
-      eventemitter3: 5.0.4
-    optionalDependencies:
-      '@xterm/xterm': 5.5.0
 
   utils-merge@1.0.1: {}
 
