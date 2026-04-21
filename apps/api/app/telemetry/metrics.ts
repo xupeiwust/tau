@@ -79,6 +79,20 @@ export class MetricsService {
     advice: { explicitBucketBoundaries: [...TauMetrics.genAiAgentIterations.buckets] },
   });
 
+  public readonly genAiAgentSafeguardInterventions = this.meter.createCounter(
+    TauMetrics.genAiAgentSafeguardInterventions.name,
+    {
+      description: TauMetrics.genAiAgentSafeguardInterventions.description,
+      unit: TauMetrics.genAiAgentSafeguardInterventions.unit,
+    },
+  );
+
+  public readonly genAiPromptSectionSize = this.meter.createHistogram(TauMetrics.genAiPromptSectionSize.name, {
+    description: TauMetrics.genAiPromptSectionSize.description,
+    unit: TauMetrics.genAiPromptSectionSize.unit,
+    advice: { explicitBucketBoundaries: [...TauMetrics.genAiPromptSectionSize.buckets] },
+  });
+
   // Infrastructure
   public readonly redisConnectionState = this.meter.createGauge(TauMetrics.redisConnectionState.name, {
     description: TauMetrics.redisConnectionState.description,

@@ -63,6 +63,12 @@ describe('MetricsService', () => {
     it('should create genAiAgentIterations histogram', () => {
       expect(service.genAiAgentIterations).toBeDefined();
     });
+
+    // Per docs/research/system-prompt-audit.md R23.
+    it('should create genAiPromptSectionSize histogram', () => {
+      expect(service.genAiPromptSectionSize).toBeDefined();
+      expect(() => service.genAiPromptSectionSize.record(1234)).not.toThrow();
+    });
   });
 
   describe('Infrastructure metrics', () => {
