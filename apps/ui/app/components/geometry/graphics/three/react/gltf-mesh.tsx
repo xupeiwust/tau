@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GLTFLoader, LineSegments2 } from 'three/addons';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type { Group, Object3D, Material, BufferGeometry, Mesh, Texture } from 'three';
-import { Vector2 } from 'three';
+import { Vector2, Box3 } from 'three';
 import { useThree } from '@react-three/fiber';
 import { applyMatcap } from '#components/geometry/graphics/three/materials/gltf-matcap.js';
 import {
@@ -15,6 +15,42 @@ import { darkModeIntensityScale } from '#components/geometry/graphics/three/util
 // Module-scoped GLTFLoader instance. GLTFLoader is stateless and fully reusable,
 // so creating a fresh instance per parse wastes initialization overhead and GC pressure.
 const gltfLoader = new GLTFLoader();
+
+/**
+ * Logs a single warning when GLTFLoader produces a scene with zero children.
+ *
+ * This is the downstream half of the OCJS-rendering smoke trail (see
+ * `docs/research/staging-cors-coep-safari-rendering-audit.md` R6). Pairs with
+ * the kernel-side `convertReplicadGeometriesToGltf` debug log so that a
+ * "geometry compute completed but nothing rendered" report can be diagnosed
+ * from the browser console alone:
+ *
+ *   - kernel byteLength > 0 + zero children here = loader silently dropped nodes
+ *   - kernel byteLength == 0 = upstream produced an empty GLB
+ *
+ * Silent on the happy path (≥1 child); never logs bbox for non-empty scenes
+ * to avoid console noise on every successful render.
+ *
+ * Exported only so the diagnostic can be unit-tested without bootstrapping a
+ * React-Three-Fiber renderer for the parent component; not part of the public
+ * `GltfMesh` API.
+ */
+export function warnIfEmptyGltfScene(gltf: GLTF, byteLength: number): void {
+  if (gltf.scene.children.length > 0) {
+    return;
+  }
+
+  const bbox = new Box3().setFromObject(gltf.scene);
+  console.warn('GLTFLoader produced a scene with zero children', {
+    byteLength,
+    childrenCount: gltf.scene.children.length,
+    bbox: {
+      min: { x: bbox.min.x, y: bbox.min.y, z: bbox.min.z },
+      max: { x: bbox.max.x, y: bbox.max.y, z: bbox.max.z },
+      finite: Number.isFinite(bbox.min.x) && Number.isFinite(bbox.max.x),
+    },
+  });
+}
 
 /**
  * Dispose a material and all its texture properties.
@@ -259,6 +295,8 @@ export function GltfMesh({
           disposeSceneResources(gltf.scene);
           return;
         }
+
+        warnIfEmptyGltfScene(gltf, gltfFile.byteLength);
 
         // Convert LineSegments to LineSegments2 for fat line rendering
         applyFatLineSegments(gltf, resolutionRef.current);
