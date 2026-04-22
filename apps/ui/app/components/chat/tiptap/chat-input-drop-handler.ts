@@ -2,90 +2,48 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { tauEditorPanelDragMime, tauViewerPanelDragMime, tauFileDragMime } from '@taucad/types/constants';
 
-function basename(filePath: string): string {
-  const segments = filePath.split('/');
-  return segments.at(-1) ?? filePath;
-}
+const tauCustomDragMimes: readonly string[] = [tauEditorPanelDragMime, tauViewerPanelDragMime, tauFileDragMime];
 
-function isDirectory(filePath: string): boolean {
-  return filePath.endsWith('/');
-}
-
+/**
+ * Tiptap extension that opts ProseMirror **out** of the chat textarea's
+ * three custom drag MIME types (`tauEditorPanelDragMime`,
+ * `tauViewerPanelDragMime`, `tauFileDragMime`).
+ *
+ * Why: the outer `<div ref={containerReference}>` in
+ * `chat-textarea-{desktop,mobile}.tsx` is the single source of truth for
+ * dispatching these drops (so dropping on padding / controls also works,
+ * not just inside the contenteditable). If ProseMirror's default drop ran,
+ * it would attempt to insert garbage text/nodes from `dataTransfer` before
+ * the React handler had a chance to translate the payload into a screenshot
+ * request or context-chip insertion.
+ *
+ * For every other drop (plain text, OS image files, etc.) the plugin returns
+ * `false` so ProseMirror's default and the parent React handler run normally.
+ */
 // eslint-disable-next-line @typescript-eslint/naming-convention -- Tiptap extensions are PascalCase by convention
 export const ChatInputDropHandler = Extension.create({
   name: 'chatInputDropHandler',
 
   addProseMirrorPlugins() {
-    const { schema } = this.editor;
-
     return [
       new Plugin({
         key: new PluginKey('chatInputDropHandler'),
         props: {
-          handleDrop(view, event) {
-            if (!event.dataTransfer) {
+          handleDrop(_view, event) {
+            const { dataTransfer } = event;
+            if (!dataTransfer) {
               return false;
             }
 
-            const editorData = event.dataTransfer.getData(tauEditorPanelDragMime);
-            const viewerData = event.dataTransfer.getData(tauViewerPanelDragMime);
-            const fileData = event.dataTransfer.getData(tauFileDragMime);
-
-            let filePaths: string[] = [];
-
-            if (editorData) {
-              try {
-                const parsed = JSON.parse(editorData) as { filePath: string };
-                filePaths = [parsed.filePath];
-              } catch {
-                return false;
-              }
-            } else if (viewerData) {
-              try {
-                const parsed = JSON.parse(viewerData) as { entryFile: string };
-                filePaths = [parsed.entryFile];
-              } catch {
-                return false;
-              }
-            } else if (fileData) {
-              try {
-                filePaths = JSON.parse(fileData) as string[];
-              } catch {
-                return false;
-              }
-            }
-
-            if (filePaths.length === 0) {
+            const hasCustomMime = tauCustomDragMimes.some((mime) => dataTransfer.types.includes(mime));
+            if (!hasCustomMime) {
               return false;
             }
 
+            // Suppress ProseMirror's + the browser's default contenteditable
+            // drop so the parent container's React onDrop becomes the only
+            // place that translates the payload.
             event.preventDefault();
-
-            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
-            if (!pos) {
-              return false;
-            }
-
-            const contextChipType = schema.nodes['contextChip'];
-            if (!contextChipType) {
-              return false;
-            }
-
-            const { tr } = view.state;
-            let insertPos = pos.pos;
-
-            for (const filePath of filePaths) {
-              const node = contextChipType.create({
-                id: filePath,
-                label: basename(filePath),
-                chipType: isDirectory(filePath) ? 'folder' : 'file',
-                path: filePath,
-              });
-              tr.insert(insertPos, node);
-              insertPos += node.nodeSize;
-            }
-
-            view.dispatch(tr);
             return true;
           },
         },

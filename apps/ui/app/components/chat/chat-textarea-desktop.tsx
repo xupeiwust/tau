@@ -17,6 +17,7 @@ import { ChatContextIndicator } from '#components/chat/chat-context-indicator.js
 import { ChatTextareaDesktopImages } from '#components/chat/chat-textarea-desktop-images.js';
 import { ChatTextareaSubmitButton } from '#components/chat/chat-textarea-submit-button.js';
 import { focusTrapAttribute } from '#components/chat/chat-textarea-types.js';
+import type { ChatTextareaDragKind } from '#components/chat/chat-textarea-types.js';
 import { useSelector } from '@xstate/react';
 import { useChatActions, useChatContext } from '#hooks/use-chat.js';
 import type { ResolvedModel } from '#hooks/use-models.js';
@@ -31,6 +32,12 @@ import { defaultSkills } from '#components/chat/tiptap/slash-command-suggestion.
 
 const knownSkillIds = new Set(defaultSkills.map((s) => s.id));
 
+const dragOverlayCopy: Record<ChatTextareaDragKind, string> = {
+  image: 'Add image(s)',
+  viewer: 'Add screenshot',
+  reference: 'Add reference',
+};
+
 type ChatTextareaDesktopProperties = {
   readonly className?: string;
   readonly enableAutoFocus?: boolean;
@@ -38,7 +45,7 @@ type ChatTextareaDesktopProperties = {
   readonly enableKernelSelector?: boolean;
 
   // State
-  readonly isDragging: boolean;
+  readonly dragKind: ChatTextareaDragKind | undefined;
   readonly isSubmitting: boolean;
   readonly inputText: string;
   readonly images: string[];
@@ -60,6 +67,8 @@ type ChatTextareaDesktopProperties = {
   readonly containerReference: React.RefObject<HTMLDivElement | null>;
   // oxlint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object for imperative focus
   readonly focusEditorRef: React.RefObject<(() => void) | undefined>;
+  // oxlint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object populated by this component for parent-driven chip insertion
+  readonly addContextChipsRef: React.RefObject<((paths: string[]) => void) | undefined>;
 
   // Handlers (all must be stable references to prevent tooltip re-render loops)
   readonly handleSubmit: () => Promise<void>;
@@ -96,7 +105,7 @@ export const ChatTextareaDesktop = memo(function ({
   enableKernelSelector = true,
 
   // State
-  isDragging,
+  dragKind,
   isSubmitting,
   inputText,
   images,
@@ -115,6 +124,7 @@ export const ChatTextareaDesktop = memo(function ({
   fileInputReference,
   containerReference,
   focusEditorRef,
+  addContextChipsRef,
 
   // Handlers
   handleSubmit,
@@ -182,6 +192,38 @@ export const ChatTextareaDesktop = memo(function ({
     };
   }, [focusEditorRef]);
 
+  // Expose chip insertion to parent via mutable ref so the outer container's
+  // drop dispatcher can route file/editor mime drops into Tiptap nodes.
+  useEffect(() => {
+    addContextChipsRef.current = (paths: string[]): void => {
+      const currentEditor = editorRef.current;
+      if (!currentEditor || paths.length === 0) {
+        return;
+      }
+      const chain = currentEditor.chain().focus();
+      for (const path of paths) {
+        const isFolder = path.endsWith('/');
+        const segments = path.split('/').filter((segment) => segment.length > 0);
+        const label = segments.at(-1) ?? path;
+        chain
+          .insertContent({
+            type: 'contextChip',
+            attrs: {
+              id: path,
+              label,
+              chipType: isFolder ? 'folder' : 'file',
+              path,
+            },
+          })
+          .insertContent(' ');
+      }
+      chain.run();
+    };
+    return () => {
+      addContextChipsRef.current = undefined;
+    };
+  }, [addContextChipsRef]);
+
   useEffect(() => {
     if (enableAutoFocus && editor) {
       editor.commands.focus('end');
@@ -220,15 +262,12 @@ export const ChatTextareaDesktop = memo(function ({
         className,
       )}
       onBlur={handleTextareaBlur}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Editor */}
-      <div
-        className={cn('flex size-full flex-col overflow-auto')}
-        onClick={handleEditorAreaClick}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <div className={cn('flex size-full flex-col overflow-auto')} onClick={handleEditorAreaClick}>
         <ChatEditor
           editor={editor}
           className={cn(images.length > 0 ? 'pt-10' : 'pt-2')}
@@ -243,9 +282,11 @@ export const ChatTextareaDesktop = memo(function ({
       <ChatTextareaDesktopImages images={images} onRemoveImage={removeImage} />
 
       {/* Drag and drop feedback */}
-      {isDragging ? (
+      {dragKind ? (
         <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-primary/10 backdrop-blur-xs'>
-          <p className='rounded-md bg-background/50 px-2 font-medium text-primary'>Add image(s)</p>
+          <p className='rounded-md border bg-background/50 px-2 font-medium text-primary'>
+            {dragOverlayCopy[dragKind]}
+          </p>
         </div>
       ) : null}
 

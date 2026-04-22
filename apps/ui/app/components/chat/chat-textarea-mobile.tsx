@@ -14,6 +14,7 @@ import { ChatContextActions } from '#components/chat/chat-context-actions.js';
 import { ChatTextareaMobileImages } from '#components/chat/chat-textarea-mobile-images.js';
 import { ChatTextareaSubmitButton } from '#components/chat/chat-textarea-submit-button.js';
 import { focusTrapAttribute } from '#components/chat/chat-textarea-types.js';
+import type { ChatTextareaDragKind } from '#components/chat/chat-textarea-types.js';
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from '#components/ui/drawer.js';
 import { Command, CommandGroup, CommandItem, CommandList } from '#components/ui/command.js';
 import type { ResolvedModel } from '#hooks/use-models.js';
@@ -25,6 +26,12 @@ const menuItemClassName = cn(
   "gap-1 px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-5",
 );
 
+const dragOverlayCopy: Record<ChatTextareaDragKind, string> = {
+  image: 'Add image(s)',
+  viewer: 'Add screenshot',
+  reference: 'Add reference',
+};
+
 type ChatTextareaMobileProperties = {
   readonly className?: string;
   readonly enableAutoFocus?: boolean;
@@ -32,7 +39,7 @@ type ChatTextareaMobileProperties = {
   readonly enableKernelSelector?: boolean;
 
   // State from hook
-  readonly isDragging: boolean;
+  readonly dragKind: ChatTextareaDragKind | undefined;
   readonly showContextMenu: boolean;
   readonly contextSearchQuery: string;
   readonly selectedMenuIndex: number;
@@ -109,7 +116,7 @@ export const ChatTextareaMobile = memo(function ({
   enableKernelSelector = true,
 
   // State
-  isDragging,
+  dragKind,
   showContextMenu,
   contextSearchQuery,
   selectedMenuIndex,
@@ -186,6 +193,9 @@ export const ChatTextareaMobile = memo(function ({
         'rounded-2xl',
       )}
       onBlur={handleTextareaBlur}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Plus button - opens drawer with all actions */}
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
@@ -323,9 +333,6 @@ export const ChatTextareaMobile = memo(function ({
             focusInput();
           }
         }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         onPointerDown={handlePointerDown}
       >
         <ChatTextareaMobileImages images={images} onRemoveImage={removeImage} />
@@ -383,9 +390,9 @@ export const ChatTextareaMobile = memo(function ({
       ) : null}
 
       {/* Drag and drop feedback */}
-      {isDragging ? (
+      {dragKind ? (
         <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-primary/10 backdrop-blur-xs'>
-          <p className='rounded-md bg-background/50 px-2 font-medium text-primary'>Add image(s)</p>
+          <p className='rounded-md bg-background/50 px-2 font-medium text-primary'>{dragOverlayCopy[dragKind]}</p>
         </div>
       ) : null}
 

@@ -110,7 +110,7 @@ const stubContainerRef: React.RefObject<HTMLDivElement | null> = { current: null
 function renderMobile() {
   return render(
     <ChatTextareaMobile
-      isDragging={false}
+      dragKind={undefined}
       showContextMenu={false}
       contextSearchQuery=''
       selectedMenuIndex={0}

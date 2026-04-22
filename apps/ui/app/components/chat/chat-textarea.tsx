@@ -18,6 +18,7 @@ import { orthographicViews, screenshotRequestMachine } from '#machines/screensho
 import type { graphicsMachine } from '#machines/graphics.machine.js';
 import type { ContextSuggestionItem } from '#components/chat/tiptap/suggestion-types.js';
 import { takeScreenshotGroup } from '#components/chat/tiptap/context-suggestion.utils.js';
+import { captureViewScreenshot } from '#components/chat/capture-view-screenshot.utils.js';
 
 /**
  * Main chat textarea component that conditionally renders either the
@@ -40,6 +41,25 @@ export const ChatTextarea = memo(function ({
   mode = 'main',
 }: ChatTextareaProperties): React.JSX.Element {
   const isMobile = useIsMobile();
+
+  // Mutable ref populated by ChatTextareaDesktop (or, on mobile, by an effect
+  // below) so that drops anywhere on the outer container can route file/editor
+  // chips into the platform-appropriate sink (Tiptap node insert vs `@<path>`
+  // text append).
+  const addContextChipsRef = useRef<((paths: string[]) => void) | undefined>(undefined);
+
+  const handleAddContextChips = useCallback((paths: string[]): void => {
+    addContextChipsRef.current?.(paths);
+  }, []);
+
+  // Forward declaration — the actual screenshot-on-drop callback is defined
+  // below (it depends on `projectContextRef`, `screenshotQualityRef` and the
+  // active-actor set wired into the existing single-view branch).
+  const handleViewerScreenshotDropRef = useRef<(entryFile: string) => void>(() => undefined);
+  const handleViewerScreenshotDrop = useCallback((entryFile: string): void => {
+    handleViewerScreenshotDropRef.current(entryFile);
+  }, []);
+
   const logic = useChatTextareaLogic({
     ref,
     onSubmit,
@@ -47,6 +67,8 @@ export const ChatTextarea = memo(function ({
     onEscapePressed,
     onBlur,
     mode,
+    onViewerScreenshotDrop: handleViewerScreenshotDrop,
+    onAddContextChips: handleAddContextChips,
   });
 
   const projectContext = useProject({ enableNoContext: true });
@@ -149,125 +171,170 @@ export const ChatTextarea = memo(function ({
   const screenshotQualityRef = useRef(screenshotQuality);
   screenshotQualityRef.current = screenshotQuality;
 
-  const handleScreenshotAction = useCallback((item: ContextSuggestionItem) => {
-    const { screenshotAction } = item;
-    if (!screenshotAction) {
-      return;
-    }
+  /**
+   * Resolve the per-view graphics actor whose pane currently shows `entryFile`.
+   * Falls back to the main entry's pane when no specific entry is requested,
+   * and finally to the first registered view as a last resort.
+   */
+  const resolveGraphicsRefForEntry = useCallback(
+    (entryFile: string | undefined): ActorRefFrom<typeof graphicsMachine> | undefined => {
+      const currentProjectContext = projectContextRef.current;
+      if (!currentProjectContext) {
+        return undefined;
+      }
+      const { viewGraphics, editorRef, mainEntryFile: mainEntry } = currentProjectContext;
+      const { viewSettings } = editorRef.getSnapshot().context;
+      const target = entryFile ?? mainEntry;
 
-    const currentProjectContext = projectContextRef.current;
-    if (!currentProjectContext) {
-      toast.error('No project context available for screenshot');
-      return;
-    }
-
-    const { viewGraphics, editorRef, mainEntryFile: mainEntry } = currentProjectContext;
-    const { viewSettings } = editorRef.getSnapshot().context;
-
-    let graphicsRef: ActorRefFrom<typeof graphicsMachine> | undefined;
-
-    if (screenshotAction.type === 'view') {
       for (const [viewId, gRef] of viewGraphics) {
-        if (viewSettings[viewId]?.entryFile === screenshotAction.entryFile) {
-          graphicsRef = gRef;
-          break;
+        if (viewSettings[viewId]?.entryFile === target) {
+          return gRef;
         }
       }
-    } else {
-      for (const [viewId, gRef] of viewGraphics) {
-        if (viewSettings[viewId]?.entryFile === mainEntry) {
-          graphicsRef = gRef;
-          break;
-        }
+
+      if (entryFile === undefined) {
+        return viewGraphics.values().next().value;
       }
-      graphicsRef ??= viewGraphics.values().next().value;
-    }
+      return undefined;
+    },
+    [],
+  );
 
-    if (!graphicsRef) {
-      toast.error('No graphics view available for screenshot');
-      return;
-    }
-
-    const actor = createActor(screenshotRequestMachine, {
-      input: { graphicsRef },
-    });
-    const actors = activeScreenshotActorsRef.current;
-    actors.add(actor);
-    actor.start();
-
-    const cleanup = () => {
-      actor.stop();
-      actors.delete(actor);
+  // Wire viewer-drop screenshots into the same active-actors set used by the
+  // existing single-view + composite branches so unmount cleanup stays uniform.
+  useEffect(() => {
+    handleViewerScreenshotDropRef.current = (entryFile: string): void => {
+      const graphicsRef = resolveGraphicsRefForEntry(entryFile);
+      if (!graphicsRef) {
+        toast.error('No graphics view available for screenshot');
+        return;
+      }
+      captureViewScreenshot({
+        graphicsRef,
+        quality: screenshotQualityRef.current,
+        activeActors: activeScreenshotActorsRef.current,
+        onImage: (dataUrl) => {
+          handleAddImageRef.current(dataUrl);
+          toast.success('Added screenshot to chat');
+        },
+        onError: (message) => {
+          toast.error(message);
+        },
+      });
     };
+  }, [resolveGraphicsRefForEntry]);
 
-    const quality = screenshotQualityRef.current;
+  const handleScreenshotAction = useCallback(
+    (item: ContextSuggestionItem) => {
+      const { screenshotAction } = item;
+      if (!screenshotAction) {
+        return;
+      }
 
-    if (screenshotAction.type === 'composite') {
-      actor.send({
-        type: 'requestCompositeScreenshot',
-        options: {
-          output: {
-            format: 'image/webp',
-            quality,
-            isPreview: true,
+      const graphicsRef = resolveGraphicsRefForEntry(
+        screenshotAction.type === 'view' ? screenshotAction.entryFile : undefined,
+      );
+      if (!graphicsRef) {
+        toast.error('No graphics view available for screenshot');
+        return;
+      }
+
+      const quality = screenshotQualityRef.current;
+
+      if (screenshotAction.type === 'composite') {
+        const actor = createActor(screenshotRequestMachine, {
+          input: { graphicsRef },
+        });
+        const actors = activeScreenshotActorsRef.current;
+        actors.add(actor);
+        actor.start();
+
+        const cleanup = (): void => {
+          actor.stop();
+          actors.delete(actor);
+        };
+
+        actor.send({
+          type: 'requestCompositeScreenshot',
+          options: {
+            output: {
+              format: 'image/webp',
+              quality,
+              isPreview: true,
+            },
+            cameraAngles: orthographicViews.slice(0, 6),
+            aspectRatio: 1,
+            maxResolution: 800,
+            zoomLevel: 1.2,
+            composite: {
+              enabled: true,
+              preferredRatio: { columns: 3, rows: 2 },
+              showLabels: true,
+              padding: 12,
+              labelHeight: 24,
+              backgroundColor: 'transparent',
+              dividerColor: 'var(--border)',
+              dividerWidth: 1,
+            },
           },
-          cameraAngles: orthographicViews.slice(0, 6),
-          aspectRatio: 1,
-          maxResolution: 800,
-          zoomLevel: 1.2,
-          composite: {
-            enabled: true,
-            preferredRatio: { columns: 3, rows: 2 },
-            showLabels: true,
-            padding: 12,
-            labelHeight: 24,
-            backgroundColor: 'transparent',
-            dividerColor: 'var(--border)',
-            dividerWidth: 1,
+          onSuccess(dataUrls) {
+            cleanup();
+            const dataUrl = dataUrls[0];
+            if (dataUrl) {
+              handleAddImageRef.current(dataUrl);
+            } else {
+              toast.error('Failed to capture composite screenshot');
+            }
           },
+          onError(error) {
+            cleanup();
+            toast.error(`Screenshot failed: ${error}`);
+          },
+        });
+        return;
+      }
+
+      // Single-view (`'single'` or `'view'`) — delegated to the shared helper.
+      captureViewScreenshot({
+        graphicsRef,
+        quality,
+        activeActors: activeScreenshotActorsRef.current,
+        onImage: (dataUrl) => {
+          handleAddImageRef.current(dataUrl);
         },
-        onSuccess(dataUrls) {
-          cleanup();
-          const dataUrl = dataUrls[0];
-          if (dataUrl) {
-            handleAddImageRef.current(dataUrl);
-          } else {
-            toast.error('Failed to capture composite screenshot');
-          }
-        },
-        onError(error) {
-          cleanup();
-          toast.error(`Screenshot failed: ${error}`);
+        onError: (message) => {
+          toast.error(message);
         },
       });
-    } else {
-      actor.send({
-        type: 'requestScreenshot',
-        options: {
-          output: {
-            format: 'image/webp',
-            quality,
-          },
-          aspectRatio: 16 / 9,
-          maxResolution: 1200,
-          zoomLevel: 1.4,
-        },
-        onSuccess(dataUrls) {
-          cleanup();
-          const dataUrl = dataUrls[0];
-          if (dataUrl) {
-            handleAddImageRef.current(dataUrl);
-          } else {
-            toast.error('Failed to capture screenshot');
-          }
-        },
-        onError(error) {
-          cleanup();
-          toast.error(`Screenshot failed: ${error}`);
-        },
-      });
+    },
+    [resolveGraphicsRefForEntry],
+  );
+
+  // Mobile drag-drop chip insertion: append `@<path>` segments and lean on the
+  // existing draft-text rehydration to render them as chips.
+  const handleAddTextRef = useRef(logic.handleAddText);
+  handleAddTextRef.current = logic.handleAddText;
+  useEffect(() => {
+    if (!isMobile) {
+      return;
     }
-  }, []);
+    addContextChipsRef.current = (paths: string[]): void => {
+      if (paths.length === 0) {
+        return;
+      }
+      const segment = paths.map((path) => `@${path}`).join(' ');
+      const needsLeadingSpace = inputTextRefForChips.current.length > 0 && !inputTextRefForChips.current.endsWith(' ');
+      handleAddTextRef.current(`${needsLeadingSpace ? ' ' : ''}${segment} `);
+    };
+    return () => {
+      addContextChipsRef.current = undefined;
+    };
+  }, [isMobile]);
+
+  // Track the current input text for the mobile chip-insertion leading-space
+  // heuristic without re-running the registration effect on every keystroke.
+  const inputTextRefForChips = useRef(logic.inputText);
+  inputTextRefForChips.current = logic.inputText;
 
   const skeleton = <ChatTextareaSkeleton className={className} />;
 
@@ -280,7 +347,7 @@ export const ChatTextarea = memo(function ({
           enableContextActions={enableContextActions}
           enableKernelSelector={enableKernelSelector}
           // State
-          isDragging={logic.isDragging}
+          dragKind={logic.dragKind}
           showContextMenu={logic.showContextMenu}
           contextSearchQuery={logic.contextSearchQuery}
           selectedMenuIndex={logic.selectedMenuIndex}
@@ -331,7 +398,7 @@ export const ChatTextarea = memo(function ({
         enableContextActions={enableContextActions}
         enableKernelSelector={enableKernelSelector}
         // State
-        isDragging={logic.isDragging}
+        dragKind={logic.dragKind}
         isSubmitting={logic.isSubmitting}
         inputText={logic.inputText}
         images={logic.images}
@@ -348,6 +415,7 @@ export const ChatTextarea = memo(function ({
         fileInputReference={logic.fileInputReference}
         containerReference={logic.containerReference}
         focusEditorRef={focusEditorRef}
+        addContextChipsRef={addContextChipsRef}
         // Handlers
         handleSubmit={logic.handleSubmit}
         handleCancelClick={logic.handleCancelClick}

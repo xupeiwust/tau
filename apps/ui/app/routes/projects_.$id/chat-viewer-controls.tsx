@@ -4,6 +4,7 @@ import { FovControl } from '#components/geometry/cad/fov-control.js';
 import { GridSizeIndicator } from '#components/geometry/cad/grid-control.js';
 import { ResetCameraControl } from '#components/geometry/cad/reset-camera-control.js';
 import { MeasureControl } from '#components/geometry/cad/measure-control.js';
+import { CaptureViewControl, CaptureViewOverflowControl } from '#components/geometry/cad/capture-view-control.js';
 import { ViewerSettings } from '#components/geometry/cad/viewer-settings.js';
 import {
   FovOverflowControl,
@@ -27,6 +28,7 @@ const controlItems3d: ToolbarItemConfig[] = [
   { id: 'section', width: 32 },
   { id: 'measure', width: 32 },
   { id: 'reset', width: 32 },
+  { id: 'capture', width: 32 },
 ];
 
 /** Same as above but without FOV (not applicable to 2D views). */
@@ -49,6 +51,7 @@ export function ChatViewerControls({ className, ...props }: React.HTMLAttributes
 
     return (
       <>
+        {overflowIds.has('capture') && <CaptureViewOverflowControl />}
         {overflowIds.has('reset') && <ResetCameraOverflowControl />}
         {overflowIds.has('measure') && <MeasureOverflowControl />}
         {overflowIds.has('section') && <SectionViewOverflowControl />}
@@ -67,6 +70,7 @@ export function ChatViewerControls({ className, ...props }: React.HTMLAttributes
       {visibleIds.has('section') && <SectionViewControl />}
       {visibleIds.has('measure') && <MeasureControl />}
       {visibleIds.has('reset') && <ResetCameraControl />}
+      {visibleIds.has('capture') && <CaptureViewControl />}
       <ViewerSettings overflowControls={overflowControls} />
     </div>
   );

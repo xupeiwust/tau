@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import type { ToolSelection } from '@taucad/chat';
+import { tauEditorPanelDragMime, tauFileDragMime, tauViewerPanelDragMime } from '@taucad/types/constants';
 import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
 import { useActiveChatModel } from '#hooks/use-active-chat-model.js';
 import type { ResolvedModel } from '#hooks/use-models.js';
@@ -7,6 +8,15 @@ import type { KeyCombination } from '#utils/keys.utils.js';
 import { toast } from '#components/ui/sonner.js';
 import { useKeybinding } from '#hooks/use-keyboard.js';
 import { resizeImageForChat } from '#utils/resize-image.js';
+
+/**
+ * Kind of drag currently hovering over the chat textarea.
+ *
+ * - `'image'` — OS image files or other unrecognised drag (default behavior)
+ * - `'viewer'` — `tauViewerPanelDragMime` (viewer panel tab) → screenshot the pane
+ * - `'reference'` — `tauEditorPanelDragMime` or `tauFileDragMime` (editor tab / file tree row) → insert as file-link pill
+ */
+export type ChatTextareaDragKind = 'image' | 'viewer' | 'reference';
 
 /**
  * IMPORTANT NOTE:
@@ -17,6 +27,71 @@ import { resizeImageForChat } from '#utils/resize-image.js';
  * This is used to determine if the focus has truly left the textarea and its related UI elements.
  */
 export const focusTrapAttribute = 'data-chat-textarea-focustrap';
+
+/**
+ * Pure helper: parses a `tauViewerPanelDragMime` payload and returns the
+ * `entryFile` if the payload is well-formed, else `undefined`.
+ */
+const parseViewerEntryFile = (raw: string): string | undefined => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'entryFile' in parsed &&
+      typeof parsed.entryFile === 'string' &&
+      parsed.entryFile !== ''
+    ) {
+      return parsed.entryFile;
+    }
+  } catch {
+    // Malformed payload — caller should fall through to the next handler.
+  }
+  return undefined;
+};
+
+/**
+ * Pure helper: parses a `tauEditorPanelDragMime` payload and returns the
+ * `filePath` if the payload is well-formed, else `undefined`.
+ */
+const parseEditorFilePath = (raw: string): string | undefined => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'filePath' in parsed &&
+      typeof parsed.filePath === 'string' &&
+      parsed.filePath !== ''
+    ) {
+      return parsed.filePath;
+    }
+  } catch {
+    // Malformed payload — caller should fall through.
+  }
+  return undefined;
+};
+
+/**
+ * Pure helper: parses a `tauFileDragMime` payload and returns the list of
+ * dropped paths. Accepts both bare arrays (`['a', 'b']`) and the wrapped
+ * `{ paths: [...] }` form. Returns an empty array when the payload is
+ * malformed or contains no string entries.
+ */
+const parseFileDragPaths = (raw: string): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((entry): entry is string => typeof entry === 'string');
+    }
+    if (typeof parsed === 'object' && parsed !== null && 'paths' in parsed && Array.isArray(parsed.paths)) {
+      return parsed.paths.filter((entry): entry is string => typeof entry === 'string');
+    }
+  } catch {
+    // Malformed payload — caller treats this as no paths.
+  }
+  return [];
+};
 
 /**
  * Reads a file as a data URL using FileReader.
@@ -77,6 +152,20 @@ export const cancelChatStreamKeyCombination = {
 } satisfies KeyCombination;
 
 /**
+ * Optional callbacks the chat textarea uses to dispatch drag-drops of
+ * non-image MIME types that the container alone can recognise.
+ */
+export type ChatTextareaLogicOptions = Pick<
+  ChatTextareaProperties,
+  'ref' | 'onSubmit' | 'enableAutoFocus' | 'onEscapePressed' | 'onBlur' | 'mode'
+> & {
+  /** Called when a viewer panel tab is dropped — the host should screenshot the matching pane. */
+  readonly onViewerScreenshotDrop?: (entryFile: string) => void;
+  /** Called when an editor tab or file-tree row is dropped — the host should insert file-link chips. */
+  readonly onAddContextChips?: (paths: string[]) => void;
+};
+
+/**
  * Shared logic hook for the chat textarea component.
  * Provides all the state and handlers needed by both desktop and mobile versions.
  */
@@ -87,8 +176,11 @@ export function useChatTextareaLogic({
   onEscapePressed,
   onBlur,
   mode = 'main',
-}: Pick<ChatTextareaProperties, 'ref' | 'onSubmit' | 'enableAutoFocus' | 'onEscapePressed' | 'onBlur' | 'mode'>): {
+  onViewerScreenshotDrop,
+  onAddContextChips,
+}: ChatTextareaLogicOptions): {
   // State
+  dragKind: ChatTextareaDragKind | undefined;
   isDragging: boolean;
   showContextMenu: boolean;
   atSymbolPosition: number;
@@ -134,7 +226,7 @@ export function useChatTextareaLogic({
   setContextSearchQuery: (query: string) => void;
   setSelectedMenuIndex: (index: number) => void;
 } {
-  const [isDragging, setIsDragging] = useState(false);
+  const [dragKind, setDragKind] = useState<ChatTextareaDragKind | undefined>(undefined);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [atSymbolPosition, setAtSymbolPosition] = useState<number>(-1);
   const [contextSearchQuery, setContextSearchQuery] = useState<string>('');
@@ -295,20 +387,56 @@ export function useChatTextareaLogic({
 
   const handleDragOver = useCallback((event: React.DragEvent): void => {
     event.preventDefault();
-    setIsDragging(true);
+    const { types } = event.dataTransfer;
+    if (types.includes(tauViewerPanelDragMime)) {
+      setDragKind('viewer');
+      return;
+    }
+    if (types.includes(tauEditorPanelDragMime) || types.includes(tauFileDragMime)) {
+      setDragKind('reference');
+      return;
+    }
+    setDragKind('image');
   }, []);
 
   const handleDragLeave = useCallback((): void => {
-    setIsDragging(false);
+    setDragKind(undefined);
   }, []);
 
   const handleDrop = useCallback(
     async (event: React.DragEvent): Promise<void> => {
       event.preventDefault();
-      setIsDragging(false);
+      setDragKind(undefined);
 
-      if (event.dataTransfer.files.length > 0) {
-        for (const file of event.dataTransfer.files) {
+      const { dataTransfer } = event;
+
+      // 1. Viewer panel drop → request a screenshot of the matching pane
+      const viewerData = dataTransfer.getData(tauViewerPanelDragMime);
+      const viewerEntryFile = viewerData ? parseViewerEntryFile(viewerData) : undefined;
+      if (viewerEntryFile !== undefined) {
+        onViewerScreenshotDrop?.(viewerEntryFile);
+        return;
+      }
+
+      // 2. Editor panel drop → insert a single file-link pill
+      const editorData = dataTransfer.getData(tauEditorPanelDragMime);
+      const editorFilePath = editorData ? parseEditorFilePath(editorData) : undefined;
+      if (editorFilePath !== undefined) {
+        onAddContextChips?.([editorFilePath]);
+        return;
+      }
+
+      // 3. File-tree drop → insert one file-link pill per dropped path
+      const fileData = dataTransfer.getData(tauFileDragMime);
+      const filePaths = fileData ? parseFileDragPaths(fileData) : [];
+      if (filePaths.length > 0) {
+        onAddContextChips?.(filePaths);
+        return;
+      }
+
+      // 4. OS files (images) — existing behaviour
+      if (dataTransfer.files.length > 0) {
+        for (const file of dataTransfer.files) {
           if (file.type.startsWith('image/')) {
             try {
               // oxlint-disable-next-line no-await-in-loop -- reading files sequentially
@@ -325,7 +453,7 @@ export function useChatTextareaLogic({
         }
       }
     },
-    [addImage],
+    [addImage, onViewerScreenshotDrop, onAddContextChips],
   );
 
   const handleFileSelect = useCallback((): void => {
@@ -597,7 +725,8 @@ export function useChatTextareaLogic({
 
   return {
     // State
-    isDragging,
+    dragKind,
+    isDragging: dragKind !== undefined,
     showContextMenu,
     atSymbolPosition,
     contextSearchQuery,
