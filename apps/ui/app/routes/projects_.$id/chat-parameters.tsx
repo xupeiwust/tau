@@ -367,7 +367,7 @@ function ParameterGroupSelector({
         }}
         onSelect={handleSelect}
       >
-        <TooltipTrigger>
+        <TooltipTrigger asChild>
           <button
             type='button'
             aria-label='Parameter groups'
