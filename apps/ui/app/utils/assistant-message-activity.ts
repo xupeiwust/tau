@@ -319,10 +319,18 @@ export type ActivityRun = FoldableRun | StandaloneRun;
  * groups (reasoning singletons + aggregated research) coalesce into one
  * `FoldableRun`; every other group becomes its own `StandaloneRun`.
  *
- * The renderer then wraps multi-group foldable runs (with at least one
- * aggregated research group) in `ChatActivitySection`, while standalone runs
- * always render their group as-is. This guarantees file mutations, CAD
- * operations, data, transfers, and text never end up inside the outer fold.
+ * The renderer then wraps foldable runs that contain at least one aggregated
+ * research group in `ChatActivitySection`, while standalone runs always render
+ * their group as-is. This guarantees file mutations, CAD operations, data,
+ * transfers, and text never end up inside the outer fold.
+ *
+ * Wrap invariant: the renderer wraps any foldable run containing at least one
+ * aggregated group in a `ChatActivitySection` (see {@link shouldWrapRun}).
+ * Once wrapped, the section persists for the lifetime of the run. Do not gate
+ * the wrapper on `groups.length` — group counts oscillate per part because
+ * trailing reasoning is peeled at flush time (see {@link groupAssistantParts}),
+ * which would cause the section to mount and unmount on every part arrival
+ * and reset its open/close state.
  */
 export const partitionActivityRuns = (groups: readonly ActivityGroup[]): ActivityRun[] => {
   const runs: ActivityRun[] = [];
@@ -354,6 +362,22 @@ export const partitionActivityRuns = (groups: readonly ActivityGroup[]): Activit
 
   return runs;
 };
+
+/**
+ * Returns whether a foldable run should render inside an outer
+ * `ChatActivitySection` ("Exploring…") wrapper.
+ *
+ * The decision intentionally depends only on the **presence** of at least one
+ * aggregated group — not on the total group count — so the wrapper's
+ * visibility is monotonic across streaming part arrivals: once a research
+ * aggregate exists in a run, the wrapper is mounted and stays mounted until a
+ * non-foldable part (text, write, data, transfer) breaks the run and the
+ * partitioner emits a different `FoldableRun`.
+ *
+ * Reasoning-only runs (no aggregate) intentionally stay un-wrapped so a
+ * sequence of consecutive thinking blocks does not gain redundant chrome.
+ */
+export const shouldWrapRun = (run: FoldableRun): boolean => run.groups.some((group) => group.kind === 'aggregated');
 
 /**
  * Returns the index of the last "meaningful" part in `parts` (highest index

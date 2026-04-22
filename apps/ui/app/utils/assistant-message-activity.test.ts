@@ -7,6 +7,7 @@ import {
   findLastMeaningfulPartIndex,
   isSectionFoldable,
   partitionActivityRuns,
+  shouldWrapRun,
 } from '#utils/assistant-message-activity.js';
 
 type Parts = MyUIMessage['parts'];
@@ -88,6 +89,36 @@ const expectAggregated = (group: ActivityGroup) => {
     throw new Error('Expected aggregated group');
   }
   return group;
+};
+
+const expectFoldable = (run: ReturnType<typeof partitionActivityRuns>[number]): FoldableRun => {
+  expect(run.kind).toBe('foldable-run');
+  if (run.kind !== 'foldable-run') {
+    throw new Error('Expected foldable-run');
+  }
+  return run;
+};
+
+const expectStandalone = (run: ReturnType<typeof partitionActivityRuns>[number]): StandaloneRun => {
+  expect(run.kind).toBe('standalone');
+  if (run.kind !== 'standalone') {
+    throw new Error('Expected standalone');
+  }
+  return run;
+};
+
+/**
+ * Resolves the first foldable run from `parts`. Used by `shouldWrapRun` tests
+ * that need to assert the wrap decision for a known-research run regardless
+ * of any leading/trailing standalone runs.
+ */
+const firstFoldable = (parts: Parts): FoldableRun => {
+  const runs = partitionActivityRuns(groupAssistantParts(parts));
+  const foldable = runs.find((r): r is FoldableRun => r.kind === 'foldable-run');
+  if (!foldable) {
+    throw new Error('Expected at least one foldable run');
+  }
+  return foldable;
 };
 
 // ── classifyActivityPart ─────────────────────────────────────────────────────
@@ -848,22 +879,6 @@ describe('isSectionFoldable', () => {
 // ── partitionActivityRuns ────────────────────────────────────────────────────
 
 describe('partitionActivityRuns', () => {
-  const expectFoldable = (run: ReturnType<typeof partitionActivityRuns>[number]): FoldableRun => {
-    expect(run.kind).toBe('foldable-run');
-    if (run.kind !== 'foldable-run') {
-      throw new Error('Expected foldable-run');
-    }
-    return run;
-  };
-
-  const expectStandalone = (run: ReturnType<typeof partitionActivityRuns>[number]): StandaloneRun => {
-    expect(run.kind).toBe('standalone');
-    if (run.kind !== 'standalone') {
-      throw new Error('Expected standalone');
-    }
-    return run;
-  };
-
   it('should return an empty array for empty input', () => {
     expect(partitionActivityRuns([])).toEqual([]);
   });
@@ -1008,5 +1023,144 @@ describe('partitionActivityRuns', () => {
     expect(expectStandalone(runs[1]!).group.category).toBe('transfer');
     expect(expectStandalone(runs[2]!).group.category).toBe('data');
     expectFoldable(runs[3]!);
+  });
+});
+
+// ── shouldWrapRun ────────────────────────────────────────────────────────────
+//
+// The wrap decision must be a function of the run's *identity* (does it
+// contain an aggregate?) — never of its group count. Group counts oscillate
+// per part because trailing reasoning is peeled at flush time, so any
+// count-based predicate causes the outer `ChatActivitySection` to mount and
+// unmount on every part arrival, resetting its open/close state and producing
+// the visible "flip-flop" reported in
+// docs/research/exploring-wrapper-flip-flop.md (Finding 2).
+
+describe('shouldWrapRun', () => {
+  describe('truth table per run shape', () => {
+    it('should wrap a foldable run containing a single aggregated research group', () => {
+      expect(shouldWrapRun(firstFoldable([screenshotPart()]))).toBe(true);
+    });
+
+    it('should wrap a foldable run with leading reasoning followed by an aggregate', () => {
+      expect(shouldWrapRun(firstFoldable([reasoningPart('lead'), screenshotPart()]))).toBe(true);
+    });
+
+    it('should wrap a foldable run with an aggregate followed by trailing reasoning', () => {
+      expect(shouldWrapRun(firstFoldable([screenshotPart(), reasoningPart('tail')]))).toBe(true);
+    });
+
+    it('should wrap a foldable run with an aggregate sandwiched by reasoning on both sides', () => {
+      expect(shouldWrapRun(firstFoldable([reasoningPart('lead'), screenshotPart(), reasoningPart('tail')]))).toBe(true);
+    });
+
+    it('should not wrap a foldable run consisting of a single reasoning singleton', () => {
+      expect(shouldWrapRun(firstFoldable([reasoningPart()]))).toBe(false);
+    });
+
+    it('should not wrap a multi-reasoning foldable run with no aggregate', () => {
+      expect(shouldWrapRun(firstFoldable([reasoningPart('R1'), reasoningPart('R2')]))).toBe(false);
+    });
+  });
+
+  describe('streaming stability', () => {
+    it('should stay wrapped once an aggregated group exists in the run, regardless of trailing reasoning peeling', () => {
+      // Reproduces the exact 6-step trace from the research doc Finding 2.
+      // Each step appends one part to simulate a streaming chunk; the foldable
+      // run's `groups.length` deterministically oscillates between 1 and 2 as
+      // trailing reasoning is alternately peeled (sandwich rule) and re-emitted
+      // as a singleton. The wrap decision must remain `true` for every step
+      // from the moment the first aggregate lands.
+      const sequence: Parts[] = [
+        [screenshotPart()],
+        [screenshotPart(), reasoningPart('thought')],
+        [screenshotPart(), reasoningPart('thought'), grepPart()],
+        [screenshotPart(), reasoningPart('thought'), grepPart(), reasoningPart('thought2')],
+        [screenshotPart(), reasoningPart('thought'), grepPart(), reasoningPart('thought2'), readFilePart()],
+        [
+          screenshotPart(),
+          reasoningPart('thought'),
+          grepPart(),
+          reasoningPart('thought2'),
+          readFilePart(),
+          reasoningPart('thinking'),
+        ],
+      ];
+
+      const decisions = sequence.map((parts, step) => ({
+        step,
+        groupCount: firstFoldable(parts).groups.length,
+        wrapped: shouldWrapRun(firstFoldable(parts)),
+      }));
+
+      // Sanity check: confirm the count actually oscillates so this test
+      // remains a meaningful guard against the count-based regression.
+      const groupCounts = decisions.map((d) => d.groupCount);
+      expect(groupCounts).toContain(1);
+      expect(groupCounts).toContain(2);
+
+      for (const decision of decisions) {
+        expect(decision.wrapped, `step ${decision.step} (groupCount=${decision.groupCount}) should still wrap`).toBe(
+          true,
+        );
+      }
+    });
+
+    it('should remain wrapped after the first aggregate lands in a previously reasoning-only run', () => {
+      // Models the onset case where the user sees "Thinking..." first, then
+      // research tools begin streaming. The wrap decision flips false → true
+      // once and never flips back as more parts arrive in the same run.
+      const sequence: Parts[] = [
+        [reasoningPart('thinking')],
+        [reasoningPart('thinking'), screenshotPart()],
+        [reasoningPart('thinking'), screenshotPart(), grepPart()],
+        [reasoningPart('thinking'), screenshotPart(), grepPart(), reasoningPart('more')],
+        [reasoningPart('thinking'), screenshotPart(), grepPart(), reasoningPart('more'), readFilePart()],
+      ];
+
+      const wrapped = sequence.map((parts) => shouldWrapRun(firstFoldable(parts)));
+
+      expect(wrapped[0]).toBe(false);
+      for (let i = 1; i < wrapped.length; i++) {
+        expect(wrapped[i], `step ${i} (post-first-aggregate) should wrap`).toBe(true);
+      }
+    });
+  });
+
+  describe('run-break unmount semantics', () => {
+    it('should evaluate each foldable run independently when a non-foldable part splits the message', () => {
+      // After a `text` part splits the partition, the trailing foldable run
+      // is a fresh `FoldableRun` instance and must be evaluated on its own
+      // contents — not inherit the wrap decision of the prior run. This
+      // documents that `ChatActivitySection` unmounting at run boundaries is
+      // intentional and load-bearing: the prior wrapped run's section unmounts,
+      // and the new trailing reasoning-only run does not get wrapped.
+      const groups = groupAssistantParts([
+        screenshotPart(),
+        grepPart(),
+        textPart('Here is what I found'),
+        reasoningPart('next thought'),
+      ]);
+      const runs = partitionActivityRuns(groups);
+
+      expect(runs).toHaveLength(3);
+      const leadingResearch = expectFoldable(runs[0]!);
+      const splitter = expectStandalone(runs[1]!);
+      const trailingReasoning = expectFoldable(runs[2]!);
+
+      expect(splitter.group.category).toBe('text');
+      expect(shouldWrapRun(leadingResearch)).toBe(true);
+      expect(shouldWrapRun(trailingReasoning)).toBe(false);
+    });
+
+    it('should wrap each side independently when a non-foldable part splits two research runs', () => {
+      const groups = groupAssistantParts([screenshotPart(), editFilePart(), grepPart()]);
+      const runs = partitionActivityRuns(groups);
+
+      expect(runs).toHaveLength(3);
+      expect(shouldWrapRun(expectFoldable(runs[0]!))).toBe(true);
+      expect(expectStandalone(runs[1]!).group.category).toBe('write');
+      expect(shouldWrapRun(expectFoldable(runs[2]!))).toBe(true);
+    });
   });
 });

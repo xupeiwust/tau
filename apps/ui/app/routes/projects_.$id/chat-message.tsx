@@ -11,6 +11,7 @@ import {
   groupAssistantParts,
   partitionActivityRuns,
   findLastMeaningfulPartIndex,
+  shouldWrapRun,
 } from '#utils/assistant-message-activity.js';
 import { AtReferenceChip } from '#components/chat/at-reference-chip.js';
 import { ContextChip } from '#components/chat/context-chip.js';
@@ -355,16 +356,14 @@ function AssistantParts({
           return renderActivityGroup(run.group, run.groupIndex, renderContextForGroup(run.groupIndex));
         }
 
-        const aggregatedInRun = run.groups.filter((group): group is AggregatedGroup => group.kind === 'aggregated');
-        const shouldWrap = run.groups.length > 1 && aggregatedInRun.length > 0;
-
-        if (!shouldWrap) {
+        if (!shouldWrapRun(run)) {
           return run.groups.map((group, j) => {
             const absoluteIndex = run.startIndex + j;
             return renderActivityGroup(group, absoluteIndex, renderContextForGroup(absoluteIndex));
           });
         }
 
+        const aggregatedInRun = run.groups.filter((group): group is AggregatedGroup => group.kind === 'aggregated');
         const summary = composeRunSummary(aggregatedInRun);
         const sectionKey = `${messageId}-section-${getGroupKeyPartIndex(run.groups[0]!)}`;
         return (
