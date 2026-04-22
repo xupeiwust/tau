@@ -67,9 +67,13 @@ jobs:
           if [ "${{ inputs.environment }}" = "staging" ]; then
             FLY_APP="tau-api-staging"
             CONFIG_FILE="apps/${{ inputs.app }}/fly.staging.toml"
+            API_URL="https://api.taucad.dev"
+            UI_ORIGIN="https://taucad.dev"
           elif [ "${{ inputs.environment }}" = "production" ]; then
             FLY_APP="tau-api"
             CONFIG_FILE="apps/${{ inputs.app }}/fly.prod.toml"
+            API_URL="https://api.tau.new"
+            UI_ORIGIN="https://tau.new"
           else
             echo "::error::Invalid environment: ${{ inputs.environment }}"
             exit 1
@@ -78,6 +82,12 @@ jobs:
           echo "config_file=${CONFIG_FILE}" >> "$GITHUB_OUTPUT"
           echo "image=registry.fly.io/${FLY_APP}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           echo "cache_ref=registry.fly.io/${FLY_APP}:buildcache" >> "$GITHUB_OUTPUT"
+          # CORS smoke-test inputs (R13 — see
+          # docs/research/staging-cors-coep-safari-rendering-audit.md).
+          # Keyed on environment so the same workflow validates both staging
+          # and production reachability with no further per-env branching.
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+          echo "ui_origin=${UI_ORIGIN}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Fly.io CLI
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
@@ -115,3 +125,13 @@ jobs:
             --image "${{ steps.targets.outputs.image }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Post-deploy CORS smoke test (R13). Catches regressions like the
+      # 4-month-undetected api.taucad.dev cert/app misalignment described in
+      # `docs/research/staging-cors-coep-safari-rendering-audit.md` Finding
+      # 11. Per user instruction this is post-deploy only — no daily cron.
+      - name: Verify CORS reachability
+        run: bash scripts/src/smoke-cors.sh
+        env:
+          API_URL: ${{ steps.targets.outputs.api_url }}
+          ORIGIN: ${{ steps.targets.outputs.ui_origin }}

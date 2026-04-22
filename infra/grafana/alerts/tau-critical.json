@@ -31,6 +31,67 @@
         "service": "tau-api",
         "component": "redis"
       }
+    },
+    {
+      "uid": "database-startup-failure",
+      "title": "P0: Database Startup Failure",
+      "condition": "db_startup_threshold",
+      "data": [
+        {
+          "refId": "db_startup_logs",
+          "queryType": "range",
+          "relativeTimeRange": { "from": 600, "to": 0 },
+          "datasourceUid": "loki",
+          "model": {
+            "expr": "sum(count_over_time({service_name=\"tau-api\"} |~ \"Database (connectivity probe|migration) failed\" [5m]))",
+            "intervalMs": 15000,
+            "maxDataPoints": 43200,
+            "queryType": "range",
+            "refId": "db_startup_logs"
+          }
+        },
+        {
+          "refId": "db_startup_reduce",
+          "queryType": "",
+          "relativeTimeRange": { "from": 0, "to": 0 },
+          "datasourceUid": "__expr__",
+          "model": {
+            "type": "reduce",
+            "reducer": "last",
+            "expression": "db_startup_logs",
+            "refId": "db_startup_reduce"
+          }
+        },
+        {
+          "refId": "db_startup_threshold",
+          "queryType": "",
+          "relativeTimeRange": { "from": 0, "to": 0 },
+          "datasourceUid": "__expr__",
+          "model": {
+            "type": "threshold",
+            "expression": "db_startup_reduce",
+            "conditions": [
+              {
+                "type": "query",
+                "evaluator": { "type": "gt", "params": [0] },
+                "operator": { "type": "and" }
+              }
+            ],
+            "refId": "db_startup_threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "summary": "Database probe or migration failed during API startup. Inspect Loki for `Database connectivity probe failed` / `Database migration failed` lines and act on the structured `hint` field (paused provider, DNS, TCP timeout, role rotation, pooler exhaustion, privilege)."
+      },
+      "labels": {
+        "severity": "critical",
+        "service": "tau-api",
+        "component": "database"
+      }
     }
   ]
 }

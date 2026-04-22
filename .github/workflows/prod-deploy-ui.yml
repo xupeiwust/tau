@@ -67,3 +67,26 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_PROD_SITE_ID: ${{ vars.NETLIFY_PROD_SITE_ID }}
+
+      # Confirm the new SSR build is serving the UI health endpoint added
+      # alongside R13 — surfaces a broken build (e.g. missing route, dead
+      # bundle) before users hit it. `--retry` rides out Netlify's
+      # CDN-warmup window. See
+      # `docs/research/staging-cors-coep-safari-rendering-audit.md` (NEW UI
+      # health routes).
+      - name: Verify UI /health/live
+        run: |
+          curl -sSf --retry 5 --retry-delay 5 --max-time 10 \
+            -o /dev/null -w "HTTP %{http_code}\n" \
+            https://tau.new/health/live
+
+      # Post-deploy CORS smoke test (R13). Validates the prod UI origin can
+      # talk to the prod API. Catches regressions like the 4-month-undetected
+      # api.taucad.dev cert/app misalignment described in
+      # `docs/research/staging-cors-coep-safari-rendering-audit.md` Finding
+      # 11. Per user instruction this is post-deploy only — no daily cron.
+      - name: Verify prod CORS reachability
+        run: bash scripts/src/smoke-cors.sh
+        env:
+          API_URL: https://api.tau.new
+          ORIGIN: https://tau.new
