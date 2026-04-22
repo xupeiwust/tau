@@ -11,7 +11,7 @@
   },
   "sortPackageJson": false,
   "ignorePatterns": [
-    "/dist",
+    "**/dist/**",
     "/coverage",
     "/.nx/cache",
     "/.nx/workspace-data",
