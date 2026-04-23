@@ -1,7 +1,8 @@
 type ReportOptions = {
   reportUrl: string;
   name: string;
-  durationMs: number;
+  /** Milliseconds. */
+  duration: number;
   detail: Record<string, string>;
 };
 
@@ -9,11 +10,11 @@ type ReportOptions = {
  * Fire-and-forget POST of a single metric entry to the telemetry ingest API.
  * Failures are silently swallowed — telemetry loss is acceptable.
  *
- * @param options - Telemetry report configuration including URL, metric name, duration, and attributes
+ * @param options - Telemetry report configuration including URL, metric name, duration (ms), and attributes
  */
 export const reportToApi = (options: ReportOptions): void => {
   const payload = {
-    entries: [{ name: options.name, duration: options.durationMs, detail: options.detail }],
+    entries: [{ name: options.name, duration: options.duration, detail: options.detail }],
   };
 
   const send = async () => {

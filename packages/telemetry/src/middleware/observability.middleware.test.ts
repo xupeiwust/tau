@@ -125,7 +125,7 @@ describe('observabilityMiddleware', () => {
       expect(reportToApiMock).toHaveBeenCalledWith({
         reportUrl: 'https://api.test/ingest',
         name: IngestEntryName.KERNEL_CREATE_GEOMETRY,
-        durationMs: expect.any(Number),
+        duration: expect.any(Number),
         detail: { status: 'success' },
       });
     });
@@ -140,7 +140,7 @@ describe('observabilityMiddleware', () => {
       expect(reportToApiMock).toHaveBeenCalledWith({
         reportUrl: 'https://api.test/ingest',
         name: IngestEntryName.KERNEL_CREATE_GEOMETRY,
-        durationMs: expect.any(Number),
+        duration: expect.any(Number),
         detail: { status: 'error' },
       });
     });
@@ -259,7 +259,7 @@ describe('observabilityMiddleware', () => {
       expect(reportToApiMock).toHaveBeenCalledWith({
         reportUrl: 'https://api.test/ingest',
         name: IngestEntryName.KERNEL_EXPORT_GEOMETRY,
-        durationMs: expect.any(Number),
+        duration: expect.any(Number),
         detail: { status: 'success', exportFormat: 'step' },
       });
     });
@@ -274,7 +274,7 @@ describe('observabilityMiddleware', () => {
       expect(reportToApiMock).toHaveBeenCalledWith({
         reportUrl: 'https://api.test/ingest',
         name: IngestEntryName.KERNEL_EXPORT_GEOMETRY,
-        durationMs: expect.any(Number),
+        duration: expect.any(Number),
         detail: { status: 'error', exportFormat: 'stl' },
       });
     });

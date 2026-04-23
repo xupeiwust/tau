@@ -42,7 +42,7 @@ export const observabilityMiddleware = defineMiddleware({
       reportToApi({
         reportUrl: options.reportUrl,
         name: IngestEntryName.KERNEL_CREATE_GEOMETRY,
-        durationMs: duration,
+        duration,
         detail: { status: 'success' },
       });
 
@@ -60,7 +60,7 @@ export const observabilityMiddleware = defineMiddleware({
       reportToApi({
         reportUrl: options.reportUrl,
         name: IngestEntryName.KERNEL_CREATE_GEOMETRY,
-        durationMs: duration,
+        duration,
         detail: { status: 'error' },
       });
 
@@ -89,7 +89,7 @@ export const observabilityMiddleware = defineMiddleware({
       reportToApi({
         reportUrl: options.reportUrl,
         name: IngestEntryName.KERNEL_EXPORT_GEOMETRY,
-        durationMs: duration,
+        duration,
         detail: { status: 'success', exportFormat: input.format },
       });
 
@@ -111,7 +111,7 @@ export const observabilityMiddleware = defineMiddleware({
       reportToApi({
         reportUrl: options.reportUrl,
         name: IngestEntryName.KERNEL_EXPORT_GEOMETRY,
-        durationMs: duration,
+        duration,
         detail: { status: 'error', exportFormat: input.format },
       });
 
