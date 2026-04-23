@@ -1,16 +1,27 @@
 /**
  * Monaco Language Contribution Registry
  *
- * Manages a uniform, idempotent, two-phase lifecycle for all language contributions.
- * Follows VS Code's extension activation pattern:
+ * Manages a uniform, idempotent, two-phase lifecycle for all language contributions
+ * with VS Code-style lazy activation.
  *
- * 1. Register phase (during configureMonaco): Language metadata, syntax config. No services needed.
- * 2. Activate phase (when services ready): Providers, LSP clients, navigation handlers.
+ * 1. **Register phase** (during `configureMonaco`): language metadata + syntax config.
+ *    Cheap, eager, runs once. No services, no LSP, no WASM.
+ * 2. **Activate phase** (when services ready): per-contribution `runActivate` is wired
+ *    to fire on the first `monaco.languages.onLanguage(<id>)` event for any of the
+ *    contribution's `activationLanguageIds`. If a matching model already exists at
+ *    `registry.activate()` time the activation runs immediately (fast path).
+ *
+ * Heavy boot work inside `contribution.activate()` (LSP worker spawn, WASM init)
+ * SHOULD be wrapped in `queueMicrotask` so the synchronous activate boundary
+ * stays cheap — see Finding 12 in
+ * `docs/research/monaco-lsp-lazy-activation-blueprint.md` (mirrors VS Code's
+ * TypeScript extension pattern).
  *
  * Idempotency / HMR safety:
- * - addContribution: keyed by languageId, duplicate adds are silently ignored
- * - registerAll: guarded by flag, subsequent calls are no-ops
- * - activate: guarded by epoch, only activates if lastActivatedEpoch < activationEpoch
+ * - `addContribution`: keyed by `languageId`, duplicate adds are silently ignored.
+ * - `registerAll`: guarded by flag, subsequent calls are no-ops.
+ * - `activate`: each contribution activates at most once per epoch (incremented by
+ *   `onProjectSessionChange`), regardless of how many ids fire `onLanguage`.
  */
 
 import type * as Monaco from 'monaco-editor';
@@ -37,12 +48,26 @@ export type ActivationResult = {
 };
 
 export type LanguageContribution = {
+  /** Primary language id; used as a fallback when `activationLanguageIds` is omitted. */
   readonly languageId: string;
 
-  /** Phase 1: Called during configureMonaco. Register language metadata only. */
+  /**
+   * Monaco language ids whose first model creation triggers {@link activate}.
+   * Defaults to `[languageId]`. Contributions covering a family (e.g. JS/TS)
+   * declare every variant so any of them gates the activation.
+   */
+  readonly activationLanguageIds?: readonly string[];
+
+  /** Phase 1: Called during `configureMonaco`. Register language metadata only. */
   register(monaco: typeof Monaco): void;
 
-  /** Phase 2: Called when services are available. Register providers, start LSP, etc. */
+  /**
+   * Phase 2: Called when services are available AND a model with one of
+   * {@link activationLanguageIds} is created (or already exists). Heavy work
+   * SHOULD be wrapped in `queueMicrotask` so the synchronous activate boundary
+   * stays cheap — see Finding 12 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
   activate(context: ActivationContext): ActivationResult;
 
   /** Called on project session change. Reset caches, document tracking, etc. */
@@ -52,20 +77,67 @@ export type LanguageContribution = {
   dispose(): void;
 };
 
+/** Optional callback invoked whenever a contribution's deferred activation throws. */
+export type ActivationErrorCallback = (languageId: string, error: Error) => void;
+
+export type LanguageContributionRegistryOptions = {
+  /**
+   * Pluggable error reporter invoked alongside the existing `console.error` when
+   * a deferred `runActivate()` throws. Lets the host surface a user-visible
+   * toast without coupling the registry to a UI library — see Recommendation R12
+   * in `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  onActivationError?: ActivationErrorCallback;
+};
+
+type MarkFunction = (markName: string) => void;
+type MeasureFunction = (measureName: string, startMark: string, endMark: string) => void;
+
+/**
+ * Resolved performance API. Indirected through `globalThis.performance` so a
+ * test can stub it via `vi.stubGlobal('performance', ...)`. Tests may supply a
+ * stub that omits either method, so each is independently optional.
+ */
+function getPerformance(): { mark?: MarkFunction; measure?: MeasureFunction } | undefined {
+  // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive: SSR / non-browser hosts may lack performance
+  return globalThis.performance as { mark?: MarkFunction; measure?: MeasureFunction } | undefined;
+}
+
 export class LanguageContributionRegistry {
   private readonly contributions = new Map<string, LanguageContribution>();
   private registered = false;
   private activationEpoch = 0;
   private lastActivatedEpoch = -1;
 
-  /** Disposables from the current activation cycle */
+  /** Disposables from the current activation cycle (per-contribution + onLanguage subscriptions). */
   private activationDisposables: Monaco.IDisposable[] = [];
 
-  /** Navigation handlers from the current activation cycle */
+  /** Navigation handlers from the current activation cycle (mutated as deferred activations land). */
   private currentHandlers: NavigationHandler[] = [];
 
+  private onActivationError?: ActivationErrorCallback;
+
+  /** Languages already prefetched this activation cycle so prefetch stays idempotent. */
+  private prefetchedLanguageIds = new Set<string>();
+
+  /** Active monaco instance for prefetch (set by {@link activate}). */
+  private activeMonaco: typeof Monaco | undefined;
+
+  public constructor(options: LanguageContributionRegistryOptions = {}) {
+    this.onActivationError = options.onActivationError;
+  }
+
   /**
-   * Add a contribution. Idempotent: silently skips if languageId already added.
+   * Override the activation-error callback. Used by hosts that want to wire a
+   * UI toast onto the singleton registry post-construction (the production
+   * wiring done by `MonacoModelServiceProvider`).
+   */
+  public setActivationErrorHandler(callback: ActivationErrorCallback | undefined): void {
+    this.onActivationError = callback;
+  }
+
+  /**
+   * Add a contribution. Idempotent: silently skips if `languageId` already added.
    */
   public addContribution(contribution: LanguageContribution): void {
     if (this.contributions.has(contribution.languageId)) {
@@ -91,37 +163,105 @@ export class LanguageContributionRegistry {
   }
 
   /**
-   * Phase 2: Activate all contributions with services.
-   * Returns navigation handlers. Idempotent per epoch.
+   * Phase 2: Wire each contribution's deferred activation to its
+   * `activationLanguageIds` via `monaco.languages.onLanguage`. Returns the
+   * navigation-handler array, which is mutated as deferred activations land
+   * (callers retain the reference).
    */
   public activate(context: ActivationContext): NavigationHandler[] {
     if (this.lastActivatedEpoch >= this.activationEpoch) {
       return this.currentHandlers;
     }
 
-    // Dispose previous activation
     this.disposeActivation();
 
     this.currentHandlers = [];
+    this.prefetchedLanguageIds = new Set();
+    this.activeMonaco = context.monaco;
+
+    const existingLanguageIds = new Set(context.monaco.editor.getModels().map((model) => model.getLanguageId()));
 
     for (const contribution of this.contributions.values()) {
-      try {
-        const result = contribution.activate(context);
+      const ids = contribution.activationLanguageIds ?? [contribution.languageId];
+      let activated = false;
 
-        this.activationDisposables.push(...result.disposables);
-
-        if (result.navigationHandler) {
-          this.currentHandlers.push(result.navigationHandler);
+      const runActivate = (): void => {
+        if (activated) {
+          return;
         }
-      } catch (error) {
-        console.error(`Failed to activate language contribution "${contribution.languageId}":`, error);
+        activated = true;
+
+        const performance = getPerformance();
+        const willMark = `code/willActivateLanguage/${contribution.languageId}`;
+        const didMark = `code/didActivateLanguage/${contribution.languageId}`;
+
+        performance?.mark?.(willMark);
+
+        try {
+          const result = contribution.activate(context);
+
+          this.activationDisposables.push(...result.disposables);
+          if (result.navigationHandler) {
+            this.currentHandlers.push(result.navigationHandler);
+          }
+        } catch (error) {
+          // oxlint-disable-next-line no-console -- fail-open: surface activation failure without breaking other contributions
+          console.error(`Failed to activate language contribution "${contribution.languageId}":`, error);
+          const errorObject = error instanceof Error ? error : new Error(String(error));
+          this.onActivationError?.(contribution.languageId, errorObject);
+        } finally {
+          performance?.mark?.(didMark);
+          try {
+            performance?.measure?.(`code/activateLanguage/${contribution.languageId}`, willMark, didMark);
+          } catch {
+            // Measure throws when one of the marks is missing in the timeline
+            // (e.g. host without User Timing). Swallow — diagnostic-only.
+          }
+        }
+      };
+
+      const hasExistingModel = ids.some((id) => existingLanguageIds.has(id));
+      if (hasExistingModel) {
+        runActivate();
+        continue;
+      }
+
+      for (const id of ids) {
+        const subscription = context.monaco.languages.onLanguage(id, runActivate);
+        this.activationDisposables.push(subscription);
       }
     }
 
-    // Commit epoch AFTER all contributions have been processed
     this.lastActivatedEpoch = this.activationEpoch;
 
     return this.currentHandlers;
+  }
+
+  /**
+   * Warm up the contributions gated on the supplied Monaco language ids by
+   * creating-and-disposing a throwaway model per id. Triggers `onLanguage`
+   * via the same code path real model creation uses, so the deduplication
+   * inside {@link activate} guarantees each contribution still activates
+   * exactly once. Safe to call repeatedly: per-id idempotency is maintained
+   * via an internal `Set`.
+   *
+   * Used by the host to mitigate first-keystroke latency for the project's
+   * active kernel — see Recommendation R7 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  public prefetch(ids: readonly string[]): void {
+    const monaco = this.activeMonaco;
+    if (!monaco) {
+      return;
+    }
+    for (const id of ids) {
+      if (this.prefetchedLanguageIds.has(id)) {
+        continue;
+      }
+      this.prefetchedLanguageIds.add(id);
+      const model = monaco.editor.createModel('', id);
+      model.dispose();
+    }
   }
 
   /**
@@ -145,15 +285,17 @@ export class LanguageContributionRegistry {
       contribution.dispose();
     }
 
-    // Reset state but keep contributions (they can be re-activated)
     this.registered = false;
     this.lastActivatedEpoch = -1;
     this.activationEpoch = 0;
     this.currentHandlers = [];
+    this.prefetchedLanguageIds = new Set();
+    this.activeMonaco = undefined;
   }
 
   /**
-   * Dispose current activation disposables.
+   * Dispose current activation disposables (includes per-contribution disposables
+   * AND the `onLanguage` subscriptions that gate them).
    */
   private disposeActivation(): void {
     for (const disposable of this.activationDisposables) {
@@ -167,5 +309,9 @@ export class LanguageContributionRegistry {
 /**
  * Global singleton registry instance.
  * Contributions register during module load, activated later by the provider.
+ *
+ * Host code (e.g. `MonacoModelServiceProvider`) is welcome to construct its own
+ * {@link LanguageContributionRegistry} with custom options (e.g. `onActivationError`)
+ * for tests; production wiring uses this singleton.
  */
 export const registry = new LanguageContributionRegistry();

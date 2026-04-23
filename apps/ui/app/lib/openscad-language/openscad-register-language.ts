@@ -53,6 +53,12 @@ export function registerOpenScadLanguage(monaco: typeof Monaco): void {
  */
 export const openscadContribution: LanguageContribution = {
   languageId: codeLanguages.openscad,
+  /**
+   * Gates OpenSCAD activation behind the first `openscad` model creation —
+   * see Recommendation R6 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  activationLanguageIds: [codeLanguages.openscad],
 
   register(monaco: typeof Monaco): void {
     registerOpenScadLanguage(monaco);

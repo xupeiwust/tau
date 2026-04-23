@@ -22,6 +22,24 @@ import { stlContribution } from '#lib/stl-language/stl-register-language.js';
 import { usdContribution } from '#lib/usd-language/usd-register-language.js';
 import { jsTsContribution } from '#lib/javascript-contribution.js';
 
+/**
+ * Register-eager / activate-lazy contract:
+ *
+ * Every language contribution below is added to the registry at module load
+ * (Phase 1 — `registerAll(monaco)` runs from {@link configureMonaco}, doing
+ * only cheap language-metadata wiring). Phase 2 — `registry.activate(...)` —
+ * runs from `MonacoModelServiceProvider` and gates each contribution's heavy
+ * boot (LSP worker, WASM, ATA) behind the first `monaco.languages.onLanguage`
+ * fire for any of its `activationLanguageIds`. A model already open at
+ * `activate()` time runs the activation immediately (fast path). The
+ * `MonacoModelServiceProvider` additionally calls `registry.prefetch(...)`
+ * with the active kernel's source-file Monaco ids to mask first-keystroke
+ * latency in the dominant code path.
+ *
+ * Full design + rationale:
+ * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+ */
+
 // Register contributions at module load (idempotent -- safe under HMR)
 registry.addContribution(kclContribution);
 registry.addContribution(openscadContribution);

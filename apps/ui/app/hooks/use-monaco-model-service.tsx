@@ -12,14 +12,18 @@
  */
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useMonaco } from '@monaco-editor/react';
+import { toast } from 'sonner';
 import { MonacoMarkerService } from '#lib/monaco-marker-service.js';
 import { MonacoModelService } from '#lib/monaco-model-service.js';
 import { registry } from '#lib/monaco-language-registry.js';
 import { registerMonacoNavigation } from '#lib/monaco-navigation-service.js';
+import type { ActorRefFrom } from 'xstate';
+import type { cadMachine } from '#machines/cad.machine.js';
 import { useProject } from '#hooks/use-project.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
+import { getMonacoLanguageIdsForKernel } from '#lib/kernel-monaco-language.utils.js';
 
 type MonacoServicesContextType = {
   modelService: MonacoModelService | undefined;
@@ -32,7 +36,7 @@ const MonacoServicesContext = createContext<MonacoServicesContextType>(defaultCo
 
 export function MonacoModelServiceProvider({ children }: { readonly children: ReactNode }): React.JSX.Element {
   const monaco = useMonaco();
-  const { projectId, editorRef } = useProject();
+  const { projectId, editorRef, geometryUnits } = useProject();
   const { fileManagerRef, contentService, treeService, readFile, exists, readdir, getDirectoryStat } = useFileManager();
 
   const fileManagerApi = useMemo(
@@ -58,6 +62,21 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
       markerService,
     });
 
+    // R12: surface deferred activation failures via toast (deduped per language id
+    // for the lifetime of this activation cycle) so silent failures stop looking
+    // identical to "no LSP available" — see
+    // `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+    const reportedFailures = new Set<string>();
+    registry.setActivationErrorHandler((languageId, error) => {
+      if (reportedFailures.has(languageId)) {
+        return;
+      }
+      reportedFailures.add(languageId);
+      toast.error(`Failed to load language services for ${languageId}`, {
+        description: error.message,
+      });
+    });
+
     const handlers = registry.activate({
       monaco,
       modelService,
@@ -77,6 +96,7 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
 
     return () => {
       openerDisposable.dispose();
+      registry.setActivationErrorHandler(undefined);
       registry.dispose();
       modelService.dispose();
       markerService.dispose();
@@ -91,7 +111,78 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
     registry.onProjectSessionChange(projectId);
   }, [projectId, services.modelService]);
 
+  // R7: Prefetch language contributions for each geometry unit's active kernel
+  // so first-keystroke latency in the dominant code path is hidden behind the
+  // cad worker's own boot. See
+  // `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+  useGeometryUnitKernelPrefetch(geometryUnits, services.modelService !== undefined);
+
   return <MonacoServicesContext.Provider value={services}>{children}</MonacoServicesContext.Provider>;
+}
+
+/**
+ * Subscribe to each mounted geometry unit's `cadMachine.activeKernelId` and
+ * mirror every emission into a `registry.prefetch(...)` call so the Monaco
+ * language contributions for that kernel's source extensions warm up while
+ * the kernel worker boots. Idempotency lives inside the registry — this hook
+ * only forwards the kernel id.
+ *
+ * Exported so the wiring is testable without standing up the full Monaco
+ * provider tree (see `use-monaco-model-service.test.tsx`).
+ */
+export function useGeometryUnitKernelPrefetch(
+  geometryUnits: Map<string, ActorRefFrom<typeof cadMachine>>,
+  enabled: boolean,
+): void {
+  const subscriptionsRef = useRef(new Map<string, () => void>());
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const subscriptions = subscriptionsRef.current;
+
+    // Tear down subscriptions for units that disappeared.
+    for (const [path, unsubscribe] of subscriptions) {
+      if (!geometryUnits.has(path)) {
+        unsubscribe();
+        subscriptions.delete(path);
+      }
+    }
+
+    // Add new subscriptions for newly mounted units. Each cadMachine actor
+    // emits its own `activeKernelChanged` event when the runtime client
+    // settles on a kernel — we mirror that into a registry prefetch.
+    for (const [path, actor] of geometryUnits) {
+      if (subscriptions.has(path)) {
+        continue;
+      }
+
+      const subscription = actor.subscribe((snapshot) => {
+        const kernelId = snapshot.context.activeKernelId;
+        if (!kernelId) {
+          return;
+        }
+        const monacoIds = getMonacoLanguageIdsForKernel(kernelId);
+        if (monacoIds.length > 0) {
+          registry.prefetch(monacoIds);
+        }
+      });
+
+      subscriptions.set(path, () => {
+        subscription.unsubscribe();
+      });
+    }
+
+    return () => {
+      // Component unmount path: dispose every outstanding subscription.
+      for (const unsubscribe of subscriptions.values()) {
+        unsubscribe();
+      }
+      subscriptions.clear();
+    };
+  }, [geometryUnits, enabled]);
 }
 
 /**

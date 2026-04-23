@@ -367,7 +367,6 @@ export function registerKclLanguage(monaco: typeof Monaco): void {
   }
 
   isRegistered = true;
-  monacoInstance = monaco; // Store for later use in import re-processing
 
   // Register language metadata
   monaco.languages.register({
@@ -407,8 +406,11 @@ export function registerKclLanguage(monaco: typeof Monaco): void {
     wordPattern: /("[^"]*\.kcl"|'[^']*\.kcl'|[A-Z_a-z]\w*)/,
   });
 
-  // Initialize LSP client and register providers
-  void initializeLsp(monaco);
+  // NOTE: LSP / WASM initialization deliberately deferred to
+  // `kclContribution.activate`, which itself only runs when the first
+  // `kcl` model triggers `monaco.languages.onLanguage('kcl')`. Replicad and
+  // OpenSCAD-only projects pay zero KCL cost — see Recommendations R1+R5+R11
+  // in `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
 }
 
 /**
@@ -824,20 +826,46 @@ let activationMarkerService: ActivationContext['markerService'] | undefined;
  */
 export const kclContribution: LanguageContribution = {
   languageId: codeLanguages.kcl,
+  /**
+   * Gates this contribution behind the first `kcl` model creation. Until then
+   * the entire LSP worker, WASM symbol service, and provider registration
+   * stays unloaded — see Recommendations R1, R5 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  activationLanguageIds: ['kcl'],
 
   register(monaco: typeof Monaco): void {
     registerKclLanguage(monaco);
   },
 
   activate(context: ActivationContext): ActivationResult {
-    const { markerService, modelService } = context;
+    const { markerService, modelService, monaco } = context;
 
     activationMarkerService = markerService;
 
     // Store marker service globally so diagnostics handler can access it
     globalMarkerService = markerService;
+    // Store Monaco instance for the import re-processing path which fires
+    // after the LSP worker boots.
+    monacoInstance = monaco;
 
-    // Set up file manager for KCL LSP import resolution
+    // Store getOrEnsureModel BEFORE the deferred LSP boot reads it during
+    // provider registration. The reference is module-level so the
+    // microtask-deferred `initializeLsp` picks it up.
+    globalGetOrEnsureModel = async (path: string): ReturnType<typeof modelService.getOrEnsureModel> =>
+      modelService.getOrEnsureModel(path);
+
+    // R11: Defer the heavy LSP boot (Web Worker spawn + WASM init + provider
+    // registration) to a microtask so `activate()` returns synchronously and
+    // does not block the registry's per-contribution loop. Mirrors VS Code's
+    // TypeScript extension pattern (Finding 12 in the research doc).
+    queueMicrotask(() => {
+      void initializeLsp(monaco);
+    });
+
+    // Set up file manager for KCL LSP import resolution. `setKclLspFileManager`
+    // tolerates the LSP not being ready yet — it stores the file manager and
+    // re-processes opened documents once the client is ready.
     setKclLspFileManager({
       readFile: async (path: string) => context.fileManager.readFile(path),
       exists: async (path: string) => context.fileManager.exists(path),
@@ -850,13 +878,6 @@ export const kclContribution: LanguageContribution = {
         return path.endsWith('.kcl');
       },
     };
-
-    // The definition provider was already registered during initializeLsp.
-    // Store getOrEnsureModel for future definition provider use.
-    // Since initializeLsp is async and may complete after activate,
-    // the getOrEnsureModel reference is stored module-level.
-    globalGetOrEnsureModel = async (path: string): ReturnType<typeof modelService.getOrEnsureModel> =>
-      modelService.getOrEnsureModel(path);
 
     return {
       disposables: activationDisposables,

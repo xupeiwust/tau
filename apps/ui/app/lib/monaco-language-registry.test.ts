@@ -1,15 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type {
   ActivationContext,
   LanguageContribution,
   ActivationResult,
   NavigationHandler,
 } from '#lib/monaco-language-registry.js';
+import type { MonacoTestStub } from '#lib/testing/monaco-language-stub.js';
 import { LanguageContributionRegistry } from '#lib/monaco-language-registry.js';
+import { createMonacoTestStub } from '#lib/testing/monaco-language-stub.js';
 
-function createMockContext(): ActivationContext {
-  // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- Minimal mock for testing
-  return {} as ActivationContext;
+function createMockContext(stub: MonacoTestStub): ActivationContext {
+  // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- registry only touches monaco; other fields are forwarded to contributions verbatim
+  return {
+    monaco: stub.monaco,
+  } as unknown as ActivationContext;
 }
 
 function createMockContribution(
@@ -23,7 +27,7 @@ function createMockContribution(
   return {
     languageId,
     register: vi.fn(),
-    activate: vi.fn<() => ActivationResult>(() => ({
+    activate: vi.fn<(context: ActivationContext) => ActivationResult>(() => ({
       disposables: [],
       navigationHandler: handler,
     })),
@@ -34,157 +38,387 @@ function createMockContribution(
 
 describe('LanguageContributionRegistry', () => {
   let registry: LanguageContributionRegistry;
+  let stub: MonacoTestStub;
   let context: ActivationContext;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     registry = new LanguageContributionRegistry();
-    context = createMockContext();
+    stub = createMonacoTestStub();
+    context = createMockContext(stub);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  describe('activate', () => {
-    it('should activate all contributions and return navigation handlers', () => {
-      const contribA = createMockContribution('lang-a');
-      const contribB = createMockContribution('lang-b');
+  afterEach(() => {
+    registry.dispose();
+    stub.__reset();
+    // oxlint-disable-next-line @typescript-eslint/no-unsafe-call -- vitest spy mock surface is dynamic
+    consoleErrorSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 
-      registry.addContribution(contribA);
-      registry.addContribution(contribB);
+  describe('deferred activation', () => {
+    it('should not call activate for a contribution whose activationLanguageIds have no models', () => {
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
 
-      const handlers = registry.activate(context);
+      registry.addContribution(contrib);
+      registry.activate(context);
 
-      expect(contribA.activate).toHaveBeenCalledWith(context);
-      expect(contribB.activate).toHaveBeenCalledWith(context);
-      expect(handlers).toHaveLength(2);
+      expect(contrib.activate).not.toHaveBeenCalled();
     });
 
-    it('should not prevent other contributions from activating when one throws', () => {
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    it('should call activate exactly once when the first matching model is created', () => {
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
 
-      const contribA = createMockContribution('lang-a');
-      const contribBroken = createMockContribution('lang-broken', {
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      stub.__createModel('inmemory://a/0', 'lang-a');
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+      expect(contrib.activate).toHaveBeenCalledWith(context);
+    });
+
+    it('should call activate immediately when a matching model already exists at activate() time', () => {
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
+
+      stub.__createModel('inmemory://a/preexisting', 'lang-a');
+
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call activate exactly once when multiple activationLanguageIds fire (e.g. ts/tsx/js/jsx)', () => {
+      const contrib = createMockContribution('typescript', {
+        activationLanguageIds: ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'],
+      });
+
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      stub.__createModel('inmemory://t/0', 'typescript');
+      stub.__createModel('inmemory://t/1', 'javascript');
+      stub.__createModel('inmemory://t/2', 'typescriptreact');
+      stub.__createModel('inmemory://t/3', 'javascriptreact');
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call activate independently per contribution when their language ids differ', () => {
+      const kcl = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      const openscad = createMockContribution('openscad', { activationLanguageIds: ['openscad'] });
+
+      registry.addContribution(kcl);
+      registry.addContribution(openscad);
+      registry.activate(context);
+
+      stub.__createModel('inmemory://k/0', 'kcl');
+
+      expect(kcl.activate).toHaveBeenCalledTimes(1);
+      expect(openscad.activate).not.toHaveBeenCalled();
+
+      stub.__createModel('inmemory://o/0', 'openscad');
+
+      expect(openscad.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should default activationLanguageIds to [languageId] when undefined', () => {
+      const contrib = createMockContribution('lang-only');
+
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      expect(contrib.activate).not.toHaveBeenCalled();
+
+      stub.__createModel('inmemory://lo/0', 'lang-only');
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should dispose onLanguage subscriptions when registry.dispose() runs before any model triggers them', () => {
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
+
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      registry.dispose();
+
+      stub.__createModel('inmemory://a/0', 'lang-a');
+
+      expect(contrib.activate).not.toHaveBeenCalled();
+    });
+
+    it('should still log via console.error and continue when a deferred activate throws', () => {
+      const broken = createMockContribution('lang-broken', {
+        activationLanguageIds: ['lang-broken'],
         activate: vi.fn(() => {
-          throw new Error('Activation failed');
+          throw new Error('boom');
         }),
       });
-      const contribC = createMockContribution('lang-c');
+      const stable = createMockContribution('lang-stable', { activationLanguageIds: ['lang-stable'] });
 
-      registry.addContribution(contribA);
-      registry.addContribution(contribBroken);
-      registry.addContribution(contribC);
+      registry.addContribution(broken);
+      registry.addContribution(stable);
+      registry.activate(context);
 
-      const handlers = registry.activate(context);
+      stub.__createModel('inmemory://b/0', 'lang-broken');
+      stub.__createModel('inmemory://s/0', 'lang-stable');
 
-      // Both non-broken contributions should have activated
-      expect(contribA.activate).toHaveBeenCalledWith(context);
-      expect(contribBroken.activate).toHaveBeenCalled();
-      expect(contribC.activate).toHaveBeenCalledWith(context);
-
-      // Only 2 handlers (from A and C), broken contribution is skipped
-      expect(handlers).toHaveLength(2);
-
-      // Error should be logged with the failing contribution's languageId
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
         'Failed to activate language contribution "lang-broken":',
         expect.any(Error),
       );
-
-      errorSpy.mockRestore();
+      expect(stable.activate).toHaveBeenCalledTimes(1);
     });
+  });
 
-    it('should commit epoch after all contributions process, not before', () => {
-      const activationOrder: string[] = [];
+  describe('error reporting (R12)', () => {
+    it('should invoke onActivationError with languageId and the thrown Error when activate throws', () => {
+      const errorCallback = vi.fn();
+      const errorRegistry = new LanguageContributionRegistry({ onActivationError: errorCallback });
 
-      const contribA = createMockContribution('lang-a', {
+      const broken = createMockContribution('lang-broken', {
+        activationLanguageIds: ['lang-broken'],
         activate: vi.fn(() => {
-          activationOrder.push('a');
-          return { disposables: [] };
-        }),
-      });
-      const contribB = createMockContribution('lang-b', {
-        activate: vi.fn(() => {
-          activationOrder.push('b');
-          return { disposables: [] };
+          throw new Error('explosion');
         }),
       });
 
-      registry.addContribution(contribA);
-      registry.addContribution(contribB);
+      errorRegistry.addContribution(broken);
+      errorRegistry.activate(context);
 
-      registry.activate(context);
+      stub.__createModel('inmemory://b/0', 'lang-broken');
 
-      // Both contributions should have been processed
-      expect(activationOrder).toEqual(['a', 'b']);
+      expect(errorCallback).toHaveBeenCalledTimes(1);
+      expect(errorCallback).toHaveBeenCalledWith('lang-broken', expect.any(Error));
+      const call = errorCallback.mock.calls[0]!;
+      const errorArgument = call[1] as Error;
+      expect(errorArgument.message).toBe('explosion');
 
-      // Calling activate again with same epoch should return cached handlers
-      const cachedHandlers = registry.activate(context);
-      expect(cachedHandlers).toEqual([]);
-      // `activate` should not be called again
-      expect(contribA.activate).toHaveBeenCalledTimes(1);
-      expect(contribB.activate).toHaveBeenCalledTimes(1);
+      errorRegistry.dispose();
     });
 
-    it('should return cached handlers on subsequent activate() calls with same epoch after a throw', () => {
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    it('should still continue activating other contributions after onActivationError fires', () => {
+      const errorCallback = vi.fn();
+      const errorRegistry = new LanguageContributionRegistry({ onActivationError: errorCallback });
 
-      const contribA = createMockContribution('lang-a');
-      const contribBroken = createMockContribution('lang-broken', {
+      const broken = createMockContribution('lang-broken', {
+        activationLanguageIds: ['lang-broken'],
+        activate: vi.fn(() => {
+          throw new Error('explosion');
+        }),
+      });
+      const stable = createMockContribution('lang-stable', { activationLanguageIds: ['lang-stable'] });
+
+      errorRegistry.addContribution(broken);
+      errorRegistry.addContribution(stable);
+      errorRegistry.activate(context);
+
+      stub.__createModel('inmemory://b/0', 'lang-broken');
+      stub.__createModel('inmemory://s/0', 'lang-stable');
+
+      expect(stable.activate).toHaveBeenCalledTimes(1);
+
+      errorRegistry.dispose();
+    });
+
+    it('should accept a setActivationErrorHandler() override post-construction', () => {
+      const callback = vi.fn();
+      registry.setActivationErrorHandler(callback);
+
+      const broken = createMockContribution('lang-broken', {
+        activationLanguageIds: ['lang-broken'],
         activate: vi.fn(() => {
           throw new Error('boom');
         }),
       });
 
-      registry.addContribution(contribA);
-      registry.addContribution(contribBroken);
+      registry.addContribution(broken);
+      registry.activate(context);
 
-      const firstResult = registry.activate(context);
+      stub.__createModel('inmemory://b/0', 'lang-broken');
 
-      // Should have 1 handler from contribA (contribBroken threw)
-      expect(firstResult).toHaveLength(1);
+      expect(callback).toHaveBeenCalledWith('lang-broken', expect.any(Error));
+    });
+  });
 
-      // Second call with same epoch should return the same cached handlers
-      const secondResult = registry.activate(context);
-      expect(secondResult).toBe(firstResult);
+  describe('performance marks (R10)', () => {
+    it('should emit code/willActivateLanguage/<id> and code/didActivateLanguage/<id> marks around the synchronous activate body', () => {
+      const markSpy = vi.fn();
+      const measureSpy = vi.fn();
+      vi.stubGlobal('performance', { mark: markSpy, measure: measureSpy });
 
-      // `activate` should only have been called once for each contribution
-      expect(contribA.activate).toHaveBeenCalledTimes(1);
-      expect(contribBroken.activate).toHaveBeenCalledTimes(1);
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
+      registry.addContribution(contrib);
+      registry.activate(context);
 
-      errorSpy.mockRestore();
+      stub.__createModel('inmemory://a/0', 'lang-a');
+
+      expect(markSpy).toHaveBeenNthCalledWith(1, 'code/willActivateLanguage/lang-a');
+      expect(markSpy).toHaveBeenNthCalledWith(2, 'code/didActivateLanguage/lang-a');
+      expect(measureSpy).toHaveBeenCalledWith(
+        'code/activateLanguage/lang-a',
+        'code/willActivateLanguage/lang-a',
+        'code/didActivateLanguage/lang-a',
+      );
     });
 
-    it('should re-activate after project session change even if previous activation had errors', () => {
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    it('should emit performance marks even when activate throws', () => {
+      const markSpy = vi.fn();
+      vi.stubGlobal('performance', { mark: markSpy, measure: vi.fn() });
 
+      const broken = createMockContribution('lang-broken', {
+        activationLanguageIds: ['lang-broken'],
+        activate: vi.fn(() => {
+          throw new Error('boom');
+        }),
+      });
+
+      registry.addContribution(broken);
+      registry.activate(context);
+
+      stub.__createModel('inmemory://b/0', 'lang-broken');
+
+      expect(markSpy).toHaveBeenCalledWith('code/willActivateLanguage/lang-broken');
+      expect(markSpy).toHaveBeenCalledWith('code/didActivateLanguage/lang-broken');
+    });
+  });
+
+  describe('prefetch (R7)', () => {
+    it('should fire onLanguage exactly once per prefetched id', () => {
+      const contrib = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      registry.prefetch(['kcl']);
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should be idempotent across multiple prefetch calls for the same id', () => {
+      const contrib = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      const createSpy = vi.spyOn(stub.monaco.editor, 'createModel');
+
+      registry.prefetch(['kcl']);
+      registry.prefetch(['kcl']);
+      registry.prefetch(['kcl']);
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should activate the contribution gated on a prefetched id even when no real model exists', () => {
+      const contrib = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      registry.addContribution(contrib);
+      registry.activate(context);
+
+      expect(contrib.activate).not.toHaveBeenCalled();
+
+      registry.prefetch(['kcl']);
+
+      expect(contrib.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should be a no-op before activate() runs', () => {
+      const contrib = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      registry.addContribution(contrib);
+
+      expect(() => {
+        registry.prefetch(['kcl']);
+      }).not.toThrow();
+      expect(contrib.activate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('language-switch contract (R13)', () => {
+    it('should activate kcl and typescript contributions exactly once when a model is created as kcl and then switched to typescript', () => {
+      const kcl = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+      const ts = createMockContribution('typescript', {
+        activationLanguageIds: ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'],
+      });
+
+      registry.addContribution(kcl);
+      registry.addContribution(ts);
+      registry.activate(context);
+
+      const model = stub.__createModel('inmemory://m/0', 'kcl');
+      expect(kcl.activate).toHaveBeenCalledTimes(1);
+      expect(ts.activate).not.toHaveBeenCalled();
+
+      model.__setLanguageForTest('typescript');
+
+      expect(kcl.activate).toHaveBeenCalledTimes(1);
+      expect(ts.activate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not re-activate kcl when a second .kcl model is created', () => {
+      const kcl = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
+
+      registry.addContribution(kcl);
+      registry.activate(context);
+
+      stub.__createModel('inmemory://k/0', 'kcl');
+      stub.__createModel('inmemory://k/1', 'kcl');
+
+      expect(kcl.activate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('lifecycle preservation', () => {
+    it('should re-activate after project session change even if previous activation had errors', () => {
       let shouldThrow = true;
       const contribFlaky = createMockContribution('lang-flaky', {
+        activationLanguageIds: ['lang-flaky'],
         activate: vi.fn(() => {
           if (shouldThrow) {
             throw new Error('temporary failure');
           }
-
           return {
             disposables: [],
             navigationHandler: { canHandle: () => true },
           };
         }),
       });
-      const contribStable = createMockContribution('lang-stable');
 
       registry.addContribution(contribFlaky);
-      registry.addContribution(contribStable);
+      registry.activate(context);
 
-      // First activation: flaky throws
-      const firstResult = registry.activate(context);
-      expect(firstResult).toHaveLength(1); // Only stable's handler
+      stub.__createModel('inmemory://f/0', 'lang-flaky');
+      expect(contribFlaky.activate).toHaveBeenCalledTimes(1);
 
-      // Project session change increments epoch
       shouldThrow = false;
       registry.onProjectSessionChange('project-2');
 
-      // Second activation: flaky now succeeds
-      const secondResult = registry.activate(context);
-      expect(secondResult).toHaveLength(2); // Both handlers
+      const handlers = registry.activate(context);
+      stub.__createModel('inmemory://f/1', 'lang-flaky');
 
-      errorSpy.mockRestore();
+      expect(contribFlaky.activate).toHaveBeenCalledTimes(2);
+      expect(handlers).toHaveLength(1);
+    });
+
+    it('should return the same handlers reference on repeated activate() calls within the same epoch', () => {
+      const contrib = createMockContribution('lang-a', { activationLanguageIds: ['lang-a'] });
+      registry.addContribution(contrib);
+
+      const first = registry.activate(context);
+      const second = registry.activate(context);
+
+      expect(second).toBe(first);
+    });
+
+    it('should not re-register contributions on subsequent registerAll calls', () => {
+      const contrib = createMockContribution('lang-a');
+      registry.addContribution(contrib);
+
+      registry.registerAll(stub.monaco);
+      registry.registerAll(stub.monaco);
+
+      expect(contrib.register).toHaveBeenCalledTimes(1);
     });
   });
 });

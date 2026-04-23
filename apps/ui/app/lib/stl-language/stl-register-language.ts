@@ -57,6 +57,12 @@ export function registerStlLanguage(monaco: typeof Monaco): void {
  */
 export const stlContribution: LanguageContribution = {
   languageId: codeLanguages.stl,
+  /**
+   * Gates STL activation behind the first `stl` model creation — see
+   * Recommendation R6 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  activationLanguageIds: [codeLanguages.stl],
 
   register(monaco: typeof Monaco): void {
     registerStlLanguage(monaco);

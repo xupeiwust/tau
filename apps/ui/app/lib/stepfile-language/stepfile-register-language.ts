@@ -66,6 +66,12 @@ export function registerStepfileLanguage(monaco: typeof Monaco): void {
  */
 export const stepfileContribution: LanguageContribution = {
   languageId: codeLanguages.stepfile,
+  /**
+   * Gates STEP file activation behind the first `stepfile` model creation —
+   * see Recommendation R6 in
+   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   */
+  activationLanguageIds: [codeLanguages.stepfile],
 
   register(monaco: typeof Monaco): void {
     registerStepfileLanguage(monaco);
