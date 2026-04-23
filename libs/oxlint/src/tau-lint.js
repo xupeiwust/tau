@@ -19,6 +19,8 @@ import { validateMdxLinksRule } from './rules/validate-mdx-links.js';
 import { validateMdxExternalLinksRule } from './rules/validate-mdx-external-links.js';
 import { noUselessCatchUnknownRule } from './rules/no-useless-catch-unknown.js';
 import { noHardcodedColorRule } from './rules/no-hardcoded-color.js';
+import { noTimeUnitSuffixRule } from './rules/no-time-unit-suffix.js';
+import { noBareTimeIdentifierRule } from './rules/no-bare-time-identifier.js';
 
 /** @type {Plugin} */
 const plugin = {
@@ -39,6 +41,8 @@ const plugin = {
     'validate-mdx-links': validateMdxLinksRule,
     'validate-mdx-external-links': validateMdxExternalLinksRule,
     'no-hardcoded-color': noHardcodedColorRule,
+    'no-time-unit-suffix': noTimeUnitSuffixRule,
+    'no-bare-time-identifier': noBareTimeIdentifierRule,
   },
 };
 
