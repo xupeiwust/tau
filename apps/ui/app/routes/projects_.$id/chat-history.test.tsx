@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import type { MyUIMessage } from '@taucad/chat';
 import type { KernelId } from '@taucad/types/constants';
 
 // E6 (R6, R11): the user-message metadata stamp inside ChatHistory.onSubmit
@@ -28,9 +29,19 @@ vi.mock('#hooks/use-kernel.js', () => ({
 }));
 
 const sendMessage = vi.fn();
+const chatStateRef: { current: { messages: readonly MyUIMessage[] } } = { current: { messages: [] } };
+const setMockMessages = (messages: readonly MyUIMessage[]): void => {
+  chatStateRef.current = { messages };
+};
 vi.mock('#hooks/use-chat.js', () => ({
   useChatActions: () => ({ sendMessage }),
-  useChatSelector: (selector: (state: unknown) => unknown) => selector({ messageOrder: [] }),
+  useChatSelector: (selector: (state: unknown) => unknown) => {
+    const { messages } = chatStateRef.current;
+    return selector({
+      messages,
+      messageOrder: messages.map((m) => m.id),
+    });
+  },
 }));
 
 // Capture the textarea onSubmit callback so the test can invoke it
@@ -44,7 +55,9 @@ vi.mock('#components/chat/chat-textarea.js', () => ({
 }));
 
 vi.mock('#routes/projects_.$id/chat-message.js', () => ({
-  ChatMessage: () => null,
+  ChatMessage: ({ messageId }: { readonly messageId: string }) => (
+    <div data-testid='chat-message' data-message-id={messageId} />
+  ),
 }));
 
 vi.mock('#routes/projects_.$id/scroll-down-button.js', () => ({
@@ -104,8 +117,26 @@ vi.mock('#hooks/use-project.js', () => ({
   useProject: () => ({ projectId: 'project_test' }),
 }));
 
+// Capture the Virtuoso props so tests can both inspect counts and render
+// the produced items by walking `itemContent` over `totalCount`.
+const capturedVirtuoso: {
+  totalCount?: number;
+  itemContent?: (index: number) => React.ReactNode;
+} = {};
 vi.mock('react-virtuoso', () => ({
-  Virtuoso: () => <div data-testid='virtuoso' />,
+  Virtuoso: (properties: { readonly totalCount: number; readonly itemContent: (index: number) => React.ReactNode }) => {
+    capturedVirtuoso.totalCount = properties.totalCount;
+    capturedVirtuoso.itemContent = properties.itemContent;
+    const items: React.ReactNode[] = [];
+    for (let index = 0; index < properties.totalCount; index++) {
+      items.push(
+        <div key={index} data-testid='virtuoso-item' data-index={index}>
+          {properties.itemContent(index)}
+        </div>,
+      );
+    }
+    return <div data-testid='virtuoso'>{items}</div>;
+  },
 }));
 
 const { ChatHistory } = await import('#routes/projects_.$id/chat-history.js');
@@ -119,11 +150,18 @@ const submitDraft = async (model = 'cookie-model') => {
   });
 };
 
+const message = (id: string, role: MyUIMessage['role']): MyUIMessage => ({
+  id,
+  role,
+  parts: [{ type: 'text', text: id }],
+});
+
 describe('ChatHistory — chat-scoped kernel stamp (E6, R6, R11)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activeKernelState.current = 'manifold';
     capturedTextarea.onSubmit = undefined;
+    setMockMessages([]);
   });
 
   it('stamps user-message metadata.kernel from useActiveChatKernel (manifold)', async () => {
@@ -166,5 +204,74 @@ describe('ChatHistory — chat-scoped kernel stamp (E6, R6, R11)', () => {
     expect(sent.metadata.model).toBe('chat-scoped-model');
     expect(sent.metadata.model).toBeDefined();
     expect(sent.metadata.kernel).toBeDefined();
+  });
+});
+
+describe('ChatHistory — turn group rendering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    activeKernelState.current = 'manifold';
+    capturedTextarea.onSubmit = undefined;
+    capturedVirtuoso.totalCount = undefined;
+    capturedVirtuoso.itemContent = undefined;
+    setMockMessages([]);
+  });
+
+  it('should render one TurnGroup per user message and apply min-h only to the last', () => {
+    setMockMessages([
+      message('u1', 'user'),
+      message('a1', 'assistant'),
+      message('u2', 'user'),
+      message('a2', 'assistant'),
+      message('a3', 'assistant'),
+    ]);
+
+    render(<ChatHistory />);
+
+    const items = screen.getAllByTestId('virtuoso-item');
+    expect(items).toHaveLength(2);
+
+    const firstGroup = items[0]!.firstElementChild as HTMLElement;
+    const lastGroup = items[1]!.firstElementChild as HTMLElement;
+
+    // First group bundles u1 + a1, no min-h.
+    expect(firstGroup.className).not.toContain('min-h-(--chat-live-turn-min-h)');
+    const firstGroupMessages = firstGroup.querySelectorAll<HTMLElement>('[data-testid="chat-message"]');
+    expect([...firstGroupMessages].map((node) => node.dataset['messageId'])).toEqual(['u1', 'a1']);
+
+    // Last group bundles u2 + a2 + a3, gets min-h to pin user message at top.
+    expect(lastGroup.className).toContain('min-h-(--chat-live-turn-min-h)');
+    const lastGroupMessages = lastGroup.querySelectorAll<HTMLElement>('[data-testid="chat-message"]');
+    expect([...lastGroupMessages].map((node) => node.dataset['messageId'])).toEqual(['u2', 'a2', 'a3']);
+  });
+
+  it('should render a leading assistant message in its own group when no user message precedes it', () => {
+    setMockMessages([message('a0', 'assistant')]);
+
+    render(<ChatHistory />);
+
+    const items = screen.getAllByTestId('virtuoso-item');
+    expect(items).toHaveLength(1);
+
+    // Lone assistant greeting still receives min-h because it is the last
+    // (and only) group — keeps the empty-canvas effect consistent.
+    const onlyGroup = items[0]!.firstElementChild as HTMLElement;
+    expect(onlyGroup.className).toContain('min-h-(--chat-live-turn-min-h)');
+    const messages = onlyGroup.querySelectorAll<HTMLElement>('[data-testid="chat-message"]');
+    expect([...messages].map((node) => node.dataset['messageId'])).toEqual(['a0']);
+  });
+
+  it('should pass the correct totalCount to Virtuoso (one per turn group)', () => {
+    setMockMessages([
+      message('a0', 'assistant'),
+      message('u1', 'user'),
+      message('a1', 'assistant'),
+      message('u2', 'user'),
+    ]);
+
+    render(<ChatHistory />);
+
+    expect(capturedVirtuoso.totalCount).toBe(3);
+    expect(typeof capturedVirtuoso.itemContent).toBe('function');
   });
 });

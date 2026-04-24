@@ -507,8 +507,12 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
         className={cn(
           'flex flex-col space-y-2 min-w-0',
           'w-full',
-          // Vary width for user and assistant messages to achieve visual differentiation
-          isUser ? 'mx-2' : 'mx-4',
+          // Vary left margin for user and assistant messages to achieve visual
+          // differentiation. Right side is intentionally flush — the parent
+          // ChatScroller reserves a fixed scrollbar gutter, so dropping the
+          // right margin here lets bubbles use that space when the scrollbar
+          // is hidden, and the gutter doubles as the right margin when shown.
+          isUser ? 'ml-2' : 'ml-4',
         )}
       >
         <When shouldRender={isUser ? isEditing : false}>
