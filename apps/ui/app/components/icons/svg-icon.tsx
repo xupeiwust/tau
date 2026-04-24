@@ -63,8 +63,7 @@ export function SvgIcon({
 
   // Same-document `<use>` reference: the sprite is inlined once at the app
   // shell via `<SvgSpriteMount />` (mounted in `root.tsx`), so every browser
-  // (including Safari) materialises the symbol's `<defs>` correctly. See
-  // `docs/research/safari-svg-rendering-compatibility.md`.
+  // (including Safari) materialises the symbol's `<defs>` correctly.
   return (
     <svg {...properties} className={className} viewBox='0 0 56 56'>
       <use href={`#${resolvedIconId}`} />

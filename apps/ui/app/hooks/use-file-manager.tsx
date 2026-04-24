@@ -70,7 +70,7 @@ const SharedWorkerContext = createContext<Worker | undefined>(undefined);
 
 /**
  * Carries the root FileManagerProvider's file-pool SharedArrayBuffer down to
- * nested providers (R8). Nested machines reuse this SAB instead of allocating
+ * nested providers. Nested machines reuse this SAB instead of allocating
  * their own 50 MiB pool, avoiding duplicate `postMessage({ type: 'filePool' })`
  * traffic to the shared worker.
  */

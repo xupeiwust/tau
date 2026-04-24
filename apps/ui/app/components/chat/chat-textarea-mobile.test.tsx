@@ -150,7 +150,7 @@ function renderMobile() {
   );
 }
 
-describe('ChatTextareaMobile — chat-scoped kernel resolution (E3, R6/R7)', () => {
+describe('ChatTextareaMobile — chat-scoped kernel resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKernel.current = manifoldKernel;

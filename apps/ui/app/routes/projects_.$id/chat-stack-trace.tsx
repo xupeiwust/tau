@@ -455,10 +455,10 @@ export function ChatStackTrace({ entryFile, className, side, ...props }: ChatSta
   const errors = isCadActorStale ? undefined : rawErrors;
 
   const { sendMessage } = useChatActions();
-  // R6/E7: read the model/kernel from the chat-scoped resolvers so the
-  // Fix-with-AI prompt always uses what the active chat is actually
-  // running on. The cookie default still wins on the homepage / before a
-  // chat is bound (the resolvers fall back to it transparently).
+  // Read the model/kernel from the chat-scoped resolvers so the Fix-with-AI
+  // prompt always uses what the active chat is actually running on. The
+  // cookie default still wins on the homepage / before a chat is bound (the
+  // resolvers fall back to it transparently).
   const { modelId: selectedModelId } = useActiveChatModel();
   const { kernelId: kernel } = useActiveChatKernel();
   const snapshot = useChatSnapshot();
@@ -510,8 +510,8 @@ export function ChatStackTrace({ entryFile, className, side, ...props }: ChatSta
         // Create the chat with the message already included.
         // When ChatInstance loads this chat, it will see the pending user
         // message and automatically trigger the AI response via regenerate().
-        // R3: seed activeModel + activeKernel on the new chat so cookie
-        // changes elsewhere never silently retarget this Fix-with-AI thread.
+        // Seed activeModel + activeKernel on the new chat so cookie changes
+        // elsewhere never silently retarget this Fix-with-AI thread.
         const newChat = await createChat({
           name: 'New chat',
           messages: [message],

@@ -69,7 +69,13 @@ const instantScrollBehavior = 'instant' as 'auto';
 // shape so streaming a new turn never re-mounts the previous one. The last
 // turn additionally reserves viewport-height (`min-h-(--chat-live-turn-min-h)`)
 // so the user message at the top of the live turn stays pinned to the
-// scroller top while the assistant reply fills downward.
+// scroller top while the assistant reply fills downward — combined with
+// `scrollToIndex(LAST, align: 'start')` on submit (below), this is the only
+// pinning mechanism for the live user message. We previously experimented
+// with `position: sticky` to also pin past user messages while the user
+// scrolls through their assistant content, but every scoping attempt
+// triggered a multi-hundred-px viewport jump on wheel-up from the
+// scroll-bottom — pin new user message so assistant reply streams under it.
 const TurnGroup = memo(function ({
   messageIds,
   isLast,
@@ -86,15 +92,12 @@ const TurnGroup = memo(function ({
   );
 });
 
-// Custom Virtuoso scroller. Three responsibilities, all CSS-only:
-// 1. `[overflow-anchor:none]` — disables browser scroll-anchoring so our
-//    explicit scrollToIndex (R4) stays authoritative as assistant tokens
-//    stream in.
-// 2. `[scrollbar-gutter:stable]` — permanently reserves a `--scrollbar-thickness`
-//    column on the inline-end edge so the inner content width does not
-//    change when content first overflows. Without this, the second message
-//    triggering overflow inserts a 9px-wide scrollbar that re-flows every
-//    bubble narrower (visible single-frame horizontal layout shift).
+// Custom Virtuoso scroller. Single responsibility:
+// `[scrollbar-gutter:stable]` permanently reserves a `--scrollbar-thickness`
+// column on the inline-end edge so the inner content width does not change
+// when content first overflows. Without this, the second message triggering
+// overflow inserts a 9px-wide scrollbar that re-flows every bubble narrower
+// (visible single-frame horizontal layout shift).
 //
 // `ScrollerProps` is `Pick<ComponentProps<'div'>, 'children' | 'style' | 'tabIndex'>`
 // — Virtuoso also forwards `className` at runtime (so consumers can style via
@@ -105,7 +108,7 @@ const ChatScroller = forwardRef<HTMLDivElement, ScrollerProps & { className?: st
       {...props}
       ref={ref}
       style={{ ...props.style, ...chatScrollerCssVariables }}
-      className={cn(props.className, '[overflow-anchor:none] [scrollbar-gutter:stable]')}
+      className={cn(props.className, '[scrollbar-gutter:stable]')}
     />
   );
 });
@@ -142,10 +145,9 @@ export const ChatHistory = memo(function (props: {
   const { className, isExpanded = true, setIsExpanded } = props;
   const messageIds = useChatSelector((state) => state.messageOrder);
   const { sendMessage } = useChatActions();
-  // R6/R11: stamp outgoing user-message metadata with the chat-scoped
-  // kernel (chat row first, cookie fallback) so a cookie change in
-  // another tab cannot retroactively retag the kernel for the *current*
-  // chat session.
+  // Stamp outgoing user-message metadata with the chat-scoped kernel
+  // (chat row first, cookie fallback) so a cookie change in another tab
+  // cannot retroactively retag the kernel for the *current* chat session.
   const { kernelId: kernel } = useActiveChatKernel();
   const { treeService } = useFileManager();
   const { projectId } = useProject();
@@ -224,14 +226,14 @@ export const ChatHistory = memo(function (props: {
     setAtBottom(atBottom);
   }, []);
 
-  // R2: only auto-follow output when the user is already pinned to the bottom
-  // — otherwise leave the scroll position alone so the user can read earlier
+  // Only auto-follow output when the user is already pinned to the bottom —
+  // otherwise leave the scroll position alone so the user can read earlier
   // messages without Virtuoso fighting them as assistant tokens stream in.
   const followOutput = useCallback((atBottom: boolean): 'smooth' | false => (atBottom ? 'smooth' : false), []);
 
-  // R4: when the user submits a new message, pin it to the top of the viewport
-  // so the assistant reply streams into the canvas reserved by R1's spacer.
-  // rAF defers the scroll until after Virtuoso lays out the new last item, so
+  // When the user submits a new message, pin it to the top of the viewport
+  // so the assistant reply streams into the spacer canvas below it. rAF
+  // defers the scroll until after Virtuoso lays out the new last item, so
   // `scrollToIndex` measures the spacer height correctly.
   const lastMessageRole = useChatSelector((state) => state.messages.at(-1)?.role);
   const previousLengthRef = useRef(messageIds.length);

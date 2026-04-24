@@ -17,7 +17,7 @@ import { darkModeIntensityScale } from '#components/geometry/graphics/three/util
 const gltfLoader = new GLTFLoader();
 
 /**
- * Snapshot of the three R6 OCJS-rendering smoke-trail probe values:
+ * Snapshot of the three OCJS rendering smoke-trail probe values:
  *   1. byteLength of the GLB Uint8Array fed to GLTFLoader
  *   2. childrenCount on the parsed `gltf.scene`
  *   3. world-space bbox of `gltf.scene` after parse
@@ -67,15 +67,14 @@ function buildGltfSceneProbe(gltf: GLTF, byteLength: number): GltfSceneProbe {
 }
 
 /**
- * Downstream half of the R6 OCJS-rendering smoke trail (see
- * `docs/research/staging-cors-coep-safari-rendering-audit.md` Finding 7 + R6).
+ * Downstream half of the OCJS-rendering smoke trail.
  *
  * Pairs with the kernel-side `convertReplicadGeometriesToGltf` debug log to
  * triangulate "geometry compute completed but nothing rendered" reports from
  * the browser console alone, with no debugger attach required:
  *
  *   1. kernel `byteLength == 0`                                  → upstream produced an empty GLB
- *      (SLProps-normal pipeline regression — `replicad-occt-normal-pipeline-v3.md`)
+ *      (SLProps-normal pipeline regression)
  *   2. kernel `byteLength > 0` + UI `childrenCount == 0`         → GLTFLoader silently dropped nodes
  *      (glTF binary malformed for Safari — accessor / extension Safari rejects)
  *   3. UI `childrenCount > 0` + UI `bbox.finite === false`       → coordinate transform regression

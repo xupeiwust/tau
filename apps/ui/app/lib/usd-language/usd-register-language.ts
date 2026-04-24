@@ -74,9 +74,8 @@ export const usdContribution: LanguageContribution = {
   languageId: codeLanguages.usd,
   /**
    * Gates USD activation behind the first `usd` model creation. Until then the
-   * Monarch tokenizer registration and language configuration stay deferred —
-   * see Recommendation R6 in
-   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * Monarch tokenizer registration and language configuration stay deferred
+   * (lazy activation).
    */
   activationLanguageIds: [codeLanguages.usd],
 

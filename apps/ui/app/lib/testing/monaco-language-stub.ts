@@ -4,8 +4,7 @@
  * Minimal in-memory fake for the Monaco surface that {@link LanguageContributionRegistry}
  * and language contributions interact with. Mirrors the deduplication semantics of
  * `monaco.languages.onLanguage`, which fires at most once per language id (matching
- * VS Code's `requestRichLanguageFeatures` — see Finding 9 in
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md`).
+ * VS Code's `requestRichLanguageFeatures`).
  *
  * The stub intentionally exposes ONLY the Monaco surface the registry calls
  * (`monaco.languages.onLanguage`, `monaco.editor.getModels`,

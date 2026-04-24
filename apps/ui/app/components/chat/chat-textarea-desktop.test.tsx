@@ -111,7 +111,7 @@ function renderControls() {
   );
 }
 
-describe('ChatTextareaLeftControls — chat-scoped kernel label (E2, R6)', () => {
+describe('ChatTextareaLeftControls — chat-scoped kernel label', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKernelByConsumer.current = manifoldKernel;

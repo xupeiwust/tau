@@ -188,7 +188,7 @@ describe('FileTreeService', () => {
     contentService.dispose();
   });
 
-  // ── R7: hasChildrenLoaded (F5) ──
+  // ── hasChildrenLoaded ──
 
   describe('hasChildrenLoaded', () => {
     it('should return false for root when no initialEntries are provided', () => {
@@ -361,7 +361,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R2: exists() async two-tier (F2) ──
+  // ── exists() async two-tier ──
 
   describe('exists (async two-tier)', () => {
     it('should return true for paths in the local tree without proxy call', async () => {
@@ -383,7 +383,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R3: getEntry() async two-tier (F7) ──
+  // ── getEntry() async two-tier ──
 
   describe('getEntry (async two-tier)', () => {
     it('should return cached entry for paths in local tree', async () => {
@@ -415,7 +415,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R5: deleteDirectory() (F4) ──
+  // ── deleteDirectory() ──
 
   describe('deleteDirectory', () => {
     it('should delete all nested files and the directory via proxy', async () => {
@@ -518,7 +518,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R6: readDirectoryEntries() (F3) ──
+  // ── readDirectoryEntries() ──
 
   describe('readDirectoryEntries', () => {
     it('should return directory entries from proxy', async () => {
@@ -535,7 +535,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R8: handleContentChange 'read' events (F1, F6, F7) ──
+  // ── handleContentChange 'read' events ──
 
   describe('content read events', () => {
     it('should not add file to tree when content service emits a read event', async () => {
@@ -554,7 +554,7 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── R10: getCachedFileItems (tree-derived, sync, no worker RPC) ──
+  // ── getCachedFileItems (tree-derived, sync, no worker RPC) ──
 
   describe('getCachedFileItems', () => {
     it('should return file items derived from the tree without calling getDirectoryStat', () => {
@@ -783,10 +783,10 @@ describe('FileTreeService', () => {
     });
   });
 
-  // === handleWorkerFileChanged (R11: structured incremental tree events) ===
+  // === handleWorkerFileChanged (structured incremental tree events) ===
 
   describe('handleWorkerFileChanged', () => {
-    // ── R11: fileWritten — optimistic add when parent loaded, skip when not ──
+    // ── fileWritten — optimistic add when parent loaded, skip when not ──
 
     it('should optimistically add file to tree on fileWritten when parent is loaded', () => {
       const event: ChangeEvent = {
@@ -839,7 +839,7 @@ describe('FileTreeService', () => {
       expect(subscriber).toHaveBeenCalledOnce();
     });
 
-    // ── R11: fileDeleted — optimistic delete ──
+    // ── fileDeleted — optimistic delete ──
 
     it('should optimistically remove file from tree on fileDeleted', () => {
       expect(service.getTreeSnapshot().has('main.ts')).toBe(true);
@@ -869,7 +869,7 @@ describe('FileTreeService', () => {
       expect(proxy.readDirectory).not.toHaveBeenCalled();
     });
 
-    // ── R11: fileRenamed — optimistic rename ──
+    // ── fileRenamed — optimistic rename ──
 
     it('should optimistically rename file in tree on fileRenamed', () => {
       expect(service.getTreeSnapshot().has('main.ts')).toBe(true);
@@ -906,7 +906,7 @@ describe('FileTreeService', () => {
       expect(proxy.readDirectory).not.toHaveBeenCalled();
     });
 
-    // ── R11: directoryChanged — refresh only when loaded ──
+    // ── directoryChanged — refresh only when loaded ──
 
     it('should refresh on directoryChanged when directory is loaded', async () => {
       const event: ChangeEvent = {

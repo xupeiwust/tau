@@ -49,7 +49,7 @@ const defaultAwaitTimeout = 30_000;
  * AbortSignal), we propagate that error verbatim — never re-classifying by
  * substring.
  */
-const innerTimeoutSlop = 1_000;
+const innerTimeoutSlop = 1000;
 
 /**
  * Awaits the next settled state on `cadActor` whose `lastSettledRenderId`
@@ -65,9 +65,8 @@ const innerTimeoutSlop = 1_000;
  * 2. machine is in a settled state (`idle` or `error`).
  *
  * Timeout is owned locally via `Promise.race` against an explicit `setTimeout`
- * — the helper never depends on XState's rejection wording (Task 9 / NEW
- * Finding 11). Any future XState message change cannot silently degrade
- * timeout classification.
+ * — the helper never depends on XState's rejection wording. Any future XState
+ * message change cannot silently degrade timeout classification.
  *
  * @param cadActor - Live CAD actor reference (typically a project's geometry-unit actor)
  * @param options - Optional cancellation/timeout knobs

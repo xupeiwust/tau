@@ -852,7 +852,9 @@ describe('ChatMessageReasoning', () => {
       }
     });
 
-    // Orphan handling — see docs/research/reasoning-duration-display.md § Finding 9.
+    // Orphan handling: a reasoning-start without a matching reasoning-end on the same
+    // turn is treated as completed when the message is no longer the active streaming
+    // turn — prevents "Thinking..." from being stuck on stale messages.
     // The AI SDK reducer leaves `parts[i].state === 'streaming'` when the
     // upstream stream finishes (`finish-step`) without a matching `reasoning-end`.
     // The component must trust `isMessageActive` instead, otherwise the live

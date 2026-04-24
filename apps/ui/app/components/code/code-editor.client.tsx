@@ -56,7 +56,7 @@ const monacoScrollbarStyles = [
 // Applied directly to overflowWidgetsDomNode (lives on document.body, outside
 // the editor wrapper DOM, so Tailwind descendant selectors from `classNames`
 // would never reach it).
-// @see docs/research/monaco-intellisense-jsdoc-rendering.md (R1)
+// JSDoc in hovers must render list styles — Preflight strips them on body-owned overlay DOM.
 const monacoOverlayRestoreStyles = [
   // Lists — restore bullets/numbers, indent, vertical rhythm
   '[&_.monaco-hover_ul]:[list-style:revert]',

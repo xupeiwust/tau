@@ -1,8 +1,8 @@
-import type { RenderPhase, PerformanceEntryData } from '@taucad/runtime';
+import type { RenderPhase, TelemetryEntry } from '@taucad/runtime';
 import { logLevels } from '@taucad/types/constants';
 
 export type SpanNode = {
-  entry: PerformanceEntryData;
+  entry: TelemetryEntry;
   children: SpanNode[];
   depth: number;
   selfTime: number;

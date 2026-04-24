@@ -1,20 +1,19 @@
 /**
- * Chat-image resize chokepoint contract test (R4).
+ * Chat-image resize chokepoint contract test.
  *
- * Locks the end-to-end byte-ceiling guarantee for every image entry point in
- * the audit (`docs/research/chat-image-resize-coverage-audit.md`):
+ * Locks the end-to-end byte-ceiling guarantee for every image entry point:
  *
  *   ANY caller that funnels an image into `addDraftImage` / `addEditDraftImage`
  *   ends up with a resized URL in `draftImages` / `editDraftImages` whose
  *   `length <= MAX_DATA_URL_LENGTH`, regardless of how oversized the input
  *   was.
  *
- * The 12 entry points from the inventory (OS drag-drop, file picker, paste,
- * Tiptap paste, viewer toolbar, viewer-pane drag, desktop @-suggestion
- * single + composite, mobile @-popover current/all/per-view, and edit-mode
- * draft) all converge on these two methods. We assert the contract by driving
- * the **real** `resizeImageActor` (wrapping the **real** `resizeImageForChat`
- * with FakeImage stubs) through every entry-point category. Failure paths are
+ * The 12 entry points (OS drag-drop, file picker, paste, Tiptap paste, viewer
+ * toolbar, viewer-pane drag, desktop @-suggestion single + composite, mobile
+ * @-popover current/all/per-view, and edit-mode draft) all converge on these
+ * two methods. We assert the contract by driving the **real**
+ * `resizeImageActor` (wrapping the **real** `resizeImageForChat` with
+ * FakeImage stubs) through every entry-point category. Failure paths are
  * also covered: a corrupt image in a multi-file batch must NOT block the
  * surviving images, and a single failure must surface as one toast via the
  * `imageResizeFailed` emit subscriber.
@@ -114,10 +113,10 @@ const dispatchToEdit: EntryDispatch = (actor, raw) => {
 };
 
 /**
- * The 12 image entry points from the audit, every one of which dispatches
- * either `addDraftImage` (entries #1-11) or `addEditDraftImage` (entry #12)
- * with a raw data URL. We test the chokepoint at the convergence point —
- * if `addDraftImage(raw)` produces a sized URL in `draftImages`, then by
+ * The 12 image entry points, every one of which dispatches either
+ * `addDraftImage` (entries #1-11) or `addEditDraftImage` (entry #12) with a
+ * raw data URL. We test the chokepoint at the convergence point — if
+ * `addDraftImage(raw)` produces a sized URL in `draftImages`, then by
  * construction every caller does too.
  */
 type EntryTarget = 'main' | 'edit';
@@ -129,21 +128,21 @@ type EntryPoint = {
 };
 
 const entryPoints: readonly EntryPoint[] = [
-  { id: 1, label: 'OS drag-drop image (#1, F1)', dispatch: dispatchToMain, target: 'main' },
+  { id: 1, label: 'OS drag-drop image (#1)', dispatch: dispatchToMain, target: 'main' },
   { id: 2, label: 'File-picker selection (#2)', dispatch: dispatchToMain, target: 'main' },
-  { id: 3, label: 'Textarea clipboard paste (#3, F1)', dispatch: dispatchToMain, target: 'main' },
-  { id: 4, label: 'Tiptap clipboard paste (#4, F5)', dispatch: dispatchToMain, target: 'main' },
+  { id: 3, label: 'Textarea clipboard paste (#3)', dispatch: dispatchToMain, target: 'main' },
+  { id: 4, label: 'Tiptap clipboard paste (#4)', dispatch: dispatchToMain, target: 'main' },
   { id: 5, label: 'Viewer toolbar Capture View (#5)', dispatch: dispatchToMain, target: 'main' },
   { id: 6, label: 'Viewer-pane drag-drop screenshot (#6)', dispatch: dispatchToMain, target: 'main' },
   { id: 7, label: 'Desktop @-suggestion single screenshot (#7)', dispatch: dispatchToMain, target: 'main' },
-  { id: 8, label: 'Desktop @-suggestion composite (#8, F2)', dispatch: dispatchToMain, target: 'main' },
-  { id: 9, label: 'Mobile @-popover current view (#9, F1)', dispatch: dispatchToMain, target: 'main' },
-  { id: 10, label: 'Mobile @-popover composite (#10, F1)', dispatch: dispatchToMain, target: 'main' },
-  { id: 11, label: 'Mobile @-popover per-non-main view (#11, F1)', dispatch: dispatchToMain, target: 'main' },
+  { id: 8, label: 'Desktop @-suggestion composite (#8)', dispatch: dispatchToMain, target: 'main' },
+  { id: 9, label: 'Mobile @-popover current view (#9)', dispatch: dispatchToMain, target: 'main' },
+  { id: 10, label: 'Mobile @-popover composite (#10)', dispatch: dispatchToMain, target: 'main' },
+  { id: 11, label: 'Mobile @-popover per-non-main view (#11)', dispatch: dispatchToMain, target: 'main' },
   { id: 12, label: 'Edit-mode draft image (#12)', dispatch: dispatchToEdit, target: 'edit' },
 ];
 
-describe('Chat-image resize chokepoint — R4 contract for all 12 entry points', () => {
+describe('Chat-image resize chokepoint — contract for all 12 entry points', () => {
   for (const entry of entryPoints) {
     it(`should resize ${entry.label} via the draft-machine chokepoint`, async () => {
       const actor = startActor();

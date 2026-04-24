@@ -501,7 +501,21 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
 
   return (
     <article
-      className={cn('group/chat-message flex w-full flex-row items-start', isUser && 'items-end gap-2 space-x-reverse')}
+      className={cn(
+        'group/chat-message flex w-full flex-row items-start',
+        isUser && 'items-end gap-2 space-x-reverse',
+        // No `position: sticky` on user messages. Every sticky scoping we
+        // tried — every TG, past TGs only, live TG only — produced a
+        // multi-hundred-px viewport jump on the first wheel-up from the
+        // scroll-bottom of a multi-turn chat. Root cause is a layout-
+        // reconciliation cascade between sticky stuck/unstuck transitions
+        // and Virtuoso's measurement/anchor path. The
+        // live (last) TurnGroup is still pinned to viewport top via
+        // `min-h-(--chat-live-turn-min-h)` on the TG and
+        // `scrollToIndex(LAST, align: 'start')` on submit (chat-history.tsx).
+        // Past user messages scroll out of view naturally — accepted UX
+        // trade-off until we have a non-sticky pinning mechanism.
+      )}
     >
       <div
         className={cn(
@@ -512,7 +526,7 @@ export const ChatMessage = memo(function ({ messageId }: ChatMessageProperties):
           // ChatScroller reserves a fixed scrollbar gutter, so dropping the
           // right margin here lets bubbles use that space when the scrollbar
           // is hidden, and the gutter doubles as the right margin when shown.
-          isUser ? 'ml-2' : 'ml-4',
+          isUser ? 'ml-2' : 'ml-4 mr-1.5',
         )}
       >
         <When shouldRender={isUser ? isEditing : false}>

@@ -474,7 +474,7 @@ describe('groupAssistantParts', () => {
     });
 
     it('should absorb only sandwiched reasoning, leaving leading and trailing reasoning as singletons', () => {
-      const parts: Parts = [reasoningPart('R1'), grepPart(), reasoningPart('R2'), grepPart(), reasoningPart('R3')];
+      const parts: Parts = [reasoningPart('a'), grepPart(), reasoningPart('b'), grepPart(), reasoningPart('c')];
       const groups = groupAssistantParts(parts);
 
       expect(groups).toHaveLength(3);
@@ -600,7 +600,7 @@ describe('groupAssistantParts', () => {
     });
 
     it('should keep multiple consecutive trailing reasoning parts as singletons', () => {
-      const parts: Parts = [grepPart(), reasoningPart('R1'), reasoningPart('R2')];
+      const parts: Parts = [grepPart(), reasoningPart('a'), reasoningPart('b')];
       const groups = groupAssistantParts(parts);
 
       expect(groups).toHaveLength(3);
@@ -978,7 +978,7 @@ describe('partitionActivityRuns', () => {
   });
 
   it('should keep reasoning-only sequences in a single foldable run (renderer decides not to wrap)', () => {
-    const groups = groupAssistantParts([reasoningPart('R1'), reasoningPart('R2')]);
+    const groups = groupAssistantParts([reasoningPart('a'), reasoningPart('b')]);
     const runs = partitionActivityRuns(groups);
 
     expect(runs).toHaveLength(1);
@@ -1033,8 +1033,7 @@ describe('partitionActivityRuns', () => {
 // per part because trailing reasoning is peeled at flush time, so any
 // count-based predicate causes the outer `ChatActivitySection` to mount and
 // unmount on every part arrival, resetting its open/close state and producing
-// the visible "flip-flop" reported in
-// docs/research/exploring-wrapper-flip-flop.md (Finding 2).
+// the visible "flip-flop" when the wrapper subscribes to group count.
 
 describe('shouldWrapRun', () => {
   describe('truth table per run shape', () => {
@@ -1059,13 +1058,12 @@ describe('shouldWrapRun', () => {
     });
 
     it('should not wrap a multi-reasoning foldable run with no aggregate', () => {
-      expect(shouldWrapRun(firstFoldable([reasoningPart('R1'), reasoningPart('R2')]))).toBe(false);
+      expect(shouldWrapRun(firstFoldable([reasoningPart('a'), reasoningPart('b')]))).toBe(false);
     });
   });
 
   describe('streaming stability', () => {
     it('should stay wrapped once an aggregated group exists in the run, regardless of trailing reasoning peeling', () => {
-      // Reproduces the exact 6-step trace from the research doc Finding 2.
       // Each step appends one part to simulate a streaming chunk; the foldable
       // run's `groups.length` deterministically oscillates between 1 and 2 as
       // trailing reasoning is alternately peeled (sandwich rule) and re-emitted

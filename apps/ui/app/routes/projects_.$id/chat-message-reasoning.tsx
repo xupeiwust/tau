@@ -79,7 +79,7 @@ export function ChatMessageReasoning({
   const trimmedText = useMemo(() => part.text.trim(), [part.text]);
   const hasReasoningText = trimmedText !== '';
 
-  // Three-state header label (see docs/research/reasoning-duration-display.md).
+  // Three-state header label: idle / live stopwatch / completed duration.
   // Computed early because `isReasoningStreaming` also gates `isContentVisible`
   // below: while reasoning is actively streaming the chevron must never fully
   // hide the scrolling preview — it can only toggle preview ↔ expanded so the
@@ -92,7 +92,7 @@ export function ChatMessageReasoning({
   // `'streaming'` for the lifetime of the message. Trusting `isMessageActive`
   // instead is the canonical "is *this* message still arriving?" signal and
   // stops the live counter the instant the stream closes — and never relights
-  // it on prior messages when a follow-up turn begins (Finding 9).
+  // it on prior messages when a follow-up turn begins.
   const reasoningStartedAtMs = getReasoningStartedAtMs(part);
   const finalReasoningDurationMs = getReasoningDurationMs(part);
   const isReasoningStreaming = isMessageActive && finalReasoningDurationMs === undefined;

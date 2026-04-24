@@ -8,7 +8,7 @@ import sprite from '#components/icons/generated/sprite.svg?raw';
  * where Safari (and other engines, less aggressively) silently drop
  * `<filter>`, `<mask>`, `<clipPath>`, and `<linearGradient>` definitions from
  * the instantiated shadow tree, breaking icons such as `opencascadejs`,
- * `meta`, and `autodesk`. See `docs/research/safari-svg-rendering-compatibility.md`.
+ * `meta`, and `autodesk`.
  */
 export function SvgSpriteMount(): React.JSX.Element {
   return (

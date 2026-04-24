@@ -33,7 +33,7 @@ const noop = (): void => {
   /* No-op console.warn replacement */
 };
 
-describe('probeGltfScene (R6 OCJS smoke trail)', () => {
+describe('probeGltfScene (OCJS rendering smoke trail)', () => {
   let warnSpy: MockInstance<typeof console.warn> | undefined;
 
   afterEach(() => {

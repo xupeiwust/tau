@@ -4,11 +4,11 @@ import { render } from '@testing-library/react';
 import type { KernelConfiguration, KernelId } from '@taucad/types/constants';
 import { kernelConfigurations } from '@taucad/types/constants';
 
-// E5 (R6 / decision C): the chat kernel selector must read AND write
-// through `useActiveChatKernel` so the chat row gets patched alongside
-// the cookie default. These tests capture the props the component hands
-// to ComboBoxResponsive and assert the chat-scoped resolver is the only
-// kernel state surface used.
+// The chat kernel selector must read AND write through
+// `useActiveChatKernel` so the chat row gets patched alongside the cookie
+// default. These tests capture the props the component hands to
+// ComboBoxResponsive and assert the chat-scoped resolver is the only kernel
+// state surface used.
 
 const stubKernel: KernelConfiguration = kernelConfigurations.find((k) => k.id === 'manifold')!;
 
@@ -60,7 +60,7 @@ function renderSelector(onSelect?: (id: KernelId) => void) {
   );
 }
 
-describe('ChatKernelSelector — chat-scoped read + dual-write (E5, R6, decision C)', () => {
+describe('ChatKernelSelector — chat-scoped read + dual-write', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     chatKernelState.current = stubKernel;

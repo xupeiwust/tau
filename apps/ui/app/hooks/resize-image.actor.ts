@@ -13,9 +13,7 @@
  * `resized` payload is appended to `draftImages` / `editDraftImages` by the
  * `imageProcessing.resizing` state.
  *
- * See `apps/ui/app/hooks/draft.machine.ts` for the consumer state machine
- * and `docs/research/chat-image-resize-coverage-audit.md` for the audit
- * that motivated this design.
+ * See `apps/ui/app/hooks/draft.machine.ts` for the consumer state machine.
  */
 
 import { fromSafeAsync } from '#lib/xstate.lib.js';

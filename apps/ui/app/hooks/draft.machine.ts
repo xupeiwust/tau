@@ -5,7 +5,7 @@
  * Actors are provided via machine.provide() in the consumer (use-chat.tsx)
  * following the pattern from use-project.tsx.
  *
- * ## Image resize chokepoint (R1)
+ * ## Image resize chokepoint
  *
  * The `imageProcessing` parallel sub-region is the SINGLE source of truth for
  * chat-image resizing. `addDraftImage` and `addEditDraftImage` events accept
@@ -17,8 +17,7 @@
  *
  * Callers MUST send raw URLs and MUST NOT pre-resize — pre-sized URLs would
  * still pass through the queue but waste CPU and confuse the byte-ceiling
- * contract. See `docs/research/chat-image-resize-coverage-audit.md` for the
- * audit that motivated this design.
+ * contract.
  */
 
 import { setup, assign, emit } from 'xstate';
@@ -565,7 +564,7 @@ export const draftMachine = setup({
       },
     },
     /**
-     * Image-resize FIFO chokepoint (R1).
+     * Image-resize FIFO chokepoint.
      *
      * `addDraftImage` / `addEditDraftImage` events enqueue raw URLs into
      * `context.imageQueue`. While a queue entry exists, this region invokes

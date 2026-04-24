@@ -62,10 +62,9 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
       markerService,
     });
 
-    // R12: surface deferred activation failures via toast (deduped per language id
+    // Surface deferred activation failures via toast (deduped per language id
     // for the lifetime of this activation cycle) so silent failures stop looking
-    // identical to "no LSP available" — see
-    // `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+    // identical to "no LSP available".
     const reportedFailures = new Set<string>();
     registry.setActivationErrorHandler((languageId, error) => {
       if (reportedFailures.has(languageId)) {
@@ -111,10 +110,9 @@ export function MonacoModelServiceProvider({ children }: { readonly children: Re
     registry.onProjectSessionChange(projectId);
   }, [projectId, services.modelService]);
 
-  // R7: Prefetch language contributions for each geometry unit's active kernel
+  // Prefetch language contributions for each geometry unit's active kernel
   // so first-keystroke latency in the dominant code path is hidden behind the
-  // cad worker's own boot. See
-  // `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+  // cad worker's own boot.
   useGeometryUnitKernelPrefetch(geometryUnits, services.modelService !== undefined);
 
   return <MonacoServicesContext.Provider value={services}>{children}</MonacoServicesContext.Provider>;

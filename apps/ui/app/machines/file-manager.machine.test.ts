@@ -443,7 +443,7 @@ describe('fileManagerMachine', () => {
     });
   });
 
-  // ── two-phase init (R1) ──────────────────────────────────────────────
+  // ── two-phase init ──────────────────────────────────────────────────
 
   describe('two-phase init', () => {
     it('should transition to connectingWorker when initialize is sent', () => {
@@ -730,9 +730,8 @@ describe('fileManagerMachine', () => {
       }
     });
 
-    // ── R8: nested FM reuses parent SAB instead of allocating a new one ──
-    // See docs/research/staging-cors-coep-safari-rendering-audit.md
-    it('should reuse parent sharedFilePoolBuffer instead of allocating a new SAB (R8)', async () => {
+    // ── nested FM reuses parent SAB instead of allocating a new one ──────
+    it('should reuse parent sharedFilePoolBuffer instead of allocating a new SAB', async () => {
       const sharedWorker = {
         terminate: vi.fn(),
         addEventListener: vi.fn(),
@@ -772,7 +771,7 @@ describe('fileManagerMachine', () => {
       actor.stop();
     });
 
-    it('should allocate exactly one SAB per machine when no sharedFilePoolBuffer provided (R8)', async () => {
+    it('should allocate exactly one SAB per machine when no sharedFilePoolBuffer provided', async () => {
       const actor = createActor(fileManagerMachine, {
         input: {
           rootDirectory: '/test',
@@ -798,8 +797,8 @@ describe('fileManagerMachine', () => {
       actor.stop();
     });
 
-    // ── R8 end-to-end topology ──────────────────────────────────────────────
-    // Locks down the producer/consumer invariant the R8 SAB-sharing change
+    // ── SAB-sharing end-to-end topology ────────────────────────────────────
+    // Locks down the producer/consumer invariant the SAB-sharing change
     // depends on:
     //   root FM allocates SAB
     //     → posts to FM worker (writer)
@@ -879,8 +878,7 @@ describe('fileManagerMachine', () => {
   });
 
   // ── worker error diagnostics ────────────────────────────────────────────
-  // See docs/research/staging-cors-coep-safari-rendering-audit.md and
-  // .cursor/plans/file-manager_worker_error_diagnostics_*.plan.md
+  // (named fields on structured worker errors, not `undefined` concatenation)
   describe('worker error diagnostics', () => {
     const startActorAndGrabWorker = async (): Promise<{
       actor: ReturnType<typeof createActor<typeof fileManagerMachine>>;

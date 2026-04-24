@@ -14,8 +14,7 @@ import { heapThresholdBytes } from '#constants/health.constants.js';
  * 200 ⇒ heap under threshold, kept in rotation.
  * 503 ⇒ heap over threshold, container should be restarted.
  *
- * See `docs/research/staging-cors-coep-safari-rendering-audit.md` (NEW UI
- * health routes) for the design contract.
+ * Liveness is process-only; readiness checks upstream API health.
  */
 export const loader: LoaderFunction = () => {
   const { heapUsed, heapTotal } = process.memoryUsage();

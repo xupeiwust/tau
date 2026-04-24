@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, Settings2 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { Virtuoso } from 'react-virtuoso';
-import type { RenderPhase, PerformanceEntryData } from '@taucad/runtime';
+import type { RenderPhase, TelemetryEntry } from '@taucad/runtime';
 import { PaneButton } from '#components/ui/pane-button.js';
 import { ToggleGroup, ToggleGroupItem } from '#components/ui/toggle-group.js';
 import {
@@ -70,7 +70,7 @@ export function PipelineTimingBar({
 // Span Attribute Badges
 // ---------------------------------------------------------------------------
 
-function SpanAttributeBadges({ entry }: { readonly entry: PerformanceEntryData }): React.JSX.Element | undefined {
+function SpanAttributeBadges({ entry }: { readonly entry: TelemetryEntry }): React.JSX.Element | undefined {
   const attributes = entry.detail;
   if (!attributes) {
     return undefined;

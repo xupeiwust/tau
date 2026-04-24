@@ -3,8 +3,7 @@
  *
  * The full `MonacoModelServiceProvider` pulls in too many providers to
  * exercise in jsdom, so we extract `useGeometryUnitKernelPrefetch` and verify
- * its contract against a stub geometry-units map. See Recommendation R7 in
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+ * its contract against a stub geometry-units map.
  */
 // @vitest-environment jsdom
 

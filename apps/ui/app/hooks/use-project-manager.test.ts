@@ -276,7 +276,7 @@ describe('useProjectManager', () => {
       expect(mockMount).toHaveBeenCalledWith(`/projects/${fakeProject.id}`, 'indexeddb', { preservePath: true });
     });
 
-    it('should seed activeModel and activeKernel on the new chat from the kernel template + initial message (D1, R3)', async () => {
+    it('should seed activeModel and activeKernel on the new chat from the kernel template + initial message', async () => {
       const { result } = renderHook(() => useProjectManager(), { wrapper: createWrapper() });
 
       await act(async () => {
@@ -297,7 +297,7 @@ describe('useProjectManager', () => {
       expect(callArgs?.chat.activeKernel).toBe('openscad');
     });
 
-    it('should leave activeModel undefined when no initialMessage and no explicit override (D1, R3)', async () => {
+    it('should leave activeModel undefined when no initialMessage and no explicit override', async () => {
       const { result } = renderHook(() => useProjectManager(), { wrapper: createWrapper() });
 
       await act(async () => {
@@ -313,7 +313,7 @@ describe('useProjectManager', () => {
       expect(callArgs?.chat.activeKernel).toBe('openscad');
     });
 
-    it('should honor explicit activeModel/activeKernel overrides over derived defaults (D1, R3)', async () => {
+    it('should honor explicit activeModel/activeKernel overrides over derived defaults', async () => {
       const { result } = renderHook(() => useProjectManager(), { wrapper: createWrapper() });
 
       await act(async () => {

@@ -14,9 +14,9 @@ export const ChatExamples = memo(function () {
   // Use lazy initialization to ensure consistent examples across renders
   const [examples, setExamples] = useState(() => getRandomExamples(3));
   const { sendMessage } = useChatActions();
-  // R6/E8: stamp messages with the chat-scoped model so quickly-clicked
-  // examples respect the chat's pinned selection rather than a stale
-  // cookie that may have shifted in another tab.
+  // Stamp messages with the chat-scoped model so quickly-clicked examples
+  // respect the chat's pinned selection rather than a stale cookie that may
+  // have shifted in another tab.
   const { modelId } = useActiveChatModel();
   const snapshot = useChatSnapshot();
 

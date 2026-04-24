@@ -37,7 +37,7 @@ export const ChatHistoryStatus = memo(function ({ className }: ChatHistoryStatus
     };
   }, []);
 
-  // R8/F1: read the chat-scoped active model directly from the chat row.
+  // Read the chat-scoped active model directly from the chat row.
   // The previous implementation scanned the full message history backwards
   // to derive the "current" model from the latest stamped metadata, which
   // (a) duplicated the chat-scoped resolver's responsibility and (b) was

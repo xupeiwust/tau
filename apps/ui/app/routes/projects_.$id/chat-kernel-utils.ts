@@ -1,4 +1,4 @@
-import type { RenderPhase, PerformanceEntryData } from '@taucad/runtime';
+import type { RenderPhase, TelemetryEntry } from '@taucad/runtime';
 import type { SpanNode, PipelineData, SpanCategory, FlatSpanRow } from '#routes/projects_.$id/chat-kernel-types.js';
 import { emptyPipelineData } from '#routes/projects_.$id/chat-kernel-types.js';
 import type { FilterCondition } from '#components/kernel/trace-condition-picker.js';
@@ -28,11 +28,11 @@ export function formatTimestamp(ts: number): string {
 // Span tree construction
 // ---------------------------------------------------------------------------
 
-export function getSpanId(entry: PerformanceEntryData): string | undefined {
+export function getSpanId(entry: TelemetryEntry): string | undefined {
   return entry.detail?.['spanId'] as string | undefined;
 }
 
-export function getParentSpanId(entry: PerformanceEntryData): string | undefined {
+export function getParentSpanId(entry: TelemetryEntry): string | undefined {
   return entry.detail?.['parentSpanId'] as string | undefined;
 }
 
@@ -48,7 +48,7 @@ function assignDepths(node: SpanNode, depth: number): void {
   }
 }
 
-export function buildSpanTree(entries: PerformanceEntryData[]): SpanNode[] {
+export function buildSpanTree(entries: TelemetryEntry[]): SpanNode[] {
   const nodes: SpanNode[] = entries.map((entry) => ({
     entry,
     children: [],
@@ -90,7 +90,7 @@ export function buildSpanTree(entries: PerformanceEntryData[]): SpanNode[] {
 // Pipeline phase derivation
 // ---------------------------------------------------------------------------
 
-function derivePhaseDurations(entries: PerformanceEntryData[]): PipelineData {
+function derivePhaseDurations(entries: TelemetryEntry[]): PipelineData {
   if (entries.length === 0) {
     return emptyPipelineData;
   }
@@ -122,9 +122,9 @@ function derivePhaseDurations(entries: PerformanceEntryData[]): PipelineData {
   return { phaseDurations, totalDuration: renderDuration };
 }
 
-const pipelineMemoCache = new WeakMap<PerformanceEntryData[], PipelineData>();
+const pipelineMemoCache = new WeakMap<TelemetryEntry[], PipelineData>();
 
-export function selectPipelineData(state: { context: { telemetryEntries: PerformanceEntryData[] } }): PipelineData {
+export function selectPipelineData(state: { context: { telemetryEntries: TelemetryEntry[] } }): PipelineData {
   const entries = state.context.telemetryEntries;
   if (entries.length === 0) {
     return emptyPipelineData;

@@ -356,10 +356,10 @@ describe('rpc-handlers', () => {
     const stubResolver: ResolveGraphicsForFile = vi.fn();
 
     describe('fetchGeometry', () => {
-      // After F2 (see docs/research/agent-loop-safeguards.md Finding 9), fetchGeometry
-      // routes through the same `resolveOrCreateGeometryUnit` helper as getKernelResult.
-      // Every test must therefore mock `waitFor` with the settled cad snapshot, not just
-      // rely on `cadUnit.getSnapshot()` being read synchronously.
+      // fetchGeometry routes through the same `resolveOrCreateGeometryUnit`
+      // helper as getKernelResult. Every test must therefore mock `waitFor`
+      // with the settled cad snapshot, not just rely on `cadUnit.getSnapshot()`
+      // being read synchronously.
 
       const cadSnapshotWith = (
         geometries: Array<{ format: string; content: Uint8Array<ArrayBuffer>; hash: string }>,
@@ -613,7 +613,7 @@ describe('rpc-handlers', () => {
         }
       });
 
-      it('should map AwaitFreshRenderTimeoutError to errorCode RENDER_TIMEOUT (R9, R27)', async () => {
+      it('should map AwaitFreshRenderTimeoutError to errorCode RENDER_TIMEOUT', async () => {
         const cadUnit = createMockCadUnit();
         const geometryUnits = new Map<string, unknown>([['main.scad', cadUnit]]);
         const projectRef = createMockBuildRef({ geometryUnits });

@@ -4,11 +4,11 @@ import { render } from '@testing-library/react';
 import type { Model } from '@taucad/chat';
 import type { ResolvedModel } from '#hooks/use-models.js';
 
-// E4 (R6 / decision C): the chat model selector must read AND write through
-// `useActiveChatModel` so the chat row gets patched alongside the cookie
-// default. Tests here lock that dual-write contract in by capturing the
-// `onSelect` handler the component hands to `ComboBoxResponsive` and
-// asserting the chat-scoped resolver is the only model state surface used.
+// The chat model selector must read AND write through `useActiveChatModel`
+// so the chat row gets patched alongside the cookie default. Tests here lock
+// that dual-write contract in by capturing the `onSelect` handler the
+// component hands to `ComboBoxResponsive` and asserting the chat-scoped
+// resolver is the only model state surface used.
 
 const stubModel: ResolvedModel = {
   id: 'cookie-model',
@@ -108,7 +108,7 @@ function renderSelector(onSelect?: (id: string) => void) {
   );
 }
 
-describe('ChatModelSelector — chat-scoped read + dual-write (E4, R6, decision C)', () => {
+describe('ChatModelSelector — chat-scoped read + dual-write', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     chatModelState.current = stubModel;

@@ -42,10 +42,10 @@ vi.mock('#components/ui/sonner.js', () => ({
   },
 }));
 
-// Override the production resize actor so the active-chat-provider's R1 toast
-// subscriber can be exercised against a controllable fake. The same actor is
-// provided by both `EphemeralActiveChatProvider` and `ChatSessionStore`, so a
-// single mock covers both branches.
+// Override the production resize actor so the active-chat-provider's
+// image-resize toast subscriber can be exercised against a controllable fake.
+// The same actor is provided by both `EphemeralActiveChatProvider` and
+// `ChatSessionStore`, so a single mock covers both branches.
 vi.mock('#hooks/resize-image.actor.js', () => ({
   resizeImageActor: fromSafeAsync<{ type: 'imageResized'; resized: string }, { image: string }>(async ({ input }) => {
     const resized = await harness.resize(input.image);
@@ -249,7 +249,7 @@ describe('ActiveChatProvider', () => {
   });
 
   // ===========================================================================
-  // R1 — image-resize toast subscriber (single global error site)
+  // Image-resize toast subscriber (single global error site)
   // ===========================================================================
   describe('imageResizeFailed toast subscriber', () => {
     it('should toast.error when the draft actor emits imageResizeFailed (session-backed)', async () => {

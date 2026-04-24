@@ -36,8 +36,6 @@ import { jsTsContribution } from '#lib/javascript-contribution.js';
  * with the active kernel's source-file Monaco ids to mask first-keystroke
  * latency in the dominant code path.
  *
- * Full design + rationale:
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
  */
 
 // Register contributions at module load (idempotent -- safe under HMR)

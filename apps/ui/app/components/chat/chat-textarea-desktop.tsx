@@ -323,8 +323,8 @@ ChatTextareaDesktop.displayName = 'ChatTextareaDesktop';
  * Memo'd left control bar containing model/kernel/tool selectors.
  * Isolated to prevent Radix TooltipTrigger asChild composeRefs loops.
  *
- * Exported for chat-scoped kernel label tests (E2). External consumers
- * should keep using {@link ChatTextareaDesktop}.
+ * Exported so the chat-scoped kernel label can be tested in isolation.
+ * External consumers should keep using {@link ChatTextareaDesktop}.
  *
  * @internal
  */
@@ -346,7 +346,7 @@ export const ChatTextareaLeftControls = memo(function ({
   readonly fileInputReference: React.RefObject<HTMLInputElement | null>;
   readonly handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }): React.JSX.Element {
-  // R6: chat-scoped resolver — falls back to cookie kernel when no chat-local
+  // Chat-scoped resolver — falls back to cookie kernel when no chat-local
   // selection exists. Display label follows the chat's active kernel so
   // cookie changes elsewhere can no longer flip the label mid-conversation.
   const { kernel: selectedKernel } = useActiveChatKernel();

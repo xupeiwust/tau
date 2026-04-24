@@ -41,11 +41,10 @@ export const ChatModelSelector = memo(function ({
   isNested,
   ...properties
 }: ChatModelSelectorProps): React.JSX.Element {
-  // R6: write through the chat-scoped resolver so picking a model inside
-  // chat A patches `Chat.activeModel` for A AND updates the cookie default
-  // (decision C in chat-active-model-kernel-persistence.md). Reads
-  // `data: models` from the global hook because the catalogue itself is
-  // not chat-scoped.
+  // Write through the chat-scoped resolver so picking a model inside chat A
+  // patches `Chat.activeModel` for A and updates the cookie default for
+  // future new chats. Reads `data: models` from the global hook because the
+  // catalogue itself is not chat-scoped.
   const { model: selectedModel, setActiveModel } = useActiveChatModel();
   const { data: models = [] } = useModels();
 

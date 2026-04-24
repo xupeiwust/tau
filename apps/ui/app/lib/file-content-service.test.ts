@@ -208,7 +208,7 @@ describe('FileContentService', () => {
     expect(result).toBe(blob);
   });
 
-  describe('peekOutcome (B1)', () => {
+  describe('peekOutcome', () => {
     it('should return loading kind before any resolve', () => {
       expect(service.peekOutcome('main.ts')).toEqual({ kind: 'loading' });
     });
@@ -240,7 +240,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('discriminated resolve outcomes (R1, B2)', () => {
+  describe('discriminated resolve outcomes', () => {
     it('should produce binary outcome when content sniffs as binary', async () => {
       const binaryBytes = new Uint8Array(5 * 1024 * 1024);
       binaryBytes[0] = 0x00;
@@ -323,7 +323,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('open-limit decoupled from cache budget (R5, B3)', () => {
+  describe('open-limit decoupled from cache budget', () => {
     it('should reject ASCII bytes with too-large when openSizeBytes is below cache.maxSingleFileBytes', async () => {
       const decoupled = new FileContentService({
         proxy,
@@ -344,7 +344,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('cache rejection does not become too-large (R4 wiring, B5)', () => {
+  describe('cache rejection does not become too-large', () => {
     it('should still produce text outcome when cache.set rejects but bytes fit the open-limit', async () => {
       const tinyCache = new FileContentService({
         proxy,
@@ -366,7 +366,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('SharedPool fast path (R7, B4)', () => {
+  describe('SharedPool fast path', () => {
     const encoder = new TextEncoder();
 
     function createPoolService(options?: { openSizeBytes?: number }): {
@@ -458,7 +458,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('outcome subscription channel (R6, B6)', () => {
+  describe('outcome subscription channel', () => {
     it('should fire onDidChangeOutcome once per outcome transition', async () => {
       const handler = vi.fn<(event: OutcomeChangeEvent) => void>();
       service.onDidChangeOutcome(handler);
@@ -501,7 +501,7 @@ describe('FileContentService', () => {
     });
   });
 
-  describe('resolveBytes typed errors (B7)', () => {
+  describe('resolveBytes typed errors', () => {
     it('should resolve with bytes for text outcome', async () => {
       const data = new Uint8Array([1, 2, 3]);
       vi.mocked(proxy.readFile).mockResolvedValue(data);

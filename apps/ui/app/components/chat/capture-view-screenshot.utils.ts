@@ -15,8 +15,8 @@ export type CaptureViewScreenshotOptions = {
   /**
    * Called with the raw screenshot data URL once the screenshot succeeds.
    * Resizing for chat upload is owned by the `draftMachine` `imageProcessing`
-   * chokepoint (see R1 of `chat-image-resize-coverage-audit.md`); pass this
-   * raw URL straight to `addDraftImage`/`addEditDraftImage`.
+   * chokepoint; pass this raw URL straight to `addDraftImage`/
+   * `addEditDraftImage`.
    */
   readonly onImage: (dataUrl: string) => void;
   /** Called with a human-readable error if the screenshot fails or the capture pipeline reports nothing. */
@@ -30,8 +30,7 @@ export type CaptureViewScreenshotOptions = {
  * spawns an actor, sends `requestScreenshot` with the chat textarea's
  * canonical options block (16:9, 1200px, zoom 1.4, WebP), and forwards the
  * raw data URL to `onImage`. The `draftMachine` `imageProcessing` chokepoint
- * is responsible for resizing the URL before it lands in the draft surface
- * (R1 of the chat-image-resize-coverage-audit).
+ * is responsible for resizing the URL before it lands in the draft surface.
  *
  * Used by:
  *  - the existing single-view branch in `chat-textarea.tsx`

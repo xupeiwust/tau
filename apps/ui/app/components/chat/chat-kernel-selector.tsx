@@ -22,10 +22,10 @@ export const ChatKernelSelector = memo(function ({
   isNested,
   ...properties
 }: ChatKernelSelectorProps): React.JSX.Element {
-  // R6 / decision C: read AND write through the chat-scoped resolver so a
-  // kernel switch inside chat A patches `Chat.activeKernel` for A *and*
-  // updates the cookie default for future new chats. The selector no
-  // longer touches `useKernel` directly.
+  // Read AND write through the chat-scoped resolver so a kernel switch
+  // inside chat A patches `Chat.activeKernel` for A *and* updates the
+  // cookie default for future new chats. The selector no longer touches
+  // `useKernel` directly.
   const { kernel: selectedKernel, setActiveKernel } = useActiveChatKernel();
 
   const handleSelectKernel = useCallback(

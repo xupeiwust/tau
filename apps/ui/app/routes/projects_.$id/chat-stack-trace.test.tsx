@@ -38,9 +38,9 @@ vi.mock('#hooks/use-chats.js', () => ({
   useChats: () => ({ createChat: mockCreateChat }),
 }));
 
-// E7: production code now reads from the chat-scoped resolvers — guard
-// the cookie-only hooks with throwing mocks so any regression that
-// re-introduces them is caught immediately.
+// Production code now reads from the chat-scoped resolvers — guard the
+// cookie-only hooks with throwing mocks so any regression that re-introduces
+// them is caught immediately.
 vi.mock('#hooks/use-active-chat-model.js', () => ({
   useActiveChatModel: () => ({
     modelId: mockSelectedModelId,
@@ -125,6 +125,7 @@ const { ChatStackTrace } = await import('#routes/projects_.$id/chat-stack-trace.
 
 const issue: KernelIssue = {
   message: 'Boom',
+  code: 'RUNTIME',
   severity: 'error',
   location: { fileName: 'main.scad', startLineNumber: 1, startColumn: 1 },
   stackFrames: [],
@@ -140,7 +141,7 @@ describe('ChatStackTrace', () => {
     mockKernel = 'openscad';
   });
 
-  it('should seed activeModel and activeKernel on the new chat when Fix-with-AI creates a new chat (D3, R3)', async () => {
+  it('should seed activeModel and activeKernel on the new chat when Fix-with-AI creates a new chat', async () => {
     render(<ChatStackTrace entryFile='main.scad' side='top' />);
     fireEvent.click(await screen.findByTestId('fix-with-ai'));
 
@@ -153,7 +154,7 @@ describe('ChatStackTrace', () => {
     expect(callArgs.activeKernel).toBe('openscad');
   });
 
-  it('should focus the newly created chat after seeding (D3)', async () => {
+  it('should focus the newly created chat after seeding', async () => {
     render(<ChatStackTrace entryFile='main.scad' side='top' />);
     fireEvent.click(await screen.findByTestId('fix-with-ai'));
 
@@ -162,7 +163,7 @@ describe('ChatStackTrace', () => {
     });
   });
 
-  it('should stamp the chat-scoped model + kernel onto the new chat metadata (E7, R6)', async () => {
+  it('should stamp the chat-scoped model + kernel onto the new chat metadata', async () => {
     // Diverge the chat-scoped values from the cookie defaults so a
     // regression that reads from the global hooks would surface as
     // 'cookie-model' / 'openscad' instead of these chat-local values.

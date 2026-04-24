@@ -501,11 +501,11 @@ describe('chatPersistenceMachine', () => {
   });
 
   // ===========================================================================
-  // activeSelectionPersistence (B1) — setActiveModel / setActiveKernel
+  // activeSelectionPersistence — setActiveModel / setActiveKernel
   // patches Chat.activeModel / Chat.activeKernel via patchChat. Hydrates
   // from the loaded Chat row so reload preserves the chat-local choice.
   // ===========================================================================
-  describe('activeSelectionPersistence (B1)', () => {
+  describe('activeSelectionPersistence', () => {
     it('should hydrate activeModel and activeKernel from the loaded Chat row', async () => {
       const mockChat = createMockChat({
         id: 'chat_abc',

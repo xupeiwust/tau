@@ -60,7 +60,7 @@ vi.mock('#components/ui/sonner.js', () => ({
 
 const { useChatTextareaLogic } = await import('#components/chat/chat-textarea-types.js');
 
-describe('useChatTextareaLogic — chat-scoped model wiring (E1, R6/R11)', () => {
+describe('useChatTextareaLogic — chat-scoped model wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActiveModel = stableModel;
@@ -295,15 +295,15 @@ describe('useChatTextareaLogic — dragKind detection + drop routing', () => {
 });
 
 /**
- * Multi-image OS drag-drop integration (R1 / Task 7.4b in the chat-image-resize
- * chokepoint plan). Locks the call sequence and arguments observable from the
- * hook's perspective: each dropped image is read sequentially and dispatched
- * synchronously into `addDraftImage` with the **raw** (un-resized) data URL.
- * The downstream `draftMachine.imageProcessing` chokepoint is responsible for
- * resizing — these tests make sure the hook never re-introduces an inline
- * `resizeImageForChat` step that would silently break per-file ordering.
+ * Multi-image OS drag-drop integration. Locks the call sequence and arguments
+ * observable from the hook's perspective: each dropped image is read
+ * sequentially and dispatched synchronously into `addDraftImage` with the
+ * **raw** (un-resized) data URL. The downstream `draftMachine.imageProcessing`
+ * chokepoint is responsible for resizing — these tests make sure the hook
+ * never re-introduces an inline `resizeImageForChat` step that would silently
+ * break per-file ordering.
  */
-describe('useChatTextareaLogic — multi-image OS drag-drop dispatch (R1)', () => {
+describe('useChatTextareaLogic — multi-image OS drag-drop dispatch', () => {
   const buildDataTransfer = (files: readonly File[]): DataTransfer =>
     ({
       types: ['Files'],

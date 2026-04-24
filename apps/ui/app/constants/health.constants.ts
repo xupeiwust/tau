@@ -9,7 +9,6 @@
  * Lifted to a constant so the value is asserted against a single source of
  * truth in tests instead of duplicating the magic number per route.
  *
- * See `docs/research/staging-cors-coep-safari-rendering-audit.md` (NEW UI
- * health routes) for context.
+ * Kept in one place so UI health routes and tests share the same threshold.
  */
 export const heapThresholdBytes = 2 * 1024 * 1024 * 1024 * 0.8;

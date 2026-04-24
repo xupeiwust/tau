@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { MyUIMessage } from '@taucad/chat';
 import { ChatMessage } from '#routes/projects_.$id/chat-message.js';
 
@@ -246,7 +246,7 @@ describe('ChatMessage column wrapper layout', () => {
     expect(wrapper.className).toContain('flex-col');
     expect(wrapper.className).toContain('space-y-2');
     expect(wrapper.className).toContain('w-full');
-    expect(wrapper.className).toContain('mx-2');
+    expect(wrapper.className).toContain('ml-2');
   });
 
   it('should not create a nested scroll area on the message column wrapper for assistant messages', () => {
@@ -261,7 +261,7 @@ describe('ChatMessage column wrapper layout', () => {
     expect(wrapper.className).toContain('flex-col');
     expect(wrapper.className).toContain('space-y-2');
     expect(wrapper.className).toContain('w-full');
-    expect(wrapper.className).toContain('mx-4');
+    expect(wrapper.className).toContain('ml-4');
   });
 
   it('should still mount ChatMessagePlanning as a sibling of the message bubble inside the column wrapper', () => {
@@ -290,5 +290,69 @@ describe('ChatMessage column wrapper layout', () => {
     expect(innerBubble.className).toContain('max-h-58.5');
     expect(innerBubble.className).toContain('overflow-hidden');
     expect(wrapper.className).not.toContain('overflow-y-auto');
+  });
+});
+
+// Regression guard: every variant of `position: sticky` on user-message
+// articles produced a multi-hundred-px viewport jump on wheel-up from the
+// scroll-bottom of a multi-turn chat. If any future edit reintroduces sticky
+// tokens on the article wrapper, these assertions will fail.
+describe('ChatMessage article wrapper — no sticky positioning (regression guard)', () => {
+  const stickyTokens = ['sticky', 'top-1', 'z-10'];
+
+  const expectNoStickyTokens = (article: HTMLElement): void => {
+    for (const token of stickyTokens) {
+      expect(article.className).not.toContain(token);
+    }
+  };
+
+  it('should not apply sticky positioning classes to a user-message article', () => {
+    setMessages([userMessage('msg-1', 'go')]);
+
+    render(<ChatMessage messageId='msg-1' />);
+
+    expectNoStickyTokens(screen.getByRole('article'));
+  });
+
+  it('should not apply sticky positioning classes to an assistant-message article', () => {
+    setMessages([assistantMessage('msg-1', 'Hello there')]);
+
+    render(<ChatMessage messageId='msg-1' />);
+
+    expectNoStickyTokens(screen.getByRole('article'));
+  });
+
+  it('should not apply sticky positioning classes to a user-message article while it is being edited', () => {
+    setMessages([userMessage('msg-1', 'go')]);
+
+    render(<ChatMessage messageId='msg-1' />);
+
+    const article = screen.getByRole('article');
+    const bubble = article.querySelector<HTMLDivElement>('[class*="cursor-pointer"]');
+    if (!(bubble instanceof HTMLDivElement)) {
+      throw new Error('user bubble not found');
+    }
+
+    fireEvent.click(bubble);
+
+    expectNoStickyTokens(article);
+  });
+
+  it('should render the editing textarea inside the user-message article when isEditing && isUser', () => {
+    setMessages([userMessage('msg-1', 'go')]);
+
+    render(<ChatMessage messageId='msg-1' />);
+
+    const article = screen.getByRole('article');
+    expect(screen.queryByTestId('chat-textarea')).toBeNull();
+
+    const bubble = article.querySelector<HTMLDivElement>('[class*="cursor-pointer"]');
+    if (!(bubble instanceof HTMLDivElement)) {
+      throw new Error('user bubble not found');
+    }
+    fireEvent.click(bubble);
+
+    const textarea = screen.getByTestId('chat-textarea');
+    expect(article.contains(textarea)).toBe(true);
   });
 });

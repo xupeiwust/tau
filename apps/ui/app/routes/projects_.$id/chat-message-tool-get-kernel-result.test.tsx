@@ -143,6 +143,7 @@ describe('ChatMessageToolGetKernelResult — file-aware titles', () => {
     const issues: KernelIssue[] = [
       {
         severity: 'error',
+        code: 'RUNTIME',
         message: 'This shape has not type, it is null',
         location: { fileName: 'lib/skids.ts', startLineNumber: 46, startColumn: 34, endLineNumber: 46, endColumn: 34 },
       },
@@ -172,6 +173,7 @@ describe('ChatMessageToolGetKernelResult — file-aware titles', () => {
     const issues: KernelIssue[] = [
       {
         severity: 'warning',
+        code: 'RUNTIME',
         message: 'Possible numerical precision issue',
         location: { fileName: 'lib/skids.ts', startLineNumber: 12, startColumn: 4, endLineNumber: 12, endColumn: 4 },
       },
@@ -201,11 +203,13 @@ describe('ChatMessageToolGetKernelResult — file-aware titles', () => {
     const issues: KernelIssue[] = [
       {
         severity: 'warning',
+        code: 'RUNTIME',
         message: 'Warning A',
         location: { fileName: 'lib/skids.ts', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
       },
       {
         severity: 'warning',
+        code: 'RUNTIME',
         message: 'Warning B',
         location: { fileName: 'lib/skids.ts', startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 },
       },

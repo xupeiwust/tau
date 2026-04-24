@@ -4,10 +4,10 @@ import { render, screen } from '@testing-library/react';
 import type { MyUIMessage } from '@taucad/chat';
 import type { KernelId } from '@taucad/types/constants';
 
-// E6 (R6, R11): the user-message metadata stamp inside ChatHistory.onSubmit
-// must read the chat-scoped kernel from useActiveChatKernel — never the
-// global cookie via useKernel — so a cookie change in another tab cannot
-// silently retag the kernel for the active chat.
+// The user-message metadata stamp inside ChatHistory.onSubmit must read the
+// chat-scoped kernel from useActiveChatKernel — never the global cookie via
+// useKernel — so a cookie change in another tab cannot silently retag the
+// kernel for the active chat.
 
 const activeKernelState: { current: KernelId } = { current: 'manifold' };
 const useActiveChatKernelMock = vi.fn(() => ({
@@ -156,7 +156,7 @@ const message = (id: string, role: MyUIMessage['role']): MyUIMessage => ({
   parts: [{ type: 'text', text: id }],
 });
 
-describe('ChatHistory — chat-scoped kernel stamp (E6, R6, R11)', () => {
+describe('ChatHistory — chat-scoped kernel stamp', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activeKernelState.current = 'manifold';
@@ -185,9 +185,9 @@ describe('ChatHistory — chat-scoped kernel stamp (E6, R6, R11)', () => {
     expect(sent.metadata.kernel).toBe('jscad');
   });
 
-  // G3 / R11: wire-format invariant. Every outgoing user message must
-  // carry BOTH `metadata.model` and `metadata.kernel`, both resolved from
-  // chat-scoped active values. The API (`apps/api/app/api/chat/chat.controller.ts`)
+  // Wire-format invariant. Every outgoing user message must carry BOTH
+  // `metadata.model` and `metadata.kernel`, both resolved from chat-scoped
+  // active values. The API (`apps/api/app/api/chat/chat.controller.ts`)
   // depends on these two fields together; if either drops or drifts to the
   // cookie source, the agent silently runs with the wrong system prompt or
   // tool surface — the regression that motivated this whole refactor.

@@ -667,7 +667,7 @@ describe('hooks resolution rules', () => {
   });
 
   // =========================================================================
-  // B2: activeModel / activeKernel surfaced through CombinedChatState so
+  // activeModel / activeKernel surfaced through CombinedChatState so
   // chat-scoped consumers can read them without poking the persistence
   // machine directly.
   // =========================================================================

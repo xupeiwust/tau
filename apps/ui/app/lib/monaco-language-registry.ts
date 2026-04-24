@@ -13,9 +13,7 @@
  *
  * Heavy boot work inside `contribution.activate()` (LSP worker spawn, WASM init)
  * SHOULD be wrapped in `queueMicrotask` so the synchronous activate boundary
- * stays cheap — see Finding 12 in
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md` (mirrors VS Code's
- * TypeScript extension pattern).
+ * stays cheap (mirrors VS Code's TypeScript extension pattern).
  *
  * Idempotency / HMR safety:
  * - `addContribution`: keyed by `languageId`, duplicate adds are silently ignored.
@@ -65,8 +63,7 @@ export type LanguageContribution = {
    * Phase 2: Called when services are available AND a model with one of
    * {@link activationLanguageIds} is created (or already exists). Heavy work
    * SHOULD be wrapped in `queueMicrotask` so the synchronous activate boundary
-   * stays cheap — see Finding 12 in
-   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * stays cheap.
    */
   activate(context: ActivationContext): ActivationResult;
 
@@ -84,8 +81,7 @@ export type LanguageContributionRegistryOptions = {
   /**
    * Pluggable error reporter invoked alongside the existing `console.error` when
    * a deferred `runActivate()` throws. Lets the host surface a user-visible
-   * toast without coupling the registry to a UI library — see Recommendation R12
-   * in `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * toast without coupling the registry to a UI library.
    */
   onActivationError?: ActivationErrorCallback;
 };
@@ -246,8 +242,8 @@ export class LanguageContributionRegistry {
    * via an internal `Set`.
    *
    * Used by the host to mitigate first-keystroke latency for the project's
-   * active kernel — see Recommendation R7 in
-   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * active kernel — pre-warming the language activation avoids the first
+   * keystroke paying the full activation cost (LSP worker spawn, WASM init).
    */
   public prefetch(ids: readonly string[]): void {
     const monaco = this.activeMonaco;

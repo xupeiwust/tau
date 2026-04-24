@@ -6,8 +6,7 @@
  *
  * Derived from `defaultKernelOptions.kernels`, since the runtime
  * `CapabilitiesManifest` only carries export-route metadata — it does not
- * expose per-kernel source-file extensions. See Recommendation R7 in
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+ * expose per-kernel source-file extensions.
  */
 
 import type { MonacoLanguage } from '#lib/monaco.constants.js';

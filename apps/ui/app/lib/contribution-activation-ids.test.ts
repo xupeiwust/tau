@@ -2,8 +2,7 @@
  * Table-driven assertion that every language contribution declares its
  * `activationLanguageIds` explicitly. Catches regressions where a contribution
  * silently relies on the `[languageId]` fallback (which masks intent and makes
- * multi-id families easy to break) — see Recommendation R6 in
- * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+ * multi-id families easy to break).
  */
 import { describe, it, expect } from 'vitest';
 import { codeLanguages } from '@taucad/types/constants';

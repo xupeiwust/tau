@@ -146,8 +146,7 @@ const connectWorkerActor = fromSafeAsync<WorkerConnectedEvent, { context: FileMa
     }
     armed = false;
 
-    // Allocate the file-pool SharedArrayBuffer at most once per worker instance
-    // (R8 — see docs/research/staging-cors-coep-safari-rendering-audit.md).
+    // Allocate the file-pool SharedArrayBuffer at most once per worker instance.
     // When `sharedWorker` is supplied, the parent FM has already allocated the
     // SAB and posted the `filePool` message to that worker; nested FMs reuse
     // the parent's SAB by reading it from `context.filePoolBuffer` so the
@@ -302,7 +301,7 @@ type FileManagerInput = {
   /**
    * SharedArrayBuffer to reuse for the file-pool when nested under another
    * `FileManagerProvider`. Set to the parent FM's `filePoolBuffer` so the
-   * nested machine skips its own allocation/post (R8).
+   * nested machine skips its own allocation/post.
    */
   sharedFilePoolBuffer?: SharedArrayBuffer;
 };
@@ -438,7 +437,7 @@ export const fileManagerMachine = setup({
     worker: undefined,
     proxy: undefined,
     // Seed with the parent's SAB when nested so the connect actor's gate
-    // observes a non-undefined buffer and skips re-allocation (R8).
+    // observes a non-undefined buffer and skips re-allocation.
     filePoolBuffer: input.sharedFilePoolBuffer,
     contentService: undefined,
     treeService: undefined,

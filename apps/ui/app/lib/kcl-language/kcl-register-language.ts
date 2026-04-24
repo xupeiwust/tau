@@ -409,8 +409,7 @@ export function registerKclLanguage(monaco: typeof Monaco): void {
   // NOTE: LSP / WASM initialization deliberately deferred to
   // `kclContribution.activate`, which itself only runs when the first
   // `kcl` model triggers `monaco.languages.onLanguage('kcl')`. Replicad and
-  // OpenSCAD-only projects pay zero KCL cost — see Recommendations R1+R5+R11
-  // in `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+  // OpenSCAD-only projects pay zero KCL cost.
 }
 
 /**
@@ -829,8 +828,7 @@ export const kclContribution: LanguageContribution = {
   /**
    * Gates this contribution behind the first `kcl` model creation. Until then
    * the entire LSP worker, WASM symbol service, and provider registration
-   * stays unloaded — see Recommendations R1, R5 in
-   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * stays unloaded so non-KCL projects pay zero cost.
    */
   activationLanguageIds: ['kcl'],
 
@@ -855,10 +853,10 @@ export const kclContribution: LanguageContribution = {
     globalGetOrEnsureModel = async (path: string): ReturnType<typeof modelService.getOrEnsureModel> =>
       modelService.getOrEnsureModel(path);
 
-    // R11: Defer the heavy LSP boot (Web Worker spawn + WASM init + provider
+    // Defer the heavy LSP boot (Web Worker spawn + WASM init + provider
     // registration) to a microtask so `activate()` returns synchronously and
     // does not block the registry's per-contribution loop. Mirrors VS Code's
-    // TypeScript extension pattern (Finding 12 in the research doc).
+    // TypeScript extension pattern.
     queueMicrotask(() => {
       void initializeLsp(monaco);
     });

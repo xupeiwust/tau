@@ -237,7 +237,7 @@ describe('ChatStart', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project_123');
   });
 
-  it('should pass cookie kernel and per-message model to createProject so the seeded chat owns them (D2, R3)', async () => {
+  it('should pass cookie kernel and per-message model to createProject so the seeded chat owns them', async () => {
     mockCreateProject.mockResolvedValue({ id: 'project_123' });
 
     render(<ChatStart />);

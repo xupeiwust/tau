@@ -4,8 +4,8 @@
  * app that toasts on image-resize errors — `<ActiveChatProvider>` mounts one
  * subscriber per active chat, so the 12 image entry points (drag/drop, paste,
  * file picker, capture-view, …) never need their own try/catch around the
- * resize step. See `docs/research/chat-image-resize-coverage-audit.md` for
- * the audit (F5 — Tiptap paste swallowed errors silently before this hook).
+ * resize step. Without this hook, Tiptap paste in particular used to swallow
+ * resize errors silently.
  */
 
 import { useEffect } from 'react';

@@ -10,8 +10,7 @@ import type { LoaderFunction } from 'react-router';
  * successful response means "process is up and accepting traffic". Uptime
  * is exposed for ops dashboards / smoke scripts.
  *
- * See `docs/research/staging-cors-coep-safari-rendering-audit.md` (NEW UI
- * health routes) for the design contract.
+ * Used so the platform only marks the process ready after it accepts traffic.
  */
 export const loader: LoaderFunction = () => {
   return Response.json({ status: 'ok', uptime: process.uptime() }, { headers: { 'Cache-Control': 'no-store' } });

@@ -66,7 +66,7 @@ const mockPanelApi = {
   setTitle: vi.fn(),
 } as unknown as IDockviewPanelProps['api'];
 
-describe('FileEditor routing (R8 regression coverage)', () => {
+describe('FileEditor routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

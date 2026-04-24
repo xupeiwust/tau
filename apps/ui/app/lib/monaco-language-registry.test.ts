@@ -174,7 +174,7 @@ describe('LanguageContributionRegistry', () => {
     });
   });
 
-  describe('error reporting (R12)', () => {
+  describe('error reporting', () => {
     it('should invoke onActivationError with languageId and the thrown Error when activate throws', () => {
       const errorCallback = vi.fn();
       const errorRegistry = new LanguageContributionRegistry({ onActivationError: errorCallback });
@@ -244,7 +244,7 @@ describe('LanguageContributionRegistry', () => {
     });
   });
 
-  describe('performance marks (R10)', () => {
+  describe('performance marks', () => {
     it('should emit code/willActivateLanguage/<id> and code/didActivateLanguage/<id> marks around the synchronous activate body', () => {
       const markSpy = vi.fn();
       const measureSpy = vi.fn();
@@ -286,7 +286,7 @@ describe('LanguageContributionRegistry', () => {
     });
   });
 
-  describe('prefetch (R7)', () => {
+  describe('prefetch', () => {
     it('should fire onLanguage exactly once per prefetched id', () => {
       const contrib = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
       registry.addContribution(contrib);
@@ -335,7 +335,7 @@ describe('LanguageContributionRegistry', () => {
     });
   });
 
-  describe('language-switch contract (R13)', () => {
+  describe('language-switch contract', () => {
     it('should activate kcl and typescript contributions exactly once when a model is created as kcl and then switched to typescript', () => {
       const kcl = createMockContribution('kcl', { activationLanguageIds: ['kcl'] });
       const ts = createMockContribution('typescript', {

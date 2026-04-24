@@ -91,7 +91,7 @@ describe('CaptureViewControl', () => {
     expect(call.activeActors).toBeInstanceOf(Set);
   });
 
-  it('forwards the raw screenshot data URL to addDraftImage (machine resizes downstream — R1)', async () => {
+  it('forwards the raw screenshot data URL to addDraftImage (machine resizes downstream)', async () => {
     const user = userEvent.setup();
     render(<CaptureViewControl />);
 
@@ -104,7 +104,7 @@ describe('CaptureViewControl', () => {
     expect(mockTrigger).toHaveBeenCalledOnce();
   });
 
-  it('overflow variant forwards the raw screenshot data URL to addDraftImage (R1)', async () => {
+  it('overflow variant forwards the raw screenshot data URL to addDraftImage', async () => {
     const user = userEvent.setup();
     render(<CaptureViewOverflowControl />);
 

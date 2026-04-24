@@ -234,7 +234,7 @@ export function useChatTextareaLogic({
   const fileInputReference = useRef<HTMLInputElement>(null);
   const textareaReference = useRef<HTMLTextAreaElement>(null);
   const containerReference = useRef<HTMLDivElement>(null);
-  // R6/R11: chat-scoped resolver — falls back to cookie when no chat-local
+  // Chat-scoped resolver — falls back to cookie when no chat-local
   // selection exists. Submit handler stamps `selectedModel.id` into outgoing
   // metadata, keeping the wire format unchanged.
   const { model: selectedModel } = useActiveChatModel();
@@ -435,8 +435,7 @@ export function useChatTextareaLogic({
 
       // 4. OS files (images) — read sequentially and hand the raw data URL
       // to the draft machine. Resizing + error toast are owned by the
-      // `imageProcessing` chokepoint inside `draftMachine` (see R1 of
-      // `docs/research/chat-image-resize-coverage-audit.md`); the only failure
+      // `imageProcessing` chokepoint inside `draftMachine`; the only failure
       // class we still own here is the file-read step itself.
       if (dataTransfer.files.length > 0) {
         for (const file of dataTransfer.files) {

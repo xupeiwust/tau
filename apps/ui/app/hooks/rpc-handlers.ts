@@ -183,8 +183,6 @@ function createBrowserRpcFileSystem(
  * share a single bootstrap contract — the agent never sees a missing-geometry
  * unit error for a path it just asked the harness to evaluate, and never sees
  * a stale geometry from a prior render generation.
- *
- * Per docs/research/runtime-event-driven-api-blueprint-v5.md (R9, R27).
  */
 type EnsureGeometryUnitResult =
   | {

@@ -10,8 +10,8 @@ const tickInterval = 1000;
  * is treated as authoritative on both sides of the wire (consistent with the
  * rest of the timing-via-`providerMetadata` design). Browser/server clock skew
  * is accepted as a known limitation in exchange for a substantially simpler
- * client implementation; see Finding 7 in
- * `docs/research/reasoning-duration-display.md` for the trade-off rationale.
+ * client implementation (no NTP-style offset estimation, no per-stream
+ * handshake to negotiate a clock origin).
  *
  * While `enabled` is true, schedules a 1Hz `setInterval` to force a re-render
  * so the displayed elapsed value advances smoothly between (potentially coarse)

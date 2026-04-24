@@ -74,14 +74,14 @@ beforeEach(() => {
 
 describe('IndexedDbStorageProvider', () => {
   // =========================================================================
-  // R4: Concurrent updateChat preserves disjoint field writes
+  // Concurrent updateChat preserves disjoint field writes
   // =========================================================================
-  describe('R4: chat draft resurrection regression — disjoint-field writes preserve every field', () => {
+  describe('chat draft resurrection — disjoint-field writes preserve every field', () => {
     // These tests reproduce the original "draft resurrection" race: a sent
     // draft was reappearing in the input field because two concurrent
     // updateChat({draft}) and updateChat({messages}) calls performed
-    // get + put across two separate transactions. After R1 (atomic txn) +
-    // R2 (per-chatId mutex) + R3 (field-scoped patchChat) the production
+    // get + put across two separate transactions. After atomic updateChat,
+    // per-chatId mutex, and field-scoped patchChat the production
     // call sites use patchChat and the race is closed at every layer.
     it('should preserve both draft and messages when patchChat("draft") and patchChat("messages") race repeatedly', async () => {
       const iterations = 200;
@@ -143,9 +143,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // R1: Atomic single-transaction updateChat / updateProject
+  // Atomic single-transaction updateChat / updateProject
   // =========================================================================
-  describe('R1: updateChat atomic single-transaction semantics', () => {
+  describe('updateChat atomic single-transaction semantics', () => {
     it('should return undefined when chat does not exist', async () => {
       const provider = new IndexedDbStorageProvider();
       const result = await provider.updateChat('chat_missing', { name: 'never' });
@@ -186,9 +186,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // R2: KeyedMutex serialises concurrent mutations per chatId
+  // KeyedMutex serialises concurrent mutations per chatId
   // =========================================================================
-  describe('R2: per-chatId mutex serialises submissions', () => {
+  describe('per-chatId mutex serialises submissions', () => {
     it('should observe submission order on the resolved values when many writers race the same chat', async () => {
       const writers = 20;
       const provider = new IndexedDbStorageProvider();
@@ -209,7 +209,7 @@ describe('IndexedDbStorageProvider', () => {
     });
   });
 
-  describe('R1: updateProject atomic single-transaction semantics', () => {
+  describe('updateProject atomic single-transaction semantics', () => {
     it('should return undefined when project does not exist', async () => {
       const provider = new IndexedDbStorageProvider();
       const result = await provider.updateProject('project_missing', { name: 'never' });
@@ -240,9 +240,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // R3: patchChat<K extends keyof Chat>
+  // patchChat<K extends keyof Chat>
   // =========================================================================
-  describe('R3: patchChat field-scoped writer', () => {
+  describe('patchChat field-scoped writer', () => {
     it('should write only the named field, leaving every other field byte-identical', async () => {
       const provider = new IndexedDbStorageProvider();
       const seeded = await provider.createChat('resource_test', {
@@ -319,9 +319,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // R3: setMessageEdit / clearMessageEdit
+  // setMessageEdit / clearMessageEdit
   // =========================================================================
-  describe('R3: setMessageEdit / clearMessageEdit', () => {
+  describe('setMessageEdit / clearMessageEdit', () => {
     it('should create the messageEdits map if absent and store the named entry', async () => {
       const provider = new IndexedDbStorageProvider();
       const chat = await freshChat(provider);
@@ -429,10 +429,10 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // A1 / R1: Chat.activeModel + Chat.activeKernel are first-class fields
+  // Chat.activeModel + Chat.activeKernel are first-class fields
   // and patchChat round-trips them just like every other top-level field.
   // =========================================================================
-  describe('A1 (R1): activeModel + activeKernel are top-level Chat fields', () => {
+  describe('activeModel + activeKernel are top-level Chat fields', () => {
     it('should round-trip activeModel through patchChat', async () => {
       const provider = new IndexedDbStorageProvider();
       const chat = await freshChat(provider);
@@ -488,11 +488,11 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // A2 / R2: Eager v4 → v5 backfill of activeModel + activeKernel from the
+  // Eager v4 → v5 backfill of activeModel + activeKernel from the
   // last user message metadata so cookie changes after migration never
   // mutate the active selection of an already-hydrated chat.
   // =========================================================================
-  describe('A2 (R2): v4 → v5 eager backfill migration', () => {
+  describe('v4 → v5 eager backfill migration', () => {
     const dbName = `${metaConfig.databasePrefix}db`;
 
     async function seedV4Chat(chat: Chat): Promise<void> {
@@ -655,9 +655,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // D4: duplicateChat carries activeModel + activeKernel onto the copy.
+  // duplicateChat carries activeModel + activeKernel onto the copy.
   // =========================================================================
-  describe('D4: duplicateChat carries activeModel + activeKernel', () => {
+  describe('duplicateChat carries activeModel + activeKernel', () => {
     it('should copy activeModel and activeKernel into the duplicated chat', async () => {
       const provider = new IndexedDbStorageProvider();
       const original = await provider.createChat('resource_test', {
@@ -689,9 +689,9 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
-  // R3: softDeleteChat
+  // softDeleteChat
   // =========================================================================
-  describe('R3: softDeleteChat', () => {
+  describe('softDeleteChat', () => {
     it('should set deletedAt and bump updatedAt atomically', async () => {
       const provider = new IndexedDbStorageProvider();
       const chat = await freshChat(provider);

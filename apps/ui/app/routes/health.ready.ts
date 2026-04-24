@@ -21,8 +21,7 @@ import { getEnvironment } from '#environment.config.js';
  * timeouts (Fly.io's 5s default) propagate cleanly instead of leaving a
  * dangling request.
  *
- * See `docs/research/staging-cors-coep-safari-rendering-audit.md` (NEW UI
- * health routes) for the design contract.
+ * Readiness reflects both local heap budget and upstream API liveness.
  */
 /** Milliseconds. */
 const apiProbeTimeout = 4000;

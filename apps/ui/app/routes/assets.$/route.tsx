@@ -23,8 +23,7 @@ import type { LoaderFunctionArgs } from 'react-router';
  * pipeline.
  *
  * Mounted at `/assets/*` automatically by `@react-router/fs-routes`
- * `flatRoutes()` via the `assets.$` directory naming convention; see
- * `docs/research/stale-asset-hash-worker-error-diagnostics.md`.
+ * `flatRoutes()` via the `assets.$` directory naming convention.
  */
 // oxlint-disable-next-line require-await -- React Router loader signature
 export async function loader({ request }: LoaderFunctionArgs): Promise<Response> {

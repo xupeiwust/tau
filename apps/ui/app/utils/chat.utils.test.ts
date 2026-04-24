@@ -405,7 +405,7 @@ describe('serializeMessage', () => {
           input: { targetFile: 'main.kcl' },
           output: {
             status: 'error',
-            kernelIssues: [{ message: 'Syntax error', severity: 'error' }],
+            kernelIssues: [{ message: 'Syntax error', code: 'RUNTIME', severity: 'error' }],
           },
         },
       ]);

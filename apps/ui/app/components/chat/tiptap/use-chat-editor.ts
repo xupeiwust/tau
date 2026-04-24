@@ -301,7 +301,8 @@ export function useChatEditor({
                     // `imageProcessing` chokepoint resizes it and surfaces
                     // any failure via the `<ActiveChatProvider>` toast
                     // subscriber. Eliminates the prior silent-paste bug
-                    // (F5 in chat-image-resize-coverage-audit.md).
+                    // where Tiptap paste called `resizeImageForChat`
+                    // directly and dropped failures on the floor.
                     onImagePasteRef.current?.(result);
                   }
                 });

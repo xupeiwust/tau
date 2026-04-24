@@ -435,17 +435,15 @@ describe('draftMachine', () => {
   });
 
   // ===========================================================================
-  // Image resize chokepoint (R1)
+  // Image resize chokepoint
   //
   // The machine owns image resizing. `addDraftImage` / `addEditDraftImage`
   // events accept RAW data URLs and enqueue them; the `imageProcessing`
   // parallel sub-region invokes `resizeImageActor` FIFO and assigns the
   // resized URL back into `draftImages` / `editDraftImages`. Failures
   // surface via the typed `imageResizeFailed` emit.
-  //
-  // See docs/research/chat-image-resize-coverage-audit.md.
   // ===========================================================================
-  describe('image resize chokepoint (R1)', () => {
+  describe('image resize chokepoint', () => {
     it('should append the resized URL to draftImages once the resize actor settles', async () => {
       const actor = createTestActor({ resize: async () => 'data:image/jpeg;base64,RESIZED' });
       actor.start();

@@ -290,14 +290,13 @@ const createFileTree = (entries: Array<[string, Partial<FileEntry>]>): Map<strin
     ]),
   );
 
-describe('useChatEditor — image paste dispatches raw data URL (F5 / R1)', () => {
+describe('useChatEditor — image paste dispatches raw data URL', () => {
   /**
-   * F5 regression — Tiptap paste used to call `resizeImageForChat` and silently
-   * swallow rejection paths. The chokepoint now lives in the draft machine, so
-   * the editor's `handlePaste` MUST forward the raw data URL into
-   * `onImagePaste` without any pre-processing. If we re-introduce inline
-   * resizing here we both lose the chokepoint contract and re-open the silent
-   * failure mode.
+   * Tiptap paste used to call `resizeImageForChat` and silently swallow
+   * rejection paths. The chokepoint now lives in the draft machine, so the
+   * editor's `handlePaste` MUST forward the raw data URL into `onImagePaste`
+   * without any pre-processing. If we re-introduce inline resizing here we
+   * both lose the chokepoint contract and re-open the silent failure mode.
    */
   it('should forward the raw FileReader data URL to onImagePaste (no inline resize)', async () => {
     const onImagePaste = vi.fn();

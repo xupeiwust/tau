@@ -2,10 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-// E8 (R9): clicking a quick-start example must stamp the user message
-// with the chat-scoped model id from useActiveChatModel — never the raw
-// cookie value via useModels — so a cookie change in another tab cannot
-// silently retag the model used for one-click prompts.
+// Clicking a quick-start example must stamp the user message with the
+// chat-scoped model id from useActiveChatModel — never the raw cookie value
+// via useModels — so a cookie change in another tab cannot silently retag
+// the model used for one-click prompts.
 
 const mockSendMessage = vi.fn();
 const activeModelState: { current: string } = { current: 'cookie-model' };
@@ -57,7 +57,7 @@ vi.mock('#components/ui/empty-items.js', () => ({
 
 const { ChatExamples } = await import('#routes/projects_.$id/chat-examples.js');
 
-describe('ChatExamples — chat-scoped model stamp (E8, R9)', () => {
+describe('ChatExamples — chat-scoped model stamp', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activeModelState.current = 'cookie-model';

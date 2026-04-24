@@ -2,9 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// F1 (R8): chat-history-status must render the model badge from the
-// chat-scoped `Chat.activeModel` (via `useChatSelector(state =>
-// state.activeModel)`) — never by reverse-scanning message metadata.
+// Chat-history-status must render the model badge from the chat-scoped
+// `Chat.activeModel` (via `useChatSelector(state => state.activeModel)`) —
+// never by reverse-scanning message metadata.
 // These tests pin that contract and guard against the regression where
 // a fresh chat (no messages yet) silently dropped the model badge.
 
@@ -54,7 +54,7 @@ vi.mock('#components/icons/svg-icon.js', () => ({
 
 const { ChatHistoryStatus } = await import('#routes/projects_.$id/chat-history-status.js');
 
-describe('ChatHistoryStatus — chat-scoped model badge (F1, R8)', () => {
+describe('ChatHistoryStatus — chat-scoped model badge', () => {
   beforeEach(() => {
     chatSelectorState.activeModel = 'manifold-model';
     chatSelectorState.messages = [];

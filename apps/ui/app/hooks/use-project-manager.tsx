@@ -42,8 +42,7 @@ type CreateProjectChatOptions = {
    * Seed `Chat.activeModel` so the chat owns its model choice independent
    * of the cookie default. Defaults to `initialMessage.model` when an
    * initial message is provided, otherwise undefined (chat-scoped resolver
-   * falls back to the cookie). See
-   * `docs/research/chat-active-model-kernel-persistence.md` (R3).
+   * falls back to the cookie).
    */
   activeModel?: string;
   /**
@@ -202,7 +201,7 @@ export function ProjectManagerProvider({ children }: { readonly children: ReactN
 
       const chatName = options.chatName ?? (options.initialMessage ? 'Initial design' : 'Initial chat');
 
-      // R3: Seed the chat row with chat-scoped active model + kernel so a
+      // Seed the chat row with chat-scoped active model + kernel so a
       // cookie change in another tab does not mutate the active selection
       // for this freshly-created chat. Falls back to the per-message model
       // (when an initialMessage is supplied) and the kernel chosen by the

@@ -41,8 +41,7 @@ export const jsTsContribution: LanguageContribution = {
    * Gates JS/TS activation (TypeScript compiler defaults, ATA, definition
    * provider) behind the first model creation in any of these ids. Until then
    * `TypeAcquisitionService`, `kernelTypeMaps` virtual files, and module
-   * resolution stay unloaded — see Recommendation R4 in
-   * `docs/research/monaco-lsp-lazy-activation-blueprint.md`.
+   * resolution stay unloaded so the editor opens fast for non-code files.
    */
   activationLanguageIds: ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'],
 

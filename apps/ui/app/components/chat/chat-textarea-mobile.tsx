@@ -159,7 +159,7 @@ export const ChatTextareaMobile = memo(function ({
 }: ChatTextareaMobileProperties): React.JSX.Element {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // R6/R7: chat-scoped kernel resolver — replaces the prior hardcoded
+  // Chat-scoped kernel resolver — replaces the prior hardcoded
   // `'openscad'` lookup so the mobile drawer label matches the chat's
   // actual active kernel (and falls back to the cookie when unset).
   const { kernel: selectedKernel } = useActiveChatKernel();

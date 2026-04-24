@@ -117,7 +117,7 @@ describe('kclContribution', () => {
     expect(lspConstructorCalls).not.toHaveBeenCalled();
   });
 
-  it('should return synchronously from activate() before constructing a KclLspClient (R11)', async () => {
+  it('should return synchronously from activate() before constructing a KclLspClient', async () => {
     const { kclContribution } = await import('#lib/kcl-language/kcl-register-language.js');
     const context = createMockContext(stub);
 

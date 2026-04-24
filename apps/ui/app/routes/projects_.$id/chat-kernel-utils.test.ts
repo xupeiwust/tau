@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { PerformanceEntryData } from '@taucad/runtime';
+import type { TelemetryEntry } from '@taucad/runtime';
 import type { SpanNode } from '#routes/projects_.$id/chat-kernel-types.js';
 import {
   formatDuration,
@@ -18,7 +18,7 @@ import {
 } from '#routes/projects_.$id/chat-kernel-utils.js';
 import { emptyPipelineData } from '#routes/projects_.$id/chat-kernel-types.js';
 
-function makeEntry(overrides: Partial<PerformanceEntryData> & { name: string }): PerformanceEntryData {
+function makeEntry(overrides: Partial<TelemetryEntry> & { name: string }): TelemetryEntry {
   return {
     name: overrides.name,
     startTime: overrides.startTime ?? 0,
