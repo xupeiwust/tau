@@ -452,7 +452,7 @@ patchedDependencies:
   '@taucad/kcl-wasm-lib':
     hash: a5113ece295fc5a140b912793b5b08236be48a8ab797e0c981c91cd6cf7bad83
     path: patches/@taucad__kcl-wasm-lib.patch
-  replicad:
+  '@taucad/replicad':
     hash: b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39
     path: patches/replicad.patch
 
@@ -938,8 +938,8 @@ importers:
         specifier: ^4.104.0
         version: 4.104.0(encoding@0.1.13)(ws@8.19.0)(zod@4.3.6)
       opencascade.js:
-        specifier: file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz
-        version: '@taucad/opencascade.js@file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz(ws@8.19.0)'
+        specifier: npm:@taucad/opencascade.js@3.0.0-beta.1
+        version: '@taucad/opencascade.js@3.0.0-beta.1(ws@8.19.0)'
       openscad-wasm-prebuilt:
         specifier: 'catalog:'
         version: 1.2.0
@@ -1019,11 +1019,11 @@ importers:
         specifier: ^2.0.4
         version: 2.0.4(react-router@7.12.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       replicad:
-        specifier: file:tarballs/replicad-0.21.0-v8.57.tgz
-        version: file:tarballs/replicad-0.21.0-v8.57.tgz(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)
+        specifier: npm:@taucad/replicad@0.21.0-v8.57.1
+        version: '@taucad/replicad@0.21.0-v8.57.1(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)'
       replicad-opencascadejs:
-        specifier: file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz
-        version: file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz
+        specifier: npm:@taucad/replicad-opencascadejs@0.21.0-v8.57
+        version: '@taucad/replicad-opencascadejs@0.21.0-v8.57'
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
@@ -1691,14 +1691,14 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
       opencascade.js:
-        specifier: file:../../tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz
-        version: '@taucad/opencascade.js@file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz(ws@8.19.0)'
+        specifier: npm:@taucad/opencascade.js@3.0.0-beta.1
+        version: '@taucad/opencascade.js@3.0.0-beta.1(ws@8.19.0)'
       replicad:
-        specifier: file:../../tarballs/replicad-0.21.0-v8.57.tgz
-        version: file:tarballs/replicad-0.21.0-v8.57.tgz(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)
+        specifier: npm:@taucad/replicad@0.21.0-v8.57.1
+        version: '@taucad/replicad@0.21.0-v8.57.1(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)'
       replicad-opencascadejs:
-        specifier: file:../../tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz
-        version: file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz
+        specifier: npm:@taucad/replicad-opencascadejs@0.21.0-v8.57
+        version: '@taucad/replicad-opencascadejs@0.21.0-v8.57'
       source-map-js:
         specifier: 'catalog:'
         version: 1.2.1
@@ -9359,11 +9359,16 @@ packages:
   '@taucad/kcl-wasm-lib@0.1.130':
     resolution: {integrity: sha512-nSmwe6gArl2YpgrS+XCSLFclNl5+rdznoMV7t/LdAKG9tzOv3O2iUKtpSDTFwDcFlIsTZZd8AmBoH9e9AoDsOg==}
 
-  '@taucad/opencascade.js@file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz':
-    resolution: {integrity: sha512-94j8ta5GxUBxxzmXc892Lm4uW7XBrUPhmGYaDhKKoAn44JVa+SUWgdMy88CI5kdk4yL5YiZBLEMizl+hQ5y8Jw==, tarball: file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz}
-    version: 3.0.0-beta.0
+  '@taucad/opencascade.js@3.0.0-beta.1':
+    resolution: {integrity: sha512-FBg5DAmwR0AomxgkNCoi83RpdTMPUkO27qk0eZeSnhMeNdUoTxiUa3uZTVc5OW8Po6GS1n0kUHgOZfnYmkJjvg==}
     peerDependencies:
       ws: ^8.5.0
+
+  '@taucad/replicad-opencascadejs@0.21.0-v8.57':
+    resolution: {integrity: sha512-49ow6WR1ulz5ooc+KfJoYS+rJHAl5MDY1HWDIqsf/KyYEN5K4BQVfIDHvkRY9xYuvzwpoRACsBNH7zu0XYKeeQ==}
+
+  '@taucad/replicad@0.21.0-v8.57.1':
+    resolution: {integrity: sha512-GXGjhsXINymBwHhaq9EaCsaJHL5URtA88xr6FfhzmIU4bv77HJxYYAU34iIv58Tlj6b3NZJ7Z6tcQexd2A+WHw==}
 
   '@testing-library/dom@10.4.0':
     resolution: {integrity: sha512-pemlzrSESWbdAloYml3bAJMEfNh1Z7EduzqPKprCH5S341frlpYnUEW0H72dLxa6IsYr+mPno20GiSm+h9dEdQ==}
@@ -18345,14 +18350,6 @@ packages:
   replace-ext@1.0.1:
     resolution: {integrity: sha512-yD5BHCe7quCgBph4rMQ+0KkIRKwWCrHDOX1p1Gp6HwjPM5kVoCdKGNhN7ydqqsX6lJEnQDKZ/tFMiEdQ1dvPEw==}
     engines: {node: '>= 0.10'}
-
-  replicad-opencascadejs@file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz:
-    resolution: {integrity: sha512-mfN9YWlIvuelicz8CZxJgyeAklNwesdUlIVOfIdODEl296Wn3AsNDX98TRjKnAYtqQGRW+uXxhGtaQtb9bKsJQ==, tarball: file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz}
-    version: 0.21.0-v8.57
-
-  replicad@file:tarballs/replicad-0.21.0-v8.57.tgz:
-    resolution: {integrity: sha512-N+QzvkCIuvCDPTDBUwuIbVpMzLkFAlntpSRBqdJdFRK0ik0DfU5EODE5evYXdh7aJ4vr9xDqFcxq0S6QXym/fQ==, tarball: file:tarballs/replicad-0.21.0-v8.57.tgz}
-    version: 0.21.0-v8.57
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -29211,11 +29208,20 @@ snapshots:
 
   '@taucad/kcl-wasm-lib@0.1.130(patch_hash=a5113ece295fc5a140b912793b5b08236be48a8ab797e0c981c91cd6cf7bad83)': {}
 
-  '@taucad/opencascade.js@file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz(ws@8.19.0)':
+  '@taucad/opencascade.js@3.0.0-beta.1(ws@8.19.0)':
     dependencies:
       '@gltf-transform/core': 4.3.0
       '@gltf-transform/functions': 4.3.0
       ws: 8.19.0
+
+  '@taucad/replicad-opencascadejs@0.21.0-v8.57': {}
+
+  '@taucad/replicad@0.21.0-v8.57.1(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)':
+    dependencies:
+      '@types/opentype.js': 1.3.4
+      flatbush: 4.5.0
+      opentype.js: 1.3.4
+      replicad-opencascadejs: '@taucad/replicad-opencascadejs@0.21.0-v8.57'
 
   '@testing-library/dom@10.4.0':
     dependencies:
@@ -40291,14 +40297,6 @@ snapshots:
   remove-trailing-separator@1.1.0: {}
 
   replace-ext@1.0.1: {}
-
-  replicad-opencascadejs@file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz: {}
-
-  replicad@file:tarballs/replicad-0.21.0-v8.57.tgz(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39):
-    dependencies:
-      '@types/opentype.js': 1.3.4
-      flatbush: 4.5.0
-      opentype.js: 1.3.4
 
   require-directory@2.1.1: {}
 

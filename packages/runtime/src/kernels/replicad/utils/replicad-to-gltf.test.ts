@@ -208,7 +208,7 @@ describe('convertReplicadGeometriesToGltf', () => {
     expect(material.getRoughnessFactor()).toBeCloseTo(0.35, 2);
   });
 
-  describe('logger instrumentation (R6)', () => {
+  describe('logger instrumentation', () => {
     it('should log a debug line with format/nodeCount/byteLength when a logger is supplied', () => {
       const debug = vi.fn();
       const logger = mock<RuntimeLogger>({ debug });

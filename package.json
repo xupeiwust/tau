@@ -208,7 +208,7 @@
     "nestjs-zod": "^5.1.1",
     "ollama": "^0.5.18",
     "openai": "^4.104.0",
-    "opencascade.js": "file:tarballs/opencascade.js-3.0.0-beta.bae75eb.tgz",
+    "opencascade.js": "npm:@taucad/opencascade.js@3.0.0-beta.1",
     "openscad-wasm-prebuilt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
@@ -235,8 +235,8 @@
     "reflect-metadata": "^0.2.2",
     "remark-math": "catalog:",
     "remix-themes": "^2.0.4",
-    "replicad": "file:tarballs/replicad-0.21.0-v8.57.tgz",
-    "replicad-opencascadejs": "file:tarballs/replicad-opencascadejs-0.21.0-v8.57.tgz",
+    "replicad": "npm:@taucad/replicad@0.21.0-v8.57.1",
+    "replicad-opencascadejs": "npm:@taucad/replicad-opencascadejs@0.21.0-v8.57",
     "rxjs": "^7.8.2",
     "safe-regex": "^2.1.1",
     "shiki": "^3.22.0",
@@ -359,7 +359,7 @@
     "patchedDependencies": {
       "@kittycad/lib": "patches/@kittycad__lib.patch",
       "@taucad/kcl-wasm-lib": "patches/@taucad__kcl-wasm-lib.patch",
-      "replicad": "patches/replicad.patch",
+      "@taucad/replicad": "patches/replicad.patch",
       "@langchain/openai@1.4.0": "patches/@langchain__openai@1.4.0.patch"
     },
     "overrides": {

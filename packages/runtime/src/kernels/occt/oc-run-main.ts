@@ -6,8 +6,8 @@
  * module for Replicad), and converts any thrown error into a fully
  * source-mapped {@link KernelIssue} via {@link formatOcRuntimeError}.
  *
- * Encapsulates the "runMain with source map" pattern that previously lived
- * inside the Replicad kernel and was missing from the OpenCascade kernel.
+ * Encapsulates the "runMain with source map" pattern shared by the
+ * Replicad and OpenCascade kernels.
  */
 
 import { named } from '#framework/named.js';

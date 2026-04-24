@@ -95,12 +95,7 @@ function buildNodeFromReplicadGeometry(geometry: GeometryReplicad, geometryIndex
  * resulting in better rendering quality and performance.
  *
  * When `logger` is supplied, emits a debug log with the produced GLB byte
- * length and node count. This is the upstream half of the OCJS-rendering
- * smoke trail (see `docs/research/staging-cors-coep-safari-rendering-audit.md`
- * R6); the downstream half lives in `apps/ui/.../gltf-mesh.tsx` and only logs
- * when `GLTFLoader` resolves zero scene children, so the two together let us
- * tell "kernel produced empty GLB" vs "loader silently dropped nodes" apart
- * without spamming Console on every successful render.
+ * length and node count.
  *
  * @param geometries - Array of Shape3D objects from replicad
  * @param format - Output format: 'glb' for binary, 'gltf' for JSON
