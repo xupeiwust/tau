@@ -3,14 +3,16 @@ import deepmerge from 'deepmerge';
 import { defineMiddleware } from '@taucad/runtime/middleware';
 import { parametersDirectory } from '#utils/parameter-config.utils.js';
 
-const parameterWatchDebounceMs = 200;
+/** Milliseconds. */
+const parameterWatchDebounce = 200;
 
 export const parameterFileResolverMiddleware = defineMiddleware({
   name: 'parameter-file-resolver',
 
   optionsSchema: z.object({
     parametersDir: z.string().default(parametersDirectory),
-    watchDebounceMs: z.number().default(parameterWatchDebounceMs),
+    /** Milliseconds. */
+    watchDebounce: z.number().default(parameterWatchDebounce),
   }),
 
   getDependencies({ filePath, basePath }, options) {
@@ -21,7 +23,7 @@ export const parameterFileResolverMiddleware = defineMiddleware({
   async wrapCreateGeometry(input, handler, runtime) {
     const relativePath = input.filePath.replace(`${input.basePath}/`, '');
     const parametersPath = `${input.basePath}/${runtime.options.parametersDir}/${relativePath}.json`;
-    runtime.registerWatchPath(parametersPath, { debounceMs: runtime.options.watchDebounceMs });
+    runtime.registerWatchPath(parametersPath, { watchDebounce: runtime.options.watchDebounce });
 
     try {
       const content = await runtime.filesystem.readFile(parametersPath, 'utf8');

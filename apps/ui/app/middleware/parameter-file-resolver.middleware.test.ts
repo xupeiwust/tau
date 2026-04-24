@@ -4,7 +4,7 @@ import { createMockRuntime, createMockInput, createMockCreateGeometryHandler } f
 import { parameterFileResolverMiddleware } from '#middleware/parameter-file-resolver.middleware.js';
 import { parametersDirectory } from '#utils/parameter-config.utils.js';
 
-type ParameterFileOptions = { parametersDir: string; watchDebounceMs: number };
+type ParameterFileOptions = { parametersDir: string; watchDebounce: number };
 
 function createTestContext(options?: {
   readFileResult?: string;
@@ -12,7 +12,7 @@ function createTestContext(options?: {
   input?: Parameters<typeof createMockInput>[0];
 }) {
   const runtime = createMockRuntime<Record<string, never>, ParameterFileOptions>({
-    options: { parametersDir: parametersDirectory, watchDebounceMs: 200 },
+    options: { parametersDir: parametersDirectory, watchDebounce: 200 },
   });
 
   if (options?.readFileError) {
@@ -107,7 +107,7 @@ describe('parameterFileResolverMiddleware', () => {
     await parameterFileResolverMiddleware.wrapCreateGeometry!(input, handler, runtime);
 
     expect(runtime.registerWatchPath).toHaveBeenCalledWith(`/projects/test/${parametersDirectory}/main.ts.json`, {
-      debounceMs: 200,
+      watchDebounce: 200,
     });
   });
 
@@ -208,7 +208,7 @@ describe('parameterFileResolverMiddleware', () => {
     it('should return the per-geometry-unit parameter file path', () => {
       const result = parameterFileResolverMiddleware.getDependencies!(
         { filePath: '/projects/test/main.ts', basePath: '/projects/test' },
-        { parametersDir: parametersDirectory, watchDebounceMs: 200 },
+        { parametersDir: parametersDirectory, watchDebounce: 200 },
       );
 
       expect(result).toEqual([`/projects/test/${parametersDirectory}/main.ts.json`]);
@@ -217,7 +217,7 @@ describe('parameterFileResolverMiddleware', () => {
     it('should use custom parametersDir option', () => {
       const result = parameterFileResolverMiddleware.getDependencies!(
         { filePath: '/projects/test/main.ts', basePath: '/projects/test' },
-        { parametersDir: '.config/params', watchDebounceMs: 200 },
+        { parametersDir: '.config/params', watchDebounce: 200 },
       );
 
       expect(result).toEqual(['/projects/test/.config/params/main.ts.json']);
@@ -226,7 +226,7 @@ describe('parameterFileResolverMiddleware', () => {
     it('should return synchronously (not a promise)', () => {
       const result = parameterFileResolverMiddleware.getDependencies!(
         { filePath: '/projects/test/main.ts', basePath: '/projects/test' },
-        { parametersDir: parametersDirectory, watchDebounceMs: 200 },
+        { parametersDir: parametersDirectory, watchDebounce: 200 },
       );
 
       expect(Array.isArray(result)).toBe(true);
