@@ -4,8 +4,8 @@
  *  - the cad-agent system prompt (`apps/api/.../cad-agent.prompt.ts`)
  *  - the `edit_tests` tool description (`apps/api/.../tool-edit-tests.ts`)
  *
- * Per `docs/research/mesh-continuity-test-semantics.md` R4 + R5 the LLM should
- * never see two slightly-different phrasings of the same check vocabulary.
+ * Single-sourcing prevents the agent from ever seeing two slightly-different
+ * phrasings of the same check vocabulary.
  *
  * @module
  */
@@ -17,8 +17,7 @@
  * substitute the placeholder with the kernel-appropriate file extension.
  *
  * Includes one example each of the surviving 3-check vocabulary
- * (boundingBox, connectedComponents, watertight). Mirrors research §Code
- * Examples R4 lines 479-491.
+ * (boundingBox, connectedComponents, watertight).
  *
  * @public
  */
@@ -84,7 +83,7 @@ export const renderCanonicalExample = (fileExtension: string): string => {
 /**
  * Single-sourced "Available checks" blurb. Rendered identically by the system
  * prompt body and the `edit_tests` tool description so the LLM never sees a
- * diverging vocabulary. Mirrors research §Code Examples R5 lines 497-516.
+ * diverging vocabulary.
  *
  * @public
  */
