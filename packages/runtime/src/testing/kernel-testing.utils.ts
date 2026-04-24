@@ -31,7 +31,7 @@ import type {
   MiddlewareRegistrations,
   BundlerRegistrations,
 } from '#types/runtime.types.js';
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 import type {
   RuntimeLogger,
   KernelRuntime,
@@ -123,7 +123,7 @@ export type InitializeWorkerOptions = {
   /** Middleware configuration (defaults to empty array for tests that bypass dynamic loading) */
   middlewareEntries?: MiddlewareRegistrations;
   /** Telemetry callback -- receives batched performance entries from the worker */
-  onTelemetry?: (entries: PerformanceEntryData[]) => void;
+  onTelemetry?: (entries: TelemetryEntry[]) => void;
 };
 
 /**
@@ -577,7 +577,7 @@ export type CreateTestWorkerOptions = {
   /** Skip automatic bundler loading for JS/TS kernels (default: false) */
   skipBundler?: boolean;
   /** Telemetry callback -- receives batched performance entries from the worker */
-  onTelemetry?: (entries: PerformanceEntryData[]) => void;
+  onTelemetry?: (entries: TelemetryEntry[]) => void;
 };
 
 /**

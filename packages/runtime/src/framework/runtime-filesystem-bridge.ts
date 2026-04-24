@@ -16,7 +16,7 @@
 import { safeDispose } from '@taucad/utils/dispose';
 import type { RuntimeFileSystemBase, RuntimeWatchRequest, RuntimeWatchEvent } from '#types/runtime-kernel.types.js';
 import type { StringKeyedObject } from '#types/bridge.types.js';
-import { messagePortCallTimeoutMs } from '#framework/runtime-framework.constants.js';
+import { messagePortCallTimeout } from '#framework/runtime-framework.constants.js';
 /**
  * Minimal interface for a shared file pool used by the bridge for
  * zero-IPC cached reads. Structurally compatible with `SharedPool`
@@ -413,7 +413,7 @@ export function createBridgeCall(
           if (pending.delete(id)) {
             reject(new Error(`Bridge call '${method}' timed out`));
           }
-        }, messagePortCallTimeoutMs);
+        }, messagePortCallTimeout);
         pending.set(id, { resolve, reject, timer });
         const request = { id, method, args } satisfies BridgeRequest;
         const transferables = extractTransferables(args);

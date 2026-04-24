@@ -489,12 +489,12 @@ describe('Minification-resilient function naming', () => {
         } as const,
       ];
 
-      // Phase 4: Demangle
+      // Step 1 — demangle minified frame names.
       const demangled = demangleStackFrames(rawFrames, nameMap);
       expect(demangled[1]!.functionName).toBe('basicFaceExtrusion');
       expect(demangled[2]!.functionName).toBe('Sketch.extrude');
 
-      // Phase 5: Library reclassification
+      // Step 2 — reclassify library frames as user-visible.
       const classified = classifyLibraryFrames(demangled, libraryExportNames);
 
       expect(classified[0]!.context).toBe('framework'); // Object.construct

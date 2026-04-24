@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 import { createRuntimeClient, fromMemoryFS } from '#index.js';
 import { createInProcessTransport } from '#transport/in-process-transport.js';
 import { replicad } from '#plugins/kernel-factories.js';
@@ -62,7 +62,8 @@ describe('createRuntimeClient with in-process transport', () => {
   });
 
   it('delivers telemetry spans', async () => {
-    const telemetryBatches: PerformanceEntryData[][] = [];
+    const telemetryBatches: TelemetryEntry[][] = [];
+    const fileSystem = fromMemoryFS({ [absolutePath]: boxCode });
 
     const client = createRuntimeClient({
       kernels: [replicad({ ocTracing: 'summary' })],
@@ -71,7 +72,7 @@ describe('createRuntimeClient with in-process transport', () => {
       transport: createInProcessTransport(),
     });
 
-    client.on('telemetry', (entries: PerformanceEntryData[]) => {
+    client.on('telemetry', (entries: TelemetryEntry[]) => {
       telemetryBatches.push(entries);
     });
 

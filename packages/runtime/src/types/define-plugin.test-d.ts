@@ -309,7 +309,7 @@ describe('defineKernel type inference', () => {
     });
   });
 
-  it('should include tessellation and coordinateSystem in mesh format options (R2 composed schemas)', () => {
+  it('should include tessellation and coordinateSystem in mesh format options', () => {
     const meshSchema = tessellationSchema.extend(coordinateSystemSchema.shape).extend({
       binary: z.boolean().default(true),
     });
@@ -343,7 +343,7 @@ describe('defineKernel type inference', () => {
     });
   });
 
-  it('should exclude tessellation from BRep format options (R1 STEP has no tessellation)', () => {
+  it('should exclude tessellation from BRep format options (STEP has no tessellation)', () => {
     const stepSchema = z.object({
       assemblyMode: z.enum(['single', 'assembly']).default('single'),
     });
@@ -373,7 +373,7 @@ describe('defineKernel type inference', () => {
     });
   });
 
-  it('should produce empty options for empty schemas (R7)', () => {
+  it('should produce empty options for empty schemas', () => {
     const emptySchema = z.object({});
 
     defineKernel({
@@ -729,7 +729,7 @@ describe('defineMiddleware type inference', () => {
 
   it('should infer both State and Options together', () => {
     const stateSchema = z.object({ hits: z.number() });
-    const optionsSchema = z.object({ ttl: z.number() });
+    const optionsSchema = z.object({ cacheTtl: z.number() });
 
     defineMiddleware({
       name: 'TestMiddleware',
@@ -737,7 +737,7 @@ describe('defineMiddleware type inference', () => {
       optionsSchema,
       async wrapCreateGeometry(input, handler, { state, options }) {
         expectTypeOf(state.value).toExtend<{ hits?: number }>();
-        expectTypeOf(options).toEqualTypeOf<{ ttl: number }>();
+        expectTypeOf(options).toEqualTypeOf<{ cacheTtl: number }>();
         return handler(input);
       },
     });
@@ -893,9 +893,9 @@ describe('createMiddlewarePlugin type inference', () => {
   });
 
   it('should return an optional-arg factory for all-optional options', () => {
-    const factory = createMiddlewarePlugin<{ ttl?: number }>(staticConfig);
+    const factory = createMiddlewarePlugin<{ cacheTtl?: number }>(staticConfig);
     const noArguments = factory();
-    const withArguments = factory({ ttl: 60 });
+    const withArguments = factory({ cacheTtl: 60 });
     expectTypeOf(noArguments).toEqualTypeOf<MiddlewarePlugin>();
     expectTypeOf(withArguments).toEqualTypeOf<MiddlewarePlugin>();
   });
@@ -965,7 +965,7 @@ describe('createBundlerPlugin type inference', () => {
 });
 
 // =============================================================================
-// RuntimeClient.export() type safety (R15)
+// RuntimeClient.export() type safety
 // =============================================================================
 
 describe('RuntimeClient.export() type safety', () => {
@@ -2048,7 +2048,7 @@ describe('serializeHandle / deserializeHandle type inference', () => {
 });
 
 // =============================================================================
-// KernelPlugin render options phantom type (R3)
+// KernelPlugin render options phantom type
 // =============================================================================
 
 describe('KernelPlugin render options phantom', () => {
@@ -2072,7 +2072,7 @@ describe('KernelPlugin render options phantom', () => {
 });
 
 // =============================================================================
-// CollectRenderOptions type inference (R3)
+// CollectRenderOptions type inference
 // =============================================================================
 
 describe('CollectRenderOptions type inference', () => {
@@ -2104,7 +2104,7 @@ describe('CollectRenderOptions type inference', () => {
 });
 
 // =============================================================================
-// createKernelPlugin renderSchema inference (R3)
+// createKernelPlugin renderSchema inference
 // =============================================================================
 
 describe('createKernelPlugin renderSchema inference', () => {
@@ -2155,7 +2155,7 @@ describe('createKernelPlugin renderSchema inference', () => {
 });
 
 // =============================================================================
-// TranscoderPlugin edge phantom type (R9)
+// TranscoderPlugin edge phantom type
 // =============================================================================
 
 describe('TranscoderPlugin edge phantom type', () => {
@@ -2184,7 +2184,7 @@ describe('TranscoderPlugin edge phantom type', () => {
 });
 
 // =============================================================================
-// CollectTranscodeMap type inference (R9)
+// CollectTranscodeMap type inference
 // =============================================================================
 
 describe('CollectTranscodeMap type inference', () => {
@@ -2259,7 +2259,7 @@ describe('MergeExportMap source-format merging', () => {
 });
 
 // =============================================================================
-// createTranscoderPlugin edge schema inference (R9)
+// createTranscoderPlugin edge schema inference
 // =============================================================================
 
 describe('createTranscoderPlugin edge schema inference', () => {
@@ -2338,7 +2338,7 @@ describe('createTranscoderPlugin from inference', () => {
 });
 
 // =============================================================================
-// E2E: createRuntimeClient — kernels only (Task 5b, Section 1)
+// E2E: createRuntimeClient — kernels only
 // =============================================================================
 
 describe('createRuntimeClient — kernels only', () => {
@@ -2386,21 +2386,21 @@ describe('createRuntimeClient — kernels only', () => {
     void client.export('usdz');
   });
 
-  it('should infer render options from single kernel renderSchema', () => {
+  it('should infer openFile options from single kernel renderSchema', () => {
     const client = createRuntimeClient({ kernels: [k1()] });
-    void client.render({
+    void client.openFile({
       code: { 'main.ts': 'const x = 1;' },
       options: { tessellation: { linearTolerance: 0.1 } },
     });
   });
 
-  it('should union render options from multiple kernels', () => {
+  it('should union openFile options from multiple kernels', () => {
     const client = createRuntimeClient({ kernels: [k1(), k2()] });
-    void client.render({
+    void client.openFile({
       code: { 'main.ts': 'const x = 1;' },
       options: { tessellation: { linearTolerance: 0.1 } },
     });
-    void client.render({
+    void client.openFile({
       code: { 'main.scad': 'cube(1);' },
       options: { segments: 32 },
     });
@@ -2438,7 +2438,7 @@ describe('createRuntimeClient — kernels only', () => {
 });
 
 // =============================================================================
-// E2E: createRuntimeClient — kernels + transcoders (Task 5b, Section 2)
+// E2E: createRuntimeClient — kernels + transcoders
 // =============================================================================
 
 describe('createRuntimeClient — kernels + transcoders', () => {
@@ -2616,7 +2616,7 @@ describe('createRuntimeClient — source-format merging', () => {
 });
 
 // =============================================================================
-// E2E: createRuntimeClientOptions — generic preservation (Task 5b, Section 3)
+// E2E: createRuntimeClientOptions — generic preservation
 // =============================================================================
 
 describe('createRuntimeClientOptions — generic preservation', () => {
@@ -2668,18 +2668,18 @@ describe('createRuntimeClientOptions — generic preservation', () => {
 });
 
 // =============================================================================
-// E2E: RuntimeClient erasure boundaries (Task 5b, Section 5 / R2)
+// E2E: RuntimeClient erasure boundaries
 // =============================================================================
 
-describe('RuntimeClient erasure boundaries (R2)', () => {
+describe('RuntimeClient erasure boundaries', () => {
   it('should compile with explicit wide-default erasure annotation', () => {
-    // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form per R6
+    // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form
     const check = (_client: RuntimeClient<KernelPlugin[], TranscoderPlugin[]>) => {};
     void check;
   });
 
   it('should allow any FileExtension on the erased client', () => {
-    // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form per R6
+    // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form
     const check = (client: RuntimeClient<KernelPlugin[], TranscoderPlugin[]>) => {
       void client.export('anything' as FileExtension);
     };
@@ -2688,7 +2688,7 @@ describe('RuntimeClient erasure boundaries (R2)', () => {
 });
 
 // =============================================================================
-// defineTranscoder type inference (R1, R3, R4, R5, R7)
+// defineTranscoder type inference
 // =============================================================================
 
 describe('defineTranscoder type inference', () => {
@@ -2697,7 +2697,7 @@ describe('defineTranscoder type inference', () => {
     application: z.string().optional(),
   });
 
-  it('should infer literal from/to types from edges and narrow input.from/input.to (R3, R4)', () => {
+  it('should infer literal from/to types from edges and narrow input.from/input.to', () => {
     const transcoder = defineTranscoder({
       name: 'TestTranscoder',
       version: '1.0.0',
@@ -2723,7 +2723,7 @@ describe('defineTranscoder type inference', () => {
     >();
   });
 
-  it('should narrow input.options to z.input<optionsSchema> when discriminating on input.to (R5)', () => {
+  it('should narrow input.options to z.input<optionsSchema> when discriminating on input.to', () => {
     defineTranscoder({
       name: 'TestTranscoder',
       version: '1.0.0',
@@ -2747,7 +2747,7 @@ describe('defineTranscoder type inference', () => {
     });
   });
 
-  it('should default options to Record<string, unknown> when no optionsSchema declared (R5)', () => {
+  it('should default options to Record<string, unknown> when no optionsSchema declared', () => {
     defineTranscoder({
       name: 'TestTranscoder',
       version: '1.0.0',
@@ -2781,7 +2781,7 @@ describe('defineTranscoder type inference', () => {
     });
   });
 
-  it('should infer Options from optionsSchema and pass typed options to initialize (R5)', () => {
+  it('should infer Options from optionsSchema and pass typed options to initialize', () => {
     const optionsSchema = z.object({ verbose: z.boolean().default(false) });
     defineTranscoder({
       name: 'TestTranscoder',
@@ -2815,18 +2815,18 @@ describe('defineTranscoder type inference', () => {
     expectTypeOf(transcoder).toExtend<TranscoderDefinition>();
   });
 
-  it('should NOT have discoverEdges or canTranscode in the contract (R1, R2)', () => {
+  it('should NOT have discoverEdges or canTranscode in the contract', () => {
     expectTypeOf<TranscoderDefinition>().not.toHaveProperty('discoverEdges');
     expectTypeOf<TranscoderDefinition>().not.toHaveProperty('canTranscode');
   });
 
-  it('should expose static edges as a required property (R1)', () => {
+  it('should expose static edges as a required property', () => {
     expectTypeOf<TranscoderDefinition>().toHaveProperty('edges');
   });
 });
 
 // =============================================================================
-// TranscodeInput<Edges> discriminated union (R4, R5, R7)
+// TranscodeInput<Edges> discriminated union
 // =============================================================================
 
 describe('TranscodeInput discriminated union', () => {
@@ -2867,7 +2867,7 @@ describe('TranscodeInput discriminated union', () => {
 });
 
 // =============================================================================
-// converterTranscoder + replicad — production factories (R2)
+// converterTranscoder + replicad — production factories
 // =============================================================================
 
 describe('converterTranscoder + replicad — production factories', () => {
@@ -2922,10 +2922,10 @@ describe('converterTranscoder + replicad — production factories', () => {
 });
 
 // =============================================================================
-// presets.all() — multi-kernel preset typesafety (R17)
+// presets.all() — multi-kernel preset typesafety
 // =============================================================================
 
-describe('presets.all() — multi-kernel preset typesafety (R17)', () => {
+describe('presets.all() — multi-kernel preset typesafety', () => {
   it('should typecheck client.export("glb", { tessellation, coordinateSystem }) on the kernel-native path', () => {
     const client = createRuntimeClient(presets.all());
     void client.export('glb', {
@@ -2934,7 +2934,7 @@ describe('presets.all() — multi-kernel preset typesafety (R17)', () => {
     });
   });
 
-  it('should accept OCCT-style tessellation fields on the multi-kernel preset (Finding 8)', () => {
+  it('should accept OCCT-style tessellation fields on the multi-kernel preset', () => {
     const client = createRuntimeClient(presets.all());
     void client.export('glb', {
       tessellation: { linearTolerance: 0.05, angularTolerance: 10 },
@@ -3003,10 +3003,10 @@ describe('presets.all() — multi-kernel preset typesafety (R17)', () => {
 });
 
 // =============================================================================
-// presets.all() — Record<string, never> regression guard (R18)
+// presets.all() — Record<string, never> regression guard
 // =============================================================================
 
-describe('presets.all() — Record<string, never> regression guard (R18)', () => {
+describe('presets.all() — Record<string, never> regression guard', () => {
   // Mirror of plugin-types.ts:IsRecordStringNever — duplicated intentionally so
   // the invariant is independent of the helper's implementation location.
   type IsRecordStringNeverContract<T> = string extends keyof T ? ([T[string]] extends [never] ? true : false) : false;
@@ -3022,7 +3022,7 @@ describe('presets.all() — Record<string, never> regression guard (R18)', () =>
 });
 
 // =============================================================================
-// CollectKernelIds — derived KernelId generic from kernels tuple (R4)
+// CollectKernelIds — derived KernelId generic from kernels tuple
 // =============================================================================
 
 describe('CollectKernelIds type inference', () => {
@@ -3060,7 +3060,7 @@ describe('CollectKernelIds type inference', () => {
 });
 
 // =============================================================================
-// createRuntimeClient — bestRouteFor KernelId narrowing (R8)
+// createRuntimeClient — bestRouteFor KernelId narrowing
 // =============================================================================
 
 describe('createRuntimeClient — bestRouteFor KernelId narrowing', () => {
@@ -3085,7 +3085,7 @@ describe('createRuntimeClient — bestRouteFor KernelId narrowing', () => {
 });
 
 // =============================================================================
-// TranscoderPlugin Id phantom (R1)
+// TranscoderPlugin Id phantom
 // =============================================================================
 
 describe('TranscoderPlugin Id phantom', () => {
@@ -3124,7 +3124,7 @@ describe('TranscoderPlugin Id phantom', () => {
 });
 
 // =============================================================================
-// Type-bag helpers (R2)
+// Type-bag helpers
 // =============================================================================
 
 describe('Type-bag helpers', () => {
@@ -3201,7 +3201,7 @@ describe('Type-bag helpers', () => {
 });
 
 // =============================================================================
-// RuntimeClient bag propagation (R3)
+// RuntimeClient bag propagation
 // =============================================================================
 
 describe('RuntimeClient bag propagation', () => {
@@ -3245,9 +3245,9 @@ describe('RuntimeClient bag propagation', () => {
     >();
   });
 
-  it('should still type-check render options via the kernels bag', () => {
+  it('should still type-check openFile options via the kernels bag', () => {
     const _check = (client: Client) => {
-      void client.render({
+      void client.openFile({
         code: { '/main.ts': '' },
         options: { tessellation: { linearTolerance: 0.01 } },
       });
@@ -3303,11 +3303,11 @@ describe('RuntimeClient bag propagation', () => {
 });
 
 // =============================================================================
-// Erasure-form equivalence (R6)
+// Erasure-form equivalence
 // =============================================================================
 
-describe('RuntimeClient erasure-form equivalence (R6)', () => {
-  // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form per R6
+describe('RuntimeClient erasure-form equivalence', () => {
+  // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form
   type Wide = RuntimeClient<KernelPlugin[], TranscoderPlugin[]>;
 
   it('should accept any FileExtension and arbitrary options on export under the wide form', () => {
@@ -3335,7 +3335,7 @@ describe('RuntimeClient erasure-form equivalence (R6)', () => {
 });
 
 // =============================================================================
-// Worker boundary witness narrowing (R7)
+// Worker boundary witness narrowing
 //
 // The runtime worker physically emits a wide-default `CapabilitiesManifest`
 // over the wire (no generic information survives `postMessage`). The
@@ -3349,7 +3349,7 @@ describe('RuntimeClient erasure-form equivalence (R6)', () => {
 // `runtime-client.ts` would no longer be safe.
 // =============================================================================
 
-describe('Worker boundary witness narrowing (R7)', () => {
+describe('Worker boundary witness narrowing', () => {
   // oxlint-disable-next-line @typescript-eslint/no-restricted-types -- intentional: empty tuple represents "no transcoders" type-bag
   type NoTranscoders = readonly [];
 
@@ -3378,7 +3378,7 @@ describe('Worker boundary witness narrowing (R7)', () => {
     type Kernels = readonly [KernelPlugin<{ stl: { mesh: { foo: number } } }, { quality: 'low' | 'high' }, 'replicad'>];
 
     const seamCast = (
-      // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form per R6
+      // oxlint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments -- intentional: documents the wide-default erasure form
       wideClient: RuntimeClient<KernelPlugin[], TranscoderPlugin[]>,
     ): CapabilitiesManifest<Kernels, NoTranscoders> | undefined =>
       wideClient.capabilities as unknown as CapabilitiesManifest<Kernels, NoTranscoders> | undefined;
@@ -3387,20 +3387,15 @@ describe('Worker boundary witness narrowing (R7)', () => {
 });
 
 // =============================================================================
-// Type-info preservation invariants (audit-R4)
+// Type-info preservation invariants
 //
-// Regression sentinels for `docs/research/runtime-client-type-preservation-audit.md`.
 // Each `it` locks in a consumer-facing invariant of the runtime-client type
 // surface so future changes (inline rewrites, generic re-shuffles, plugin-union
-// edits) cannot silently erode type information.
-//
-// All assertions are expected GREEN on first run. A RED result indicates that
-// the audit's "FIXED" Status no longer holds and the regression must be fixed
-// at source per the cited recommendation in the audit document — never by
-// weakening the assertion.
+// edits) cannot silently erode type information. Fix any RED assertion at
+// source — never by weakening the assertion.
 // =============================================================================
 
-describe('Type-info preservation invariants (audit-R4)', () => {
+describe('Type-info preservation invariants', () => {
   /* oxlint-disable @typescript-eslint/no-empty-object-type -- matches plugin defaults */
   type ReplicadLike = KernelPlugin<
     { stl: { binary?: boolean }; glb: { coordinateSystem?: 'y-up' | 'z-up' } },
@@ -3420,9 +3415,9 @@ describe('Type-info preservation invariants (audit-R4)', () => {
   type Manifest = NonNullable<Client['capabilities']>;
 
   // ── Clause (a): renderSchemas equals KernelRenderSchema ──────────────────
-  // R1 (audit) — inline expansion in CapabilitiesManifest.renderSchemas must
-  // remain structurally equivalent to the named KernelRenderSchema alias.
-  describe('clause (a) — renderSchemas inline ≡ named (R1)', () => {
+  // The inline expansion in CapabilitiesManifest.renderSchemas must remain
+  // structurally equivalent to the named KernelRenderSchema alias.
+  describe('clause (a) — renderSchemas inline ≡ named', () => {
     it('should keep manifest.renderSchemas.replicad structurally equal to KernelRenderSchema<Kernels, "replicad">', () => {
       type Schema = Manifest['renderSchemas']['replicad'];
       expectTypeOf<Schema>().toEqualTypeOf<KernelRenderSchema<Kernels, 'replicad'> | undefined>();
@@ -3520,11 +3515,11 @@ describe('Type-info preservation invariants (audit-R4)', () => {
     });
   });
 
-  // ── R2 (audit): explicit alias preserves narrow types ────────────────────
+  // ── Explicit alias preserves narrow types ────────────────────
   // ReturnType<typeof createRuntimeClient> picks the implementation signature
   // (wide-default), eroding narrow type info. Always declare an explicit
   // RuntimeClient<MyKernels, MyTranscoders> alias instead.
-  describe('R2 — explicit alias vs ReturnType<typeof createRuntimeClient>', () => {
+  describe('explicit alias vs ReturnType<typeof createRuntimeClient>', () => {
     it('should preserve narrow Kernels through an explicit RuntimeClient<MyKernels> alias', () => {
       type ExplicitClient = RuntimeClient<Kernels, Transcoders>;
       type Cap = NonNullable<ExplicitClient['capabilities']>;
@@ -3543,10 +3538,10 @@ describe('Type-info preservation invariants (audit-R4)', () => {
     });
   });
 
-  // ── R3 (audit): plugin.id is the literal Id, never `any` ────────────────
+  // ── plugin.id is the literal Id, never `any` ────────────────
   // Plugin-union utility types must constrain `Id extends string` so
   // `plugin.id` accesses are statically `string`, not `any`.
-  describe('R3 — plugin.id literal Id preservation', () => {
+  describe('plugin.id literal Id preservation', () => {
     it('should expose plugin.id as the literal Id for typed kernel plugins', () => {
       expectTypeOf<ReplicadLike['id']>().toEqualTypeOf<'replicad'>();
       expectTypeOf<OpenscadLike['id']>().toEqualTypeOf<'openscad'>();

@@ -9,7 +9,7 @@
  * to dogfood the same API path as production consumers.
  */
 
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 import { createRuntimeClient, fromMemoryFS } from '#index.js';
 import { createInProcessTransport } from '#transport/in-process-transport.js';
 import { replicad } from '#plugins/kernel-factories.js';
@@ -33,7 +33,7 @@ export type BenchmarkResult = {
   p95: number;
   p99: number;
   stddev: number;
-  telemetry: PerformanceEntryData[][];
+  telemetry: TelemetryEntry[][];
   ocSummary?: Record<string, { calls: number; totalMs: number }>;
   cpuProfile?: CpuProfile;
   profileAnalysis?: ProfileAnalysis;
@@ -121,7 +121,7 @@ function computeStats(timings: number[]): {
 // =============================================================================
 
 function extractOcSummary(
-  telemetryBatches: PerformanceEntryData[][],
+  telemetryBatches: TelemetryEntry[][],
 ): Record<string, { calls: number; totalMs: number }> | undefined {
   const allEntries = telemetryBatches.flat();
   const summarySpan = allEntries.find((entry) => entry.name === 'oc.summary');
@@ -182,8 +182,8 @@ export async function runBenchmarks(
     onProgress?.(caseIndex, totalWork, benchCase.name);
 
     const timings: number[] = [];
-    const allTelemetry: PerformanceEntryData[][] = [];
-    const telemetryBatches: PerformanceEntryData[][] = [];
+    const allTelemetry: TelemetryEntry[][] = [];
+    const telemetryBatches: TelemetryEntry[][] = [];
 
     const absoluteFiles: Record<string, string> = {};
     for (const [filename, content] of Object.entries(benchCase.files)) {

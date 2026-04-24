@@ -7,7 +7,7 @@
  */
 
 import type { CpuProfile, ProfileNode } from '#benchmarks/cpu-profiler.js';
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 
 // =============================================================================
 // Types
@@ -276,7 +276,7 @@ function computeCategoryBreakdown(profile: CpuProfile, nodeMap: Map<number, Prof
  * @param telemetry - Optional telemetry span entries from RuntimeTracer for phase correlation
  * @returns Complete profile analysis with category breakdown and top functions
  */
-export function analyzeProfile(profile: CpuProfile, telemetry?: PerformanceEntryData[][]): ProfileAnalysis {
+export function analyzeProfile(profile: CpuProfile, telemetry?: TelemetryEntry[][]): ProfileAnalysis {
   const nodeMap = new Map<number, ProfileNode>();
   for (const node of profile.nodes) {
     nodeMap.set(node.id, node);
@@ -308,7 +308,7 @@ export function analyzeProfile(profile: CpuProfile, telemetry?: PerformanceEntry
 // Telemetry span aggregation
 // =============================================================================
 
-function aggregateSpans(telemetry?: PerformanceEntryData[][]): SpanSummary[] {
+function aggregateSpans(telemetry?: TelemetryEntry[][]): SpanSummary[] {
   if (!telemetry || telemetry.length === 0) {
     return [];
   }

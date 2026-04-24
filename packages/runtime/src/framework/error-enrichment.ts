@@ -3,9 +3,6 @@
  *
  * Standalone functions for parsing stack traces, classifying frames,
  * resolving source maps, and deriving error locations.
- *
- * Extracted from JavaScriptWorker to be usable by both legacy workers
- * and new defineKernel modules.
  */
 
 import { SourceMapConsumer } from 'source-map-js';

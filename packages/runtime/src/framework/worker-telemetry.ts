@@ -23,7 +23,7 @@
  * Kernel-authored:     {kernelName}.{operation} (e.g., replicad.wasm-init, replicad.run-main, openscad.call-main)
  */
 
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 
 /**
  * Collects performance measure entries in a worker and flushes them in batches.
@@ -32,8 +32,8 @@ import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
  */
 export class WorkerTelemetryCollector {
   // oxlint-disable-next-line @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids parameter properties
-  private readonly send: (entries: PerformanceEntryData[]) => void;
-  private readonly pending: PerformanceEntryData[] = [];
+  private readonly send: (entries: TelemetryEntry[]) => void;
+  private readonly pending: TelemetryEntry[] = [];
   private readonly observer: PerformanceObserver;
 
   /**
@@ -41,7 +41,7 @@ export class WorkerTelemetryCollector {
    *
    * @param send - callback that transmits batched entries to the main thread
    */
-  public constructor(send: (entries: PerformanceEntryData[]) => void) {
+  public constructor(send: (entries: TelemetryEntry[]) => void) {
     this.send = send;
     this.observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -81,6 +81,6 @@ export class WorkerTelemetryCollector {
  * @param entry - performance entry with worker-relative timing
  * @returns absolute timestamp (workerTimeOrigin + startTime)
  */
-export function toAbsoluteTime(entry: PerformanceEntryData): number {
+export function toAbsoluteTime(entry: TelemetryEntry): number {
   return entry.workerTimeOrigin + entry.startTime;
 }

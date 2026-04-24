@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { WorkerTelemetryCollector, toAbsoluteTime } from '#framework/worker-telemetry.js';
-import type { PerformanceEntryData } from '#types/runtime-protocol.types.js';
+import type { TelemetryEntry } from '#types/runtime-protocol.types.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe('toAbsoluteTime', () => {
   it('should add workerTimeOrigin and startTime to produce absolute time', () => {
-    const entry: PerformanceEntryData = {
+    const entry: TelemetryEntry = {
       name: 'kernel.render',
       startTime: 100,
       duration: 50,
@@ -40,7 +40,7 @@ describe('WorkerTelemetryCollector', () => {
     collector.flush();
 
     if (send.mock.calls.length > 0) {
-      const entries = send.mock.calls[0]![0] as PerformanceEntryData[];
+      const entries = send.mock.calls[0]![0] as TelemetryEntry[];
       expect(entries.length).toBeGreaterThan(0);
       const testEntry = entries.find((entry) => entry.name === 'test.measure');
       expect(testEntry).toBeDefined();
@@ -79,7 +79,7 @@ describe('WorkerTelemetryCollector', () => {
     collector.dispose();
 
     if (send.mock.calls.length > 0) {
-      const entries = send.mock.calls[0]![0] as PerformanceEntryData[];
+      const entries = send.mock.calls[0]![0] as TelemetryEntry[];
       const testEntry = entries.find((entry) => entry.name === 'dispose-flush.measure');
       expect(testEntry).toBeDefined();
     }
