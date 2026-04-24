@@ -430,9 +430,11 @@
     @apply border-border focus-visible:outline-primary;
   }
 
+  html,
   body {
     @apply scroll-smooth bg-background font-sans text-foreground antialiased;
     overflow: hidden;
+    overscroll-behavior: none;
   }
 }
 
@@ -504,7 +506,22 @@
  *
  * Usage: scroll-shadows-x, scroll-shadows-y, or scroll-shadows (both)
  * Override --scroll-fade-size to control the fade distance.
+ *
+ * --scroll-fade-end controls the alpha of the mask at the fading edge.
+ * Dark mode keeps the original `transparent` so content fades fully into
+ * the dark background (reads as a depth shadow). Light mode uses a
+ * partially-opaque value so the edge stays visibly dimmed instead of
+ * washing all the way out to the surface color (the "whitened" look).
  */
+
+:root {
+  --scroll-fade-end: oklch(0 0 0 / 0.45);
+}
+
+.dark,
+:root[class~='dark'] {
+  --scroll-fade-end: transparent;
+}
 
 @property --scroll-fade-top {
   syntax: '<color>';
@@ -533,15 +550,15 @@
 @keyframes scroll-fade-y {
   0% {
     --scroll-fade-top: black;
-    --scroll-fade-bottom: transparent;
+    --scroll-fade-bottom: var(--scroll-fade-end);
   }
   3%,
   97% {
-    --scroll-fade-top: transparent;
-    --scroll-fade-bottom: transparent;
+    --scroll-fade-top: var(--scroll-fade-end);
+    --scroll-fade-bottom: var(--scroll-fade-end);
   }
   100% {
-    --scroll-fade-top: transparent;
+    --scroll-fade-top: var(--scroll-fade-end);
     --scroll-fade-bottom: black;
   }
 }
@@ -549,15 +566,15 @@
 @keyframes scroll-fade-x {
   0% {
     --scroll-fade-left: black;
-    --scroll-fade-right: transparent;
+    --scroll-fade-right: var(--scroll-fade-end);
   }
   3%,
   97% {
-    --scroll-fade-left: transparent;
-    --scroll-fade-right: transparent;
+    --scroll-fade-left: var(--scroll-fade-end);
+    --scroll-fade-right: var(--scroll-fade-end);
   }
   100% {
-    --scroll-fade-left: transparent;
+    --scroll-fade-left: var(--scroll-fade-end);
     --scroll-fade-right: black;
   }
 }
@@ -613,6 +630,17 @@
     scroll-fade-y linear,
     scroll-fade-x linear;
   animation-timeline: scroll(self y), scroll(self x);
+}
+
+/*
+ * Static bottom-only fade. Unlike `scroll-shadows-y`, this utility does NOT
+ * require the host to be scrollable — it composes with `overflow: hidden`
+ * so callers can apply it conditionally (e.g. when JS detects content
+ * overflowing a fixed-height clipped viewport).
+ */
+@utility scroll-shadow-bottom {
+  --scroll-fade-size: 14px;
+  mask-image: linear-gradient(to bottom, black, black calc(100% - var(--scroll-fade-size)), var(--scroll-fade-end));
 }
 
 /* END SCROLL SHADOWS */
