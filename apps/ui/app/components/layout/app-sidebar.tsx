@@ -11,7 +11,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '#components/ui/sidebar.js';
-import { AlphaBadge } from '#components/alpha-badge.js';
+import { ReleaseBadge } from '#components/release-badge.js';
 import { TauWordmark } from '#components/icons/tau-wordmark.js';
 import { NavChat } from '#components/nav/nav-chat.js';
 import { navRoutes } from '#constants/route.constants.js';
@@ -34,7 +34,7 @@ export function AppSidebar({ ...properties }: React.ComponentProps<typeof Sideba
             <span className='sr-only'>Home</span>
           </Link>
         </SidebarMenuButton>
-        {showAlphaBadge ? <AlphaBadge /> : null}
+        {showAlphaBadge ? <ReleaseBadge /> : null}
       </SidebarHeader>
       <SidebarContent className='gap-0'>
         <div className='sticky top-0 z-10'>
