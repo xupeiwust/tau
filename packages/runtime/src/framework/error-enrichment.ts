@@ -241,16 +241,28 @@ function applySourceMapToFrames(options: {
  * @param rawSource - raw source path from the library's source map
  * @returns cleaned display path prefixed with the module name
  */
-export function resolveLibrarySourcePath(moduleName: string, rawSource: string): string {
+export function resolveLibrarySourcePath(moduleName: string, rawSource: string, stripPattern?: string): string {
   let clean = rawSource;
 
   if (clean.startsWith('file://')) {
     clean = clean.slice(7);
   }
 
-  const nodeModulesPattern = `node_modules/${moduleName}/`;
-  const nodeModulesIndex = clean.indexOf(nodeModulesPattern);
-  if (nodeModulesIndex === -1) {
+  const candidatePatterns = [stripPattern, `node_modules/${moduleName}/`].filter(
+    (p): p is string => typeof p === 'string' && p.length > 0,
+  );
+
+  let stripped = false;
+  for (const candidate of candidatePatterns) {
+    const index = clean.indexOf(candidate);
+    if (index !== -1) {
+      clean = clean.slice(index + candidate.length);
+      stripped = true;
+      break;
+    }
+  }
+
+  if (!stripped) {
     while (clean.startsWith('../')) {
       clean = clean.slice(3);
     }
@@ -258,8 +270,6 @@ export function resolveLibrarySourcePath(moduleName: string, rawSource: string):
     while (clean.startsWith('./')) {
       clean = clean.slice(2);
     }
-  } else {
-    clean = clean.slice(nodeModulesIndex + nodeModulesPattern.length);
   }
 
   clean = clean.replaceAll('\\', '/').replaceAll(/\/+/g, '/');
@@ -305,7 +315,7 @@ export function applyLibrarySourceMaps(
         if (original.source) {
           return {
             ...frame,
-            fileName: resolveLibrarySourcePath(library.moduleName, original.source),
+            fileName: resolveLibrarySourcePath(library.moduleName, original.source, library.pattern),
             // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
             lineNumber: original.line ?? frame.lineNumber,
             // oxlint-disable-next-line @typescript-eslint/no-unnecessary-condition -- source-map-js returns null at runtime despite types saying number
@@ -320,7 +330,7 @@ export function applyLibrarySourceMaps(
 
     return {
       ...frame,
-      fileName: resolveLibrarySourcePath(library.moduleName, frame.fileName),
+      fileName: resolveLibrarySourcePath(library.moduleName, frame.fileName, library.pattern),
     };
   });
 }
