@@ -23,6 +23,7 @@ import { noHardcodedColorRule } from './rules/no-hardcoded-color.js';
 import { noTimeUnitSuffixRule } from './rules/no-time-unit-suffix.js';
 import { noBareTimeIdentifierRule } from './rules/no-bare-time-identifier.js';
 import { noAsyncIifeRule } from './rules/no-async-iife.js';
+import { staticImportMetaUrlRule } from './rules/static-import-meta-url.js';
 
 /** @type {Plugin} */
 const plugin = {
@@ -47,6 +48,7 @@ const plugin = {
     'no-time-unit-suffix': noTimeUnitSuffixRule,
     'no-bare-time-identifier': noBareTimeIdentifierRule,
     'no-async-iife': noAsyncIifeRule,
+    'static-import-meta-url': staticImportMetaUrlRule,
   },
 };
 
