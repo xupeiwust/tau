@@ -41,9 +41,9 @@ export type FileEntry = FileTreeEntry & {
  * @public
  */
 export type FileStat = {
-  type: 'file' | 'dir';
-  size: number;
-  mtimeMs: number;
+  readonly type: 'file' | 'dir';
+  readonly size: number;
+  readonly mtimeMs: number;
 };
 
 /**
@@ -53,8 +53,8 @@ export type FileStat = {
  * @public
  */
 export type FileStatEntry = FileStat & {
-  path: string;
-  name: string;
+  readonly path: string;
+  readonly name: string;
 };
 
 /**
