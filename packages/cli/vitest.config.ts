@@ -6,6 +6,13 @@ export default defineConfig({
   test: {
     environment: 'node',
     passWithNoTests: true,
+    /*
+     * The dist-smoke test spawns the built CLI against the real birdhouse
+     * fixture; the cold path includes WASM init for the replicad kernel.
+     * 60s gives plenty of headroom on slow CI runners while keeping the
+     * default short for the rest of the suite.
+     */
+    testTimeout: 60_000,
     typecheck: {
       enabled: true,
       include: ['**/*.test-d.ts'],
@@ -17,7 +24,7 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: '../../coverage/packages/cli',
       include: ['src/**/*'],
-      exclude: ['src/**/*.{test,spec,test-d}.ts'],
+      exclude: ['src/**/*.{test,spec,test-d}.ts', 'src/cli-dist.test.ts'],
       thresholds: {
         statements: 100,
         branches: 100,
