@@ -57,6 +57,9 @@ export async function initOpenCascade(
   const instance = await factory({
     instantiateWasm(imports: WebAssembly.Imports, successCallback: (instance: WebAssembly.Instance) => void) {
       const instSpan = tracer?.startSpan('wasm.instantiate');
+      // async-iife: bootstrap — Emscripten's instantiateWasm hook is a
+      // synchronous callback that hands control back via `successCallback`;
+      // there is no Promise to thread back to the caller.
       void (async () => {
         try {
           const wasmInstance = await WebAssembly.instantiate(compiledModule, imports);
