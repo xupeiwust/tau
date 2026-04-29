@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createRuntimeClient } from '@taucad/runtime';
-import { createInProcessTransport } from '@taucad/runtime/transport';
+import { inProcessTransport } from '@taucad/runtime/transport';
+import { fromMemoryFs } from '@taucad/runtime/filesystem';
 import { replicad } from '@taucad/runtime/kernels';
 import { esbuild } from '@taucad/runtime/bundler';
 import type { MeasurementTestRequirement } from '#schemas.js';
@@ -13,19 +14,15 @@ async function renderGlb(filename: string, code: string): Promise<Uint8Array<Arr
   const client = createRuntimeClient({
     kernels: [replicad()],
     bundlers: [esbuild()],
-    transport: createInProcessTransport(),
+    transport: inProcessTransport.client({ fileSystem: fromMemoryFs() }),
   });
 
   try {
-    const result = await client.render({ code: { [filename]: code }, file: filename });
+    const result = await client.export('glb', { code: { [filename]: code }, file: filename });
     if (!result.success) {
-      throw new Error(`Render failed: ${result.issues.map((i) => i.message).join('; ')}`);
+      throw new Error(`Export failed: ${result.issues.map((issue) => issue.message).join('; ')}`);
     }
-    const gltf = result.data.find((g) => g.format === 'gltf');
-    if (!gltf) {
-      throw new Error('No GLTF geometry in render result');
-    }
-    return gltf.content;
+    return result.data.bytes;
   } finally {
     client.terminate();
   }
