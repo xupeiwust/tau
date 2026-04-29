@@ -188,7 +188,7 @@ const config = [
       parserOptions: {
         ...tseslint.configs.base.languageOptions?.parserOptions,
         projectService: {
-          allowDefaultProject: ['eslint.config.mjs'],
+          allowDefaultProject: ['eslint.config.mjs', 'examples/electron-tau/electron.vite.config.ts'],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -321,6 +321,35 @@ const config = [
   },
 
   {
+    /*
+     * Standalone examples (see `.oxlintrc.json` Bucket A justification): drop
+     * Tau-internal module-resolution rules (`#alias` enforcement, `.js`
+     * extensions) so the examples reflect portable consumer-style code.
+     */
+    files: ['examples/**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      'import-x/extensions': 'off',
+      '@typescript-eslint/naming-convention': 'warn',
+    },
+  },
+
+  {
+    /*
+     * Electron PoC example: a small standalone app shell that mixes
+     * SCREAMING_SNAKE_CASE constants (glTF magic numbers) with React
+     * components, making the workspace's strict naming-convention contract
+     * an awkward fit. The example is non-shipping, so we relax the rule
+     * mirror-style to `libs/tau-examples`.
+     */
+    files: ['examples/electron-tau/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/naming-convention': 'off',
+      '@typescript-eslint/member-ordering': 'off',
+      '@typescript-eslint/explicit-member-accessibility': 'off',
+    },
+  },
+
+  {
     files: ['apps/ui/content/docs/**/*.mdx'],
     languageOptions: { parser: mdxParser },
     plugins: { 'tau-lint': tauLintPlugin },
@@ -329,6 +358,21 @@ const config = [
       'tau-lint/validate-mdx-links': 'error',
       'tau-lint/validate-mdx-external-links': 'warn', // `warn` here to prevent network errors from failing the build
       'tau-lint/no-declare-in-mdx-codeblock': 'error',
+    },
+  },
+
+  {
+    /*
+     * Static `new URL(literal, import.meta.url)` invariant: every WASM/font/plugin
+     * chunk shipped from `@taucad/runtime` and `@taucad/openscad` must use a
+     * string-literal first arg so consumer bundlers (Vite/Rolldown, Webpack 5,
+     * Parcel 2, esbuild) lift the asset to a hashed URL during build.
+     * See docs/research/runtime-zero-config-bundling.md (Finding 1, R5).
+     */
+    files: ['packages/runtime/src/**/*.{ts,tsx}', 'kernels/openscad/src/**/*.{ts,tsx}'],
+    plugins: { 'tau-lint': tauLintPlugin },
+    rules: {
+      'tau-lint/static-import-meta-url': 'error',
     },
   },
 ];
