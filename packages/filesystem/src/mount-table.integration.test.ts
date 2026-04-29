@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MountTable } from '#mount-table.js';
-import { FileService } from '#file-service.js';
+import { WorkspaceFileService } from '#workspace-file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
 import { ResourceQueue } from '#resource-queue.js';
 import { DirectoryTreeCache } from '#directory-tree-cache.js';
 import { ChangeEventBus } from '#change-event-bus.js';
-import { createMemoryProvider } from '#providers/memory-provider.js';
+import { createMemoryProvider } from '#backend/memory-provider.js';
 import type { ChangeEvent, FileSystemProvider } from '#types.js';
 
-async function createMountedFileService() {
+async function createMountedWorkspaceFileService() {
   const rootProvider = await createMemoryProvider();
   const nodeModulesProvider = await createMemoryProvider();
 
@@ -22,7 +22,7 @@ async function createMountedFileService() {
   const treeCache = new DirectoryTreeCache();
   const eventBus = new ChangeEventBus();
 
-  const service = new FileService({
+  const service = new WorkspaceFileService({
     providerRegistry,
     resourceQueue,
     treeCache,
@@ -34,13 +34,13 @@ async function createMountedFileService() {
 }
 
 describe('MountTable integration', () => {
-  let service: FileService;
+  let service: WorkspaceFileService;
   let rootProvider: FileSystemProvider;
   let nodeModulesProvider: FileSystemProvider;
   let eventBus: ChangeEventBus;
 
   beforeEach(async () => {
-    const context = await createMountedFileService();
+    const context = await createMountedWorkspaceFileService();
     service = context.service;
     rootProvider = context.rootProvider;
     nodeModulesProvider = context.nodeModulesProvider;
@@ -212,7 +212,7 @@ describe('MountTable integration', () => {
       const mt = new MountTable();
       mt.mount('/', provider, { backend: 'memory' });
 
-      const svc = new FileService({
+      const svc = new WorkspaceFileService({
         providerRegistry,
         resourceQueue: new ResourceQueue(),
         treeCache: new DirectoryTreeCache(),
@@ -317,7 +317,7 @@ describe('MountTable integration', () => {
       projectMountTable.mount('/', rootProvider, { backend: 'memory' });
       const projectEventBus = new ChangeEventBus();
 
-      const projectService = new FileService({
+      const projectService = new WorkspaceFileService({
         providerRegistry,
         resourceQueue: new ResourceQueue(),
         treeCache: new DirectoryTreeCache(),

@@ -7,7 +7,7 @@ const defaultSearchMaxResults = 100;
  * @public
  */
 export type TreeNode = {
-  type: 'file' | 'directory';
+  type: 'file' | 'dir';
   size: number;
   mtimeMs: number;
   children?: Map<string, TreeNode>;
@@ -20,13 +20,13 @@ export type TreeNode = {
  * with a single in-memory lookup. Built once from a provider scan, then updated
  * incrementally on every write/delete/rename.
  *
- * When used from {@link FileService}, paths are **relative to the first full
+ * When used from {@link WorkspaceFileService}, paths are **relative to the first full
  * `getDirectoryStat` scan root** (not host absolute paths like `/projects/id/...`).
  *
  * @public
  */
 export class InMemoryFileTree {
-  private _root: TreeNode = { type: 'directory', size: 0, mtimeMs: 0, children: new Map() };
+  private _root: TreeNode = { type: 'dir', size: 0, mtimeMs: 0, children: new Map() };
   private _built = false;
 
   /**
@@ -43,8 +43,8 @@ export class InMemoryFileTree {
    *
    * @param entries - Flat file entries with relative paths and metadata.
    */
-  public build(entries: Array<{ path: string; type: 'file' | 'directory'; size: number; mtimeMs: number }>): void {
-    this._root = { type: 'directory', size: 0, mtimeMs: 0, children: new Map() };
+  public build(entries: Array<{ path: string; type: 'file' | 'dir'; size: number; mtimeMs: number }>): void {
+    this._root = { type: 'dir', size: 0, mtimeMs: 0, children: new Map() };
 
     for (const entry of entries) {
       const segments = entry.path.split('/').filter(Boolean);
@@ -60,10 +60,10 @@ export class InMemoryFileTree {
         continue;
       }
 
-      if (entry.type === 'directory') {
+      if (entry.type === 'dir') {
         if (!parent.children.has(name)) {
           parent.children.set(name, {
-            type: 'directory',
+            type: 'dir',
             size: 0,
             mtimeMs: entry.mtimeMs,
             children: new Map(),
@@ -111,7 +111,7 @@ export class InMemoryFileTree {
 
   /**
    * Recursively collect file stat entries under a directory, matching
-   * the signature of `FileService.getDirectoryStat`.
+   * the signature of `WorkspaceFileService.getDirectoryStat`.
    *
    * @param basePath - Absolute directory path to walk.
    * @returns Flat array of file stat entries with paths relative to basePath.
@@ -260,7 +260,7 @@ export class InMemoryFileTree {
 
   /** Reset the tree to empty state. */
   public clear(): void {
-    this._root = { type: 'directory', size: 0, mtimeMs: 0, children: new Map() };
+    this._root = { type: 'dir', size: 0, mtimeMs: 0, children: new Map() };
     this._built = false;
   }
 
@@ -285,7 +285,7 @@ export class InMemoryFileTree {
       current.children ??= new Map();
       let child = current.children.get(segment);
       if (!child) {
-        child = { type: 'directory', size: 0, mtimeMs: Date.now(), children: new Map() };
+        child = { type: 'dir', size: 0, mtimeMs: Date.now(), children: new Map() };
         current.children.set(segment, child);
       }
       current = child;

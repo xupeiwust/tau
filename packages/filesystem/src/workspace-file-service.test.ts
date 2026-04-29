@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
-import { FileService } from '#file-service.js';
+import { WorkspaceFileService } from '#workspace-file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
 import { ResourceQueue } from '#resource-queue.js';
 import { DirectoryTreeCache } from '#directory-tree-cache.js';
@@ -35,7 +35,7 @@ async function waitFor(predicate: () => boolean, waitTimeout = 2000, pollInterva
   }
 }
 
-async function createFileService() {
+async function createWorkspaceFileService() {
   const providerRegistry = new ProviderRegistry();
   const provider = await providerRegistry.createMountProvider('memory');
 
@@ -46,7 +46,7 @@ async function createFileService() {
   const treeCache = new DirectoryTreeCache();
   const eventBus = new ChangeEventBus();
 
-  const service = new FileService({
+  const service = new WorkspaceFileService({
     providerRegistry,
     resourceQueue,
     treeCache,
@@ -57,18 +57,43 @@ async function createFileService() {
   return { service, eventBus, treeCache, providerRegistry, resourceQueue, mountTable, provider };
 }
 
-describe('FileService', () => {
-  let service: FileService;
+describe('WorkspaceFileService', () => {
+  let service: WorkspaceFileService;
   let eventBus: ChangeEventBus;
   let providerRegistry: ProviderRegistry;
   let rootProvider: FileSystemProvider;
 
   beforeEach(async () => {
-    const context = await createFileService();
+    const context = await createWorkspaceFileService();
     service = context.service;
     eventBus = context.eventBus;
     providerRegistry = context.providerRegistry;
     rootProvider = context.provider;
+  });
+
+  describe('Layer 2 composition', () => {
+    it('exposes a FileSystemService via fileSystem', () => {
+      expect(service.fileSystem).toBeDefined();
+      expect(typeof service.fileSystem.readFile).toBe('function');
+      expect(typeof service.fileSystem.asProvider).toBe('function');
+      expect(typeof service.fileSystem.asRuntimeFileSystem).toBe('function');
+    });
+
+    it('Layer 2 service shares the workspace mount table for path routing', async () => {
+      await service.writeFile('/layer2.txt', 'hello');
+      const bytes = await service.fileSystem.readFile('/layer2.txt');
+      expect(decoder.decode(bytes)).toBe('hello');
+    });
+
+    it('Layer 2 writes are visible to the workspace eventBus', async () => {
+      const events: ChangeEvent[] = [];
+      const off = eventBus.subscribe((event) => events.push(event));
+
+      service.fileSystem.publishChangeEvent({ type: 'fileWritten', path: '/probe.txt', backend: 'memory' });
+
+      expect(events.some((e) => e.type === 'fileWritten' && e.path === '/probe.txt')).toBe(true);
+      off();
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -671,7 +696,7 @@ describe('FileService', () => {
         readdir: vi.fn().mockResolvedValue(['zebra.txt', 'alpha', 'beta.txt', 'alpha-dir']),
         stat: vi.fn().mockImplementation(async (path: string) => {
           const directories = new Set(['/alpha', '/alpha-dir']);
-          return { isDirectory: directories.has(path), isFile: !directories.has(path), size: 10, mtimeMs: 1 };
+          return { type: directories.has(path) ? 'dir' : 'file', size: 10, mtimeMs: 1 };
         }),
         readdirWithStats: undefined,
       });
@@ -710,7 +735,7 @@ describe('FileService', () => {
         readdir: vi.fn().mockResolvedValue(['good.txt', 'bad.txt']),
         stat: vi.fn().mockImplementation(async (path: string) => {
           if (path === '/good.txt') {
-            return { isDirectory: false, isFile: true, size: 5, mtimeMs: 1 };
+            return { type: 'file', size: 5, mtimeMs: 1 };
           }
           throw new Error('stat failed');
         }),
@@ -725,7 +750,7 @@ describe('FileService', () => {
     it('should build correct paths when root is /', async () => {
       const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['file.txt']),
-        stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
+        stat: vi.fn().mockResolvedValue({ type: 'file', size: 1, mtimeMs: 1 }),
         readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
@@ -738,7 +763,7 @@ describe('FileService', () => {
     it('should build correct paths for nested directories', async () => {
       const mockProvider = mock<FileSystemProvider>({
         readdir: vi.fn().mockResolvedValue(['child.txt']),
-        stat: vi.fn().mockResolvedValue({ isDirectory: false, isFile: true, size: 1, mtimeMs: 1 }),
+        stat: vi.fn().mockResolvedValue({ type: 'file', size: 1, mtimeMs: 1 }),
         readdirWithStats: undefined,
       });
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
@@ -1117,11 +1142,11 @@ describe('FileService', () => {
 });
 
 // =============================================================================
-// Integration: FileService + DirectIdbProvider
+// Integration: WorkspaceFileService + DirectIdbProvider
 // =============================================================================
 
-describe('FileService integration [DirectIDB]', () => {
-  let service: FileService;
+describe('WorkspaceFileService integration [DirectIDB]', () => {
+  let service: WorkspaceFileService;
 
   beforeEach(async () => {
     const providerRegistry = new ProviderRegistry({
@@ -1136,7 +1161,7 @@ describe('FileService integration [DirectIDB]', () => {
     const treeCache = new DirectoryTreeCache();
     const eventBus = new ChangeEventBus();
 
-    service = new FileService({
+    service = new WorkspaceFileService({
       providerRegistry,
       resourceQueue,
       treeCache,
@@ -1180,7 +1205,7 @@ describe('FileService integration [DirectIDB]', () => {
     const mountTable = new MountTable();
     mountTable.mount('/', provider, { backend: 'indexeddb' });
 
-    const eventService = new FileService({
+    const eventService = new WorkspaceFileService({
       providerRegistry,
       resourceQueue: new ResourceQueue(),
       treeCache: new DirectoryTreeCache(),
@@ -1243,7 +1268,7 @@ describe('FileService integration [DirectIDB]', () => {
   // ---------------------------------------------------------------------------
 
   describe('SharedPool integration', () => {
-    async function createFileServiceWithPool() {
+    async function createWorkspaceFileServiceWithPool() {
       const buffer = new SharedArrayBuffer(128 * 1024);
       const pool = new SharedPool(buffer, { maxEntries: 128 });
 
@@ -1256,7 +1281,7 @@ describe('FileService integration [DirectIDB]', () => {
       const treeCache = new DirectoryTreeCache();
       const eventBus = new ChangeEventBus();
 
-      const svc = new FileService({
+      const svc = new WorkspaceFileService({
         providerRegistry,
         resourceQueue,
         treeCache,
@@ -1269,7 +1294,7 @@ describe('FileService integration [DirectIDB]', () => {
     }
 
     it('should store binary content in pool after readFile', async () => {
-      const { service: svc, pool } = await createFileServiceWithPool();
+      const { service: svc, pool } = await createWorkspaceFileServiceWithPool();
       await svc.writeFile('/cached.txt', 'pooled content');
 
       await svc.readFile('/cached.txt');
@@ -1280,7 +1305,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should invalidate pool entry on writeFile', async () => {
-      const { service: svc, pool } = await createFileServiceWithPool();
+      const { service: svc, pool } = await createWorkspaceFileServiceWithPool();
       await svc.writeFile('/update.txt', 'original');
       await svc.readFile('/update.txt');
       expect(pool.has('/update.txt')).toBe(true);
@@ -1290,7 +1315,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should invalidate pool entries on rename', async () => {
-      const { service: svc, pool } = await createFileServiceWithPool();
+      const { service: svc, pool } = await createWorkspaceFileServiceWithPool();
       await svc.writeFile('/old.txt', 'data');
       await svc.readFile('/old.txt');
       expect(pool.has('/old.txt')).toBe(true);
@@ -1301,7 +1326,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should invalidate pool entry on unlink', async () => {
-      const { service: svc, pool } = await createFileServiceWithPool();
+      const { service: svc, pool } = await createWorkspaceFileServiceWithPool();
       await svc.writeFile('/delete.txt', 'data');
       await svc.readFile('/delete.txt');
       expect(pool.has('/delete.txt')).toBe(true);
@@ -1311,7 +1336,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should work identically without pool', async () => {
-      const { service: svc } = await createFileService();
+      const { service: svc } = await createWorkspaceFileService();
       await svc.writeFile('/no-pool.txt', 'data');
 
       const content = await svc.readFile('/no-pool.txt', 'utf8');
@@ -1319,7 +1344,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should accept filePool via setFilePool after construction', async () => {
-      const { service: svc } = await createFileService();
+      const { service: svc } = await createWorkspaceFileService();
       const buffer = new SharedArrayBuffer(128 * 1024);
       const pool = new SharedPool(buffer, { maxEntries: 128 });
 
@@ -1334,7 +1359,7 @@ describe('FileService integration [DirectIDB]', () => {
     });
 
     it('should invalidate late-bound pool on writeFile', async () => {
-      const { service: svc } = await createFileService();
+      const { service: svc } = await createWorkspaceFileService();
       const buffer = new SharedArrayBuffer(128 * 1024);
       const pool = new SharedPool(buffer, { maxEntries: 128 });
 
@@ -1399,7 +1424,7 @@ describe('FileService integration [DirectIDB]', () => {
   // ---------------------------------------------------------------------------
 
   describe('mount / unmount', () => {
-    let mountedService: FileService;
+    let mountedService: WorkspaceFileService;
     let mountedEventBus: ChangeEventBus;
     let mountedRegistry: ProviderRegistry;
 
@@ -1411,7 +1436,7 @@ describe('FileService integration [DirectIDB]', () => {
       mountTable.mount('/', rootProvider, { backend: 'memory' });
       mountedEventBus = new ChangeEventBus();
 
-      mountedService = new FileService({
+      mountedService = new WorkspaceFileService({
         providerRegistry: mountedRegistry,
         resourceQueue: new ResourceQueue(),
         treeCache: new DirectoryTreeCache(),

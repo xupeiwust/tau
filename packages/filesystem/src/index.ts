@@ -1,6 +1,7 @@
 export type {
   ProviderCapabilities,
-  ProviderFileStat,
+  FileStat,
+  FileStatEntry,
   FileSystemProvider,
   FileReadStreamOptions,
   ChangeEvent,
@@ -9,10 +10,15 @@ export type {
   WatchEventFilter,
   WatchRequest,
   WatchEvent,
+  FileContentCache,
+  RuntimeFileSystem,
 } from '#types.js';
 
-export { FileService } from '#file-service.js';
-export type { MkdirOptions } from '#file-service.js';
+export { createFileSystemService, createFileSystemServiceOptions } from '#file-system-service.js';
+export type { FileSystemService, FileSystemServiceOptions } from '#file-system-service.js';
+
+export { WorkspaceFileService } from '#workspace-file-service.js';
+export type { MkdirOptions } from '#workspace-file-service.js';
 
 export { ProviderRegistry } from '#provider-registry.js';
 export type { ProviderRegistryOptions } from '#provider-registry.js';
@@ -35,9 +41,9 @@ export {
   FileSystemObserverBridge,
   isFileSystemObserverSupported,
   mapObserverRecord,
-} from '#providers/filesystem-observer-bridge.js';
-export { streamChunkSize, bufferToStream } from '#providers/stream-utils.js';
-export type { FileReadStreamOptions as StreamFileReadOptions } from '#providers/stream-utils.js';
+} from '#backend/filesystem-observer-bridge.js';
+export { streamChunkSize, bufferToStream } from '#backend/stream-utils.js';
+export type { FileReadStreamOptions as StreamFileReadOptions } from '#backend/stream-utils.js';
 export { CrossTabCoordinator, isNavigatorLocksSupported } from '#cross-tab-coordinator.js';
 
 export { MountTable } from '#mount-table.js';

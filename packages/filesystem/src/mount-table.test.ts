@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MountTable } from '#mount-table.js';
-import { createMemoryProvider } from '#providers/memory-provider.js';
+import { createMemoryProvider } from '#backend/memory-provider.js';
 import type { FileSystemProvider } from '#types.js';
 
 describe('MountTable', () => {

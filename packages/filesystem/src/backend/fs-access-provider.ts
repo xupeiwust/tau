@@ -8,9 +8,9 @@
  * @see https://developer.mozilla.org/en-US/docs/Web/API/File_System_API
  */
 
-import type { ProviderCapabilities, ProviderFileStat, FileReadStreamOptions } from '#types.js';
-import { AbstractFileSystemProvider } from '#providers/abstract-provider.js';
-import { streamChunkSize } from '#providers/stream-utils.js';
+import type { FileReadStreamOptions, FileStat, ProviderCapabilities } from '#types.js';
+import { AbstractFileSystemProvider } from '#backend/abstract-provider.js';
+import { streamChunkSize } from '#backend/stream-utils.js';
 
 const handleCacheMaxEntries = 10_000;
 
@@ -63,26 +63,26 @@ export class FileSystemAccessProvider extends AbstractFileSystemProvider {
     return entries;
   }
 
-  public async readdirWithStats(path: string): Promise<Array<{ name: string } & ProviderFileStat>> {
+  public async readdirWithStats(path: string): Promise<Array<{ name: string } & FileStat>> {
     const directoryHandle = await this._resolveDirectoryHandle(path);
-    const result: Array<{ name: string } & ProviderFileStat> = [];
+    const result: Array<{ name: string } & FileStat> = [];
     for await (const [name, handle] of directoryHandle.entries()) {
       if (handle.kind === 'directory') {
-        result.push({ name, size: 0, mtimeMs: Date.now(), isDirectory: true, isFile: false });
+        result.push({ name, type: 'dir', size: 0, mtimeMs: Date.now() });
       } else {
         // oxlint-disable-next-line no-await-in-loop -- Sequential within single directory iteration
         const file = await handle.getFile();
-        result.push({ name, size: file.size, mtimeMs: file.lastModified, isDirectory: false, isFile: true });
+        result.push({ name, type: 'file', size: file.size, mtimeMs: file.lastModified });
       }
     }
     return result;
   }
 
-  public async stat(path: string): Promise<ProviderFileStat> {
+  public async stat(path: string): Promise<FileStat> {
     const segments = this._splitPath(path);
 
     if (segments.length === 0) {
-      return { size: 0, mtimeMs: Date.now(), isDirectory: true, isFile: false };
+      return { type: 'dir', size: 0, mtimeMs: Date.now() };
     }
 
     const parentHandle = await this._resolveDirectoryHandle('/' + segments.slice(0, -1).join('/'));
@@ -91,11 +91,11 @@ export class FileSystemAccessProvider extends AbstractFileSystemProvider {
     try {
       const fileHandle = await parentHandle.getFileHandle(name);
       const file = await fileHandle.getFile();
-      return { size: file.size, mtimeMs: file.lastModified, isDirectory: false, isFile: true };
+      return { type: 'file', size: file.size, mtimeMs: file.lastModified };
     } catch {
       try {
         await parentHandle.getDirectoryHandle(name);
-        return { size: 0, mtimeMs: Date.now(), isDirectory: true, isFile: false };
+        return { type: 'dir', size: 0, mtimeMs: Date.now() };
       } catch {
         throw this._enoent(path);
       }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryFileTree } from '#in-memory-file-tree.js';
 
-/** Paths in these tests are relative to the virtual tree root (same convention as FileService after scan-root normalization). */
+/** Paths in these tests are relative to the virtual tree root (same convention as WorkspaceFileService after scan-root normalization). */
 describe('InMemoryFileTree', () => {
   let tree: InMemoryFileTree;
 
@@ -35,7 +35,7 @@ describe('InMemoryFileTree', () => {
       tree.build([]);
       const node = tree.stat('/');
       expect(node).toBeDefined();
-      expect(node?.type).toBe('directory');
+      expect(node?.type).toBe('dir');
     });
 
     it('should return file metadata', () => {
@@ -94,7 +94,7 @@ describe('InMemoryFileTree', () => {
       tree.addFile('/src/main.ts', 100, 1000);
 
       expect(tree.stat('/src')).toBeDefined();
-      expect(tree.stat('/src')?.type).toBe('directory');
+      expect(tree.stat('/src')?.type).toBe('dir');
       expect(tree.stat('/src/main.ts')?.size).toBe(100);
     });
 
@@ -119,9 +119,9 @@ describe('InMemoryFileTree', () => {
 
       tree.addDirectory('/a/b/c');
 
-      expect(tree.stat('/a')?.type).toBe('directory');
-      expect(tree.stat('/a/b')?.type).toBe('directory');
-      expect(tree.stat('/a/b/c')?.type).toBe('directory');
+      expect(tree.stat('/a')?.type).toBe('dir');
+      expect(tree.stat('/a/b')?.type).toBe('dir');
+      expect(tree.stat('/a/b/c')?.type).toBe('dir');
     });
 
     it('should remove a directory and all contents', () => {
@@ -207,7 +207,7 @@ describe('InMemoryFileTree', () => {
     it('should exclude directories by default', () => {
       const results = tree.searchFiles('utils');
       const types = results.map((r) => r.type);
-      expect(types).not.toContain('directory');
+      expect(types).not.toContain('dir');
     });
 
     it('should return empty array for no matches', () => {
@@ -234,7 +234,7 @@ describe('InMemoryFileTree', () => {
 
   describe('performance', () => {
     it('should handle getDirectoryStat for 6000+ entries under 20ms', () => {
-      const entries: Array<{ path: string; type: 'file' | 'directory'; size: number; mtimeMs: number }> = [];
+      const entries: Array<{ path: string; type: 'file' | 'dir'; size: number; mtimeMs: number }> = [];
       for (let i = 0; i < 6265; i++) {
         const directory = `dir${Math.floor(i / 100)}`;
         entries.push({

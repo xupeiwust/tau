@@ -1,7 +1,7 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Side-effect import to polyfill IndexedDB for tests
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { DirectIdbProvider } from '#providers/direct-idb-provider.js';
+import { DirectIdbProvider } from '#backend/direct-idb-provider.js';
 
 const encoder = new TextEncoder();
 
@@ -84,7 +84,7 @@ describe('DirectIdbProvider', () => {
       const result = await provider.readFile('/a/b/c/file.txt', 'utf8');
       expect(result).toBe('nested');
       const parentStat = await provider.stat('/a/b');
-      expect(parentStat.isDirectory).toBe(true);
+      expect(parentStat.type).toBe('dir');
     });
   });
 
@@ -148,15 +148,13 @@ describe('DirectIdbProvider', () => {
       await provider.writeFile('/sized.txt', 'hello');
       const stats = await provider.stat('/sized.txt');
       expect(stats.size).toBe(5);
-      expect(stats.isFile).toBe(true);
-      expect(stats.isDirectory).toBe(false);
+      expect(stats.type).toBe('file');
     });
 
     it('should return correct stats for a directory', async () => {
       await provider.mkdir('/dir');
       const stats = await provider.stat('/dir');
-      expect(stats.isDirectory).toBe(true);
-      expect(stats.isFile).toBe(false);
+      expect(stats.type).toBe('dir');
     });
 
     it('should return a numeric mtimeMs', async () => {
@@ -179,20 +177,20 @@ describe('DirectIdbProvider', () => {
     it('should create a directory', async () => {
       await provider.mkdir('/newdir');
       const stats = await provider.stat('/newdir');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should create nested directories with recursive option', async () => {
       await provider.mkdir('/a/b/c', { recursive: true });
       const stats = await provider.stat('/a/b/c');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should succeed when recursive mkdir with existing intermediate dirs', async () => {
       await provider.mkdir('/x');
       await provider.mkdir('/x/y/z', { recursive: true });
       const stats = await provider.stat('/x/y/z');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should throw when parent does not exist without recursive', async () => {
@@ -278,15 +276,13 @@ describe('DirectIdbProvider', () => {
     it('should return file stats', async () => {
       await provider.writeFile('/lstat.txt', 'data');
       const stats = await provider.lstat('/lstat.txt');
-      expect(stats.isFile).toBe(true);
-      expect(stats.isDirectory).toBe(false);
+      expect(stats.type).toBe('file');
     });
 
     it('should return directory stats', async () => {
       await provider.mkdir('/lstat-dir');
       const stats = await provider.lstat('/lstat-dir');
-      expect(stats.isDirectory).toBe(true);
-      expect(stats.isFile).toBe(false);
+      expect(stats.type).toBe('dir');
     });
 
     it('should throw for non-existent path', async () => {
@@ -344,7 +340,7 @@ describe('DirectIdbProvider', () => {
       expect(await provider.exists('/x/y')).toBe(true);
       expect(await provider.exists('/x/y/z')).toBe(true);
       const stats = await provider.stat('/x/y');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should handle empty import map without error', async () => {
@@ -397,13 +393,11 @@ describe('DirectIdbProvider', () => {
       const directory = entries.find((entry) => entry.name === 'utils');
 
       expect(file).toBeDefined();
-      expect(file!.isFile).toBe(true);
-      expect(file!.isDirectory).toBe(false);
+      expect(file!.type).toBe('file');
       expect(file!.size).toBe(new TextEncoder().encode('export {}').byteLength);
 
       expect(directory).toBeDefined();
-      expect(directory!.isDirectory).toBe(true);
-      expect(directory!.isFile).toBe(false);
+      expect(directory!.type).toBe('dir');
     });
 
     it('should use cached sizes from writeFile without extra IDB reads', async () => {

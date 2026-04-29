@@ -5,8 +5,8 @@
  * filesystem operations (tests, scratch spaces).
  */
 
-import type { ProviderCapabilities, ProviderFileStat } from '#types.js';
-import { AbstractFileSystemProvider } from '#providers/abstract-provider.js';
+import type { FileStat, ProviderCapabilities } from '#types.js';
+import { AbstractFileSystemProvider } from '#backend/abstract-provider.js';
 
 /**
  * Non-persistent, in-memory filesystem provider.
@@ -71,41 +71,39 @@ export class MemoryProvider extends AbstractFileSystemProvider {
     return [...entries];
   }
 
-  public async readdirWithStats(path: string): Promise<Array<{ name: string } & ProviderFileStat>> {
+  public async readdirWithStats(path: string): Promise<Array<{ name: string } & FileStat>> {
     const names = await this.readdir(path);
     const prefix = path === '/' ? '/' : `${path}/`;
-    const result: Array<{ name: string } & ProviderFileStat> = [];
+    const result: Array<{ name: string } & FileStat> = [];
     for (const name of names) {
       const fullPath = `${prefix}${name}`;
       if (this._dirs.has(fullPath)) {
         result.push({
           name,
+          type: 'dir',
           size: 0,
           mtimeMs: this._mtimes.get(fullPath) ?? Date.now(),
-          isDirectory: true,
-          isFile: false,
         });
       } else {
         const data = this._files.get(fullPath);
         result.push({
           name,
+          type: 'file',
           size: data?.byteLength ?? 0,
           mtimeMs: this._mtimes.get(fullPath) ?? Date.now(),
-          isDirectory: false,
-          isFile: true,
         });
       }
     }
     return result;
   }
 
-  public async stat(path: string): Promise<ProviderFileStat> {
+  public async stat(path: string): Promise<FileStat> {
     if (this._dirs.has(path)) {
-      return { size: 0, mtimeMs: this._mtimes.get(path) ?? Date.now(), isDirectory: true, isFile: false };
+      return { type: 'dir', size: 0, mtimeMs: this._mtimes.get(path) ?? Date.now() };
     }
     const data = this._files.get(path);
     if (data) {
-      return { size: data.byteLength, mtimeMs: this._mtimes.get(path) ?? Date.now(), isDirectory: false, isFile: true };
+      return { type: 'file', size: data.byteLength, mtimeMs: this._mtimes.get(path) ?? Date.now() };
     }
     throw this._enoent(path);
   }
@@ -241,7 +239,7 @@ export class MemoryProvider extends AbstractFileSystemProvider {
  * @public
  * @example <caption>Ephemeral in-memory filesystem</caption>
  * ```typescript
- * import { createMemoryProvider } from '@taucad/filesystem/providers';
+ * import { createMemoryProvider } from '@taucad/filesystem/backend';
  *
  * const provider = await createMemoryProvider();
  * await provider.writeFile('/hello.txt', 'world');

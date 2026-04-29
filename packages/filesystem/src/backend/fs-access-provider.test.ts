@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FileSystemAccessProvider } from '#providers/fs-access-provider.js';
+import { FileSystemAccessProvider } from '#backend/fs-access-provider.js';
 import { createMockRootHandle } from '#testing/mock-handle-factory.js';
 
 describe('FileSystemAccessProvider', () => {
@@ -120,20 +120,18 @@ describe('FileSystemAccessProvider', () => {
       await provider.writeFile('/sized.txt', 'hello');
       const stats = await provider.stat('/sized.txt');
       expect(stats.size).toBe(5);
-      expect(stats.isFile).toBe(true);
-      expect(stats.isDirectory).toBe(false);
+      expect(stats.type).toBe('file');
     });
 
     it('should return correct stats for a directory', async () => {
       await provider.mkdir('/dir');
       const stats = await provider.stat('/dir');
-      expect(stats.isDirectory).toBe(true);
-      expect(stats.isFile).toBe(false);
+      expect(stats.type).toBe('dir');
     });
 
     it('should return correct stats for root', async () => {
       const stats = await provider.stat('/');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should throw for non-existent path', async () => {
@@ -149,13 +147,13 @@ describe('FileSystemAccessProvider', () => {
     it('should create a directory', async () => {
       await provider.mkdir('/newdir');
       const stats = await provider.stat('/newdir');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should create nested directories with recursive option', async () => {
       await provider.mkdir('/a/b/c', { recursive: true });
       const stats = await provider.stat('/a/b/c');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
   });
 
@@ -280,10 +278,10 @@ describe('FileSystemAccessProvider', () => {
       const file = entries.find((entry) => entry.name === 'index.ts');
       const directory = entries.find((entry) => entry.name === 'utils');
 
-      expect(file!.isFile).toBe(true);
+      expect(file!.type).toBe('file');
       expect(file!.size).toBeGreaterThan(0);
 
-      expect(directory!.isDirectory).toBe(true);
+      expect(directory!.type).toBe('dir');
     });
   });
 });

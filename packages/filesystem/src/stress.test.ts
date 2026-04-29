@@ -248,7 +248,7 @@ describe('DirectoryTreeCache stress tests', () => {
     const cache = new DirectoryTreeCache();
 
     for (let i = 0; i < 1000; i++) {
-      const entries = new Map<string, { name: string; type: 'file' | 'directory'; size: number; mtimeMs: number }>();
+      const entries = new Map<string, { name: string; type: 'file' | 'dir'; size: number; mtimeMs: number }>();
       for (let j = 0; j < 10; j++) {
         entries.set(`file-${j}.txt`, { name: `file-${j}.txt`, type: 'file', size: j * 100, mtimeMs: Date.now() });
       }

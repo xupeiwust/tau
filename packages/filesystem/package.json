@@ -26,7 +26,7 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./providers": "./src/providers/index.ts"
+    "./backend": "./src/backend/index.ts"
   },
   "publishConfig": {
     "access": "public",
@@ -41,14 +41,14 @@
           "default": "./dist/esm/index.js"
         }
       },
-      "./providers": {
+      "./backend": {
         "require": {
-          "types": "./dist/cjs/providers/index.d.cts",
-          "default": "./dist/cjs/providers/index.cjs"
+          "types": "./dist/cjs/backend/index.d.cts",
+          "default": "./dist/cjs/backend/index.cjs"
         },
         "import": {
-          "types": "./dist/esm/providers/index.d.ts",
-          "default": "./dist/esm/providers/index.js"
+          "types": "./dist/esm/backend/index.d.ts",
+          "default": "./dist/esm/backend/index.js"
         }
       }
     }

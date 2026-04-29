@@ -3,7 +3,7 @@ import {
   isFileSystemObserverSupported,
   mapObserverRecord,
   FileSystemObserverBridge,
-} from '#providers/filesystem-observer-bridge.js';
+} from '#backend/filesystem-observer-bridge.js';
 import type { ChangeEvent } from '#types.js';
 
 const testBackend = 'webaccess';

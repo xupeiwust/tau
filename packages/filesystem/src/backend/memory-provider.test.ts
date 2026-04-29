@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMemoryProvider } from '#providers/memory-provider.js';
+import { createMemoryProvider } from '#backend/memory-provider.js';
 
 describe('createMemoryProvider', () => {
   it('should return a provider with id "memory"', async () => {
@@ -60,12 +60,10 @@ describe('createMemoryProvider', () => {
     const directoryEntry = entries.find((entry) => entry.name === 'utils');
 
     expect(fileEntry).toBeDefined();
-    expect(fileEntry!.isFile).toBe(true);
-    expect(fileEntry!.isDirectory).toBe(false);
+    expect(fileEntry!.type).toBe('file');
     expect(fileEntry!.size).toBeGreaterThan(0);
 
     expect(directoryEntry).toBeDefined();
-    expect(directoryEntry!.isDirectory).toBe(true);
-    expect(directoryEntry!.isFile).toBe(false);
+    expect(directoryEntry!.type).toBe('dir');
   });
 });

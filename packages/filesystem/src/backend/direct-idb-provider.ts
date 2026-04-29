@@ -7,8 +7,8 @@
  * path set on init (~26ms for 10k entries vs ~12s ZenFS full scan).
  */
 
-import type { ProviderCapabilities, ProviderFileStat } from '#types.js';
-import { AbstractFileSystemProvider } from '#providers/abstract-provider.js';
+import type { FileStat, ProviderCapabilities } from '#types.js';
+import { AbstractFileSystemProvider } from '#backend/abstract-provider.js';
 
 const storeName = 'files';
 const dbVersion = 1;
@@ -120,10 +120,10 @@ export class DirectIdbProvider extends AbstractFileSystemProvider {
     return [...entries];
   }
 
-  public async readdirWithStats(path: string): Promise<Array<{ name: string } & ProviderFileStat>> {
+  public async readdirWithStats(path: string): Promise<Array<{ name: string } & FileStat>> {
     const names = await this.readdir(path);
     const prefix = path === '/' ? '/' : `${path}/`;
-    const result: Array<{ name: string } & ProviderFileStat> = [];
+    const result: Array<{ name: string } & FileStat> = [];
     const unknownSizePaths: Array<{ index: number; fullPath: string }> = [];
 
     for (const name of names) {
@@ -131,10 +131,9 @@ export class DirectIdbProvider extends AbstractFileSystemProvider {
       if (this._dirs.has(fullPath)) {
         result.push({
           name,
+          type: 'dir',
           size: 0,
           mtimeMs: this._mtimes.get(fullPath) ?? Date.now(),
-          isDirectory: true,
-          isFile: false,
         });
       } else {
         const cachedSize = this._fileSizes.get(fullPath);
@@ -142,18 +141,16 @@ export class DirectIdbProvider extends AbstractFileSystemProvider {
           unknownSizePaths.push({ index: result.length, fullPath });
           result.push({
             name,
+            type: 'file',
             size: 0,
             mtimeMs: this._mtimes.get(fullPath) ?? Date.now(),
-            isDirectory: false,
-            isFile: true,
           });
         } else {
           result.push({
             name,
+            type: 'file',
             size: cachedSize,
             mtimeMs: this._mtimes.get(fullPath) ?? Date.now(),
-            isDirectory: false,
-            isFile: true,
           });
         }
       }
@@ -189,19 +186,19 @@ export class DirectIdbProvider extends AbstractFileSystemProvider {
     return result;
   }
 
-  public async stat(path: string): Promise<ProviderFileStat> {
+  public async stat(path: string): Promise<FileStat> {
     if (this._dirs.has(path)) {
-      return { size: 0, mtimeMs: this._mtimes.get(path) ?? Date.now(), isDirectory: true, isFile: false };
+      return { type: 'dir', size: 0, mtimeMs: this._mtimes.get(path) ?? Date.now() };
     }
     if (this._paths.has(path)) {
       const cachedSize = this._fileSizes.get(path);
       if (cachedSize !== undefined) {
-        return { size: cachedSize, mtimeMs: this._mtimes.get(path) ?? Date.now(), isDirectory: false, isFile: true };
+        return { type: 'file', size: cachedSize, mtimeMs: this._mtimes.get(path) ?? Date.now() };
       }
       const data = await this._idbGet(path);
       const size = data?.byteLength ?? 0;
       this._fileSizes.set(path, size);
-      return { size, mtimeMs: this._mtimes.get(path) ?? Date.now(), isDirectory: false, isFile: true };
+      return { type: 'file', size, mtimeMs: this._mtimes.get(path) ?? Date.now() };
     }
     throw this._enoent(path);
   }

@@ -8,7 +8,7 @@
  */
 
 import type { ProviderCapabilities } from '#types.js';
-import { FileSystemAccessProvider } from '#providers/fs-access-provider.js';
+import { FileSystemAccessProvider } from '#backend/fs-access-provider.js';
 
 /**
  * Filesystem provider backed by the Origin Private File System.

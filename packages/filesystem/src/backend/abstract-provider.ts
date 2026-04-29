@@ -5,7 +5,7 @@
  * dispose) so concrete providers only implement storage-specific primitives.
  */
 
-import type { FileSystemProvider, ProviderCapabilities, ProviderFileStat } from '#types.js';
+import type { FileSystemProvider, FileStat, ProviderCapabilities } from '#types.js';
 
 /**
  * Base class for native {@link FileSystemProvider} implementations.
@@ -62,7 +62,7 @@ export abstract class AbstractFileSystemProvider implements FileSystemProvider {
     }
   }
 
-  public async lstat(path: string): Promise<ProviderFileStat> {
+  public async lstat(path: string): Promise<FileStat> {
     return this.stat(path);
   }
 
@@ -73,7 +73,7 @@ export abstract class AbstractFileSystemProvider implements FileSystemProvider {
 
   public abstract writeFile(path: string, data: Uint8Array<ArrayBuffer> | string): Promise<void>;
   public abstract readdir(path: string): Promise<string[]>;
-  public abstract stat(path: string): Promise<ProviderFileStat>;
+  public abstract stat(path: string): Promise<FileStat>;
   public abstract unlink(path: string): Promise<void>;
   public abstract rmdir(path: string): Promise<void>;
   public abstract rename(from: string, to: string): Promise<void>;

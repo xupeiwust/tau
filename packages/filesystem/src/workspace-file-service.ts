@@ -1,37 +1,23 @@
 import type { FileStat, FileStatEntry, FileSystemBackend } from '@taucad/types';
-import type {
-  FileTreeNode,
-  ProviderFileStat,
-  TreeEntry,
-  WatchRequest,
-  WatchEvent,
-  FileReadStreamOptions,
-} from '#types.js';
+import type { FileTreeNode, TreeEntry, WatchRequest, WatchEvent, FileReadStreamOptions } from '#types.js';
 import type { ProviderRegistry } from '#provider-registry.js';
 import type { ResourceQueue } from '#resource-queue.js';
 import type { DirectoryTreeCache } from '#directory-tree-cache.js';
 import type { ChangeEventBus } from '#change-event-bus.js';
 import { InMemoryFileTree } from '#in-memory-file-tree.js';
 import { WatchRegistry } from '#watch-registry.js';
-import { bufferToStream } from '#providers/stream-utils.js';
+import { bufferToStream } from '#backend/stream-utils.js';
 import { CrossTabCoordinator } from '#cross-tab-coordinator.js';
 import type { SharedPool } from '@taucad/memory';
 import type { MountTable, MountOptions, MountResolution } from '#mount-table.js';
+import { createFileSystemService, type FileSystemService } from '#file-system-service.js';
 import { parentDirectory, joinPath, normalizePath } from '@taucad/utils/path';
 
 /** Milliseconds. */
 const kernelCoalescingWindow = 75;
 
-function toFileStat(stat: ProviderFileStat): FileStat {
-  return {
-    type: stat.isDirectory ? 'dir' : 'file',
-    size: stat.size,
-    mtimeMs: stat.mtimeMs,
-  };
-}
-
 /**
- * Options for {@link FileService.mkdir}.
+ * Options for {@link WorkspaceFileService.mkdir}.
  * @public
  */
 export type MkdirOptions = {
@@ -40,11 +26,17 @@ export type MkdirOptions = {
 };
 
 /**
- * High-level filesystem service that coordinates reads, writes, caching,
- * and watch subscriptions across pluggable storage providers.
+ * Layer 3a UI-side workspace orchestrator.
+ *
+ * Composes the routing/watch backbone of {@link FileSystemService} (Layer 2)
+ * with workspace-only concerns: tree caching, in-memory file index for fast
+ * search, cross-tab write coordination, shared-memory file pool, multi-backend
+ * provider creation via {@link ProviderRegistry}, and tree-shaped helpers
+ * (zip, copy directory, recursive stat).
+ *
  * @public
  */
-export class FileService {
+export class WorkspaceFileService {
   private readonly _registry: ProviderRegistry;
   private readonly _resourceQueue: ResourceQueue;
   private readonly _treeCache: DirectoryTreeCache;
@@ -53,12 +45,13 @@ export class FileService {
   private readonly _crossTabCoordinator: CrossTabCoordinator;
   private _filePool: SharedPool | undefined;
   private readonly _mountTable: MountTable;
+  private readonly _fs: FileSystemService;
   private readonly _inMemoryTree = new InMemoryFileTree();
   /** Absolute path passed to the first {@link getDirectoryStat} that populated the tree; in-memory paths are relative to this root. */
   private _directoryStatRoot: string | undefined;
 
   /**
-   * Create a FileService with injected dependencies.
+   * Create a {@link WorkspaceFileService} with injected dependencies.
    *
    * @param options - Service dependencies injected at construction time.
    */
@@ -81,6 +74,18 @@ export class FileService {
     this._crossTabCoordinator = options.crossTabCoordinator ?? new CrossTabCoordinator();
     this._filePool = options.filePool;
     this._mountTable = options.mountTable;
+    this._fs = createFileSystemService({ mountTable: options.mountTable, eventBus: options.eventBus });
+  }
+
+  /**
+   * The Layer 2 {@link FileSystemService} backbone. Exposed so consumers that
+   * only need primitive operations (e.g. kernel hosts) can drop down to the
+   * narrow surface without depending on workspace orchestration.
+   *
+   * @returns The composed {@link FileSystemService} instance.
+   */
+  public get fileSystem(): FileSystemService {
+    return this._fs;
   }
 
   /**
@@ -207,7 +212,7 @@ export class FileService {
    */
   public async stat(path: string): Promise<FileStat> {
     const { provider, path: resolvedPath } = this._resolveProvider(path);
-    return toFileStat(await provider.stat(resolvedPath));
+    return await provider.stat(resolvedPath);
   }
 
   /**
@@ -218,7 +223,7 @@ export class FileService {
    */
   public async lstat(path: string): Promise<FileStat> {
     const { provider, path: resolvedPath } = this._resolveProvider(path);
-    return toFileStat(await provider.lstat(resolvedPath));
+    return await provider.lstat(resolvedPath);
   }
 
   /**
@@ -364,7 +369,7 @@ export class FileService {
       if (source.provider === target.provider) {
         await source.provider.rename(source.path, target.path);
       } else {
-        console.warn('[FileService] Cross-mount rename: copy+delete', from, '->', to);
+        console.warn('[WorkspaceFileService] Cross-mount rename: copy+delete', from, '->', to);
         const data = await source.provider.readFile(source.path);
         await target.provider.writeFile(target.path, data);
         await source.provider.unlink(source.path);
@@ -566,7 +571,7 @@ export class FileService {
         for (const entry of statsEntries) {
           entryMap.set(entry.name, {
             name: entry.name,
-            type: entry.isDirectory ? 'directory' : 'file',
+            type: entry.type,
             size: entry.size,
             mtimeMs: entry.mtimeMs,
           });
@@ -580,7 +585,7 @@ export class FileService {
             const stat = await provider.stat(fullPath);
             entryMap.set(entry, {
               name: entry,
-              type: stat.isDirectory ? 'directory' : 'file',
+              type: stat.type,
               size: stat.size,
               mtimeMs: stat.mtimeMs,
             });
@@ -597,7 +602,7 @@ export class FileService {
     for (const mount of childMounts) {
       const mountName = mount.prefix.split('/').pop();
       if (mountName && !entryMap.has(mountName)) {
-        entryMap.set(mountName, { name: mountName, type: 'directory', size: 0, mtimeMs: Date.now() });
+        entryMap.set(mountName, { name: mountName, type: 'dir', size: 0, mtimeMs: Date.now() });
       }
     }
 
@@ -704,7 +709,7 @@ export class FileService {
         const statsEntries = await provider.readdirWithStats(path);
         for (const entry of statsEntries) {
           const fullPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
-          if (entry.isDirectory) {
+          if (entry.type === 'dir') {
             nodes.push({ id: fullPath, name: entry.name, children: [] });
           } else {
             nodes.push({ id: fullPath, name: entry.name });
@@ -717,7 +722,7 @@ export class FileService {
           try {
             // oxlint-disable-next-line no-await-in-loop -- Sequential stat required for tree building
             const stat = await provider.stat(fullPath);
-            if (stat.isDirectory) {
+            if (stat.type === 'dir') {
               nodes.push({ id: fullPath, name: entry, children: [] });
             } else {
               nodes.push({ id: fullPath, name: entry });
@@ -781,7 +786,7 @@ export class FileService {
 
   /**
    * Dynamically mount a path prefix on a new provider instance of the given backend.
-   * The caller owns the path convention; FileService is domain-agnostic.
+   * The caller owns the path convention; WorkspaceFileService is domain-agnostic.
    *
    * @param prefix - Absolute path prefix to mount (e.g. `/data`, `/projects/abc`).
    * @param backend - Storage backend for the new mount.
@@ -832,6 +837,7 @@ export class FileService {
   /** Release all resources: watches, providers, caches, and event bus. */
   public dispose(): void {
     this._watchRegistry.dispose();
+    this._fs.dispose();
     this._registry.disposeAll();
     this._treeCache.clear();
     this._eventBus.dispose();
@@ -873,8 +879,8 @@ export class FileService {
   private async _collectDirectoryStatsFromProvider(
     provider: {
       readdir(path: string): Promise<string[]>;
-      stat(path: string): Promise<ProviderFileStat>;
-      readdirWithStats?(path: string): Promise<Array<{ name: string } & ProviderFileStat>>;
+      stat(path: string): Promise<FileStat>;
+      readdirWithStats?(path: string): Promise<Array<{ name: string } & FileStat>>;
     },
     scan: { walkPath: string; basePath: string },
     options?: { signal?: AbortSignal },
@@ -895,7 +901,7 @@ export class FileService {
           }
 
           const fullPath = joinPath(currentPath, entry.name);
-          if (entry.isFile) {
+          if (entry.type === 'file') {
             const relativePath = innerBasePath === '/' ? fullPath.slice(1) : fullPath.slice(innerBasePath.length + 1);
             const segments = relativePath.split('/');
             const filename = segments.at(-1) ?? relativePath;
@@ -921,7 +927,7 @@ export class FileService {
           const fullPath = joinPath(currentPath, entry);
           // oxlint-disable-next-line no-await-in-loop -- Sequential stat required for recursive tree walk
           const stat = await provider.stat(fullPath);
-          if (stat.isFile) {
+          if (stat.type === 'file') {
             const relativePath = innerBasePath === '/' ? fullPath.slice(1) : fullPath.slice(innerBasePath.length + 1);
             const segments = relativePath.split('/');
             const filename = segments.at(-1) ?? relativePath;
@@ -983,7 +989,7 @@ export class FileService {
   private _treeEntriesToNodes(entries: Map<string, TreeEntry>): FileTreeNode[] {
     const nodes: FileTreeNode[] = [];
     for (const [, entry] of entries) {
-      if (entry.type === 'directory') {
+      if (entry.type === 'dir') {
         nodes.push({ id: entry.name, name: entry.name, children: [] });
       } else {
         nodes.push({ id: entry.name, name: entry.name });
@@ -1050,7 +1056,7 @@ export class FileService {
   private async _getDirectoryContentsInternal(
     provider: {
       readdir(path: string): Promise<string[]>;
-      stat(path: string): Promise<ProviderFileStat>;
+      stat(path: string): Promise<FileStat>;
       readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
     },
     path: string,
@@ -1063,7 +1069,7 @@ export class FileService {
         const fullPath = joinPath(currentPath, entry);
         // oxlint-disable-next-line no-await-in-loop -- Sequential stat required for recursive collection
         const stat = await provider.stat(fullPath);
-        if (stat.isFile) {
+        if (stat.type === 'file') {
           const relativePath = basePath === '/' ? fullPath.slice(1) : fullPath.slice(basePath.length + 1);
           // oxlint-disable-next-line no-await-in-loop -- Sequential reads required for recursive collection
           files[relativePath] = await provider.readFile(fullPath);

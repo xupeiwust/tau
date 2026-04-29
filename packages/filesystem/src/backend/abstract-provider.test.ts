@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AbstractFileSystemProvider } from '#providers/abstract-provider.js';
-import type { ProviderCapabilities, ProviderFileStat } from '#types.js';
+import { AbstractFileSystemProvider } from '#backend/abstract-provider.js';
+import type { FileStat, ProviderCapabilities } from '#types.js';
 
 const encoder = new TextEncoder();
 
@@ -51,13 +51,13 @@ class TestProvider extends AbstractFileSystemProvider {
     return [...entries];
   }
 
-  public async stat(path: string): Promise<ProviderFileStat> {
+  public async stat(path: string): Promise<FileStat> {
     if (this._dirs.has(path)) {
-      return { size: 0, mtimeMs: Date.now(), isDirectory: true, isFile: false };
+      return { type: 'dir', size: 0, mtimeMs: Date.now() };
     }
     const data = this._files.get(path);
     if (data) {
-      return { size: data.byteLength, mtimeMs: Date.now(), isDirectory: false, isFile: true };
+      return { type: 'file', size: data.byteLength, mtimeMs: Date.now() };
     }
     const error = new Error(`ENOENT: no such file or directory '${path}'`);
     (error as NodeJS.ErrnoException).code = 'ENOENT';
@@ -148,16 +148,14 @@ describe('AbstractFileSystemProvider', () => {
     it('should return file stats matching stat output', async () => {
       await provider.writeFile('/lstat.txt', 'data');
       const stats = await provider.lstat('/lstat.txt');
-      expect(stats.isFile).toBe(true);
-      expect(stats.isDirectory).toBe(false);
+      expect(stats.type).toBe('file');
       expect(stats.size).toBe(4);
     });
 
     it('should return directory stats matching stat output', async () => {
       await provider.mkdir('/lstat-dir');
       const stats = await provider.lstat('/lstat-dir');
-      expect(stats.isDirectory).toBe(true);
-      expect(stats.isFile).toBe(false);
+      expect(stats.type).toBe('dir');
     });
 
     it('should throw for non-existent path', async () => {
@@ -200,7 +198,7 @@ describe('AbstractFileSystemProvider', () => {
     it('should create a single directory', async () => {
       await provider.mkdir('/newdir');
       const stats = await provider.stat('/newdir');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should create nested directories with recursive option', async () => {
@@ -209,14 +207,14 @@ describe('AbstractFileSystemProvider', () => {
       expect(await provider.exists('/a/b')).toBe(true);
       expect(await provider.exists('/a/b/c')).toBe(true);
       const stats = await provider.stat('/a/b/c');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should succeed when intermediate directories already exist', async () => {
       await provider.mkdir('/x');
       await provider.mkdir('/x/y/z', { recursive: true });
       const stats = await provider.stat('/x/y/z');
-      expect(stats.isDirectory).toBe(true);
+      expect(stats.type).toBe('dir');
     });
 
     it('should throw when parent does not exist without recursive', async () => {

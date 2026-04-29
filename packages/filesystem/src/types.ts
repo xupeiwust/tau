@@ -4,13 +4,15 @@
  * Core types for the layered filesystem architecture:
  * - FileSystemProvider: abstraction over filesystem backends
  * - ProviderCapabilities: what a provider supports
- * - ProviderFileStat: stat result from provider operations
+ * - FileStat: stat result from provider operations (canonical: @taucad/types)
  * - ChangeEvent: push-based change notifications (canonical definition in @taucad/types)
  * - FileTreeNode: tree representation for /files route
  */
 
+import type { FileStat, FileStatEntry } from '@taucad/types';
+
 // oxlint-disable-next-line no-barrel-files/no-barrel-files -- re-export for internal consumers that import from #types.js
-export type { ChangeEvent } from '@taucad/types';
+export type { ChangeEvent, FileStat, FileStatEntry } from '@taucad/types';
 
 /**
  * Capability flags describing what a storage provider supports.
@@ -25,17 +27,6 @@ export type ProviderCapabilities = {
 };
 
 /**
- * Stat result returned by provider-level filesystem operations.
- * @public
- */
-export type ProviderFileStat = {
-  readonly size: number;
-  readonly mtimeMs: number;
-  readonly isDirectory: boolean;
-  readonly isFile: boolean;
-};
-
-/**
  * Backend-agnostic filesystem provider exposing POSIX-like operations.
  * @public
  */
@@ -46,18 +37,18 @@ export type FileSystemProvider = {
   readFile(path: string, encoding: 'utf8'): Promise<string>;
   writeFile(path: string, data: Uint8Array<ArrayBuffer> | string): Promise<void>;
   readdir(path: string): Promise<string[]>;
-  stat(path: string): Promise<ProviderFileStat>;
+  stat(path: string): Promise<FileStat>;
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
   unlink(path: string): Promise<void>;
   rmdir(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
-  lstat(path: string): Promise<ProviderFileStat>;
+  lstat(path: string): Promise<FileStat>;
   dispose(): void;
   /** Optional streaming read. When present, service routes through this instead of buffered readFile. */
   readFileStream?(path: string, options?: FileReadStreamOptions): ReadableStream<Uint8Array<ArrayBuffer>>;
   /** Optional batched readdir+stat. When present, eliminates N+1 stat calls per directory listing. */
-  readdirWithStats?(path: string): Promise<Array<{ name: string } & ProviderFileStat>>;
+  readdirWithStats?(path: string): Promise<Array<{ name: string } & FileStat>>;
 };
 
 /**
@@ -90,7 +81,7 @@ export type FileTreeNode = {
  */
 export type TreeEntry = {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'dir';
   size: number;
   mtimeMs: number;
 };
@@ -141,3 +132,52 @@ export type WatchEvent =
   | { type: 'rename'; oldPath: string; newPath: string; correlationId?: string }
   | { type: 'reset'; correlationId?: string }
   | { type: 'overflow'; correlationId?: string };
+
+// =============================================================================
+// Runtime kernel facade types
+// =============================================================================
+
+/**
+ * In-memory cache for file content bytes consulted by {@link FileSystemService}
+ * before delegating reads to the underlying provider. Implementations include
+ * an LRU heap-backed cache and a `SharedArrayBuffer` pool for cross-thread
+ * sharing.
+ * @public
+ */
+export type FileContentCache = {
+  /** Return cached bytes for `path`, or `undefined` for cache miss. */
+  get(path: string): Uint8Array<ArrayBuffer> | undefined;
+  /** Store bytes for `path`, evicting older entries per implementation policy. */
+  put(path: string, bytes: Uint8Array<ArrayBuffer>): void;
+  /** Drop the entry for `path` so the next read re-fetches from the provider. */
+  invalidate(path: string): void;
+  /** Drop every entry. */
+  invalidateAll(): void;
+  /**
+   * Subscribe to invalidation notifications. The returned disposable detaches
+   * the handler. Implementations that share state across threads (e.g. shared
+   * pool cache) emit synthetic invalidations on remote writes.
+   */
+  on(event: 'invalidate', handler: (path: string) => void): { dispose: () => void };
+};
+
+/**
+ * Kernel-side filesystem facade. Aliases {@link FileSystemProvider} with a
+ * `watch` subscription and four convenience helpers that the kernel runtime
+ * uses for batched I/O. Authored backends never implement these helpers
+ * directly — they are decorated onto the provider primitives by
+ * `createRuntimeFileSystem`.
+ * @public
+ */
+export type RuntimeFileSystem = FileSystemProvider & {
+  /** Subscribe to filesystem change events scoped by the request. */
+  watch(request: WatchRequest, handler: (event: WatchEvent) => void): { dispose: () => void };
+  /** Read multiple files in a single call; result keyed by path. */
+  readFiles(paths: string[]): Promise<Record<string, Uint8Array<ArrayBuffer>>>;
+  /** Read every file in a directory (skips subdirectories); result keyed by short name. */
+  readdirContents(directoryPath: string): Promise<Record<string, Uint8Array<ArrayBuffer>>>;
+  /** List a directory and return path-stamped stats. */
+  readdirStat(directoryPath: string): Promise<FileStatEntry[]>;
+  /** Create `path` (recursive) and silently succeed if it already exists. */
+  ensureDir(path: string): Promise<void>;
+};

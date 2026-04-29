@@ -5,7 +5,7 @@ import type { FileSystemProvider } from '#types.js';
 
 const createMockHandle = (name: string): FileSystemDirectoryHandle => mock<FileSystemDirectoryHandle>({ name });
 
-vi.mock('#providers/direct-idb-provider.js', () => {
+vi.mock('#backend/direct-idb-provider.js', () => {
   class MockDirectIdbProvider {
     public id = 'indexeddb';
     public capabilities = { persistent: true, writable: true, quotaBased: true };
@@ -26,7 +26,7 @@ vi.mock('#providers/direct-idb-provider.js', () => {
   return { DirectIdbProvider: MockDirectIdbProvider };
 });
 
-vi.mock('#providers/memory-provider.js', () => {
+vi.mock('#backend/memory-provider.js', () => {
   class MockMemoryProvider {
     public id = 'memory';
     public capabilities = { persistent: false, writable: true, quotaBased: false };
@@ -46,7 +46,7 @@ vi.mock('#providers/memory-provider.js', () => {
   return { MemoryProvider: MockMemoryProvider };
 });
 
-vi.mock('#providers/fs-access-provider.js', () => {
+vi.mock('#backend/fs-access-provider.js', () => {
   class MockFileSystemAccessProvider {
     public id = 'webaccess';
     public capabilities = { persistent: true, writable: true, quotaBased: false };
@@ -66,7 +66,7 @@ vi.mock('#providers/fs-access-provider.js', () => {
   return { FileSystemAccessProvider: MockFileSystemAccessProvider };
 });
 
-vi.mock('#providers/opfs-provider.js', () => {
+vi.mock('#backend/opfs-provider.js', () => {
   class MockOPFSProvider {
     public id = 'opfs';
     public capabilities = { persistent: true, writable: true, quotaBased: true };

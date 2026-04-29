@@ -1,9 +1,9 @@
 import type { FileSystemBackend } from '@taucad/types';
 import type { FileSystemProvider } from '#types.js';
-import { MemoryProvider } from '#providers/memory-provider.js';
-import { DirectIdbProvider } from '#providers/direct-idb-provider.js';
-import { OPFSProvider } from '#providers/opfs-provider.js';
-import { FileSystemAccessProvider } from '#providers/fs-access-provider.js';
+import { MemoryProvider } from '#backend/memory-provider.js';
+import { DirectIdbProvider } from '#backend/direct-idb-provider.js';
+import { OPFSProvider } from '#backend/opfs-provider.js';
+import { FileSystemAccessProvider } from '#backend/fs-access-provider.js';
 
 /**
  * Configuration for {@link ProviderRegistry}.
