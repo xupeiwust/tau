@@ -1,11 +1,11 @@
-import type { RuntimeFileSystem } from '@taucad/runtime';
+import type { RuntimeFileSystemBase } from '@taucad/runtime';
 import type { RpcFileSystem, RpcFileStat } from '@taucad/chat/rpc';
 
 /**
- * Adapts a RuntimeFileSystem (built from `createRuntimeFileSystem(...)`) to the
- * RpcFileSystem interface.
+ * Adapts a `RuntimeFileSystemBase` (e.g. the value returned by
+ * `createRuntimeFileSystem(...)`) to the `RpcFileSystem` interface.
  */
-export function createHeadlessRpcFileSystem(fs: RuntimeFileSystem): RpcFileSystem {
+export function createHeadlessRpcFileSystem(fs: RuntimeFileSystemBase): RpcFileSystem {
   return {
     async readFile(path: string): Promise<string> {
       return fs.readFile(path, 'utf8');

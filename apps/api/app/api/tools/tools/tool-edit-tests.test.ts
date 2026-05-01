@@ -38,7 +38,7 @@ describe('createEditTestsToolDefinition', () => {
     const { description } = createEditTestsToolDefinition(kernel);
     const config = getKernelConfig(kernel);
 
-    // edit_tests is one of two tools that retains a trimmed `When NOT to use:`
+    // Edit_tests is one of two tools that retains a trimmed `When NOT to use:`
     // heading (high-overuse-risk: agent could otherwise route arbitrary JSON
     // edits through edit_tests rather than create_file / edit_file).
     it('declares a "When NOT to use" section (high overuse-risk carve-out)', () => {

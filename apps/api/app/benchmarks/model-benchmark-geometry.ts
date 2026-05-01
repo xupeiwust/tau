@@ -1,7 +1,5 @@
 import { createRuntimeClient } from '@taucad/runtime';
 import type { HashedGeometryResult } from '@taucad/runtime';
-import { inProcessTransport } from '@taucad/runtime/transport';
-import { fromMemoryFs } from '@taucad/runtime/filesystem';
 import { openscad } from '@taucad/openscad';
 import { gltfCoordinateTransform } from '@taucad/runtime/middleware';
 import type { MeasurementTestRequirement } from '@taucad/testing';
@@ -45,7 +43,6 @@ export function createGeometryRenderer(): ApiRuntimeClient {
   return createRuntimeClient({
     kernels: [openscad()],
     middleware: [gltfCoordinateTransform()],
-    transport: inProcessTransport.client({ fileSystem: fromMemoryFs() }),
   });
 }
 
@@ -82,7 +79,7 @@ export async function renderCodeToGlb(
       await ensureGeometryRendererConnected(client);
 
       /* Stage inline source via `code:` on `openFile` rather than
-       * pre-writing into the FS — the v6 transport plumbs inline code
+       * pre-writing into the FS — the transport plumbs inline code
        * through the kernel without requiring callers to reach into the
        * underlying memory store. */
       const codeMap: Record<string, string> = {};
