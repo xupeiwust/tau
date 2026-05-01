@@ -9,9 +9,10 @@
  *
  * @see docs/research/runtime-transport-architecture-v6.md (C3)
  */
+// eslint-disable-next-line import-x/no-extraneous-dependencies -- this is a test file.
 import { describe, it, expectTypeOf } from 'vitest';
 import type { Port } from '#index.js';
-import * as rpc from '#index.js';
+import type * as rpc from '#index.js';
 
 describe('Port<T> — adapter surface (C3 — no capabilities)', () => {
   it('does not expose a `capabilities` field', () => {

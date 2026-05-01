@@ -1,3 +1,4 @@
+// eslint-disable-next-line import-x/no-extraneous-dependencies -- this is a test file.
 import { describe, it, assertType } from 'vitest';
 import type { Channel, ChannelServer, EmptyRpcProtocol, RpcProtocol } from '#index.js';
 
@@ -12,7 +13,7 @@ import type { Channel, ChannelServer, EmptyRpcProtocol, RpcProtocol } from '#ind
 type SampleProtocol = {
   readonly calls: {
     readonly add: { args: { a: number; b: number }; result: number };
-    readonly render: { args: { source: string }; result: Uint8Array };
+    readonly render: { args: { source: string }; result: Uint8Array<ArrayBuffer> };
   };
   readonly notifies: {
     readonly openFile: { args: { path: string } };

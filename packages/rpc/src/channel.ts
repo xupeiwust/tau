@@ -1,12 +1,12 @@
 import type { Port } from '#port.js';
 import type { WireMessage, WireRequestCancel, WireBye, WireNotify, WireError } from '#wire.js';
 import { isWireMessage } from '#wire.js';
-import {
-  WireValidationError,
-  type WireProtocolSchemas,
-  type WireValidationIssue,
-  type WireValidationSite,
-  type WireValidator,
+import { WireValidationError } from '#wire-validation-error.js';
+import type {
+  WireProtocolSchemas,
+  WireValidationIssue,
+  WireValidationSite,
+  WireValidator,
 } from '#wire-validation-error.js';
 
 /**

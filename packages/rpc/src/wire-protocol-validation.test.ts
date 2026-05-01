@@ -19,14 +19,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { wrapMessagePort } from '#port.js';
-import { createChannelClient, createChannelServer, type ChannelServer } from '#channel.js';
-import {
-  WireValidationError,
-  isWireValidationError,
-  type WireValidator,
-  type WireValidationResult,
-  type WireProtocolSchemas,
-} from '#wire-validation-error.js';
+import { createChannelClient, createChannelServer } from '#channel.js';
+import type { ChannelServer } from '#channel.js';
+import { WireValidationError, isWireValidationError } from '#wire-validation-error.js';
+import type { WireValidator, WireValidationResult, WireProtocolSchemas } from '#wire-validation-error.js';
 
 type Protocol = {
   readonly calls: {
@@ -39,8 +35,8 @@ type Protocol = {
 };
 
 /** Hand-rolled Zod-shape validator (no Zod dep on @taucad/rpc). */
-const createNumberFieldValidator = (field: string): WireValidator<{ [k: string]: number }> => ({
-  safeParse: (value): WireValidationResult<{ [k: string]: number }> => {
+const createNumberFieldValidator = (field: string): WireValidator<Record<string, number>> => ({
+  safeParse: (value): WireValidationResult<Record<string, number>> => {
     if (value === null || typeof value !== 'object') {
       return {
         success: false,
@@ -70,8 +66,8 @@ const createOkResultValidator = (): WireValidator => ({
         error: { issues: [{ path: [], message: 'expected an object', code: 'invalid_type' }] },
       };
     }
-    const obj = value as Record<string, unknown>;
-    if (obj['ok'] !== true || typeof obj['doubled'] !== 'number') {
+    const object = value as Record<string, unknown>;
+    if (object['ok'] !== true || typeof object['doubled'] !== 'number') {
       return {
         success: false,
         error: {
@@ -79,7 +75,7 @@ const createOkResultValidator = (): WireValidator => ({
         },
       };
     }
-    return { success: true, data: { ok: true, doubled: obj['doubled'] } };
+    return { success: true, data: { ok: true, doubled: object['doubled'] } };
   },
 });
 
@@ -112,7 +108,7 @@ describe('Wire-protocol validation (C14)', () => {
       sessionKey: 'test',
       protocolSchemas,
       impl: {
-        async call(_ctx, name, args) {
+        async call(_context, name, args) {
           handler(name, args);
           if (name === 'echo') {
             const a = args as { value: number };
@@ -143,7 +139,7 @@ describe('Wire-protocol validation (C14)', () => {
   it('server validates good call args and forwards them to the handler', async () => {
     const { client, server } = wirePair();
     const handler = vi.fn(
-      async (_ctx: unknown, name: 'echo', args: { value: number }): Promise<{ ok: true; doubled: number }> => {
+      async (_context: unknown, name: 'echo', args: { value: number }): Promise<{ ok: true; doubled: number }> => {
         if (name === 'echo') {
           return { ok: true, doubled: args.value * 2 };
         }
@@ -182,7 +178,7 @@ describe('Wire-protocol validation (C14)', () => {
         async call() {
           throw new Error('not used');
         },
-        notify(_ctx, name, args) {
+        notify(_context, name, args) {
           notifyHandler(name, args);
         },
         listen: () => {
@@ -214,9 +210,9 @@ describe('Wire-protocol validation (C14)', () => {
     const srv = createChannelServer<Protocol>({
       port: server,
       sessionKey: 'test',
-      protocolSchemas, // server validates inbound args ...
+      protocolSchemas, // Server validates inbound args ...
       impl: {
-        async call(_ctx, name) {
+        async call(_context, name) {
           if (name === 'echo') {
             /* Return a malformed result — passes server outbound, but
              * client validates and should reject. */
@@ -251,7 +247,7 @@ describe('Wire-protocol validation (C14)', () => {
       sessionKey: 'test',
       /* No protocolSchemas — wire is trusted. */
       impl: {
-        async call(_ctx, name, args) {
+        async call(_context, name, args) {
           if (name === 'echo') {
             return { ok: true, doubled: ((args as { value: number }).value ?? 0) * 2 };
           }
@@ -267,7 +263,10 @@ describe('Wire-protocol validation (C14)', () => {
 
     /* Even with malformed args the server invokes the handler — no
      * validation gate. */
-    await expect(cli.call('echo', { value: 'nope' as unknown as number })).resolves.toEqual({ ok: true, doubled: NaN });
+    await expect(cli.call('echo', { value: 'nope' as unknown as number })).resolves.toEqual({
+      ok: true,
+      doubled: Number.NaN,
+    });
 
     cli.close();
     srv.dispose();

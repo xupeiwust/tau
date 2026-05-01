@@ -6,16 +6,16 @@ import { isWireMessage } from '#wire.js';
 import type { WireMessage } from '#wire.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixtureDir = join(here, '..', 'test', 'conformance');
+const fixtureDirectory = join(here, '..', 'test', 'conformance');
 
 type Fixture = { readonly name: string; readonly kind: WireMessage['k']; readonly frame: WireMessage };
 
 const loadFixtures = (): readonly Fixture[] => {
-  const files = readdirSync(fixtureDir)
+  const files = readdirSync(fixtureDirectory)
     .filter((f) => f.endsWith('.json'))
     .sort();
   return files.map((f) => {
-    const raw = readFileSync(join(fixtureDir, f), 'utf-8');
+    const raw = readFileSync(join(fixtureDirectory, f), 'utf8');
     return JSON.parse(raw) as Fixture;
   });
 };
