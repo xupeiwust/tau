@@ -5,7 +5,7 @@ export function ReleaseBadge(): React.JSX.Element {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge className='h-6 cursor-help border-yellow/30 bg-yellow/10 text-xs font-normal text-yellow dark:text-yellow/70'>
+        <Badge className='h-6 cursor-help border-purple/30 bg-purple/10 text-xs font-normal text-purple dark:text-purple/70'>
           BETA
         </Badge>
       </TooltipTrigger>
