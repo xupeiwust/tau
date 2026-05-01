@@ -305,6 +305,7 @@ export class OpenScadStderrParser {
     const lineNumber = Number(line);
     this.emitError({
       message: error ?? 'Unknown error',
+      code: 'RUNTIME',
       location: createErrorLocation(fileName, lineNumber, this.getFileContents),
       type: 'compilation',
       severity: 'error',
@@ -329,6 +330,7 @@ export class OpenScadStderrParser {
     const lineNumber = Number(line);
     this.emitError({
       message: error ?? 'Unknown error',
+      code: 'RUNTIME',
       location: createErrorLocation(fileName, lineNumber, this.getFileContents),
       type: 'compilation',
       severity: 'error',
@@ -353,6 +355,7 @@ export class OpenScadStderrParser {
     const lineNumber = Number(line);
     this.emitError({
       message: warning ?? 'Unknown warning',
+      code: 'RUNTIME',
       location: createErrorLocation(fileName, lineNumber, this.getFileContents),
       type: 'compilation',
       severity: 'warning',
@@ -377,6 +380,7 @@ export class OpenScadStderrParser {
     const lineNumber = Number(line);
     this.emitError({
       message: error ?? 'Assertion failed',
+      code: 'RUNTIME',
       location: createErrorLocation(fileName, lineNumber, this.getFileContents),
       type: 'runtime',
       severity: 'error',
@@ -401,6 +405,7 @@ export class OpenScadStderrParser {
     const lineNumber = Number(line);
     this.emitError({
       message: error ?? 'Unknown error',
+      code: 'RUNTIME',
       location: createErrorLocation(fileName, lineNumber, this.getFileContents),
       type: 'runtime',
       severity: 'error',
@@ -470,6 +475,7 @@ export class OpenScadStderrParser {
       this.emitError({
         message:
           'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
+        code: 'RUNTIME',
         location: this.mainFilePath ? { fileName: this.mainFilePath, startLineNumber: 1, startColumn: 1 } : undefined,
         type: 'runtime',
         severity: 'warning',

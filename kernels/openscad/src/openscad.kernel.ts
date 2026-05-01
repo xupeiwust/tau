@@ -18,7 +18,7 @@ import type { GeometryGltf, LogLevel } from '@taucad/types';
 import { logLevels, createExportFile } from '@taucad/types/constants';
 import { asBuffer } from '@taucad/utils/file';
 import { joinPath, joinRelativePath } from '@taucad/utils/path';
-import type { KernelIssue, RuntimeFileSystem, RuntimeLogger } from '@taucad/runtime/kernel';
+import type { KernelIssue, KernelFileSystem, RuntimeLogger } from '@taucad/runtime/kernel';
 import {
   convertOffToGltf,
   createKernelError,
@@ -113,7 +113,7 @@ function resolveIncludePath(baseFilePath: string, relativePath: string): string 
 async function getReferencedScadFiles(options: {
   mainFile: string;
   basePath: string;
-  filesystem: RuntimeFileSystem;
+  filesystem: KernelFileSystem;
   logger: RuntimeLogger;
 }): Promise<{ resolved: string[]; unresolved: string[] }> {
   const { mainFile, basePath, filesystem, logger } = options;
@@ -228,7 +228,7 @@ async function mountFileSystem(
   options: {
     mainFile: string;
     basePath: string;
-    filesystem: RuntimeFileSystem;
+    filesystem: KernelFileSystem;
     logger: RuntimeLogger;
     fileContentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>;
     fileContentsCache?: Map<string, string>;
@@ -319,7 +319,7 @@ async function getParametersFromFile(
   filePath: string,
   options: {
     basePath: string;
-    filesystem: RuntimeFileSystem;
+    filesystem: KernelFileSystem;
     logger: RuntimeLogger;
     fileContentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>;
     fontCache: Map<string, Uint8Array<ArrayBuffer>>;
@@ -410,7 +410,7 @@ type OpenScadBuildOptions = {
   basePath: string;
   parameters: Record<string, unknown>;
   tessellationOverrides?: Record<string, number>;
-  filesystem: RuntimeFileSystem;
+  filesystem: KernelFileSystem;
   logger: RuntimeLogger;
   fileContentCache: ReadonlyMap<string, Uint8Array<ArrayBuffer> | string>;
   fontCache: Map<string, Uint8Array<ArrayBuffer>>;
@@ -579,6 +579,7 @@ export default defineKernel({
       return createKernelError([
         {
           message: error instanceof Error ? error.message : 'Unknown error',
+          code: 'RUNTIME',
           location: {
             fileName: relativeFilePath,
             startLineNumber: 1,
@@ -709,6 +710,7 @@ export default defineKernel({
       return createKernelError([
         {
           message: 'No geometry available for export. Please build geometries before exporting.',
+          code: 'RUNTIME',
           severity: 'error',
         },
       ]);
@@ -754,6 +756,7 @@ export default defineKernel({
         return createKernelError([
           {
             message: `Unsupported export format: ${_exhaustive as string}`,
+            code: 'RUNTIME',
             severity: 'error',
           },
         ]);

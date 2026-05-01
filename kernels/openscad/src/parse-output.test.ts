@@ -24,6 +24,7 @@ describe('parseStderrLine', () => {
       expect(errors).toHaveLength(1);
       expect(errors[0]).toEqual({
         message: 'syntax error',
+        code: 'RUNTIME',
         location: {
           fileName: 'main.scad',
           startLineNumber: 118,
@@ -48,6 +49,7 @@ describe('parseStderrLine', () => {
       expect(errors).toHaveLength(1);
       expect(errors[0]).toEqual({
         message: 'syntax error',
+        code: 'RUNTIME',
         location: {
           fileName: 'main.scad',
           startLineNumber: 118,
@@ -433,6 +435,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -479,6 +482,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -535,6 +539,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -566,6 +571,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -592,6 +598,7 @@ describe('parseStderrLine', () => {
         },
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -629,6 +636,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: "Assertion 'false' failed",
+          code: 'RUNTIME',
           type: 'runtime',
           severity: 'error',
           location: {
@@ -666,6 +674,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: 'syntax error',
+          code: 'RUNTIME',
           type: 'compilation',
           severity: 'error',
           location: {
@@ -704,6 +713,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: 'syntax error',
+          code: 'RUNTIME',
           type: 'compilation',
           severity: 'error',
           location: {
@@ -744,6 +754,7 @@ describe('parseStderrLine', () => {
       expect(errors).toEqual([
         {
           message: 'syntax error',
+          code: 'RUNTIME',
           type: 'compilation',
           severity: 'error',
           location: {

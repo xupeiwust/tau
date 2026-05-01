@@ -1329,6 +1329,7 @@ cube([size, size, size]);`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1369,6 +1370,7 @@ badModule();`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1406,6 +1408,7 @@ x += 5;`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1446,6 +1449,7 @@ z += 5;`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1494,6 +1498,7 @@ x += 5;`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1536,6 +1541,7 @@ z += 5;`,
         expect(result.issues).toEqual([
           {
             message: 'syntax error',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'error',
             location: {
@@ -1587,6 +1593,7 @@ outer();`,
         expect(result.issues).toEqual([
           {
             message: 'Assertion \'false\' failed: "deliberate failure"',
+            code: 'RUNTIME',
             type: 'runtime',
             severity: 'error',
             location: {
@@ -1633,6 +1640,7 @@ outer();`,
             message:
               'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
             type: 'runtime',
+            code: 'RUNTIME',
             severity: 'warning',
             location: {
               fileName: 'main.scad',
@@ -1660,6 +1668,7 @@ broken_module();`,
         expect(result.issues).toEqual([
           {
             message: 'Assertion \'false\' failed: "fail in lib"',
+            code: 'RUNTIME',
             type: 'runtime',
             severity: 'error',
             location: {
@@ -1694,6 +1703,7 @@ broken_module();`,
             message:
               'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
             type: 'runtime',
+            code: 'RUNTIME',
             severity: 'warning',
             location: {
               fileName: 'main.scad',
@@ -1727,6 +1737,7 @@ module call_middle() {
         expect(result.issues).toEqual([
           {
             message: 'Assertion \'false\' failed: "deepest failure"',
+            code: 'RUNTIME',
             type: 'runtime',
             severity: 'error',
             location: {
@@ -1773,6 +1784,7 @@ module call_middle() {
             message:
               'No geometry to render. Call a module or add a primitive (e.g., cube(), sphere()) to create visible output.',
             type: 'runtime',
+            code: 'RUNTIME',
             severity: 'warning',
             location: {
               fileName: 'main.scad',
@@ -1798,6 +1810,7 @@ cube([get_size(), 10, 10]);`,
         expect(result.issues).toEqual([
           {
             message: 'Ignoring unknown variable "garbage"',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'warning',
             location: {
@@ -1810,6 +1823,7 @@ cube([get_size(), 10, 10]);`,
           },
           {
             message: 'Unable to convert cube(size=[undef, 10, 10], ...) parameter to a number or a vec3 of numbers',
+            code: 'RUNTIME',
             type: 'compilation',
             severity: 'warning',
             location: {
