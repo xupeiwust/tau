@@ -2,8 +2,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Document, NodeIO } from '@gltf-transform/core';
 import { createRuntimeClient } from '@taucad/runtime';
-import { inProcessTransport } from '@taucad/runtime/transport';
-import { fromMemoryFs } from '@taucad/runtime/filesystem';
 import { replicad } from '@taucad/runtime/kernels';
 import { esbuild } from '@taucad/runtime/bundler';
 import { countConnectedComponents } from '#geometry/connected-components.js';
@@ -15,7 +13,6 @@ async function renderGlb(filename: string, code: string): Promise<Uint8Array<Arr
   const client = createRuntimeClient({
     kernels: [replicad()],
     bundlers: [esbuild()],
-    transport: inProcessTransport.client({ fileSystem: fromMemoryFs() }),
   });
 
   try {
