@@ -388,7 +388,7 @@ This is parallel to E2 in shape: just as `HostInitializeBindings.fileSystem` was
 | `webSocketTransport` (W2, future) | required (opaque)             | not accepted (server bundled) | `extractInlineFileSystem(client.fileSystem)` → wrap as `Port<T>` over WS sub-channel → `createBridgeServer(handlers, wrappedPort)` on server |
 | `webSocketTransport` (W3, future) | not accepted                  | not accepted                  | dispatcher runs without fs (`unbound`)                                                                                                       |
 
-Reading rule: each transport's Zod schema rejects `fileSystem` on the wrong side at compile time. `electronUtilityTransport.client({ fileSystem: ... })` is a type error; `webWorkerTransport.host({ fileSystem: ... })` is a type error. WebSocket sub-shapes (W1/W2/W3) are most naturally modelled as **separate transport plugins** sharing a common WS adapter — `webSocketHostLocalTransport`, `webSocketBridgedTransport`, `webSocketStatelessTransport` — each with its own schema. A single union plugin with `z.discriminatedUnion(...)` over a `mode` literal is also viable; the choice belongs to whoever authors the WS transport.
+Reading rule: each transport's Zod schema rejects `fileSystem` on the wrong side at compile time. `electronUtilityTransport({ fileSystem: ... })` is a type error; `webWorkerHost({ fileSystem: ... })` is a type error. WebSocket sub-shapes (W1/W2/W3) are most naturally modelled as **separate transport plugins** sharing a common WS adapter — `webSocketHostLocalTransport`, `webSocketBridgedTransport`, `webSocketStatelessTransport` — each with its own schema. A single union plugin with `z.discriminatedUnion(...)` over a `mode` literal is also viable; the choice belongs to whoever authors the WS transport.
 
 ### Runtime client / host configuration (unchanged)
 
@@ -563,7 +563,7 @@ import { electronUtilityTransport } from '../transport/electron-utility-transpor
 const projectRoot = process.env['TAU_PROJECT_ROOT'] ?? process.cwd();
 
 const host = createRuntimeHost({
-  transport: electronUtilityTransport.host({
+  transport: electronUtilityHost({
     fileSystem: fromNodeFs(projectRoot), // ← real project fs, not a fixture
   }),
 });
@@ -798,7 +798,7 @@ HostInitializeBindings = {               HostInitializeBindings = {
 | `host-bindings-no-filesystem.test-d.ts`                  | `packages/runtime/src/transport`              | `HostInitializeBindings` does not have a `fileSystem` field (compile error if regression)                                                                      |
 | `extract-inline-filesystem.test.ts`                      | `packages/runtime/src/transport/_internal`    | Returns `undefined` for `undefined` input; returns base for inline fs; throws `TypeError` for channel fs                                                       |
 | `extract-inline-filesystem.test-d.ts`                    | same                                          | `extractInlineFileSystem` is exported from `@taucad/runtime/transport-internals`                                                                               |
-| `electron-utility-host-fs-required.test-d.ts`            | `examples/electron-tau`                       | `electronUtilityTransport.host({})` is a type error (missing `fileSystem`)                                                                                     |
+| `electron-utility-host-fs-required.test-d.ts`            | `examples/electron-tau`                       | `electronUtilityHost({})` is a type error (missing `fileSystem`)                                                                                               |
 | `electron-utility-no-test-imports.test.ts`               | `examples/electron-tau`                       | The transport file does not import `@taucad/runtime/testing` (lint-rule equivalent at file level)                                                              |
 | `bridge-accepts-port-t.test-d.ts`                        | `packages/runtime/src/transport/_internal`    | `createBridgeServer(handlers, port: Port<T>)` accepts a non-`MessagePort` `Port<T>` adapter; rejects values missing `postMessage`/`onMessage`/`close`          |
 | `bridge-port-t-runtime.test.ts`                          | same                                          | A custom `Port<T>` adapter (in-memory queue) exchanges full bridge protocol round-trips: `readFile` / `writeFile` / `watch` / `fileChanged` events / `dispose` |

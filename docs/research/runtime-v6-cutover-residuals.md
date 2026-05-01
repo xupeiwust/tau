@@ -54,7 +54,7 @@ document rather than amending this one.
 - [Finding 9 — `createRuntimeClientOptions` drops the `Transport` phantom](#finding-9--createruntimeclientoptions-drops-the-transport-phantom)
 - [Finding 10 — `host/index.ts` JSDoc references deleted symbols](#finding-10--hostindexts-jsdoc-references-deleted-symbols)
 - [Finding 11 — Stale R-tag / Phase / v5 references across the runtime](#finding-11--stale-r-tag--phase--v5-references-across-the-runtime)
-- [Finding 12 — `inProcessTransport.host()` is architectural dead code](#finding-12--inprocesstransporthost-is-architectural-dead-code)
+- [Finding 12 — `historic in-process `host()` symmetry stub` is architectural dead code](#finding-12--inprocesstransporthost-is-architectural-dead-code)
 - [Finding 13 — Bridge primitives leak onto the public filesystem barrel](#finding-13--bridge-primitives-leak-onto-the-public-filesystem-barrel)
 - [Finding 14 — Electron renderer threads a raw `MessagePort` through `createRuntimeClient](#finding-14--electron-renderer-threads-a-raw-messageport-through-createruntimeclient)`
 - [Finding 15 — Missing v6 Appendix B conformance tests (C4, C5)](#finding-15--missing-v6-appendix-b-conformance-tests-c4-c5)
@@ -151,10 +151,10 @@ Two of these (`runtime-filesystem-bridge.ts`, `runtime-worker-dispatcher.ts`) ge
 
 **Severity:** P0 (symmetry violation; v6 _Files to Add / materially changes_ still incomplete)
 
-v6 says: _"For `webWorkerTransport` the host factory lives in the worker entry"_ — i.e. the worker's bootstrap code is `createRuntimeHost({ transport: webWorkerTransport.host(opts) })`. The Electron utility-process script (`examples/electron-tau/src/main/kernel-host.ts:35-36`) follows this pattern correctly:
+v6 says: _"For `webWorkerTransport` the host factory lives in the worker entry"_ — i.e. the worker's bootstrap code is `createRuntimeHost({ transport: webWorkerHost(opts) })`. The Electron utility-process script (`examples/electron-tau/src/main/kernel-host.ts:35-36`) follows this pattern correctly:
 
 ```typescript
-const host = createRuntimeHost({ transport: electronUtilityTransport.host({}) });
+const host = createRuntimeHost({ transport: electronUtilityHost({}) });
 ```
 
 But the **bundled worker entry** (`packages/runtime/src/framework/kernel-runtime-worker.ts:636-665`) hand-rolls the bootstrap using legacy adapter primitives:
@@ -167,7 +167,7 @@ async function bootstrapKernelRuntimeWorker(): Promise<void> {
 }
 ```
 
-The `getWorkerMessagePort()` call is the v5 wire-acquisition path the v6 _materially changes_ table flagged for deletion. The bundled `webWorkerTransport.host()` and `nodeWorkerTransport.host()` should own this concern; the worker entry should be a one-liner.
+The `getWorkerMessagePort()` call is the v5 wire-acquisition path the v6 _materially changes_ table flagged for deletion. The bundled `webWorkerHost()` and `nodeWorkerHost()` should own this concern; the worker entry should be a one-liner.
 
 Knock-on: as long as `kernel-runtime-worker.ts` calls `getWorkerMessagePort()`, `runtime-message-adapter.ts` cannot be deleted, and the v6 _materially changes_ row for that file stays unfinished.
 
@@ -337,15 +337,15 @@ The v5 development used identifiers like `R5`, `R7`, `R14`, `R18`, `R19`, `R21`,
 
 These are doc-only fixes (no code change), but the `port.capabilities (R21)` mention at `runtime-worker-dispatcher.ts:22-25` is _especially_ harmful because it directly contradicts the implementation 130 lines later (which says the dispatcher _never_ reads `port.capabilities`).
 
-### Finding 12 — `inProcessTransport.host()` is architectural dead code
+### Finding 12 — `historic in-process `host()` symmetry stub` is architectural dead code
 
 **Severity:** P2 (smell; transport contract violated by one transport)
 
-`packages/runtime/src/transport/in-process-transport.ts:257-315` implements `host()`. The implementation returns a noop channel-server-stub via `createNoopChannelServerHandle`. No code path calls `inProcessTransport.host(opts)` at runtime — `client.open()` instead constructs the dispatcher directly with the in-isolate `KernelRuntimeWorker`.
+`packages/runtime/src/transport/in-process-transport.ts:257-315` implements `host()`. The implementation returns a noop channel-server-stub via `createNoopChannelServerHandle`. No code path calls `historic in-process `host(opts)` symmetry stub` at runtime — `client.open()` instead constructs the dispatcher directly with the in-isolate `KernelRuntimeWorker`.
 
 This is because in-process is single-isolate, so the host doesn't need a separate wire — but the v6 `RuntimeTransportPlugin` contract requires every transport to have a working `host()` factory (used by `createRuntimeHost`). Two ways to resolve:
 
-1. **Make in-process actually use `host()`** — `client.open()` should call `inProcessTransport.host(opts).open()` and bridge via `MessageChannel` (which it already does for the channel pair). This is mostly a refactor to centralise the host-wiring path through one entry.
+1. **Make in-process actually use `host()`** — `client.open()` should call `historic in-process `host(opts)` symmetry stub.open()` and bridge via `MessageChannel` (which it already does for the channel pair). This is mostly a refactor to centralise the host-wiring path through one entry.
 2. **Document that in-process is "client-only"** — explicitly mark the host factory as `@deprecated` / `@internal` for this transport, and add a note to the v6 doc.
 
 Option 1 is preferred because it keeps the contract symmetric (the _Files to Add_ table makes no exception for in-process).
@@ -378,15 +378,15 @@ These are FS-bridge wire primitives that v6 says transports use _internally_ (Fi
 
 ```typescript
 const client = createRuntimeClient({
-  transport: electronUtilityTransport.client({ port }),
+  transport: electronUtilityTransport({ port }),
   ...
 });
 ```
 
-The renderer obtains a `MessagePort` from the preload bridge and passes it directly into `electronUtilityTransport.client({ port })`. Per v6 the consumer-facing transport options should never accept a raw wire primitive — instead the transport should accept a `bootstrap: () => Promise<MessagePort>` callback (the v6 doc describes exactly this for `electronUtilityTransport`):
+The renderer obtains a `MessagePort` from the preload bridge and passes it directly into `electronUtilityTransport({ port })`. Per v6 the consumer-facing transport options should never accept a raw wire primitive — instead the transport should accept a `bootstrap: () => Promise<MessagePort>` callback (the v6 doc describes exactly this for `electronUtilityTransport`):
 
 ```typescript
-electronUtilityTransport.client({
+electronUtilityTransport({
   bootstrap: () => window.taucadBridge.connectKernel(),
 });
 ```
@@ -433,7 +433,7 @@ When the channel server validates with `protocolSchemas: runtimeProtocolSchemas`
 The Fumadocs site under `apps/ui/content/docs/(runtime)/` has at least 12 MDX files using v5 patterns (sampled — full sweep needed). Common drifts:
 
 - `createRuntimeClient({ ..., fileSystem: fromMemoryFs() })` — top-level `fileSystem` instead of `transport: ...client({ fileSystem })`.
-- `webWorkerTransport.client({ workerUrl: ... })` — option is named `url` not `workerUrl`.
+- `webWorkerTransport({ workerUrl: ... })` — option is named `url` not `workerUrl`.
 - Architecture page narrates lazy transport handshake instead of explicit `client.connect()`.
 
 Files (non-exhaustive):
@@ -512,7 +512,7 @@ the table stays self-documenting for future audit trails.
 | ------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- | ------ | -------------------------------------------------------- |
 | **R1**  | ✅ RESOLVED | Add `runtime-imports-no-rpc.test.ts` (C4) under `packages/runtime/src/` and gate `client/`, `host/` (initially); skip `framework/` until R2 lands                                                                                                                                                                   | F1, F15     | P0       | S      | High — locks in the layered model                        |
 | **R2**  | ✅ RESOLVED | Move wire-touching `framework/` files into `transport/_internal/` so C4 can extend to `framework/`: `runtime-filesystem-bridge.ts` → `_internal/`, `runtime-message-adapter.ts` → `_internal/`, `wire-transferables.ts` → `_internal/`, `geometry-materialiser.ts` → `_internal/`                                   | F1, F11     | P0       | M      | High — removes the architectural smell at the seam       |
-| **R3**  | ✅ RESOLVED | Re-implement `bootstrapKernelRuntimeWorker` in `kernel-runtime-worker.ts` to call `webWorkerTransport.host(opts).open()` (Node variant uses `nodeWorkerTransport.host`); delete `getWorkerMessagePort` and `runtime-message-adapter.ts`                                                                             | F2, F11     | P0       | M      | High — completes "Files to Add / materially changes" row |
+| **R3**  | ✅ RESOLVED | Re-implement `bootstrapKernelRuntimeWorker` in `kernel-runtime-worker.ts` to call `webWorkerHost(opts).open()` (Node variant uses `nodeWorkerHost`); delete `getWorkerMessagePort` and `runtime-message-adapter.ts`                                                                                                 | F2, F11     | P0       | M      | High — completes "Files to Add / materially changes" row |
 | **R4**  | ✅ RESOLVED | Delete legacy `packages/runtime/src/types/transport-descriptor.types.ts`; remove `projectLegacyDescriptor` and `LegacyTransportDescriptor` from `runtime-client.ts`; switch `RuntimeCapabilities.transport.descriptor` to the canonical `TransportDescriptor<Id>`                                                   | F3, F8      | P0       | S      | High — removes 30-50 LOC of pure shim                    |
 | **R5**  | ✅ RESOLVED | Rewrite `RuntimeClient.capabilities` JSDoc (3 locations in `runtime-client.ts`) to remove `protocolVersion`/`backplanes` claims; describe the actual rolled-up shape                                                                                                                                                | F8, F11     | P0       | XS     | High — public docs match implementation                  |
 | **R6**  | ✅ RESOLVED | Mark `RuntimeFileSystemHandle` as `@internal`; mark `fromMemoryFS`/`fromFsLike`/`fromNodeFS` as `@internal` (or move to `_internal/from-X-fs-handle.ts`); ensure no public re-exports                                                                                                                               | F5          | P0       | S      | High — opaque contract enforced                          |
@@ -524,7 +524,7 @@ the table stays self-documenting for future audit trails.
 | **R12** | ✅ RESOLVED | Rewrite `apps/ui/app/machines/kernel.integration.test.ts` against v6                                                                                                                                                                                                                                                | F18         | P1       | S      | Medium                                                   |
 | **R13** | ✅ RESOLVED | Add `Transport` generic slot to `createRuntimeClientOptions` so phantom inference flows through the helper                                                                                                                                                                                                          | F9          | P1       | XS     | Medium — restores per-position narrowing                 |
 | **R14** | ✅ RESOLVED | Rename kernel-side `RuntimeFileSystem` (in `runtime-kernel.types.ts`) to `KernelFileSystem` (consumer-facing `RuntimeFileSystem` opaque brand stays the public name)                                                                                                                                                | F4          | P1       | M      | Medium — eliminates name collision                       |
-| **R15** | ✅ RESOLVED | Add contract-stub JSDoc to `inProcessTransport.host()` (in-process is single-isolate; `client().open()` runs the kernel directly via internal `MessageChannel`, so `host()` exists only for `RuntimeTransport`-shape symmetry); pin no-op behaviour with a defensive test                                           | F12         | P1       | M      | Medium — contract symmetry                               |
+| **R15** | ✅ RESOLVED | Add contract-stub JSDoc to `historic in-process `host()` symmetry stub` (in-process is single-isolate; `client().open()` runs the kernel directly via internal `MessageChannel`, so `host()` exists only for `RuntimeTransport`-shape symmetry); pin no-op behaviour with a defensive test                          | F12         | P1       | M      | Medium — contract symmetry                               |
 | **R16** | ✅ RESOLVED | Remove bridge primitives from `@taucad/runtime/filesystem` barrel (`createBridgeServer/Port/Call/Proxy`, `exposeFileSystem`, `createFileSystemBridge`); expose them only at the new `@taucad/runtime/transport-internals` transport-author barrel                                                                   | F13         | P1       | S      | Medium — public surface tightening                       |
 | **R17** | ✅ RESOLVED | Sweep stale `R\d+/F\d+/Phase \d+/v5/TR\d+` references across the runtime — list in Appendix C                                                                                                                                                                                                                       | F11         | P1       | M      | Medium — public docs are clean                           |
 | **R18** | ✅ RESOLVED | Rewrite `host/index.ts` JSDoc to describe the v6 `transport`-based host; remove `RuntimeMessagePort`, `RuntimeRunner` references                                                                                                                                                                                    | F10         | P1       | XS     | Low                                                      |

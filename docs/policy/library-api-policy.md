@@ -778,11 +778,11 @@ export const fromBrowserFs: (...) => RuntimeFileSystem;
 export const fromFsLikeOpaque: (fsLike: FsLike, rootPath?: string) => RuntimeFileSystem;
 export const fromWorkerOpaque: (worker: Worker) => RuntimeFileSystem;
 
-// The transport plugin is the only place that touches a wire primitive.
+// The wired transport callable is the only surface that binds wire primitives from options.
 const client = createRuntimeClient({
   ...presets.all(),
-  transport: webWorkerTransport.client({
-    workerUrl: kernelWorkerUrl,
+  transport: webWorkerTransport({
+    url: kernelWorkerUrl,
     fileSystem,            // opaque RuntimeFileSystem
     filePoolBuffer,        // optional SAB allocated upstream
   }),
@@ -790,7 +790,7 @@ const client = createRuntimeClient({
 await client.connect();    // no arguments
 ```
 
-A Worker / in-process transport binds the FS bridge via `MessagePort` internally; a WebSocket transport multiplexes it over the same socket; an Electron IPC transport binds it via `MessagePortMain`. The runtime client never types against any wire primitive — that responsibility lives entirely inside the {@link RuntimeTransportPlugin}.
+A Worker / in-process transport binds the FS bridge via `MessagePort` internally; a WebSocket transport multiplexes it over the same socket; an Electron IPC transport binds it via `MessagePortMain`. The runtime client never types against any wire primitive — that responsibility lives entirely inside the wired {@link TransportPlugin} callable and its `.materialize()` handle.
 
 ### Smell tests
 

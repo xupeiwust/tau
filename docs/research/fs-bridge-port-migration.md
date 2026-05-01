@@ -46,7 +46,7 @@ Mitigation hierarchy:
 | ------------------------------------ | ----------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
 | **`createFileSystemBridge(worker)`** | **`FileSystemBridge`**  | **`Port`** (wrapped)                                | **`createBridgeProxy`** / **`createBridgeCall`** same isolate |
 | **`createBridgePort(handlers)`**     | **`BridgePort`**        | **`MessagePort`**                                   | **`worker.postMessage(..., [port])`**                         |
-| **`fromChannelFs(worker)`** (opaque) | **`RuntimeFileSystem`** | Internal **`MessagePort`** closed over by transport | **`webWorkerTransport.client({ fileSystem })`**               |
+| **`fromChannelFs(worker)`** (opaque) | **`RuntimeFileSystem`** | Internal **`MessagePort`** closed over by transport | **`webWorkerTransport({ fileSystem })`**                      |
 
 Disconnect envelope **`{ type: 'disconnect' }`** is still **`postMessage`**-d from the owning isolate’s **`MessagePort`** inside **`dispose`**, regardless of whether the **`Port`** facade wraps it.
 

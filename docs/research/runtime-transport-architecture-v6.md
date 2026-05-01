@@ -317,7 +317,7 @@ import { fromNodeFs } from '@taucad/runtime/filesystem/node';
 createRuntimeHost({
   kernels: [replicad()],
   fileSystem: fromNodeFs(process.env.TAU_PROJECT_ROOT!),
-  transport: electronUtilityTransport.host(),
+  transport: electronUtilityHost(),
 });
 ```
 
@@ -941,7 +941,7 @@ Inside a kernel-host script the dispatcher is constructed against `RuntimeTransp
 
 ```typescript
 // Inside a worker / utility-process entry
-const hostTransport = electronUtilityTransport.host();
+const hostTransport = electronUtilityHost();
 const { channel } = await hostTransport.open();
 
 const dispatcher = createWorkerDispatcher({
@@ -1006,7 +1006,7 @@ The transport layer adopts the same generic-inference contract as the kernel and
 | **Transport bindings extra** | `RuntimeTransportPlugin<_, BindingsExtra, _, _, _>` via `__transportBindingsExtra` | `HostInitializeBindings<BindingsExtra>` returned by `host.adoptInitialize` | Inferred from the `host` factory's return shape; the dispatcher reads the merged bindings at runtime.                   |
 | **Transport id**             | `RuntimeTransportPlugin<_, _, Id, _, _>` via `__transportId`                       | `client.transport.id`, `TransportDescriptor<Id>`                           | `defineRuntimeTransport({ id: 'web-worker' })` — `const Id` slot on the factory.                                        |
 | **Transport client opts**    | `RuntimeTransportPlugin<_, _, _, ClientOptions, _>` via `__transportClientOptions` | `webWorkerTransport(options)` consumer call site                           | `defineRuntimeTransport({ clientOptionsSchema })` — via `z.input`. When no schema, the `client` factory parameter type. |
-| **Transport host opts**      | `RuntimeTransportPlugin<_, _, _, _, HostOptions>` via `__transportHostOptions`     | `webWorkerTransport.host(options)` host script call site                   | `defineRuntimeTransport({ hostOptionsSchema })` — via `z.input`. When no schema, the `host` factory parameter type.     |
+| **Transport host opts**      | `RuntimeTransportPlugin<_, _, _, _, HostOptions>` via `__transportHostOptions`     | `webWorkerHost(options)` host script call site                             | `defineRuntimeTransport({ hostOptionsSchema })` — via `z.input`. When no schema, the `host` factory parameter type.     |
 
 Every seam follows the same three-step pattern:
 
@@ -1181,7 +1181,7 @@ export const inProcessTransport = defineRuntimeTransport({
           protocolSchemas: runtimeProtocolSchemas, // wire-boundary validation
         });
 
-        const hostTransport = inProcessTransport.host({ fileSystem: options.fileSystem });
+        const hostTransport = createSymmetricInProcessHost({ fileSystem: options.fileSystem });
         runWorkerHost(port2, hostTransport);
 
         const hello = await channel.ready;
@@ -1899,14 +1899,14 @@ graph LR
     direction TB
     APP1["apps/ui (React)"]
     CLIENT1["RuntimeClient"]
-    WT["webWorkerTransport.client(options)"]
+    WT["webWorkerTransport(options)"]
     APP1 --> CLIENT1 --> WT
   end
 
   subgraph WebWorker["Web Worker (kernel host)"]
     direction TB
     HOST1["RuntimeHost"]
-    WTH["webWorkerTransport.host()"]
+    WTH["webWorkerHost()"]
     DISP1["WorkerDispatcher"]
     KW1["KernelWorker (replicad/openscad/...)"]
     HOST1 --> WTH --> DISP1 --> KW1
@@ -1925,7 +1925,7 @@ graph LR
     direction TB
     UI["apps/ui (React)"]
     CLIENT2["RuntimeClient"]
-    EUT["electronUtilityTransport.client({ bootstrap })"]
+    EUT["electronUtilityTransport({ bootstrap })"]
     UI --> CLIENT2 --> EUT
   end
 
@@ -1937,7 +1937,7 @@ graph LR
   subgraph Utility["Electron utilityProcess (kernel host)"]
     direction TB
     HOST2["RuntimeHost"]
-    EUTH["electronUtilityTransport.host({ fileSystem: fromNodeFs(...) })"]
+    EUTH["electronUtilityHost({ fileSystem: fromNodeFs(...) })"]
     DISP2["WorkerDispatcher"]
     KW2["KernelWorker (replicad/openscad + native CAD addons)"]
     HOST2 --> EUTH --> DISP2 --> KW2
@@ -2109,7 +2109,7 @@ These files are not deleted but their contents change substantively as part of t
 - `packages/runtime/src/client/runtime-client.ts` — drops `connect({ port, fileSystem })` shape; gains `transport` field on `RuntimeClientOptions`.
 - `packages/runtime/src/framework/runtime-worker-client.ts` — collapses `initialize()` to delegate to `transport.initialize()`.
 - `packages/runtime/src/framework/runtime-worker-dispatcher.ts` — `readDeliveryCapabilities(port)` is replaced with `hostTransport.encodeGeometry()`.
-- `packages/runtime/src/framework/runtime-message-adapter.ts` — `getWorkerMessagePort()` is removed (its code moves into `webWorkerTransport.host()` and `nodeWorkerTransport.host()`).
+- `packages/runtime/src/framework/runtime-message-adapter.ts` — `getWorkerMessagePort()` is removed (its code moves into `webWorkerHost()` and `nodeWorkerHost()`).
 - `packages/rpc/src/port.ts` — removes the `capabilities` field from `Port<T>`; `wrapMessagePort` stops accepting `capabilities`.
 - `packages/rpc/src/channel.ts` — stops reading `port.capabilities`; tier choices are made by the transport, not the channel.
 
@@ -2140,7 +2140,7 @@ These files are not deleted but their contents change substantively as part of t
 | `packages/rpc/src/wire-validation-error.ts`                                 | `WireValidationError` thrown by the channel when a received frame fails schema validation.                                                                                               |
 | `examples/electron-tau/src/transport/electron-utility-transport.ts`         | Example-owned transport wired against the `defineRuntimeTransport` factory.                                                                                                              |
 | `examples/electron-tau/src/transport/electron-utility-transport.schemas.ts` | Zod schemas for the Electron utility transport's client/host options.                                                                                                                    |
-| `examples/electron-tau/src/main/kernel-host.ts`                             | Renamed/expanded utility-process script that uses `electronUtilityTransport.host()`.                                                                                                     |
+| `examples/electron-tau/src/main/kernel-host.ts`                             | Renamed/expanded utility-process script that uses `electronUtilityHost()`.                                                                                                               |
 | `docs/research/runtime-transport-architecture-v6.md`                        | This document.                                                                                                                                                                           |
 
 ## Migration Path from v5

@@ -181,8 +181,8 @@ exposeFileSystem(fileManager);
 // Main thread (app shell):
 const client = createRuntimeClient({
   ...presets.all(),
-  transport: webWorkerTransport.client({
-    workerUrl: kernelWorkerUrl,
+  transport: webWorkerTransport({
+    url: kernelWorkerUrl,
     fileSystem: fromWorkerOpaque(fileManagerWorker),
   }),
 });
@@ -193,13 +193,13 @@ The transport creates the FS bridge `MessagePort` internally; the worker-hosted 
 
 ## Connection Modes
 
-`RuntimeClient.connect()` takes **no arguments**. Every wire concern (filesystem bridge, file pool SAB, abort signal channel) is closed over by the {@link RuntimeTransportPlugin} the consumer hands to `createRuntimeClient({ transport })`.
+`RuntimeClient.connect()` takes **no arguments**. Every wire concern (filesystem bridge, file pool SAB, abort signal channel) is closed over by the {@link TransportPlugin} the consumer hands to `createRuntimeClient({ transport })`.
 
 ```typescript
 const client = createRuntimeClient({
   ...presets.all(),
-  transport: webWorkerTransport.client({
-    workerUrl: kernelWorkerUrl,
+  transport: webWorkerTransport({
+    url: kernelWorkerUrl,
     fileSystem: fromMemoryFs(files), // or fromNodeFs / fromBrowserFs / fromWorkerOpaque
     filePoolBuffer, // optional, externally allocated SAB
   }),
@@ -209,13 +209,13 @@ await client.connect();
 
 ### Inline and worker-hosted `fileSystem`
 
-The transport's `client({ fileSystem })` option accepts the opaque `RuntimeFileSystem` returned by any `from*` factory. For inline factories (`fromMemoryFs`, `fromNodeFs`, `fromFsLikeOpaque`, `fromBrowserFs`), the transport creates a `MessageChannel` internally and bridges the in-process or Node-backed `RuntimeFileSystemBase` into the kernel worker. For port-backed factories (`fromWorkerOpaque`), the transport binds the supplied port directly. Cross-process kernel hosts (Electron main, native subprocess) author a custom transport (e.g. `electronUtilityTransport`) and supply their `RuntimeFileSystemBase` inside the host side (`createRuntimeHost({ transport: electronUtilityTransport.host({ fileSystem }) })`).
+The transport's **`fileSystem`** option (on bundled callables such as `webWorkerTransport({ ... })` / `nodeWorkerTransport({ ... })`) accepts the opaque `RuntimeFileSystem` returned by any `from*` factory. For inline factories (`fromMemoryFs`, `fromNodeFs`, `fromFsLikeOpaque`, `fromBrowserFs`), the transport creates a `MessageChannel` internally and bridges the in-process or Node-backed `RuntimeFileSystemBase` into the kernel worker. For port-backed factories (`fromWorkerOpaque`), the transport binds the supplied port directly. Cross-process kernel hosts (Electron main, native subprocess) author a custom transport (e.g. **renderer:** `electronUtilityTransport({ port })`) and construct the **`RuntimeTransportHost`** on the host side with **`electronUtilityHost({ fileSystem })`** for `createRuntimeHost({ transport })`.
 
-| Factory                                                              | When to use                                                                     |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `fromMemoryFs` / `fromNodeFs` / `fromFsLikeOpaque` / `fromBrowserFs` | same-thread or single-process FS source                                         |
-| `fromWorkerOpaque`                                                   | browser editor with a `FileService` / FS worker that speaks the bridge protocol |
-| _(custom transport.host({ fileSystem }))_                            | cross-process kernel host (e.g. Electron main) that owns the real filesystem    |
+| Factory                                                                | When to use                                                                             |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `fromMemoryFs` / `fromNodeFs` / `fromFsLikeOpaque` / `fromBrowserFs`   | same-thread or single-process FS source                                                 |
+| `fromWorkerOpaque`                                                     | browser editor with a `FileService` / FS worker that speaks the bridge protocol         |
+| _(named host factories such as `electronUtilityHost({ fileSystem })`)_ | cross-process kernel host (e.g. Electron utility process) that owns the real filesystem |
 
 ## Subpath Export Structure
 

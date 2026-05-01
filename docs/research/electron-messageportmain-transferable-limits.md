@@ -125,7 +125,7 @@ The cache invalidation contract was already correctly implemented for the `notif
 
 ### Finding 5: `RuntimeHostConfig.fileSystem` was structurally required even for v6 transports that own their own FS
 
-When `electronUtilityTransport.host()` provisions `fromMemoryFS()` internally, the renderer-side `kernel-host.ts` should not need to supply a redundant `fileSystem` field. The previous `RuntimeHostConfig` typed `fileSystem` as required, forcing every v6 host caller to pass an unused stub.
+When `electronUtilityHost()` provisions `fromMemoryFS()` internally, the renderer-side `kernel-host.ts` should not need to supply a redundant `fileSystem` field. The previous `RuntimeHostConfig` typed `fileSystem` as required, forcing every v6 host caller to pass an unused stub.
 
 **Fix** — Made `fileSystem` optional. The legacy v5 path validates presence at runtime with a clear error message; the v6 path forwards `config.fileSystem` to the transport (transports that don't need it ignore the argument).
 

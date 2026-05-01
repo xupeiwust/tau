@@ -19,7 +19,7 @@ How to remove two pieces of accumulated friction in the v6 transport layer witho
 The v6 architecture co-located each transport's `client()` and `host()` factories in a single source file (`web-worker-transport.ts`, `node-worker-transport.ts`, `in-process-transport.ts`). Two follow-on problems surfaced once the runtime started shipping default worker entries:
 
 1. **Chunk-emit cycle**: `web-worker-transport.ts` declares `DEFAULT_WEB_WORKER_URL = new URL('../worker/web.js', import.meta.url)`. The build-time plugin emits a chunk for `worker/web.ts` from inside the transport file's `transform()`. The emitted chunk's static or dynamic graph reaches back into `web-worker-transport.ts`, deadlocking Rolldown's `emitFile()`.
-2. **Authoring asymmetry as duplication**: `inProcessTransport.host()` is a contract-stub — every method is a no-op — because the in-process client already wires both sides inside its own `open()`. Roughly 50 lines plus a `channel-server-stub.ts` helper exist solely to satisfy the `defineRuntimeTransport({ client, host })` shape.
+2. **Authoring asymmetry as duplication**: `historic in-process `host()` symmetry stub` is a contract-stub — every method is a no-op — because the in-process client already wires both sides inside its own `open()`. Roughly 50 lines plus a `channel-server-stub.ts` helper exist solely to satisfy the `defineRuntimeTransport({ client, host })` shape.
 
 Both are solvable inside the v6 blueprint without weakening type safety or breaking consumer call sites.
 
@@ -65,7 +65,7 @@ After commit `60b9a5dd1` broadened `tsModuleUrlBuildPlugin`'s regex and added an
 
 `emitFile()` for `worker/web.ts` never returns. All other emits (kernels, middleware, transcoders) return in 0 ms. The hang is specific to chunks whose graph reaches back into the transform that emitted them.
 
-### Problem 2 — `inProcessTransport.host()` is a contract-only stub
+### Problem 2 — `historic in-process `host()` symmetry stub` is a contract-only stub
 
 `packages/runtime/src/transport/in-process-transport.ts:254-336` documents itself plainly:
 
@@ -164,7 +164,7 @@ No type information is lost by the file split because the phantom-bearing object
 
 ### Finding 5 — In-process is structurally a "passthrough", not a wire transport
 
-Re-reading `inProcessTransport.client()` reveals it is doing the host's job inline:
+Re-reading `inProcessTransport()` reveals it is doing the host's job inline:
 
 ```typescript
 const channelPair = new MessageChannel();
@@ -177,7 +177,7 @@ createWorkerDispatcher(worker, hostPort, { inlineFileSystem, encodeGeometry, enc
 
 The "host" is dispatched inline by the client's `open()`. There is no wire to bridge — the `MessageChannel` is a same-isolate loopback used purely so the channel protocol stays uniform with cross-isolate transports.
 
-Consequently `inProcessTransport.host()` has nothing to do:
+Consequently `historic in-process `host()` symmetry stub` has nothing to do:
 
 - `open()` returns a no-op channel server stub.
 - `adoptInitialize()` returns identity bindings (the `publish()` helpers do nothing useful because the dispatcher is already wired).
@@ -427,7 +427,7 @@ After R3 lands, the only consumer is gone. Delete the file and any associated te
 | Author API entry points             | 1 (`defineRuntimeTransport`)                                      | 2 (`defineRuntimeTransport`, `definePassthroughTransport`)                        |
 | Type safety between client + host   | Co-located in one file                                            | Funneled through `defineRuntimeTransport(...)` call — same end-to-end inference   |
 | Cycle hazard                        | Present (causes `pnpm nx build ui` hang)                          | Structurally impossible                                                           |
-| Consumer-facing API                 | `webWorkerTransport.client(...)` / `.host(...)`                   | Unchanged                                                                         |
+| Consumer-facing API                 | `webWorkerTransport(...)` / `.host(...)`                          | Unchanged                                                                         |
 | Worker entry static-import safety   | Forced to use `await import(...)` workaround (insufficient)       | Plain `import { webWorkerHost } from '@taucad/runtime/transport/web-worker-host'` |
 
 The file-count growth is real but each file has one clear job and follows the v6 blueprint's "thin composition over fat module" principle. The author-API growth (one new symbol) is the cost of giving same-isolate transports an honest shape.
@@ -459,11 +459,11 @@ The `Id` phantom is `const`-inferred from `definition.id`; both `client` and `ho
 ```typescript
 const client = createRuntimeClient({
   kernels: [replicad()],
-  transport: inProcessTransport.client({ fileSystem: fromMemoryFs() }),
+  transport: inProcessTransport({ fileSystem: fromMemoryFs() }),
 });
 
 // Author tries to spin up an "in-process host" because a wire transport's API made it look possible:
-const host = inProcessTransport.host({});
+const host = historic in-process `host({})` symmetry stub;
 //                              ^^^^^^^^
 //   throws at runtime: "in-process: passthrough transport — host() is not callable.
 //                       client() owns the entire pipeline; no wire host to bootstrap."
