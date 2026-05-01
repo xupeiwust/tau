@@ -10,7 +10,8 @@ import { bufferToStream } from '#backend/stream-utils.js';
 import { CrossTabCoordinator } from '#cross-tab-coordinator.js';
 import type { SharedPool } from '@taucad/memory';
 import type { MountTable, MountOptions, MountResolution } from '#mount-table.js';
-import { createFileSystemService, type FileSystemService } from '#file-system-service.js';
+import { createFileSystemService } from '#file-system-service.js';
+import type { FileSystemService } from '#file-system-service.js';
 import { parentDirectory, joinPath, normalizePath } from '@taucad/utils/path';
 
 /** Milliseconds. */
@@ -212,7 +213,7 @@ export class WorkspaceFileService {
    */
   public async stat(path: string): Promise<FileStat> {
     const { provider, path: resolvedPath } = this._resolveProvider(path);
-    return await provider.stat(resolvedPath);
+    return provider.stat(resolvedPath);
   }
 
   /**
@@ -223,7 +224,7 @@ export class WorkspaceFileService {
    */
   public async lstat(path: string): Promise<FileStat> {
     const { provider, path: resolvedPath } = this._resolveProvider(path);
-    return await provider.lstat(resolvedPath);
+    return provider.lstat(resolvedPath);
   }
 
   /**

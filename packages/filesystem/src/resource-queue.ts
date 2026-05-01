@@ -11,9 +11,9 @@ const resolved: Promise<void> = Promise.resolve();
  * ResourceWriteQueue (per-parent — ZenFS artifact, unnecessary with
  * path-keyed IDB).
  *
+ * @public
  * @see repos/vscode/src/vs/base/common/async.ts ResourceQueue
  * @see repos/vscode/src/vs/platform/files/common/fileService.ts writeQueue
- * @public
  */
 export class ResourceQueue {
   private readonly _queues = new Map<string, Promise<void>>();
