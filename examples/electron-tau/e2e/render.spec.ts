@@ -22,7 +22,7 @@ import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
-const MAIN_ENTRY = resolve(APP_ROOT, 'dist/main/index.cjs');
+const MAIN_ENTRY = resolve(APP_ROOT, 'dist/main/index.js');
 
 test.describe('Tau Electron PoC end-to-end', () => {
   test('rename `len` -> `length` updates the parameters-form label, and changing the value updates the bbox', async () => {
@@ -47,12 +47,16 @@ test.describe('Tau Electron PoC end-to-end', () => {
         const line = `[renderer:${message.type()}] ${message.text()}\n`;
         appLog.push(line);
         // eslint-disable-next-line no-console -- forward to test stdout for live tail
-        if (process.env['TAU_ELECTRON_DEBUG'] === '1') process.stdout.write(line);
+        if (process.env['TAU_ELECTRON_DEBUG'] === '1') {
+          process.stdout.write(line);
+        }
       });
       window.on('pageerror', (error) => {
         const line = `[renderer:pageerror] ${error.message}\n${error.stack ?? ''}\n`;
         appLog.push(line);
-        if (process.env['TAU_ELECTRON_DEBUG'] === '1') process.stdout.write(line);
+        if (process.env['TAU_ELECTRON_DEBUG'] === '1') {
+          process.stdout.write(line);
+        }
       });
       if (process.env['TAU_ELECTRON_DEBUG'] === '1') {
         proc.stderr?.on('data', (chunk: Buffer) => process.stdout.write(`[main:stderr] ${chunk.toString()}`));
@@ -103,8 +107,8 @@ test.describe('Tau Electron PoC end-to-end', () => {
         console.error('--- renderer probe ---');
         console.error(JSON.stringify(probe, null, 2));
         console.error('--- end renderer probe ---');
-      } catch (e) {
-        console.error('renderer probe failed:', e);
+      } catch (error) {
+        console.error('renderer probe failed:', error);
       }
       throw error;
     } finally {

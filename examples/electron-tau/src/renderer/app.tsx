@@ -1,8 +1,8 @@
 /**
- * Electron PoC renderer (v6 Topology C).
+ * Electron PoC renderer (Topology C).
  *
  * Receives a `MessagePort` minted by Electron main (via the preload
- * `runtime-port` IPC relay), constructs a `RuntimeClient` over the v6
+ * `runtime-port` IPC relay), constructs a `RuntimeClient` over the
  * `electronUtilityTransport`, and drives the OpenSCAD kernel hosted
  * inside the utility process.
  *
@@ -30,22 +30,47 @@ import { openscad } from '@taucad/openscad';
 
 import { electronUtilityTransport } from '../transport/electron-utility-transport.js';
 import { ParametersForm } from './parameters-form.js';
+import { resolveElectronNumericParameterOverride } from './parameter-override-sync.js';
 import { BoundingBoxViewer } from './bounding-box-viewer.js';
+import { MinimalGlbThreeViewer } from './geometry-three-viewer.js';
 import type { GltfInspection } from './gltf-inspector.js';
 import type { ScadParam as ScadParameter } from './openscad-params.js';
 import { inspectGlb } from './gltf-inspector.js';
 
 const INITIAL_SOURCE = 'len=200;\ncube(len);\n';
+/** Matches `e2e/electron-utility-fs-supply.spec.ts` seeded fixture on disk. */
+const DISK_SEEDED_PREVIEW = '// e2e-disk-seed\ncube(10);\n';
 const RENDERER_FILE = 'main.scad';
 
 const debugLog = (origin: string, message: string, data?: Record<string, unknown>): void => {
-  // eslint-disable-next-line no-console -- diagnostic seam for Playwright failure capture
   console.log(`[tau-electron:renderer:${origin}] ${message}${data ? ` ${JSON.stringify(data)}` : ''}`);
 };
 
+/**
+ * R10 — Gate the `window.__taucadTransportDescriptor` diagnostic surface
+ * (and any future debug probes) behind `TAU_ELECTRON_DEBUG=1`. Production
+ * Electron builds should not ship the descriptor since it leaks transport
+ * topology details and pins the renderer to test-shaped expectations.
+ *
+ * Mirrors the existing `DEBUG_ENABLED` switch in the main / utility /
+ * transport modules plus the preload‑exposed `window.__TAU_ELECTRON_DEBUG`
+ * boolean so packaged renderer builds still see the runtime env flag (the
+ * Vite bundle does not retain `process.env` the way dev‑server SSR does).
+ */
+const tauPreloadDebug = (globalThis as Window & { __TAU_ELECTRON_DEBUG?: boolean }).__TAU_ELECTRON_DEBUG === true;
+const tauProcessReflect = Reflect.get(globalThis as unknown as Record<string, unknown>, 'process') as
+  | { env?: Readonly<Record<string, string | undefined>> }
+  | undefined;
+const tauProcessDebug = tauProcessReflect?.env?.['TAU_ELECTRON_DEBUG'] === '1';
+const TAU_DEBUG = tauPreloadDebug || tauProcessDebug;
+
 declare global {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- ambient `Window` augmentation requires `interface` per TS spec
   interface Window {
+    /**
+     * `TAU_ELECTRON_DEBUG=1` forwarded from preload (`process.env` is not
+     * available in production renderer bundles the same way as dev-server).
+     */
+    readonly __TAU_ELECTRON_DEBUG?: boolean;
     readonly taucad?: {
       requestRuntimePort(): void;
       readonly relayTag: {
@@ -53,7 +78,7 @@ declare global {
       };
     };
     /**
-     * Topology-C diagnostic probe: surfaces the live v6 transport
+     * Topology-C diagnostic probe: surfaces the live transport
      * descriptor so the Playwright e2e can assert the renderer wired
      * through `electronUtilityTransport` and not a fallback.
      */
@@ -78,7 +103,7 @@ declare global {
 const awaitRelayedPort = async (relayTag: string): Promise<MessagePort> =>
   new Promise<MessagePort>((resolve) => {
     const handler = (event: MessageEvent): void => {
-      const data = event.data as { taucadRelay?: string } | null;
+      const data = event.data as { taucadRelay?: string } | undefined;
       if (!data || data.taucadRelay !== relayTag) {
         return;
       }
@@ -86,10 +111,10 @@ const awaitRelayedPort = async (relayTag: string): Promise<MessagePort> =>
       if (!port) {
         return;
       }
-      window.removeEventListener('message', handler);
+      (globalThis as Window).removeEventListener('message', handler);
       resolve(port);
     };
-    window.addEventListener('message', handler);
+    (globalThis as Window).addEventListener('message', handler);
   });
 
 type SchemaProperties = Record<string, { default?: unknown; type?: string } | undefined>;
@@ -129,12 +154,18 @@ const emptyInspection: GltfInspection = {
   counts: { meshes: 0, primitives: 0, vertices: 0, triangles: 0 },
 };
 
-const inspectionFromGeometry = (result: HashedGeometryResult): { inspection: GltfInspection } | undefined => {
+/** Copy so `GLTFLoader.parse` and `inspectGlb` own a stable `ArrayBuffer`. */
+const bytesToDisposableArrayBuffer = (bytes: Uint8Array<ArrayBuffer>): ArrayBuffer =>
+  bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+
+const gltfPayloadFromGeometry = (
+  result: HashedGeometryResult,
+): { glbBuffer: ArrayBuffer; inspection: GltfInspection } | undefined => {
   if (!result.success) {
     return undefined;
   }
   const first = result.data[0];
-  if (!first || first.format !== 'gltf') {
+  if (first?.format !== 'gltf') {
     return undefined;
   }
   /* The wire-delivered `data[0].content` is a discriminated wrapper:
@@ -145,16 +176,16 @@ const inspectionFromGeometry = (result: HashedGeometryResult): { inspection: Glt
    * defensive extractor still handles a raw `Uint8Array` (some
    * transports normalise before fan-out). */
   const content = first.content as unknown;
-  let bytes: Uint8Array | undefined;
+  let bytes: Uint8Array<ArrayBuffer> | undefined;
   if (content instanceof Uint8Array) {
-    bytes = content;
+    bytes = content as Uint8Array<ArrayBuffer>;
   } else if (
     content !== null &&
     typeof content === 'object' &&
     'bytes' in (content as Record<string, unknown>) &&
     (content as { bytes?: unknown }).bytes instanceof Uint8Array
   ) {
-    bytes = (content as { bytes: Uint8Array }).bytes;
+    bytes = (content as { bytes: Uint8Array<ArrayBuffer> }).bytes;
   }
   if (!bytes) {
     debugLog('inspector', 'no-bytes-on-geometry', {
@@ -166,19 +197,13 @@ const inspectionFromGeometry = (result: HashedGeometryResult): { inspection: Glt
     return undefined;
   }
   try {
-    /* `inspectGlb` accepts an `ArrayBuffer`. The wire delivers a
-     * `Uint8Array` view that may be a partial slice into a larger
-     * buffer. Re-wrap defensively. */
-    const buffer =
-      bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
-        ? (bytes.buffer as ArrayBuffer)
-        : (bytes.slice().buffer as ArrayBuffer);
-    const inspection = inspectGlb(buffer);
+    const glbBuffer = bytesToDisposableArrayBuffer(bytes);
+    const inspection = inspectGlb(glbBuffer);
     debugLog('inspector', 'glb-inspect-success', {
-      bytes: bytes.byteLength,
+      bytes: glbBuffer.byteLength,
       bboxSize: inspection.bbox.size,
     });
-    return { inspection };
+    return { glbBuffer, inspection };
   } catch (error) {
     debugLog('inspector', 'glb-inspect-failed', {
       error: error instanceof Error ? error.message : String(error),
@@ -191,29 +216,31 @@ export function App(): React.ReactElement {
   const [source, setSource] = useState(INITIAL_SOURCE);
   const [parameters, setParameters] = useState<readonly ScadParameter[]>([]);
   const [inspection, setInspection] = useState<GltfInspection>(emptyInspection);
+  const [geometryGlbBuffer, setGeometryGlbBuffer] = useState<ArrayBuffer | undefined>();
   const [override, setOverride] = useState<{ name: string; value: number } | undefined>();
   const [connectionState, setConnectionState] = useState<'idle' | 'connecting' | 'ready' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   const clientReference = useRef<RuntimeClient | undefined>(undefined);
   const latestRgenReference = useRef<number>(-1);
+  const lastKernelNumericReference = useRef<{ name: string; value: number } | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
+    const cancellation = (): boolean => cancelled;
     const cleanups: Array<() => void> = [];
 
     const recordError = (where: string, error: unknown): void => {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
       const payload = `[${where}] ${message}${stack ? `\n${stack}` : ''}`;
-      window.__taucadLastError = payload;
+      (globalThis as Window).__taucadLastError = payload;
       setErrorMessage(payload);
       debugLog('bootstrap', `error-at-${where}`, { message });
     };
 
     const bootstrap = async (): Promise<void> => {
-      // eslint-disable-next-line unicorn/prefer-global-this -- `window.taucad` is the canonical Electron `contextBridge.exposeInMainWorld` surface
-      const bridge = window.taucad;
+      const bridge = (globalThis as Window).taucad;
       if (!bridge) {
         recordError('bridge-missing', new Error('window.taucad bridge unavailable (preload failed)'));
         if (!cancelled) {
@@ -233,42 +260,6 @@ export function App(): React.ReactElement {
         debugLog('bootstrap', 'awaiting-relayed-port');
         const port = await portPromise;
         debugLog('bootstrap', 'port-received');
-
-        // TEMP DIAGNOSTIC: wrap the renderer-side port to log every
-        // postMessage / message event so we can compare against the
-        // utility-side `tx-frame` / `rx-frame` log trail.
-        const previewData = (raw: unknown): string => {
-          try {
-            if (raw === undefined) return 'undefined';
-            if (raw === null) return 'null';
-            if (typeof raw === 'object') {
-              const json = JSON.stringify(raw, (_k, v: unknown) => {
-                if (v instanceof ArrayBuffer) return `[ArrayBuffer:${v.byteLength}]`;
-                if (ArrayBuffer.isView(v)) return `[${v.constructor.name}:${(v as ArrayBufferView).byteLength}]`;
-                return v;
-              });
-              return json.length > 600 ? `${json.slice(0, 600)}...(${json.length}b)` : json;
-            }
-            return String(raw);
-          } catch (error) {
-            return `[unstringifiable:${error instanceof Error ? error.message : String(error)}]`;
-          }
-        };
-        const originalPostMessage = port.postMessage.bind(port);
-        port.postMessage = function patchedPost(value: unknown, transfer?: Transferable[]): void {
-          debugLog('port', 'tx-frame', {
-            transferableCount: transfer?.length ?? 0,
-            dataPreview: previewData(value),
-          });
-          if (transfer && transfer.length > 0) {
-            originalPostMessage(value as never, transfer);
-          } else {
-            originalPostMessage(value as never);
-          }
-        } as typeof port.postMessage;
-        port.addEventListener('message', (event) => {
-          debugLog('port', 'rx-frame', { dataPreview: previewData(event.data) });
-        });
         port.start();
         if (cancelled) {
           return;
@@ -284,10 +275,14 @@ export function App(): React.ReactElement {
         /* `client.transport` is populated immediately on construction
          * — `describe()` is synchronous and runs in the
          * `RuntimeWorkerClient` constructor. Surface the descriptor
-         * for the Playwright e2e harness. */
+         * for the Playwright e2e harness, but only when the debug
+         * flag is set so production builds do not ship it (R10). */
         const exposeDescriptor = (): void => {
+          if (!TAU_DEBUG) {
+            return;
+          }
           // oxlint-disable-next-line unicorn/prefer-global-this -- ambient renderer-only diagnostic surface
-          window.__taucadTransportDescriptor = {
+          (globalThis as Window).__taucadTransportDescriptor = {
             id: client.transport.id,
             wire: client.transport.descriptor.wire,
             geometryDelivery: client.transport.descriptor.memory.geometryDelivery,
@@ -317,7 +312,7 @@ export function App(): React.ReactElement {
             success: result.success,
             count: result.success ? result.data.length : 0,
           });
-          const next = inspectionFromGeometry(result);
+          const next = gltfPayloadFromGeometry(result);
           if (!next) {
             return;
           }
@@ -326,12 +321,13 @@ export function App(): React.ReactElement {
            * gate required. The `latestRgenReference` is still tracked
            * for diagnostic purposes only. */
           latestRgenReference.current += 1;
+          setGeometryGlbBuffer(next.glbBuffer);
           setInspection(next.inspection);
         });
         cleanups.push(offGeometry);
 
         const offError = client.on('error', (issues) => {
-          const message = issues.map((i) => i.message).join('; ') || 'unknown error';
+          const message = issues.map((index) => index.message).join('; ') || 'unknown error';
           debugLog('event', 'error', { message, count: issues.length });
           recordError('runtime-error-event', new Error(message));
         });
@@ -346,7 +342,7 @@ export function App(): React.ReactElement {
         await client.openFile({ code: { [RENDERER_FILE]: INITIAL_SOURCE } });
         debugLog('bootstrap', 'openFile-resolved');
 
-        if (cancelled) {
+        if (cancellation()) {
           return;
         }
         setConnectionState('ready');
@@ -386,12 +382,19 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const numeric = parameters.find((p) => typeof p.defaultValue === 'number');
     if (!numeric) {
+      lastKernelNumericReference.current = undefined;
       setOverride(undefined);
       return;
     }
     const numericDefault = typeof numeric.defaultValue === 'number' ? numeric.defaultValue : 0;
+    const lastKernelNumericSnapshot = lastKernelNumericReference.current;
+    lastKernelNumericReference.current = { name: numeric.name, value: numericDefault };
     setOverride((previous) =>
-      previous && previous.name === numeric.name ? previous : { name: numeric.name, value: numericDefault },
+      resolveElectronNumericParameterOverride(
+        { name: numeric.name, defaultValue: numericDefault },
+        previous,
+        lastKernelNumericSnapshot,
+      ),
     );
   }, [parameters]);
 
@@ -408,7 +411,24 @@ export function App(): React.ReactElement {
       code: { [RENDERER_FILE]: source },
       parameters: { [override.name]: override.value },
     });
-  }, [override, connectionState]);
+  }, [override, connectionState, source]);
+
+  const openSeededFromDisk = async (): Promise<void> => {
+    const client = clientReference.current;
+    if (!client) {
+      return;
+    }
+    /* Drop prior model parameter UI so the override effect cannot
+     * re-apply `len=200` from the previous `main.scad` session after
+     * we switch entry files (see `forwarding-parameter-override`). */
+    setOverride(undefined);
+    setParameters([]);
+    await client.openFile({ file: '/seeded.scad' });
+    /* Keep editor state aligned with disk so follow-up autonomous
+     * `openFile({ code })` paths (parameter resolution) cannot
+     * stomp the seeded entry with stale in-memory INITIAL_SOURCE. */
+    setSource(DISK_SEEDED_PREVIEW);
+  };
 
   const banner = useMemo(() => {
     if (connectionState === 'connecting') {
@@ -417,13 +437,20 @@ export function App(): React.ReactElement {
     if (connectionState === 'error') {
       return `Runtime bridge unavailable${errorMessage ? `: ${errorMessage.slice(0, 200)}` : ''}`;
     }
-    return 'Tau Electron PoC — runtime channel v6 (Topology C)';
+    return 'Tau Electron PoC';
   }, [connectionState, errorMessage]);
 
   return (
     <div data-testid='app-root' style={rootStyles}>
       <header style={headerStyles}>
-        <h1 style={titleStyles}>{banner}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h1 style={titleStyles}>{banner}</h1>
+          {TAU_DEBUG ? (
+            <button type='button' data-testid='open-seeded' onClick={() => void openSeededFromDisk()}>
+              Open disk seeded.scad
+            </button>
+          ) : null}
+        </div>
       </header>
       <div style={mainStyles}>
         <section style={paneStyles}>
@@ -437,6 +464,10 @@ export function App(): React.ReactElement {
             spellCheck={false}
             style={editorStyles}
           />
+        </section>
+        <section style={paneStyles}>
+          <h2 style={paneTitleStyles}>Preview</h2>
+          <MinimalGlbThreeViewer glb={geometryGlbBuffer} />
         </section>
         <section style={paneStyles}>
           <h2 style={paneTitleStyles}>Parameters</h2>
@@ -477,11 +508,11 @@ const titleStyles: React.CSSProperties = {
 
 const mainStyles: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
   gap: '1rem',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr)',
+  minHeight: 0,
   padding: '1rem',
   flex: 1,
-  minHeight: 0,
 };
 
 const paneStyles: React.CSSProperties = {

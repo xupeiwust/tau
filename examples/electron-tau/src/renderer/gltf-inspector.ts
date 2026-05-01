@@ -129,8 +129,8 @@ export function packGlbForTest(json: GltfJson): ArrayBuffer {
   const paddedLength = jsonBytes.byteLength + ((4 - (jsonBytes.byteLength % 4)) % 4);
   const padded = new Uint8Array(paddedLength);
   padded.set(jsonBytes, 0);
-  for (let i = jsonBytes.byteLength; i < paddedLength; i++) {
-    padded[i] = 0x20;
+  for (let index = jsonBytes.byteLength; index < paddedLength; index++) {
+    padded[index] = 0x20;
   }
   const totalLength = GLB_HEADER_BYTES + CHUNK_HEADER_BYTES + paddedLength;
   const buffer = new ArrayBuffer(totalLength);
@@ -173,16 +173,16 @@ function countGeometry(json: GltfJson): GltfInspection['counts'] {
     meshes++;
     for (const primitive of mesh.primitives) {
       primitives++;
-      const positionIdx = primitive.attributes.POSITION;
-      if (positionIdx !== undefined && json.accessors?.[positionIdx]) {
-        vertices += json.accessors[positionIdx].count;
+      const positionIndex = primitive.attributes.POSITION;
+      if (positionIndex !== undefined && json.accessors?.[positionIndex]) {
+        vertices += json.accessors[positionIndex].count;
       }
       /* Index buffer counts triangles directly; primitive.mode defaults to
        * 4 (TRIANGLES) per the glTF spec. */
       const mode = primitive.mode ?? 4;
       if (mode === 4) {
         const indexAccessor = primitive.indices === undefined ? undefined : json.accessors?.[primitive.indices];
-        const positionAccessor = positionIdx === undefined ? undefined : json.accessors?.[positionIdx];
+        const positionAccessor = positionIndex === undefined ? undefined : json.accessors?.[positionIndex];
         if (indexAccessor) {
           triangles += indexAccessor.count / 3;
         } else if (positionAccessor) {
@@ -199,15 +199,15 @@ type Vec3 = readonly [number, number, number];
 type Mat4 = readonly number[];
 
 function computeSceneBbox(json: GltfJson): GltfInspection['bbox'] {
-  const sceneIdx = json.scene ?? 0;
-  const scene = json.scenes?.[sceneIdx];
+  const sceneIndex = json.scene ?? 0;
+  const scene = json.scenes?.[sceneIndex];
   const rootNodes = scene?.nodes ?? [];
 
   let min: Vec3 = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
   let max: Vec3 = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
 
-  for (const nodeIdx of rootNodes) {
-    const result = walkNode(json, nodeIdx, identity());
+  for (const nodeIndex of rootNodes) {
+    const result = walkNode(json, nodeIndex, identity());
     if (result) {
       min = vec3Min(min, result.min);
       max = vec3Max(max, result.max);
@@ -230,8 +230,8 @@ function computeSceneBbox(json: GltfJson): GltfInspection['bbox'] {
   return { min, max, size, center };
 }
 
-function walkNode(json: GltfJson, nodeIdx: number, parentMatrix: Mat4): { min: Vec3; max: Vec3 } | undefined {
-  const node = json.nodes?.[nodeIdx];
+function walkNode(json: GltfJson, nodeIndex: number, parentMatrix: Mat4): { min: Vec3; max: Vec3 } | undefined {
+  const node = json.nodes?.[nodeIndex];
   if (!node) {
     return undefined;
   }
@@ -252,8 +252,8 @@ function walkNode(json: GltfJson, nodeIdx: number, parentMatrix: Mat4): { min: V
     }
   }
 
-  for (const childIdx of node.children ?? []) {
-    const childBox = walkNode(json, childIdx, worldMatrix);
+  for (const childIndex of node.children ?? []) {
+    const childBox = walkNode(json, childIndex, worldMatrix);
     if (childBox) {
       hasGeometry = true;
       min = vec3Min(min, childBox.min);
@@ -264,8 +264,8 @@ function walkNode(json: GltfJson, nodeIdx: number, parentMatrix: Mat4): { min: V
   return hasGeometry ? { min, max } : undefined;
 }
 
-function meshBboxFromAccessors(json: GltfJson, meshIdx: number): { min: Vec3; max: Vec3 } | undefined {
-  const mesh = json.meshes?.[meshIdx];
+function meshBboxFromAccessors(json: GltfJson, meshIndex: number): { min: Vec3; max: Vec3 } | undefined {
+  const mesh = json.meshes?.[meshIndex];
   if (!mesh) {
     return undefined;
   }
@@ -273,11 +273,11 @@ function meshBboxFromAccessors(json: GltfJson, meshIdx: number): { min: Vec3; ma
   let max: Vec3 = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
   let any = false;
   for (const primitive of mesh.primitives) {
-    const positionIdx = primitive.attributes.POSITION;
-    if (positionIdx === undefined) {
+    const positionIndex = primitive.attributes.POSITION;
+    if (positionIndex === undefined) {
       continue;
     }
-    const accessor = json.accessors?.[positionIdx];
+    const accessor = json.accessors?.[positionIndex];
     if (!accessor?.min || !accessor.max || accessor.min.length < 3 || accessor.max.length < 3) {
       continue;
     }

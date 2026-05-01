@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
-  "main": "dist/main/index.cjs",
+  "main": "dist/main/index.js",
   "dependencies": {
     "@taucad/filesystem": "workspace:*",
     "@taucad/memory": "workspace:*",

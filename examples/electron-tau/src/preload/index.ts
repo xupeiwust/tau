@@ -26,6 +26,9 @@ import { ipcChannel } from '../shared/ipc.js';
 
 const runtimeRelayTag = `${ipcChannel.connectRuntime}:port`;
 
+const tauElectronDebug = process.env['TAU_ELECTRON_DEBUG'] === '1';
+contextBridge.exposeInMainWorld('__TAU_ELECTRON_DEBUG', tauElectronDebug);
+
 ipcRenderer.on(runtimeRelayTag, (event) => {
   if (event.ports.length === 0) {
     return;

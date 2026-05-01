@@ -232,8 +232,8 @@ describe('createFsBridgeHost (Phase 11 — Electron FS authority seam)', () => {
 
     await c.ready;
     const notifies: Array<FsProtocol['notifies']['fileChanged']['args']> = [];
-    c.onNotify('fileChanged', (args) => {
-      notifies.push(args);
+    c.onNotify('fileChanged', (arguments_) => {
+      notifies.push(arguments_);
     });
 
     await c.call('writeFile', { path: '/created.txt', data: 'fresh' });
@@ -248,8 +248,8 @@ describe('createFsBridgeHost (Phase 11 — Electron FS authority seam)', () => {
 
     await c.ready;
     const notifies: Array<FsProtocol['notifies']['fileChanged']['args']> = [];
-    c.onNotify('fileChanged', (args) => {
-      notifies.push(args);
+    c.onNotify('fileChanged', (arguments_) => {
+      notifies.push(arguments_);
     });
 
     await c.call('delete', { path: '/old.txt' });

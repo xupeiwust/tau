@@ -1,7 +1,7 @@
-import type { ScadParam } from './openscad-params.js';
+import type { ScadParam as ScadParameter } from './openscad-params.js';
 
 export type ParametersFormProps = {
-  readonly params: readonly ScadParam[];
+  readonly params: readonly ScadParameter[];
   readonly override?: { name: string; value: number };
   readonly onChange: (name: string, value: number) => void;
 };
@@ -17,21 +17,25 @@ export function ParametersForm({ params, override, onChange }: ParametersFormPro
 
   return (
     <ul data-testid='parameters-list' style={listStyles}>
-      {params.map((param) => {
-        const numericDefault = typeof param.defaultValue === 'number' ? param.defaultValue : 0;
-        const value = override?.name === param.name ? override.value : numericDefault;
+      {params.map((parameter) => {
+        const numericDefault = typeof parameter.defaultValue === 'number' ? parameter.defaultValue : 0;
+        const value = override?.name === parameter.name ? override.value : numericDefault;
         return (
-          <li key={param.name} style={rowStyles}>
-            <label htmlFor={`param-${param.name}`} data-testid={`param-label-${param.name}`} style={labelStyles}>
-              {param.name}
+          <li key={parameter.name} style={rowStyles}>
+            <label
+              htmlFor={`param-${parameter.name}`}
+              data-testid={`param-label-${parameter.name}`}
+              style={labelStyles}
+            >
+              {parameter.name}
             </label>
             <input
-              id={`param-${param.name}`}
-              data-testid={`param-input-${param.name}`}
+              id={`param-${parameter.name}`}
+              data-testid={`param-input-${parameter.name}`}
               type='number'
               value={value}
               onChange={(e) => {
-                onChange(param.name, Number(e.target.value));
+                onChange(parameter.name, Number(e.target.value));
               }}
               style={inputStyles}
             />

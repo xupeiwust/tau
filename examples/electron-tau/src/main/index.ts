@@ -1,5 +1,5 @@
 /**
- * Electron main process entry — v6 Topology C orchestration.
+ * Electron main process entry — Topology C orchestration.
  *
  * Responsibilities (per docs/research/runtime-transport-architecture-v6.md):
  *
@@ -7,7 +7,7 @@
  *    renderer's `crossOriginIsolated === true` precondition for
  *    `SharedArrayBuffer` is satisfied.
  * 2. On every `taucad:connect-runtime` IPC: spawn a fresh
- *    `utilityProcess.fork(kernel-host.cjs)`, allocate a
+ *    `utilityProcess.fork(kernel-host.js)`, allocate a
  *    `MessageChannelMain` pair, ship the utility-side port to the
  *    utility via `utility.postMessage(_, [utilityPort])`, and ship the
  *    renderer-side port to the renderer via
@@ -34,7 +34,7 @@ const debugLog = (message: string, data?: Record<string, unknown>): void => {
   if (!DEBUG_ENABLED) {
     return;
   }
-  // eslint-disable-next-line no-console -- diagnostic seam (gated by TAU_ELECTRON_DEBUG)
+
   console.log(`[tau-electron:main] ${message}${data ? ` ${JSON.stringify(data)}` : ''}`);
 };
 
@@ -60,7 +60,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     height: 800,
     show: false,
     webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.cjs'),
+      preload: join(import.meta.dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -75,7 +75,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
   return window;
 }
 
-const kernelHostPath = join(import.meta.dirname, 'kernel-host.cjs');
+const kernelHostPath = join(import.meta.dirname, 'kernel-host.js');
 
 type SpawnedRuntime = {
   readonly utility: UtilityProcess;

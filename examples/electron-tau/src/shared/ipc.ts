@@ -5,7 +5,7 @@
  * `ipcRenderer` use string channel names; centralising them here keeps the
  * three processes in lockstep.
  *
- * v6 Topology C uses a single `connectRuntime` request that carries both
+ * Topology C uses a single `connectRuntime` request that carries both
  * the kernel + FS over the same MessagePort (the FS is hosted inside the
  * utility process, accessed in-isolate from the kernel — no separate
  * FS-bridge port required for the PoC).

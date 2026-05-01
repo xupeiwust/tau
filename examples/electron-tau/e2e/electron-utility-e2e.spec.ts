@@ -1,5 +1,5 @@
 /**
- * Playwright `_electron` e2e for the v6 `electronUtilityTransport`
+ * Playwright `_electron` e2e for the `electronUtilityTransport`
  * (Topology C: Renderer ↔ utilityProcess kernel host).
  *
  * Conformance contract (per
@@ -7,9 +7,8 @@
  * tests" C8):
  *
  * - Renderer mounts and exposes the same `data-testid="app-root"` surface
- *   that the v5 `render.spec.ts` exercises, so the rest of the
- *   contract (rename, bbox, glTF props) keeps reading from the same
- *   selectors.
+ *   that `render.spec.ts` exercises, so the rest of the contract
+ *   (rename, bbox, glTF props) keeps reading from the same selectors.
  * - First render returns a non-empty `Geometry` payload. The transport
  *   delivers it via the wire as a structured-clone copy (Electron's
  *   `MessagePortMain` cannot transfer `ArrayBuffer` or `SharedArrayBuffer`
@@ -25,13 +24,19 @@ import { dirname, resolve } from 'node:path';
 
 const filename = fileURLToPath(import.meta.url);
 const APP_ROOT = resolve(dirname(filename), '..');
-const MAIN_ENTRY = resolve(APP_ROOT, 'dist/main/index.cjs');
+const MAIN_ENTRY = resolve(APP_ROOT, 'dist/main/index.js');
 
-test.describe('Tau Electron PoC v6 transport (Topology C)', () => {
+test.describe('Tau Electron PoC transport (Topology C)', () => {
   test('renderer mounts via electronUtilityTransport and renders a non-empty Geometry', async () => {
     const app = await electron.launch({
       args: [MAIN_ENTRY],
       cwd: APP_ROOT,
+      // The renderer gates `__taucadTransportDescriptor` behind
+      // `TAU_ELECTRON_DEBUG=1` so production builds don't ship the
+      // descriptor (R10). The descriptor probe below requires the
+      // flag, so launch electron with the same env that
+      // `render.spec.ts` uses.
+      env: { ...process.env, TAU_ELECTRON_DEBUG: '1' } as Record<string, string>,
     });
     try {
       const window = await app.firstWindow();

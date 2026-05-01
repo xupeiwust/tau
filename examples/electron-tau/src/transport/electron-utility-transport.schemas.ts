@@ -5,10 +5,11 @@
  *   from the renderer; carries the renderer-received `MessagePort`
  *   that main shipped via `webContents.postMessage`.
  * - `electronUtilityHostOptionsSchema` — supplied to `transport.host(...)`
- *   inside the utility process. Empty for now; reserved for future
- *   per-utility options (e.g. `projectRoot`).
+ *   inside the utility process. Requires opaque `fileSystem` (e.g.
+ *   `fromNodeFs(projectRoot)`).
  */
 
+import { runtimeFileSystemSchema } from '@taucad/runtime/filesystem';
 import { z } from 'zod';
 
 /**
@@ -30,4 +31,6 @@ export const electronUtilityClientOptionsSchema = z.object({
   ),
 });
 
-export const electronUtilityHostOptionsSchema = z.object({});
+export const electronUtilityHostOptionsSchema = z.object({
+  fileSystem: runtimeFileSystemSchema,
+});

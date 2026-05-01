@@ -20,7 +20,7 @@ export type ScadParam = {
 const PARAM_DECL = /^[\t ]*([A-Z_a-z][\w$]*)[\t ]*=[\t ]*(-?\d+(?:\.\d+)?|"[^"]*")[\t ]*;/gm;
 
 export function extractParams(source: string): ScadParam[] {
-  const params: ScadParam[] = [];
+  const parameters: ScadParam[] = [];
   const seen = new Set<string>();
   PARAM_DECL.lastIndex = 0;
   let match: RegExpExecArray | undefined;
@@ -32,7 +32,7 @@ export function extractParams(source: string): ScadParam[] {
     seen.add(name);
     const literal = match[2]!;
     const defaultValue = literal.startsWith('"') ? literal.slice(1, -1) : Number(literal);
-    params.push({ name, defaultValue });
+    parameters.push({ name, defaultValue });
   }
-  return params;
+  return parameters;
 }

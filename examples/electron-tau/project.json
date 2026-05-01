@@ -21,6 +21,25 @@
         "command": "electron-vite build"
       }
     },
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "dependsOn": ["build"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "pnpm exec electron .",
+        "env": {
+          "NODE_ENV": "production"
+        }
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "vitest run --config vitest.config.ts --watch=false"
+      }
+    },
     "test:e2e": {
       "executor": "nx:run-commands",
       "options": {

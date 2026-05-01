@@ -1,5 +1,5 @@
 /**
- * `electronUtilityTransport` — v6 transport plugin for Topology C
+ * `electronUtilityTransport` — runtime transport plugin for Topology C
  * (Renderer ↔ utilityProcess kernel host with main-mediated bootstrap).
  *
  * Architecture (per docs/research/runtime-transport-architecture-v6.md
@@ -27,7 +27,7 @@
  *   port via `webContents.postMessage`; this transport never reads
  *   `ipcRenderer` itself.
  *
- * - **Utility side** (`host()`): inside the utility process, awaits
+ * - **Utility side** (`host({ fileSystem })`): inside the utility process, awaits
  *   the `MessagePortMain` from `process.parentPort`, instantiates a
  *   `KernelRuntimeWorker`, and runs `createWorkerDispatcher` over the
  *   wire. The kernel `worker_threads.Worker` runs INSIDE the utility
@@ -45,8 +45,10 @@
  * The transport therefore advertises `geometryDelivery: 'copy'`,
  * `fileDelivery: 'copy'`, `abortSignal: 'wire-notify'`, and
  * `fileSystem: 'host-local'` so the runtime client never asks the wire
- * to do anything it cannot do. The utility-side host provisions its
- * own in-isolate `RuntimeFileSystem` (`fromMemoryFs()`).
+ * to do anything it cannot do. The utility-side host binds the kernel
+ * filesystem from `host({ fileSystem })` (opaque handle, typically
+ * `fromNodeFs(projectRoot)`) via {@link extractInlineFileSystem} into
+ * `createWorkerDispatcher`'s `inlineFileSystem` seam.
  *
  * Debug logging (gated by `TAU_ELECTRON_DEBUG=1` in the utility env;
  * always-on in renderer) is wired through every boot-sequence seam so
@@ -56,9 +58,8 @@
  */
 
 import { wrapMessagePort, createChannelClient } from '@taucad/rpc';
-import { runtimeProtocolSchemas } from '@taucad/runtime/transport';
-import type { Channel, ChannelServerHandle, Port, PortCapabilities } from '@taucad/rpc';
-import { defineRuntimeTransport } from '@taucad/runtime/transport';
+import type { Channel, ChannelServerHandle, Port } from '@taucad/rpc';
+import { defineRuntimeTransport, runtimeProtocolSchemas } from '@taucad/runtime/transport';
 import type {
   EncodedFileBytes,
   EncodedGeometry,
@@ -73,8 +74,8 @@ import type {
 } from '@taucad/runtime/transport';
 import type { Geometry } from '@taucad/types';
 import type { GeometryTransport, RuntimeInitializeResult, RuntimeProtocol } from '@taucad/runtime';
-import { fromMemoryFS, fromMemoryFs } from '@taucad/runtime/filesystem';
-import { KernelRuntimeWorker, installWorkerCrashTrap, createWorkerDispatcher } from '@taucad/runtime/worker';
+import { extractInlineFileSystem } from '@taucad/runtime/transport-internals';
+import { KernelRuntimeWorker, installWorkerCrashTrap, createWorkerDispatcher } from '@taucad/runtime/worker-internals';
 
 import {
   electronUtilityClientOptionsSchema,
@@ -103,7 +104,7 @@ const debugLog = (origin: string, message: string, data?: Record<string, unknown
     return;
   }
   const payload = data ? ` ${JSON.stringify(data)}` : '';
-  // eslint-disable-next-line no-console -- diagnostic seam (gated by TAU_ELECTRON_DEBUG)
+  // oxlint-disable-next-line no-console -- diagnostic seam (gated by TAU_ELECTRON_DEBUG)
   console.log(`[tau-electron:${origin}] ${message}${payload}`);
 };
 
@@ -140,15 +141,7 @@ const wrapMessagePortMain = (port: MessagePortMainLike, label: string): Port<unk
     handlers.clear();
   });
 
-  /* `Port.capabilities` is a v5 holdover scheduled for removal in
-   * Stage 10 once every wire path stops reading it; until then the
-   * runtime's `wrapMessagePort` callsite still adds it, so this
-   * MessagePortMain wrapper must declare the same surface. Electron
-   * `MessagePortMain` only honours MessagePortMain entries in the
-   * transfer list — no SAB, no transferable buffers. */
-  const capabilities: PortCapabilities = { transfer: true };
   return {
-    capabilities,
     postMessage(value, transferables) {
       if (closed) {
         debugLog(label, 'tx-after-close-dropped');
@@ -243,9 +236,8 @@ const buildHelloPayload = (): {
  * - Renderer: `transport: electronUtilityTransport.client({ port })`
  *   on `createRuntimeClient`, where `port` is the WHATWG `MessagePort`
  *   the renderer received from main via the preload relay.
- * - Utility: `transport: electronUtilityTransport.host({})` on
- *   `createRuntimeHost` — no options required; the port arrives over
- *   `process.parentPort`.
+ * - Utility: `transport: electronUtilityTransport.host({ fileSystem: fromNodeFs(root) })`
+ *   on `createRuntimeHost` — the port arrives over `process.parentPort`.
  *
  * @public
  */
@@ -359,8 +351,12 @@ export const electronUtilityTransport = defineRuntimeTransport({
     };
   },
 
-  host(_hostOptions): RuntimeTransportHost<RuntimeProtocol, Readonly<Record<never, never>>, typeof electronUtilityId> {
-    void _hostOptions;
+  host(hostOptions): RuntimeTransportHost<RuntimeProtocol, Readonly<Record<never, never>>, typeof electronUtilityId> {
+    const utilityFsBase = extractInlineFileSystem(hostOptions.fileSystem);
+    if (!utilityFsBase) {
+      throw new Error('electronUtilityTransport.host: fileSystem option is required');
+    }
+
     debugLog('utility:host', 'constructed');
 
     let openPromise: Promise<TransportHostReady> | undefined;
@@ -390,28 +386,10 @@ export const electronUtilityTransport = defineRuntimeTransport({
       };
     };
 
-    // oxlint-disable-next-line enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- v6 binding signature is `Uint8Array` (no ArrayBuffer narrowing)
+    // oxlint-disable-next-line enforce-uint8array-arraybuffer/enforce-uint8array-arraybuffer -- transport binding signature is `Uint8Array` (no ArrayBuffer narrowing)
     const encodeFile = (file: Uint8Array): EncodedFileBytes => {
       return { value: { delivery: 'inline', bytes: file }, transferables: [], tier: 'copy' };
     };
-
-    /* Provision an in-isolate memory filesystem so the kernel worker
-     * can stage-and-open inline file payloads received over the wire
-     * (the renderer's `client.openFile({ code })` call streams bytes
-     * inline; the worker writes them to this FS before invoking the
-     * kernel).
-     *
-     * Two backings of the same in-memory store:
-     *   - `utilityFsBase` is the `RuntimeFileSystemBase` consumed by
-     *     `createWorkerDispatcher`'s `inlineFileSystem` option.
-     *   - `utilityFs` is the opaque `RuntimeFileSystem` returned in
-     *     `bindings.fileSystem` for the dispatcher's bindings echo. */
-    const utilityFsHandle = fromMemoryFS();
-    if (utilityFsHandle.kind !== 'inline') {
-      throw new Error('electronUtilityTransport.host: fromMemoryFS() must yield an inline-kind handle');
-    }
-    const utilityFsBase = utilityFsHandle.fs;
-    const utilityFs = fromMemoryFs();
 
     const open = async (): Promise<TransportHostReady> => {
       if (openPromise) {
@@ -496,7 +474,6 @@ export const electronUtilityTransport = defineRuntimeTransport({
          * dispatcher. */
         const controller = new AbortController();
         return {
-          fileSystem: utilityFs,
           abort: {
             signal: controller.signal,
             strategy: 'wire-notify',

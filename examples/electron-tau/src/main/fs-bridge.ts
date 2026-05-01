@@ -153,7 +153,7 @@ export function createFsBridgeHost(port: Port<unknown>, fileSystem: RuntimeFileS
    * surface arrives on the handle returned below. The slot is wrapped
    * in a single-property object so the binding itself is `const` (its
    * `current` field is the late-bound function reference). */
-  const notifyRef: {
+  const notifyReference: {
     current: ((name: 'fileChanged', args: FsProtocol['notifies']['fileChanged']['args']) => void) | undefined;
   } = { current: undefined };
 
@@ -183,14 +183,14 @@ export function createFsBridgeHost(port: Port<unknown>, fileSystem: RuntimeFileS
     },
     writeFile: async (a) => {
       await fileSystem.writeFile(a.path, a.data);
-      notifyRef.current?.('fileChanged', { path: a.path, kind: 'updated' });
+      notifyReference.current?.('fileChanged', { path: a.path, kind: 'updated' });
     },
     readDir: async (a) => fileSystem.readdir(a.path),
     stat: async (a) => fileSystem.stat(a.path),
     exists: async (a) => fileSystem.exists(a.path),
     delete: async (a) => {
       await fileSystem.unlink(a.path);
-      notifyRef.current?.('fileChanged', { path: a.path, kind: 'deleted' });
+      notifyReference.current?.('fileChanged', { path: a.path, kind: 'deleted' });
     },
   };
 
@@ -222,8 +222,8 @@ export function createFsBridgeHost(port: Port<unknown>, fileSystem: RuntimeFileS
     impl,
   });
 
-  notifyRef.current = (name, args) => {
-    handle.notify(name, args);
+  notifyReference.current = (name, arguments_) => {
+    handle.notify(name, arguments_);
   };
 
   return {

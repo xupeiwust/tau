@@ -12,7 +12,7 @@ export default defineConfig({
     /* `@taucad/openscad` resolves through the workspace exports map to
      * raw `.ts` files; the utility process (Node) cannot dynamic-import
      * those. We bundle openscad + runtime worker primitives into the
-     * main pipeline so `kernel-host.cjs` is a self-contained Node
+     * main pipeline so `kernel-host.js` is a self-contained Node
      * module. The rest of the deps (electron, etc.) stay external.
      *
      * `tsModuleUrlPlugin` (mirrors `apps/ui/vite.config.ts`) tells Rollup
@@ -26,7 +26,10 @@ export default defineConfig({
         exclude: [
           '@taucad/openscad',
           '@taucad/runtime',
-          '@taucad/runtime/worker',
+          '@taucad/runtime/worker/web',
+          '@taucad/runtime/worker/node',
+          '@taucad/runtime/worker-internals',
+          '@taucad/runtime/transport-internals',
           '@taucad/runtime/host',
           '@taucad/runtime/transport',
           '@taucad/runtime/filesystem',
@@ -49,8 +52,9 @@ export default defineConfig({
           'kernel-host': resolve(import.meta.dirname, 'src/main/kernel-host.ts'),
         },
         output: {
-          format: 'cjs',
-          entryFileNames: '[name].cjs',
+          format: 'es',
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
         },
         external: ['electron'],
       },
@@ -62,8 +66,8 @@ export default defineConfig({
       outDir: 'dist/preload',
       lib: {
         entry: resolve(import.meta.dirname, 'src/preload/index.ts'),
-        formats: ['cjs'],
-        fileName: () => 'index.cjs',
+        formats: ['es'],
+        fileName: () => 'index.js',
       },
       rollupOptions: { external: ['electron'] },
     },
