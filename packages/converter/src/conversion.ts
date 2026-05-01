@@ -15,6 +15,7 @@ import type { SupportedImportFormat, SupportedExportFormat } from '#formats.js';
  * @param options - optional conversion options
  * @param options.exportProperties - Assimp export properties (e.g. `{ '3MF_EXPORT_UNIT': 'centimeter' }`)
  * @returns A promise that resolves to an array of output files.
+ * @public
  */
 // oxlint-disable-next-line max-params -- 4th param is an options bag, not a positional arg
 export const convertFile = async (
@@ -45,6 +46,7 @@ export const convertFile = async (
  * @param resolver - optional file resolver for on-demand sidecar asset loading
  * @returns A promise that resolves to GLB data.
  * @throws Error if no GLB file is found when the input format is `glb`
+ * @public
  */
 export const importToGlb = async (
   inputFiles: FileInput[],
@@ -73,6 +75,7 @@ export const importToGlb = async (
  * @param outputFormat - target file format to export into
  * @param exportProperties - optional Assimp export properties (e.g. `{ '3MF_EXPORT_UNIT': 'centimeter' }`)
  * @returns A promise that resolves to an array of output files.
+ * @public
  */
 export const exportFromGlb = async (
   glbData: Uint8Array<ArrayBuffer>,
@@ -98,6 +101,7 @@ export const exportFromGlb = async (
  * Get list of supported input formats.
  *
  * @returns Array of supported input format strings.
+ * @public
  */
 export const getSupportedInputFormats = (): readonly SupportedImportFormat[] => {
   return supportedImportFormats;
@@ -107,6 +111,7 @@ export const getSupportedInputFormats = (): readonly SupportedImportFormat[] => 
  * Get list of supported output formats.
  *
  * @returns Array of supported output format strings.
+ * @public
  */
 export const getSupportedOutputFormats = (): readonly SupportedExportFormat[] => {
   return supportedExportFormats;
@@ -117,6 +122,7 @@ export const getSupportedOutputFormats = (): readonly SupportedExportFormat[] =>
  *
  * @param format - The format to check.
  * @returns True if the format is supported.
+ * @public
  */
 export const isInputFormatSupported = (format: string): format is SupportedImportFormat => {
   return supportedImportFormats.includes(format as SupportedImportFormat);
@@ -127,6 +133,7 @@ export const isInputFormatSupported = (format: string): format is SupportedImpor
  *
  * @param format - The format to check.
  * @returns True if the format is supported.
+ * @public
  */
 export const isOutputFormatSupported = (format: string): format is SupportedExportFormat => {
   return supportedExportFormats.includes(format as SupportedExportFormat);

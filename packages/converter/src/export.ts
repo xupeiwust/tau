@@ -45,6 +45,7 @@ const exportConfigs = {
  * @param exportProperties - optional Assimp export properties (e.g. `{ '3MF_EXPORT_UNIT': 'centimeter' }`)
  * @returns A promise that resolves to an array of exported files.
  * @throws Error if the underlying exporter fails
+ * @public
  */
 export const exportFiles = async (
   glbData: Uint8Array<ArrayBuffer>,

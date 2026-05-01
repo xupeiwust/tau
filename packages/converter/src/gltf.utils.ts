@@ -13,6 +13,7 @@ import { allExtensions } from '#gltf.extensions.js';
  * Creates a NodeIO instance pre-configured with all glTF extensions and Draco codecs.
  *
  * @returns A ready-to-use NodeIO for reading and writing glTF documents.
+ * @public
  */
 export const createNodeIo = async (): Promise<NodeIO> => {
   return new NodeIO().registerExtensions(allExtensions).registerDependencies({
@@ -32,6 +33,7 @@ export const createNodeIo = async (): Promise<NodeIO> => {
  *
  * @param glbData - the raw GLB buffer to parse
  * @returns The parsed gltf-transform Document.
+ * @public
  */
 export const glbToDocument = async (glbData: Uint8Array<ArrayBuffer>): Promise<Document> => {
   const io = await createNodeIo();
@@ -43,6 +45,7 @@ export const glbToDocument = async (glbData: Uint8Array<ArrayBuffer>): Promise<D
  *
  * @param glbData - the raw GLB buffer to inspect
  * @returns The inspection report containing mesh, material, and texture statistics.
+ * @public
  */
 export const getInspectReport = async (glbData: Uint8Array<ArrayBuffer>): Promise<InspectReport> => {
   const document = await glbToDocument(glbData);
@@ -54,6 +57,7 @@ export const getInspectReport = async (glbData: Uint8Array<ArrayBuffer>): Promis
  *
  * @param glb - the raw GLB buffer to validate
  * @throws Error if the buffer is empty or the header is not `glTF`
+ * @public
  */
 export const validateGlbData = (glb: Uint8Array<ArrayBuffer>): void => {
   if (glb.length === 0) {
@@ -78,6 +82,7 @@ export const validateGlbData = (glb: Uint8Array<ArrayBuffer>): void => {
  *
  * @param report - the gltf-transform inspection report to summarize
  * @returns An object with `vertexCount`, `faceCount`, and `meshCount`.
+ * @public
  */
 export const getGeometryStatsFromInspect = (
   report: InspectReport,
@@ -98,6 +103,7 @@ export const getGeometryStatsFromInspect = (
  *
  * @param report - the gltf-transform inspection report
  * @returns The bounding box `size` and `center`, or `undefined` if no scene is present.
+ * @public
  */
 export const getBoundingBoxFromInspect = (
   report: InspectReport,
@@ -137,6 +143,7 @@ export const getBoundingBoxFromInspect = (
  *
  * @param report - the gltf-transform inspection report
  * @returns A signature object with vertex, face, mesh counts and optional bounding box.
+ * @public
  */
 export const createInspectSignature = (
   report: InspectReport,
@@ -166,6 +173,7 @@ export const createInspectSignature = (
  * @param mesh - a single mesh property entry from an InspectReport
  * @param attributeType - the attribute name to search for (case-insensitive substring match)
  * @returns `true` if the mesh has a matching attribute.
+ * @public
  */
 export const hasAttribute = (mesh: InspectReport['meshes']['properties'][0], attributeType: string): boolean => {
   return mesh.attributes.some((attribute) => attribute.toLowerCase().includes(attributeType.toLowerCase()));
@@ -176,6 +184,7 @@ export const hasAttribute = (mesh: InspectReport['meshes']['properties'][0], att
  *
  * @param report - the gltf-transform inspection report
  * @returns number of distinct materials referenced in the document
+ * @public
  */
 export const getMaterialCount = (report: InspectReport): number => {
   return report.materials.properties.length;
@@ -186,6 +195,7 @@ export const getMaterialCount = (report: InspectReport): number => {
  *
  * @param report - the gltf-transform inspection report
  * @returns number of texture images referenced in the document
+ * @public
  */
 export const getTextureCount = (report: InspectReport): number => {
   return report.textures.properties.length;
@@ -197,6 +207,8 @@ export const getTextureCount = (report: InspectReport): number => {
 
 /**
  * Top-level GLTF scene hierarchy used for structural validation of GLB documents.
+ *
+ * @public
  */
 export type GltfSceneStructure = {
   rootNodes: readonly GltfNodeInfo[];
@@ -204,6 +216,8 @@ export type GltfSceneStructure = {
 
 /**
  * Individual GLTF node with a human-readable type classification (MeshNode, SkinNode, ContainerNode).
+ *
+ * @public
  */
 export type GltfNodeInfo = {
   name?: string;
@@ -217,6 +231,7 @@ export type GltfNodeInfo = {
  * @param glbData - the raw GLB buffer to analyze
  * @returns The scene structure with classified root nodes.
  * @throws Error if no scene is found in the GLB document
+ * @public
  */
 export const getDocumentStructure = async (glbData: Uint8Array<ArrayBuffer>): Promise<GltfSceneStructure> => {
   const document = await glbToDocument(glbData);
@@ -344,6 +359,7 @@ function formatHierarchy(hierarchy: SimpleHierarchy[], indent = 0): string {
  * @param actual - the scene structure produced by the loader under test
  * @param expected - the reference scene structure to compare against
  * @throws Error with a formatted diff if the structures do not match
+ * @public
  */
 export const validateGltfScene = (actual: GltfSceneStructure, expected: GltfSceneStructure): void => {
   // Compare structures without names (names are optional and added by loaders)

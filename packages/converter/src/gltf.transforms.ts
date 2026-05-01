@@ -58,6 +58,8 @@ function conjugateQuaternionBy(r: Quat, q: Quat): Quat {
 /**
  * gltf-transform matrix for Y-up to Z-up coordinate transformation
  * Matrix layout: column-major format (gltf-transform standard)
+ *
+ * @public
  */
 export const gltfCoordinateTransformMatrix: mat4 = [1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1];
 
@@ -66,12 +68,16 @@ const coordinateQuat: Quat = [Math.SQRT2 / 2, 0, 0, Math.SQRT2 / 2];
 
 /**
  * Gltf-transform matrix for meters to millimeters scaling
+ *
+ * @public
  */
 export const gltfScalingMatrix: mat4 = [1000, 0, 0, 0, 0, 1000, 0, 0, 0, 0, 1000, 0, 0, 0, 0, 1];
 
 /**
  * Gltf-transform matrix for Z-up to Y-up coordinate transformation (reverse of Y-up to Z-up)
  * Matrix layout: column-major format (gltf-transform standard)
+ *
+ * @public
  */
 export const gltfReverseCoordinateTransformMatrix: mat4 = [1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1];
 
@@ -80,6 +86,8 @@ const reverseCoordinateQuat: Quat = invertUnitQuaternion(coordinateQuat);
 
 /**
  * Gltf-transform matrix for millimeters to meters scaling (reverse of meters to millimeters)
+ *
+ * @public
  */
 export const gltfReverseScalingMatrix: mat4 = [0.001, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 1];
 
@@ -142,6 +150,7 @@ function applyUniformScaleToDocument(document: Document, matrix: mat4, factor: n
  *
  * @param shouldTransform - when `false` the returned function is a no-op (default `true`)
  * @returns A document transform function suitable for `document.transform()`.
+ * @public
  */
 export function createCoordinateTransform(shouldTransform = true): (document: Document) => void {
   return (document: Document): void => {
@@ -158,6 +167,7 @@ export function createCoordinateTransform(shouldTransform = true): (document: Do
  *
  * @param shouldTransform - when `false` the returned function is a no-op (default `true`)
  * @returns A document transform function suitable for `document.transform()`.
+ * @public
  */
 export function createScalingTransform(shouldTransform = true): (document: Document) => void {
   return (document: Document): void => {
@@ -174,6 +184,7 @@ export function createScalingTransform(shouldTransform = true): (document: Docum
  *
  * @param shouldTransform - when `false` the returned function is a no-op (default `true`)
  * @returns A document transform function suitable for `document.transform()`.
+ * @public
  */
 export function createReverseCoordinateTransform(shouldTransform = true): (document: Document) => void {
   return (document: Document): void => {
@@ -190,6 +201,7 @@ export function createReverseCoordinateTransform(shouldTransform = true): (docum
  *
  * @param shouldTransform - when `false` the returned function is a no-op (default `true`)
  * @returns A document transform function suitable for `document.transform()`.
+ * @public
  */
 export function createReverseScalingTransform(shouldTransform = true): (document: Document) => void {
   return (document: Document): void => {

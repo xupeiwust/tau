@@ -62,7 +62,7 @@ const loaderFromInputFormat = {
   // kmz: new KmzLoader(),
   // blend: new UnimplementedLoader('Blender .blend files are not supported due to lack of support for newer Blender file formats in the current loader.'),
 
-  // TODO formats
+  // Pending formats
   // dwg: new UnimplementedLoader('AutoCAD .dwg files are not implemented. This proprietary format requires specialized CAD file parsing capabilities.'),
   // gdf: new UnimplementedLoader('Graphics Data Format .gdf files are not implemented. This format requires additional development work.'),
   // gts: new UnimplementedLoader('GNU Triangulated Surface .gts files are not implemented. This format requires specialized mesh processing capabilities.'),
@@ -87,6 +87,7 @@ const loaderFromInputFormat = {
  * @param format - the source format to use when selecting a loader
  * @param resolver - optional file resolver for on-demand sidecar asset loading
  * @returns A promise that resolves to GLB data as Uint8Array.
+ * @public
  */
 export const importFiles = async (
   files: FileInput[],

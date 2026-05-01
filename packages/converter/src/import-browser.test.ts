@@ -86,6 +86,7 @@ const convertUsdzToGlb = async (options?: { blockGrowth?: boolean }): Promise<Co
         }
       }
 
+      // async-iife: bootstrap -- Emscripten's instantiateWasm contract requires synchronous return + async callback
       // oxlint-disable-next-line promise/prefer-await-to-then -- Emscripten's instantiateWasm requires synchronous return + async callback
       void WebAssembly.instantiate(wasmModule, imports).then((instance) => {
         wasmMemory = instance.exports['memory'] as WebAssembly.Memory | undefined;
