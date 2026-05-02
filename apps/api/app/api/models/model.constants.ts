@@ -126,27 +126,27 @@ export const modelList: Record<CloudProviderId, Record<string, Model>> = {
     },
   },
   openai: {
-    'gpt-5.4': {
-      id: 'openai-gpt-5.4',
-      name: 'GPT-5.4',
-      slug: 'gpt-5.4',
+    'gpt-5.5': {
+      id: 'openai-gpt-5.5',
+      name: 'GPT-5.5',
+      slug: 'gpt-5.5',
       description:
-        "OpenAI's most capable model for professional work with frontier reasoning, coding, and 1M+ context window.",
+        "OpenAI's newest frontier model for complex professional work — reasoning, coding, and a 1M+ context window.",
       provider: {
         id: 'openai',
         name: 'OpenAI',
       },
-      model: 'gpt-5.4',
+      model: 'gpt-5.5',
       details: {
         family: 'gpt',
-        families: ['GPT-5.4'],
+        families: ['GPT-5.5'],
         contextWindow: 1_050_000,
         maxTokens: 128_000,
-        knowledgeCutoff: '2025-08',
+        knowledgeCutoff: '2025-12',
         cost: {
-          inputTokens: 2.5,
-          outputTokens: 15,
-          cacheReadTokens: 0.25,
+          inputTokens: 5,
+          outputTokens: 30,
+          cacheReadTokens: 0.5,
           cacheWriteTokens: 0,
         },
       },
