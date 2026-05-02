@@ -589,7 +589,7 @@ describe('ParametersPanelHeader context menu', () => {
     ]);
   });
 
-  it('renders Quick Export and Close geometry unit items in dropdown menu', async () => {
+  it('renders Quick Export and Close renderer items in dropdown menu', async () => {
     mockGeometryUnits.set('main.ts', mockCadRef);
     mockGeometryUnits.set('helper.ts', mockCadRef2);
 
@@ -599,7 +599,7 @@ describe('ParametersPanelHeader context menu', () => {
     const dropdownContents = screen.getAllByTestId('dropdown-menu-content');
     expect(dropdownContents.length).toBeGreaterThan(0);
 
-    const closeItems = screen.getAllByText('Close geometry unit');
+    const closeItems = screen.getAllByText('Close renderer');
     expect(closeItems.length).toBeGreaterThan(0);
 
     const quickExportLabels = screen.getAllByText('Quick export');
@@ -627,7 +627,7 @@ describe('ParametersPanelHeader context menu', () => {
     // Use the dropdown-menu close button for the helper pane (second occurrence)
     const dropdownItems = screen.getAllByTestId('dropdown-menu-item');
     const helperCloseItem = dropdownItems.find(
-      (node) => String(node.textContent).includes('Close geometry unit') && node.dataset['disabled'] !== 'true',
+      (node) => String(node.textContent).includes('Close renderer') && node.dataset['disabled'] !== 'true',
     );
     expect(helperCloseItem).toBeDefined();
     fireEvent.click(helperCloseItem!);
@@ -635,7 +635,7 @@ describe('ParametersPanelHeader context menu', () => {
     expect(mockProjectSend).toHaveBeenCalledWith(expect.objectContaining({ type: 'destroyGeometryUnit' }));
   });
 
-  it('disables Close geometry unit when only one geometry unit remains', async () => {
+  it('disables Close renderer when only one geometry unit remains', async () => {
     mockGeometryUnits.set('main.ts', mockCadRef);
 
     const { ChatParameters } = await import('./chat-parameters.js');
@@ -643,7 +643,7 @@ describe('ParametersPanelHeader context menu', () => {
 
     const closeItems = screen
       .getAllByTestId('dropdown-menu-item')
-      .filter((node) => String(node.textContent).includes('Close geometry unit'));
+      .filter((node) => String(node.textContent).includes('Close renderer'));
     expect(closeItems.length).toBeGreaterThan(0);
     for (const item of closeItems) {
       expect(item.dataset['disabled']).toBe('true');
@@ -658,7 +658,7 @@ describe('ParametersPanelHeader context menu', () => {
 
     const closeItem = screen
       .getAllByTestId('dropdown-menu-item')
-      .find((node) => String(node.textContent).includes('Close geometry unit'));
+      .find((node) => String(node.textContent).includes('Close renderer'));
     expect(closeItem).toBeDefined();
     fireEvent.click(closeItem!);
 

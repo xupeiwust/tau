@@ -572,7 +572,7 @@ function ParametersPanelHeader({
                     onSelect={handleCloseGeometryUnit}
                   >
                     <CloseIcon />
-                    <span>Close geometry unit</span>
+                    <span>Close renderer</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -607,7 +607,7 @@ function ParametersPanelHeader({
         <ContextMenuSeparator />
         <ContextMenuItem variant='destructive' disabled={isLastGeometryUnit} onSelect={handleCloseGeometryUnit}>
           <CloseIcon />
-          <span>Close geometry unit</span>
+          <span>Close renderer</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
