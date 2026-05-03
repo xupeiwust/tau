@@ -312,7 +312,7 @@ export const ChatHistory = memo(function (props: {
               Scroller: ChatScroller,
               Header: () => null,
               EmptyPlaceholder: () => (
-                <div className='-mr-0.5 -mb-12 h-full pt-1 pb-2 pl-2'>
+                <div className='-mb-12 h-full px-2 pt-1 pb-2'>
                   <ChatHistoryEmpty className='m-0 flex-1 justify-end' />
                 </div>
               ),
