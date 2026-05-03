@@ -88,6 +88,7 @@ const TurnGroup = memo(function ({
       {messageIds.map((id) => (
         <ChatMessage key={id} messageId={id} />
       ))}
+      {isLast ? <ChatError className='mx-4' /> : null}
     </div>
   );
 });
@@ -104,12 +105,7 @@ const TurnGroup = memo(function ({
 // `<Virtuoso className=...>`), but the public type omits it. We widen here.
 const ChatScroller = forwardRef<HTMLDivElement, ScrollerProps & { className?: string }>(function (props, ref) {
   return (
-    <div
-      {...props}
-      ref={ref}
-      style={{ ...props.style, ...chatScrollerCssVariables }}
-      className={cn(props.className, '[scrollbar-gutter:stable]')}
-    />
+    <div {...props} ref={ref} style={{ ...props.style, ...chatScrollerCssVariables }} className={cn(props.className)} />
   );
 });
 
@@ -220,7 +216,6 @@ export const ChatHistory = memo(function (props: {
   );
 
   const [atBottom, setAtBottom] = useState(true);
-  const [isErrorCollapsibleOpen, setIsErrorCollapsibleOpen] = useState(false);
 
   const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
     setAtBottom(atBottom);
@@ -320,13 +315,6 @@ export const ChatHistory = memo(function (props: {
                 <div className='-mr-0.5 -mb-12 h-full pt-1 pb-2 pl-2'>
                   <ChatHistoryEmpty className='m-0 flex-1 justify-end' />
                 </div>
-              ),
-              Footer: () => (
-                <ChatError
-                  className='-mr-0.5 pb-4 pl-4'
-                  isOpen={isErrorCollapsibleOpen}
-                  onOpenChange={setIsErrorCollapsibleOpen}
-                />
               ),
             }}
           />

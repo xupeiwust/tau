@@ -65,7 +65,7 @@ vi.mock('#routes/projects_.$id/scroll-down-button.js', () => ({
 }));
 
 vi.mock('#routes/projects_.$id/chat-error.js', () => ({
-  ChatError: () => null,
+  ChatError: () => <div data-testid='chat-error-adornment' />,
 }));
 
 vi.mock('#routes/projects_.$id/chat-history-selector.js', () => ({
@@ -259,6 +259,29 @@ describe('ChatHistory — turn group rendering', () => {
     expect(onlyGroup.className).toContain('min-h-(--chat-live-turn-min-h)');
     const messages = onlyGroup.querySelectorAll<HTMLElement>('[data-testid="chat-message"]');
     expect([...messages].map((node) => node.dataset['messageId'])).toEqual(['a0']);
+  });
+
+  it('renders ChatError adornment inside the last turn group only', () => {
+    setMockMessages([
+      message('u1', 'user'),
+      message('a1', 'assistant'),
+      message('u2', 'user'),
+      message('a2', 'assistant'),
+    ]);
+
+    render(<ChatHistory />);
+
+    expect(screen.queryAllByTestId('chat-error-adornment')).toHaveLength(1);
+
+    const items = screen.getAllByTestId('virtuoso-item');
+    expect(items).toHaveLength(2);
+
+    expect(items[0]!.querySelector('[data-testid="chat-error-adornment"]')).toBeNull();
+
+    const lastTurnAdornment = items[1]!.querySelector('[data-testid="chat-error-adornment"]');
+    expect(lastTurnAdornment).not.toBeNull();
+
+    expect(screen.getByTestId('virtuoso').querySelectorAll('[data-testid="chat-error-adornment"]')).toHaveLength(1);
   });
 
   it('should pass the correct totalCount to Virtuoso (one per turn group)', () => {

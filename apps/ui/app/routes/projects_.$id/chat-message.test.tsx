@@ -10,21 +10,33 @@ const { mockMessagesById, mockMessageOrder, mockStatus } = vi.hoisted(() => ({
   mockStatus: { value: 'ready' as 'ready' | 'streaming' | 'submitted' | 'error' },
 }));
 
+const getMockChatSelectorState = (): {
+  messages: MyUIMessage[];
+  messagesById: Map<string, MyUIMessage>;
+  messageEdits: Record<string, MyUIMessage>;
+  messageOrder: string[];
+  status: 'ready' | 'streaming' | 'submitted' | 'error';
+} => {
+  const messages = mockMessageOrder.map((id) => {
+    const message = mockMessagesById.get(id);
+    if (!message) {
+      throw new Error(`mockMessagesById missing id ${id}`);
+    }
+
+    return message;
+  });
+  return {
+    messages,
+    messagesById: mockMessagesById,
+    messageEdits: {},
+    messageOrder: mockMessageOrder,
+    status: mockStatus.value,
+  };
+};
+
 vi.mock('#hooks/use-chat.js', () => ({
-  useChatSelector<T>(
-    selector: (state: {
-      messagesById: Map<string, MyUIMessage>;
-      messageEdits: Record<string, MyUIMessage>;
-      messageOrder: string[];
-      status: 'ready' | 'streaming' | 'submitted' | 'error';
-    }) => T,
-  ): T {
-    return selector({
-      messagesById: mockMessagesById,
-      messageEdits: {},
-      messageOrder: mockMessageOrder,
-      status: mockStatus.value,
-    });
+  useChatSelector<T>(selector: (state: ReturnType<typeof getMockChatSelectorState>) => T): T {
+    return selector(getMockChatSelectorState());
   },
   useChatActions() {
     return {
@@ -32,6 +44,7 @@ vi.mock('#hooks/use-chat.js', () => ({
       retryMessage: vi.fn(),
       startEditingMessage: vi.fn(),
       exitEditMode: vi.fn(),
+      stop: vi.fn(),
     };
   },
 }));

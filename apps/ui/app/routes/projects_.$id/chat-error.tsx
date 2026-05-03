@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import type React from 'react';
 import { ChevronRight, RefreshCcw } from 'lucide-react';
 import { errorCategory } from '@taucad/types/constants';
@@ -28,15 +28,9 @@ function tryFormatJson(text: string): string {
   }
 }
 
-export const ChatError = memo(function ({
-  isOpen = false,
-  onOpenChange,
-  className,
-}: {
-  readonly isOpen?: boolean;
-  readonly onOpenChange?: (open: boolean) => void;
-  readonly className?: string;
-}): React.ReactNode {
+export const ChatError = memo(function ({ className }: { readonly className?: string }): React.ReactNode {
+  const [genericDetailsOpen, setGenericDetailsOpen] = useState(false);
+
   // Derive parsed error inside selector - prefer runtime error, fallback to persisted
   const parsedError = useChatSelector((state): NormalizedChatError | undefined => {
     if (state.error) {
@@ -56,13 +50,13 @@ export const ChatError = memo(function ({
     const formattedError = parsedError.raw ? tryFormatJson(parsedError.raw) : parsedError.message;
 
     return (
-      <div className={cn('size-full', className)}>
+      <div className={cn('min-w-0', className)}>
         <Collapsible
-          open={isOpen}
+          open={genericDetailsOpen}
           className={cn(
             'group/collapsible flex flex-col justify-center rounded-md border border-destructive/20 bg-destructive/10 text-sm',
           )}
-          onOpenChange={onOpenChange}
+          onOpenChange={setGenericDetailsOpen}
         >
           <CollapsibleTrigger asChild>
             <div className='flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5'>
@@ -107,50 +101,32 @@ export const ChatError = memo(function ({
   const { category } = parsedError;
   switch (category) {
     case errorCategory.auth: {
-      return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorUnauthorized />
-        </div>
-      );
+      return <ChatErrorUnauthorized className={cn('min-w-0', className)} />;
     }
 
     case errorCategory.network: {
-      return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorServiceUnavailable />
-        </div>
-      );
+      return <ChatErrorServiceUnavailable className={cn('min-w-0', className)} />;
     }
 
     case errorCategory.credits: {
-      return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorCredits />
-        </div>
-      );
+      return <ChatErrorCredits className={cn('min-w-0', className)} />;
     }
 
     case errorCategory.rateLimit: {
-      return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorRateLimit />
-        </div>
-      );
+      return <ChatErrorRateLimit className={cn('min-w-0', className)} />;
     }
 
     case errorCategory.overloaded: {
-      return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorServiceUnavailable />
-        </div>
-      );
+      return <ChatErrorServiceUnavailable className={cn('min-w-0', className)} />;
     }
 
     case errorCategory.toolError: {
       return (
-        <div className={cn('size-full', className)}>
-          <ChatErrorTool description={parsedError.message} helpUrl={parsedError.helpUrl} />
-        </div>
+        <ChatErrorTool
+          className={cn('min-w-0', className)}
+          description={parsedError.message}
+          helpUrl={parsedError.helpUrl}
+        />
       );
     }
 
