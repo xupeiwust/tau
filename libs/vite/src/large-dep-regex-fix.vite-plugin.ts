@@ -11,7 +11,10 @@ import type { Plugin } from 'vite';
  * The replacement is safe because the plugin's transform handler already performs
  * its own precise regex matching — the filter is only a fast pre-check.
  *
- * @see https://github.com/vitejs/vite/issues/XXXXX (to be filed)
+ * **Authoring rule:** Custom Vite/Rolldown plugins that scan transform input must gate any tokenizer or
+ * full-source regex behind a cheap pre-filter (substring or sticky regex without quantified-alternation over
+ * unbounded spans). Prefer the same layering as upstream vitejs/vite#21800. In-repo reference:
+ * `ts-module-url.vite-plugin.ts`; analysis: `docs/research/vite-plugin-large-string-literal-overflow.md`.
  *
  * @public
  */

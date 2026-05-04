@@ -351,6 +351,32 @@ describe('tsModuleUrlBuildPlugin', () => {
       ]);
     });
   });
+
+  describe('huge single-line literal regression (openscad-wasm-prebuilt)', () => {
+    it('should not stack-overflow on a multi-MB string literal containing import.meta.url', async () => {
+      const huge = 'a'.repeat(16 * 1024 * 1024);
+      const code = [`var Module = {};`, `var WASM_BINARY_DATA = "${huge}";`, `var _scriptName = import.meta.url;`].join(
+        '\n',
+      );
+      const emitFile = vi.fn();
+      const result = await callTransform({ plugin, code, id: fakeId, context: { emitFile } });
+      expect(result).toBeUndefined();
+      expect(emitFile).not.toHaveBeenCalled();
+    });
+
+    it('should still emit a chunk when a real new URL() call coexists with a multi-MB literal', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const huge = 'a'.repeat(16 * 1024 * 1024);
+      const code = [
+        `var BLOB = "${huge}";`,
+        `const url = new URL('../bundler/esbuild.bundler.js', import.meta.url).href;`,
+      ].join('\n');
+      const emitFile = vi.fn().mockReturnValue('refHuge');
+      const result = await callTransform({ plugin, code, id: fakeId, context: { emitFile } });
+      expect(emitFile).toHaveBeenCalledTimes(1);
+      expect(result!.code).toContain('import.meta.ROLLUP_FILE_URL_refHuge');
+    });
+  });
 });
 
 // =============================================================================

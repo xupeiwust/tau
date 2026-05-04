@@ -48,6 +48,36 @@ type UrlMatchWithTsPath = UrlMatch & { tsPath: string };
  */
 const isExternalLikeSpec = (spec: string): boolean => /^[a-z][\d+.a-z-]*:/i.test(spec) || spec.startsWith('/');
 
+/** Tokens above this size skip whole-file stripping and use {@link isRealCallSite} per match instead. */
+const stripLimit = 256 * 1024;
+
+/** Bytes of source before each match boundary for scoped stripping (see heuristic in {@link isRealCallSite}). */
+const windowLookback = 4096;
+
+/** Bytes of source kept after each match for scoped stripping. */
+const windowLookAhead = 256;
+
+/**
+ * True when regex match index lies on a **real** `new URL(...)` expression (not prose in a comment or string).
+ *
+ * @remarks
+ * Only used when {@link stripLimit} is exceeded — full-file {@link stripLiteral} can overflow V8's regex
+ * stack on multi-megabyte string literals (e.g. Emscripten `SINGLE_FILE` base64 WASM). We tokenize a small
+ * window only. {@link windowLookback} is a heuristic: a real `new URL` call more than 4 KB inside a single
+ * block comment could be misclassified as real (failure mode: one extra chunk emit, not build crash).
+ */
+const isRealCallSite = (code: string, match: RegExpExecArray): boolean => {
+  const matchStart = match.index;
+  let windowStart = Math.max(0, matchStart - windowLookback);
+  const lastNewline = code.lastIndexOf('\n', windowStart);
+  if (lastNewline !== -1 && lastNewline + 1 >= matchStart - windowLookback * 2) {
+    windowStart = lastNewline + 1;
+  }
+  const windowEnd = Math.min(code.length, matchStart + match[0].length + windowLookAhead);
+  const stripped = stripLiteral(code.slice(windowStart, windowEnd));
+  return stripped.startsWith('new ', matchStart - windowStart);
+};
+
 /**
  * Collect every real `new URL(spec, import.meta.url)` call site in `code`.
  *
@@ -66,12 +96,31 @@ const isExternalLikeSpec = (spec: string): boolean => /^[a-z][\d+.a-z-]*:/i.test
  * starts with `new ` — i.e., the call site survived stripping (was real
  * code), not just text inside a comment or string.
  *
+ * **Cheap-first invariant:** run `urlPattern` before any `stripLiteral` call. Zero matches means we never
+ * tokenize (dependency files that only mention `import.meta.url` for Emscripten glue are free). For sources
+ * larger than {@link stripLimit}, strip only per-match windows via {@link isRealCallSite}. Same pattern as
+ * {@link largeDepRegexFix} and Vite upstream's transform-filter hardening
+ * ([`vitejs/vite#21800`](https://github.com/vitejs/vite/pull/21800)). Root cause:
+ * `docs/research/vite-plugin-large-string-literal-overflow.md`.
+ *
  * @internal
  */
 const collectMatches = (code: string): UrlMatch[] => {
-  const stripped = stripLiteral(code);
-  return [...code.matchAll(urlPattern)]
-    .filter((m) => stripped.startsWith('new ', m.index))
+  const rawMatches = [...code.matchAll(urlPattern)];
+  if (rawMatches.length === 0) {
+    return [];
+  }
+
+  const strippedWhole = code.length <= stripLimit ? stripLiteral(code) : undefined;
+  const keepMatch = (m: RegExpExecArray): boolean => {
+    if (strippedWhole !== undefined) {
+      return strippedWhole.startsWith('new ', m.index);
+    }
+    return isRealCallSite(code, m);
+  };
+
+  return rawMatches
+    .filter((m) => keepMatch(m))
     .map((m) => ({
       full: m[0],
       specifier: m[1]!,
