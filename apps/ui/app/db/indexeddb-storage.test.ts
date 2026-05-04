@@ -240,6 +240,143 @@ describe('IndexedDbStorageProvider', () => {
   });
 
   // =========================================================================
+  // touchProject + chat cascade → parent Project.updatedAt
+  // =========================================================================
+  describe('touchProject', () => {
+    it('should bump updatedAt and leave other fields unchanged', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const nameBefore = project.name;
+      await sleep(2);
+
+      const result = await provider.touchProject(project.id);
+      const stored = await provider.getProject(project.id);
+
+      expect(result?.updatedAt).toBeGreaterThan(project.updatedAt);
+      expect(stored?.name).toBe(nameBefore);
+      expect(stored?.updatedAt).toBe(result?.updatedAt);
+    });
+
+    it('should return undefined when project does not exist', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const result = await provider.touchProject('project_missing');
+      expect(result).toBeUndefined();
+    });
+
+    it('should no-op when project is soft-deleted', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      await provider.deleteProject(project.id);
+      const afterDelete = await provider.getProject(project.id);
+      expect(afterDelete?.deletedAt).toBeDefined();
+
+      const touchResult = await provider.touchProject(project.id);
+      expect(touchResult).toBeUndefined();
+
+      const afterTouch = await provider.getProject(project.id);
+      expect(afterTouch?.updatedAt).toBe(afterDelete?.updatedAt);
+    });
+
+    it('should serialize concurrent touchProject calls on the same project', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+
+      await Promise.all(
+        Array.from({ length: 30 }, async () => {
+          await provider.touchProject(project.id);
+        }),
+      );
+
+      const stored = await provider.getProject(project.id);
+      expect(stored?.updatedAt).toBeGreaterThanOrEqual(project.updatedAt);
+    });
+  });
+
+  describe('chat activity cascades to parent Project.updatedAt', () => {
+    it('should bump project when createChat completes', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const before = project.updatedAt;
+      await sleep(2);
+
+      const chat = await provider.createChat(project.id, { name: 'New', messages: [] });
+      const proj = await provider.getProject(project.id);
+
+      expect(proj?.updatedAt).toBeGreaterThan(before);
+      expect(proj?.updatedAt).toBeGreaterThanOrEqual(chat.updatedAt);
+    });
+
+    it('should bump project on updateChat by default and not when noUpdatedAt', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const chat = await provider.createChat(project.id, { name: 'A', messages: [] });
+      await sleep(2);
+
+      const afterCreate = (await provider.getProject(project.id))!.updatedAt;
+
+      const bumped = await provider.updateChat(chat.id, { name: 'B' });
+      const projAfterBump = await provider.getProject(project.id);
+      expect(projAfterBump?.updatedAt).toBeGreaterThan(afterCreate);
+      expect(projAfterBump?.updatedAt).toBeGreaterThanOrEqual(bumped!.updatedAt);
+
+      const frozen = await provider.updateChat(chat.id, { name: 'C' }, { noUpdatedAt: true });
+      const projAfterNoBump = await provider.getProject(project.id);
+      expect(projAfterNoBump?.updatedAt).toBe(projAfterBump?.updatedAt);
+      expect(frozen?.updatedAt).toBe(bumped?.updatedAt);
+    });
+
+    it('should bump project on patchChat', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const chat = await provider.createChat(project.id, { name: 'x', messages: [] });
+      const p0 = (await provider.getProject(project.id))!.updatedAt;
+      await sleep(2);
+
+      await provider.patchChat(chat.id, 'messages', [userMessage('hi')]);
+      const p1 = (await provider.getProject(project.id))!.updatedAt;
+      expect(p1).toBeGreaterThan(p0);
+    });
+
+    it('should not bump project when clearMessageEdit is a no-op', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const chat = await provider.createChat(project.id, { name: 'x', messages: [] });
+      const p0 = (await provider.getProject(project.id))!.updatedAt;
+      await sleep(2);
+
+      await provider.clearMessageEdit(chat.id, 'nonexistent');
+      const p1 = (await provider.getProject(project.id))!.updatedAt;
+      expect(p1).toBe(p0);
+    });
+
+    it('should bump project on softDeleteChat', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const chat = await provider.createChat(project.id, { name: 'x', messages: [] });
+      const p0 = (await provider.getProject(project.id))!.updatedAt;
+      await sleep(2);
+
+      await provider.softDeleteChat(chat.id);
+      const p1 = (await provider.getProject(project.id))!.updatedAt;
+      expect(p1).toBeGreaterThan(p0);
+    });
+
+    it('should not bump soft-deleted project when chat is patched', async () => {
+      const provider = new IndexedDbStorageProvider();
+      const project = await freshProject(provider);
+      const chat = await provider.createChat(project.id, { name: 'x', messages: [] });
+      await provider.deleteProject(project.id);
+      const pDeleted = await provider.getProject(project.id);
+      const frozenUpdatedAt = pDeleted!.updatedAt;
+      await sleep(2);
+
+      await provider.patchChat(chat.id, 'name', 'renamed');
+      const pAfter = await provider.getProject(project.id);
+      expect(pAfter?.updatedAt).toBe(frozenUpdatedAt);
+    });
+  });
+
+  // =========================================================================
   // patchChat<K extends keyof Chat>
   // =========================================================================
   describe('patchChat field-scoped writer', () => {

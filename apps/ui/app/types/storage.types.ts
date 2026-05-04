@@ -25,6 +25,11 @@ export type StorageProvider = {
     update: PartialDeep<Project>,
     options?: { noUpdatedAt?: boolean },
   ): Promise<Project | undefined>;
+  /**
+   * Bump `updatedAt` only — no field merges. No-op when the project is missing
+   * or soft-deleted (`deletedAt` set).
+   */
+  touchProject(projectId: string): Promise<Project | undefined>;
   getProjects(options?: { includeDeleted?: boolean }): Promise<Project[]>;
   getProject(projectId: string): Promise<Project | undefined>;
   deleteProject(projectId: string): Promise<void>;

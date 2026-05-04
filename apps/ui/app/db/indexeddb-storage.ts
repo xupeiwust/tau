@@ -108,6 +108,10 @@ export class IndexedDbStorageProvider implements StorageProvider {
     });
   }
 
+  public async touchProject(projectId: string): Promise<Project | undefined> {
+    return this.mutex.run(projectId, async () => this.touchProjectAtomic(projectId));
+  }
+
   public async updateProject(
     projectId: string,
     update: PartialDeep<Project>,
@@ -206,7 +210,7 @@ export class IndexedDbStorageProvider implements StorageProvider {
 
     const db = await this.getDb();
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(this.chatsStoreName, 'readwrite');
       const store = transaction.objectStore(this.chatsStoreName);
 
@@ -219,13 +223,23 @@ export class IndexedDbStorageProvider implements StorageProvider {
       };
 
       request.onsuccess = () => {
-        resolve(chatWithId);
+        // Resolved after durability via transaction.oncomplete.
       };
 
       transaction.oncomplete = () => {
         db.close();
+        resolve();
+      };
+
+      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB
+      transaction.onerror = () => {
+        // oxlint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- we want to let the actual error be thrown
+        reject(transaction.error);
       };
     });
+
+    await this.touchProject(resourceId);
+    return chatWithId;
   }
 
   public async updateChat(
@@ -537,6 +551,54 @@ export class IndexedDbStorageProvider implements StorageProvider {
     });
   }
 
+  private async touchProjectAtomic(projectId: string): Promise<Project | undefined> {
+    const db = await this.getDb();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(this.projectsStoreName, 'readwrite');
+      const store = transaction.objectStore(this.projectsStoreName);
+
+      let resolved: Project | undefined;
+
+      const getRequest = store.get(projectId);
+
+      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB
+      getRequest.onerror = () => {
+        // oxlint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- we want to let the actual error be thrown
+        reject(getRequest.error);
+      };
+
+      getRequest.onsuccess = () => {
+        const existingProject = getRequest.result as Project | undefined;
+        if (!existingProject || existingProject.deletedAt) {
+          return;
+        }
+
+        const updatedProject: Project = { ...existingProject, updatedAt: Date.now() };
+        const putRequest = store.put(updatedProject);
+        // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB
+        putRequest.onerror = () => {
+          // oxlint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- we want to let the actual error be thrown
+          reject(putRequest.error);
+        };
+        putRequest.onsuccess = () => {
+          resolved = updatedProject;
+        };
+      };
+
+      transaction.oncomplete = () => {
+        db.close();
+        resolve(resolved);
+      };
+
+      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB
+      transaction.onerror = () => {
+        // oxlint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- we want to let the actual error be thrown
+        reject(transaction.error);
+      };
+    });
+  }
+
   private async updateChatAtomic(
     chatId: string,
     update: PartialDeep<Chat>,
@@ -587,7 +649,21 @@ export class IndexedDbStorageProvider implements StorageProvider {
 
       transaction.oncomplete = () => {
         db.close();
-        resolve(resolved);
+        const next = resolved;
+        if (next && !options?.noUpdatedAt) {
+          // async-iife: bootstrap — chat txn is durable; cascade project touch before resolving callers.
+          void (async (): Promise<void> => {
+            try {
+              await this.touchProject(next.resourceId);
+              resolve(next);
+            } catch (error) {
+              reject(error instanceof Error ? error : new Error('touchProject failed', { cause: error }));
+            }
+          })();
+          return;
+        }
+
+        resolve(next);
       };
 
       // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB
@@ -615,6 +691,7 @@ export class IndexedDbStorageProvider implements StorageProvider {
       const store = transaction.objectStore(this.chatsStoreName);
 
       let resolved: Chat | undefined;
+      let shouldCascadeProject = false;
 
       const getRequest = store.get(chatId);
 
@@ -633,6 +710,7 @@ export class IndexedDbStorageProvider implements StorageProvider {
         const changed = mutate(existingChat);
         if (changed) {
           existingChat.updatedAt = Date.now();
+          shouldCascadeProject = true;
         }
 
         const putRequest = store.put(existingChat);
@@ -648,7 +726,21 @@ export class IndexedDbStorageProvider implements StorageProvider {
 
       transaction.oncomplete = () => {
         db.close();
-        resolve(resolved);
+        const next = resolved;
+        if (next && shouldCascadeProject) {
+          // async-iife: bootstrap — chat txn is durable; cascade project touch before resolving callers.
+          void (async (): Promise<void> => {
+            try {
+              await this.touchProject(next.resourceId);
+              resolve(next);
+            } catch (error) {
+              reject(error instanceof Error ? error : new Error('touchProject failed', { cause: error }));
+            }
+          })();
+          return;
+        }
+
+        resolve(next);
       };
 
       // oxlint-disable-next-line unicorn/prefer-add-event-listener -- this is the preferred API for indexedDB

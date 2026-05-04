@@ -168,6 +168,10 @@ const objectStoreWorker = {
     return storage.updateProject(projectId, update, options);
   },
 
+  async touchProject(projectId: string): Promise<Project | undefined> {
+    return storage.touchProject(projectId);
+  },
+
   async getProjects(options?: { includeDeleted?: boolean }): Promise<Project[]> {
     return storage.getProjects(options);
   },
