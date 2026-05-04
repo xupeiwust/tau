@@ -125,7 +125,7 @@ export function SettingsDialog(): React.JSX.Element {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className={cn('gap-0 overflow-hidden', 'h-[min(90vh,640px)] grid-rows-[1fr]', 'sm:max-w-4xl')}>
+      <DialogContent className={cn('gap-0 overflow-hidden', 'h-[min(90vh,900px)] grid-rows-[1fr]', 'sm:max-w-4xl')}>
         <DialogTitle className='sr-only'>Settings</DialogTitle>
         <DialogDescription className='sr-only'>Application settings and preferences</DialogDescription>
 
