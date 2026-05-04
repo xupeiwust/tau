@@ -187,7 +187,6 @@
     "ink": "catalog:",
     "ioredis": "^5.9.3",
     "isbot": "catalog:",
-    "isomorphic-git": "^1.37.2",
     "js-yaml": "catalog:",
     "json-rpc-2.0": "^1.7.1",
     "json-schema-default": "catalog:",
