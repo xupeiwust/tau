@@ -317,7 +317,9 @@ export const ChatEditorFileTree = memo(function ({
         if (treeService && newlyExpanded.length > 0) {
           for (const path of newlyExpanded) {
             if (!treeService.hasChildrenLoaded(path)) {
-              void treeService.loadDirectory(path);
+              void treeService.listDirectory(path).catch((error: unknown) => {
+                console.error('[ChatEditorFileTree] listDirectory failed:', error);
+              });
             }
           }
         }
@@ -340,7 +342,7 @@ export const ChatEditorFileTree = memo(function ({
   const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
 
   // Reveal active file by expanding all parent directories (VSCode-style)
-  // Also triggers loadDirectory for unloaded ancestor directories.
+  // Also triggers listDirectory for unloaded ancestor directories.
   useEffect(() => {
     if (!activeFilePath) {
       return;
@@ -365,7 +367,9 @@ export const ChatEditorFileTree = memo(function ({
       if (treeService) {
         for (const path of parentPaths) {
           if (!treeService.hasChildrenLoaded(path)) {
-            void treeService.loadDirectory(path);
+            void treeService.listDirectory(path).catch((error: unknown) => {
+              console.error('[ChatEditorFileTree] listDirectory failed:', error);
+            });
           }
         }
       }

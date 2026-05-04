@@ -6,6 +6,14 @@ import type { FileSystemClient } from '#file-system-client.js';
 import type { WorkerChangeChannel, WorkerRelativeRenameEvent } from '#worker-change-channel.js';
 import type { WorkspacePathResolver } from '#workspace-path-resolver.js';
 import type { VisibilityProvider } from '#visibility-provider.js';
+import { PathSubscriberRegistry } from '#path-subscriber-registry.js';
+import { RefreshGenerationGuard } from '#refresh-generation-guard.js';
+import {
+  DirectoryListingErrorCode,
+  DirectoryListingFailedError,
+  classifyDirectoryListingError,
+} from '#directory-listing.js';
+import type { ListedDirectoryEntry } from '#directory-listing.js';
 import { joinPath } from '@taucad/utils/path';
 
 /** Milliseconds. */
@@ -23,21 +31,6 @@ const watchIntervalBlurred = 10_000;
 export type FileItem = {
   path: string;
   size: number;
-};
-
-/**
- * Stat-enriched directory entry returned by
- * {@link FileTreeService.readDirectoryEntriesWithStats}.
- *
- * @public
- */
-export type DirectoryEntryWithStat = {
-  name: string;
-  type: 'file' | 'dir';
-  /** File size in bytes, or `0` for directories. */
-  size: number;
-  /** Last-modified timestamp in milliseconds since the Unix epoch. */
-  mtimeMs: number;
 };
 
 type FileTreeServiceInit = {
@@ -97,7 +90,9 @@ export class FileTreeService {
   private _cachedCompleteTree: FileItem[] | undefined;
   private _completeTreeVersion = 0;
   private _searchIndexWarmed = false;
-  private readonly _resolvedDirectories = new Set<string>();
+  private readonly _listingPathSubscribers = new PathSubscriberRegistry<void>();
+  private readonly _listingGuard = new RefreshGenerationGuard();
+  private readonly _inFlightDirectoryList = new Map<string, Promise<void>>();
   private readonly unsubscribeChannel: Array<() => void>;
 
   public constructor(init: FileTreeServiceInit) {
@@ -110,11 +105,21 @@ export class FileTreeService {
       for (const entry of init.initialEntries) {
         this._tree.set(entry.path, entry);
       }
-      this._resolvedDirectories.add('');
+      if (init.initialEntries.length > 0) {
+        this._tree.set('', {
+          path: '',
+          name: '',
+          type: 'dir',
+          size: 0,
+          mtimeMs: Date.now(),
+          isLoaded: true,
+          isDirectoryResolved: true,
+        });
+      }
     }
     this.unsubscribeChannel = [
       init.channel.onFileWritten({
-        interestedIn: (relativePath) => this._resolvedDirectories.has(this.paths.parentOf(relativePath)),
+        interestedIn: (relativePath) => this.isDirectoryResolvedKey(this.paths.parentOf(relativePath)),
         handler: (event) => {
           this.handleFileWrittenRelative(event.path);
         },
@@ -125,13 +130,13 @@ export class FileTreeService {
         },
       }),
       init.channel.onFileRenamed({
-        interestedIn: (relativePath) => this._resolvedDirectories.has(this.paths.parentOf(relativePath)),
+        interestedIn: (relativePath) => this.isDirectoryResolvedKey(this.paths.parentOf(relativePath)),
         handler: (event) => {
           this.handleFileRenamedRelative(event);
         },
       }),
       init.channel.onDirectoryChanged({
-        interestedIn: (relativeDirectory) => this._resolvedDirectories.has(relativeDirectory),
+        interestedIn: (relativeDirectory) => this.isDirectoryResolvedKey(relativeDirectory),
         handler: (event) => {
           this.handleDirectoryChangedRelative(event.path);
         },
@@ -165,7 +170,7 @@ export class FileTreeService {
   /**
    * Return a cached list of all file entries currently in the lazy tree.
    * Derives synchronously from `_tree` — no worker RPC. The list grows
-   * progressively as directories are expanded via `loadDirectory`.
+   * progressively as directories are expanded via {@link listDirectory}.
    * @returns Lightweight {@link FileItem} records for all known files.
    */
   public getCachedFileItems(): FileItem[] {
@@ -224,38 +229,6 @@ export class FileTreeService {
   // === Metadata Operations (async, proxy) ===
 
   /**
-   * List directory contents from the cached tree. Falls back to proxy
-   * if tree appears stale or empty.
-   * @param path - Directory path relative to workspace conventions.
-   * @returns Child names within the directory when known to the lazy tree or worker.
-   */
-  public async readdir(path: string): Promise<string[]> {
-    const relativeKey = this.relativeDirectoryKeyFromUserPath(path);
-    const prefix = relativeKey === '' ? '' : relativeKey.endsWith('/') ? relativeKey : `${relativeKey}/`;
-    const results: string[] = [];
-
-    for (const [entryPath, entry] of this._tree) {
-      if (prefix === '') {
-        if (!entryPath.includes('/')) {
-          results.push(entry.name);
-        }
-      } else if (entryPath.startsWith(prefix)) {
-        const remainder = entryPath.slice(prefix.length);
-        if (!remainder.includes('/')) {
-          results.push(entry.name);
-        }
-      }
-    }
-
-    if (results.length > 0) {
-      return results;
-    }
-
-    const absolutePath = this.paths.toAbsoluteWorkspacePath(path);
-    return this.proxy.readdir(absolutePath);
-  }
-
-  /**
    * Get file stat via proxy.
    * @param path - Resolvable path string (workspace-relative forms allowed).
    * @returns Worker-backed {@link FileStat}.
@@ -276,48 +249,72 @@ export class FileTreeService {
   }
 
   /**
-   * Return full FileTreeNode[] for a directory via proxy.readDirectory.
-   * Centralizes directory listing with consistent path resolution.
-   * @param path - Directory whose children should be loaded.
-   * @returns Parsed tree nodes from the worker listing.
+   * Get all file stats in a directory recursively via proxy.
+   * directory is already resolved; otherwise cold-loads via
+   * `proxy.readDirectory` and merges with {@link mergeChildren}.
+   *
+   * @param path - Directory path (root aliases accepted).
+   * @param options - Optional {@link AbortSignal} for cancellation.
+   * @returns Immediate children with folder flag and timestamps from the tree.
+   * @throws {DirectoryListingFailedError} When resolution or the worker read fails.
    */
-  public async readDirectoryEntries(path: string): Promise<FileTreeNode[]> {
-    const absolutePath = this.paths.toAbsoluteWorkspacePath(path);
-    return this.proxy.readDirectory(absolutePath);
+  public async listDirectory(
+    path: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<readonly ListedDirectoryEntry[]> {
+    options?.signal?.throwIfAborted();
+    let relativeKey: string;
+    try {
+      relativeKey = this.relativeDirectoryKeyFromUserPath(path);
+    } catch (cause) {
+      throw new DirectoryListingFailedError(classifyDirectoryListingError(cause, path));
+    }
+    if (this.isDirectoryResolvedKey(relativeKey)) {
+      return this.entriesAtDirectoryLevel(relativeKey);
+    }
+    try {
+      await this.ensureDirectoryLoadedForListing(path, relativeKey, options?.signal);
+    } catch (cause) {
+      const listing = classifyDirectoryListingError(cause, path);
+      throw new DirectoryListingFailedError(listing);
+    }
+    if (!this.isDirectoryResolvedKey(relativeKey)) {
+      throw new DirectoryListingFailedError({
+        code: DirectoryListingErrorCode.Unavailable,
+        message: 'Directory listing did not complete',
+        path,
+      });
+    }
+    return this.entriesAtDirectoryLevel(relativeKey);
   }
 
   /**
-   * Stat-aware companion to {@link readDirectoryEntries}. Returns one entry
-   * per immediate child with real `size` / `mtimeMs` populated by per-child
-   * `proxy.stat` calls, fanned out in parallel.
-   *
-   * Used by the chat RPC `readdir` adapter so `list_directory` /
-   * `glob_search` surface authoritative byte counts to the agent instead of
-   * a synthetic `0`. Stat failures (entry deleted between readDirectory and
-   * stat) fall back to `size: 0`/`mtimeMs: 0` so the listing still resolves.
-   * @param path - Directory whose children require authoritative stat metadata.
-   * @returns Stat-enriched entries for immediate children.
+   * Synchronous read of listing when the directory has already been merged.
+   * @param path - Directory path.
+   * @returns Children or `undefined` when not yet resolved.
    */
-  public async readDirectoryEntriesWithStats(path: string): Promise<DirectoryEntryWithStat[]> {
-    const absolutePath = this.paths.toAbsoluteWorkspacePath(path);
-    const nodes = await this.proxy.readDirectory(absolutePath);
-    return Promise.all(
-      nodes.map(async (node) => {
-        const inferredType: 'file' | 'dir' = node.children === undefined ? 'file' : 'dir';
-        try {
-          const childAbsolute = joinPath(absolutePath, node.name);
-          const childStat = await this.proxy.stat(childAbsolute);
-          return {
-            name: node.name,
-            type: childStat.type,
-            size: childStat.size,
-            mtimeMs: childStat.mtimeMs,
-          };
-        } catch {
-          return { name: node.name, type: inferredType, size: 0, mtimeMs: 0 };
-        }
-      }),
-    );
+  public listDirectorySync(path: string): readonly ListedDirectoryEntry[] | undefined {
+    let relativeKey: string;
+    try {
+      relativeKey = this.relativeDirectoryKeyFromUserPath(path);
+    } catch (cause) {
+      throw new DirectoryListingFailedError(classifyDirectoryListingError(cause, path));
+    }
+    if (!this.isDirectoryResolvedKey(relativeKey)) {
+      return undefined;
+    }
+    return this.entriesAtDirectoryLevel(relativeKey);
+  }
+
+  /**
+   * Subscribe to listing mutations for one workspace-relative directory key.
+   * @param path - Directory path (normalized to a relative key).
+   * @param callback - Invoked when that directory's merged children change.
+   * @returns Unsubscribe function.
+   */
+  public subscribePath(path: string, callback: () => void): () => void {
+    const relativeKey = this.relativeDirectoryKeyFromUserPath(path);
+    return this._listingPathSubscribers.subscribePath(relativeKey, callback);
   }
 
   /**
@@ -401,6 +398,8 @@ export class FileTreeService {
     }
     this._tree = newTree;
     this.notifyTreeSubscribers();
+    this._listingPathSubscribers.notifyPath(relativeKey, undefined);
+    this._listingPathSubscribers.notifyGlobal(undefined);
   }
 
   // === Refresh Control ===
@@ -592,33 +591,27 @@ export class FileTreeService {
     }
     this.pendingRefreshPath = '';
     this._searchIndexWarmed = false;
-    this._resolvedDirectories.clear();
 
     const newTree = new Map<string, FileEntry>();
     if (initialEntries) {
       for (const entry of initialEntries) {
         newTree.set(entry.path, entry);
       }
+      if (initialEntries.length > 0) {
+        newTree.set('', {
+          path: '',
+          name: '',
+          type: 'dir',
+          size: 0,
+          mtimeMs: Date.now(),
+          isLoaded: true,
+          isDirectoryResolved: true,
+        });
+      }
     }
     this._tree = newTree;
     this.notifyTreeSubscribers();
-  }
-
-  /**
-   * Load a directory's immediate children from the worker. Patches the tree
-   * Map at this level only (no recursive walk). Idempotent — safe to call
-   * for already-loaded directories.
-   * @param path - Directory path to hydrate into {@link FileTreeService.getTreeSnapshot}.
-   */
-  public async loadDirectory(path: string): Promise<void> {
-    try {
-      const absolutePath = this.paths.toAbsoluteWorkspacePath(path);
-      const relativeDirectory = this.relativeDirectoryKeyFromUserPath(path);
-      const entries = await this.proxy.readDirectory(absolutePath);
-      this.patchDirectoryEntries(relativeDirectory, entries);
-    } catch (error) {
-      console.error('[FileTreeService] loadDirectory failed:', error);
-    }
+    this._listingPathSubscribers.notifyGlobal(undefined);
   }
 
   /**
@@ -627,7 +620,7 @@ export class FileTreeService {
    * @returns `true` when lazy loading previously completed for `path`.
    */
   public hasChildrenLoaded(path: string): boolean {
-    return this._resolvedDirectories.has(path);
+    return this.isDirectoryResolvedKey(path);
   }
 
   /**
@@ -647,7 +640,7 @@ export class FileTreeService {
       this.refreshTimer = undefined;
     }
     this.treeSubscribers.clear();
-    this._resolvedDirectories.clear();
+    this._listingPathSubscribers.clear();
   }
 
   private relativeKeyFromUserPath(path: string): string {
@@ -656,7 +649,7 @@ export class FileTreeService {
   }
 
   /**
-   * Workspace-relative directory key for {@link patchDirectoryEntries} and tree-prefix scans.
+   * Workspace-relative directory key for {@link mergeChildren} and tree-prefix scans.
    * @param path - User-supplied path (any alias accepted by {@link WorkspacePathResolver.toAbsoluteWorkspacePath}).
    * @returns Workspace-relative directory key used for lazy-tree bookkeeping.
    */
@@ -668,7 +661,7 @@ export class FileTreeService {
 
   private handleFileWrittenRelative(relativePath: string): void {
     const parentPath = this.paths.parentOf(relativePath);
-    if (this._resolvedDirectories.has(parentPath)) {
+    if (this.isDirectoryResolvedKey(parentPath)) {
       this.optimisticAdd(relativePath, 0);
     }
   }
@@ -690,14 +683,14 @@ export class FileTreeService {
     }
     if (newRelative !== undefined) {
       const parentPath = this.paths.parentOf(newRelative);
-      if (this._resolvedDirectories.has(parentPath)) {
+      if (this.isDirectoryResolvedKey(parentPath)) {
         this.optimisticAdd(newRelative, 0);
       }
     }
   }
 
   private handleDirectoryChangedRelative(relativePath: string): void {
-    if (this._resolvedDirectories.has(relativePath)) {
+    if (this.isDirectoryResolvedKey(relativePath)) {
       this.scheduleRefresh(relativePath);
     }
   }
@@ -753,16 +746,19 @@ export class FileTreeService {
     newTree.set(path, { path, name, type: 'file', size, mtimeMs: Date.now(), isLoaded: false });
     this._tree = newTree;
     this.notifyTreeSubscribers();
+    this._listingPathSubscribers.notifyPath(this.paths.parentOf(path), undefined);
   }
 
   private optimisticDelete(path: string): void {
     if (!this._tree.has(path)) {
       return;
     }
+    const parent = this.paths.parentOf(path);
     const newTree = new Map(this._tree);
     newTree.delete(path);
     this._tree = newTree;
     this.notifyTreeSubscribers();
+    this._listingPathSubscribers.notifyPath(parent, undefined);
   }
 
   private optimisticRename(oldPath: string, newPath: string): void {
@@ -772,11 +768,15 @@ export class FileTreeService {
     }
     const parts = newPath.split('/');
     const name = parts.at(-1) ?? newPath;
+    const oldParent = this.paths.parentOf(oldPath);
+    const newParent = this.paths.parentOf(newPath);
     const newTree = new Map(this._tree);
     newTree.delete(oldPath);
     newTree.set(newPath, { ...entry, path: newPath, name });
     this._tree = newTree;
     this.notifyTreeSubscribers();
+    this._listingPathSubscribers.notifyPath(oldParent, undefined);
+    this._listingPathSubscribers.notifyPath(newParent, undefined);
   }
 
   private scheduleRefreshForParent(path: string): void {
@@ -795,7 +795,7 @@ export class FileTreeService {
       if (controller.signal.aborted) {
         return;
       }
-      this.patchDirectoryEntries(relativeDirectory, entries);
+      this.mergeChildren(relativeDirectory, entries);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
@@ -805,39 +805,164 @@ export class FileTreeService {
   }
 
   /**
-   * Patch the tree Map with fresh entries from a single-level `readDirectory`.
-   * Removes stale direct children at this level, adds fresh entries.
-   * @param path - Workspace-relative directory key (`''` for root-level listing).
-   * @param entries - Immediate child nodes returned by the worker.
+   * Whether immediate children for `relativeKey` have been merged into the tree.
    */
-  private patchDirectoryEntries(path: string, entries: FileTreeNode[]): void {
-    const newTree = new Map(this._tree);
-    const prefix = path === '' ? '' : path.endsWith('/') ? path : `${path}/`;
+  private isDirectoryResolvedKey(relativeKey: string): boolean {
+    if (relativeKey === '') {
+      const root = this._tree.get('');
+      return root?.type === 'dir' && root.isDirectoryResolved === true;
+    }
+    const entry = this._tree.get(relativeKey);
+    return entry?.type === 'dir' && entry.isDirectoryResolved === true;
+  }
 
+  private async ensureDirectoryLoadedForListing(
+    path: string,
+    relativeKey: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (!this._inFlightDirectoryList.has(relativeKey)) {
+      this._inFlightDirectoryList.set(
+        relativeKey,
+        (async () => {
+          const generation = this._listingGuard.begin(relativeKey);
+          try {
+            signal?.throwIfAborted();
+            const absolutePath = this.paths.toAbsoluteWorkspacePath(path);
+            const nodes = await this.proxy.readDirectory(absolutePath);
+            signal?.throwIfAborted();
+            if (!this._listingGuard.isCurrent(relativeKey, generation)) {
+              return;
+            }
+            this.mergeChildren(relativeKey, nodes);
+          } finally {
+            this._inFlightDirectoryList.delete(relativeKey);
+          }
+        })(),
+      );
+    }
+    await this._inFlightDirectoryList.get(relativeKey)!;
+  }
+
+  private entriesAtDirectoryLevel(directoryKey: string): ListedDirectoryEntry[] {
+    const prefix = directoryKey === '' ? '' : directoryKey.endsWith('/') ? directoryKey : `${directoryKey}/`;
+    const out: ListedDirectoryEntry[] = [];
+    for (const [entryPath, entry] of this._tree) {
+      if (prefix === '') {
+        if (entryPath !== '' && !entryPath.includes('/')) {
+          out.push({
+            name: entry.name,
+            path: entryPath,
+            isFolder: entry.type === 'dir',
+            size: entry.size,
+            mtimeMs: entry.mtimeMs,
+          });
+        }
+      } else if (entryPath.startsWith(prefix) && !entryPath.slice(prefix.length).includes('/')) {
+        out.push({
+          name: entry.name,
+          path: entryPath,
+          isFolder: entry.type === 'dir',
+          size: entry.size,
+          mtimeMs: entry.mtimeMs,
+        });
+      }
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Merge fresh `readDirectory` children into the tree. Removes stale
+   * direct children, adds new disk entries, preserves {@link FileEntry}
+   * object identity when path + type are unchanged.
+   * @param directoryKey - Workspace-relative directory (`''` for root).
+   * @param entries - Immediate child nodes from the worker.
+   */
+  private mergeChildren(directoryKey: string, entries: FileTreeNode[]): void {
+    const newTree = new Map(this._tree);
+    const prefix = directoryKey === '' ? '' : directoryKey.endsWith('/') ? directoryKey : `${directoryKey}/`;
+
+    const existingChildKeys = new Set<string>();
     for (const key of newTree.keys()) {
       if (prefix === '') {
-        if (!key.includes('/')) {
-          newTree.delete(key);
+        if (!key.includes('/') && key !== '') {
+          existingChildKeys.add(key);
         }
       } else if (key.startsWith(prefix) && !key.slice(prefix.length).includes('/')) {
+        existingChildKeys.add(key);
+      }
+    }
+
+    const diskNames = new Set(entries.map((e) => e.name));
+    for (const key of existingChildKeys) {
+      const name = prefix === '' ? key : key.slice(prefix.length);
+      if (!diskNames.has(name)) {
         newTree.delete(key);
       }
     }
 
     for (const entry of entries) {
       const entryPath = prefix ? `${prefix}${entry.name}` : entry.name;
-      newTree.set(entryPath, {
-        path: entryPath,
-        name: entry.name,
-        type: entry.children === undefined ? 'file' : 'dir',
+      const inferredType: 'file' | 'dir' = entry.children === undefined ? 'file' : 'dir';
+      const existing = newTree.get(entryPath);
+      if (existing !== undefined && existing.type === inferredType) {
+        if (existing.size !== entry.size || existing.mtimeMs !== entry.mtimeMs) {
+          newTree.set(entryPath, { ...existing, size: entry.size, mtimeMs: entry.mtimeMs });
+        }
+        continue;
+      }
+      if (existing !== undefined) {
+        newTree.set(entryPath, {
+          ...existing,
+          type: inferredType,
+          name: entry.name,
+          size: entry.size,
+          mtimeMs: entry.mtimeMs,
+          isDirectoryResolved: inferredType === 'dir' ? existing.isDirectoryResolved : undefined,
+        });
+      } else {
+        newTree.set(entryPath, {
+          path: entryPath,
+          name: entry.name,
+          type: inferredType,
+          size: entry.size,
+          mtimeMs: entry.mtimeMs,
+          isLoaded: false,
+        });
+      }
+    }
+
+    if (directoryKey === '') {
+      const existingRoot = newTree.get('');
+      newTree.set('', {
+        path: '',
+        name: '',
+        type: 'dir',
         size: 0,
-        mtimeMs: Date.now(),
-        isLoaded: false,
+        mtimeMs: existingRoot?.mtimeMs ?? Date.now(),
+        isLoaded: true,
+        isDirectoryResolved: true,
       });
+    } else {
+      const parent = newTree.get(directoryKey);
+      if (parent?.type === 'dir') {
+        newTree.set(directoryKey, { ...parent, isDirectoryResolved: true });
+      } else {
+        const name = directoryKey.split('/').pop() ?? directoryKey;
+        newTree.set(directoryKey, {
+          path: directoryKey,
+          name,
+          type: 'dir',
+          size: 0,
+          mtimeMs: Date.now(),
+          isLoaded: false,
+          isDirectoryResolved: true,
+        });
+      }
     }
 
     this._tree = newTree;
-    this._resolvedDirectories.add(path);
+    this._listingPathSubscribers.notifyPath(directoryKey, undefined);
     this.notifyTreeSubscribers();
   }
 }

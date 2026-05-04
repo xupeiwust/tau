@@ -116,11 +116,16 @@ describe('FileTreeService', () => {
     expect(await service.exists('lib/utils.ts')).toBe(true);
   });
 
-  it('should return entries from readdir() matching parent path', async () => {
-    const entries = await service.readdir('lib');
-    expect(entries).toContain('utils.ts');
-    expect(entries).toContain('helpers.ts');
-    expect(entries).not.toContain('main.ts');
+  it('should return child names from listDirectory for a path', async () => {
+    vi.mocked(proxy.readDirectory).mockResolvedValueOnce([
+      { id: 'utils.ts', name: 'utils.ts', size: 1, mtimeMs: 0 },
+      { id: 'helpers.ts', name: 'helpers.ts', size: 2, mtimeMs: 0 },
+    ]);
+    const entries = await service.listDirectory('lib');
+    const names = entries.map((entry) => entry.name);
+    expect(names).toContain('utils.ts');
+    expect(names).toContain('helpers.ts');
+    expect(names).not.toContain('main.ts');
   });
 
   it('should debounce refresh when rapid mutations occur', async () => {
@@ -139,9 +144,9 @@ describe('FileTreeService', () => {
     vi.useRealTimers();
 
     const readDirectoryNodes: FileTreeNode[] = [
-      { id: 'utils.ts', name: 'utils.ts' },
-      { id: 'helpers.ts', name: 'helpers.ts' },
-      { id: 'new-file.ts', name: 'new-file.ts' },
+      { id: 'utils.ts', name: 'utils.ts', size: 1, mtimeMs: 0 },
+      { id: 'helpers.ts', name: 'helpers.ts', size: 1, mtimeMs: 0 },
+      { id: 'new-file.ts', name: 'new-file.ts', size: 1, mtimeMs: 0 },
     ];
     const localProxy = createMockProxy({
       readDirectory: vi.fn().mockResolvedValue(readDirectoryNodes),
@@ -262,7 +267,7 @@ describe('FileTreeService', () => {
   // ── Directory resolution tracking (VS Code _isDirectoryResolved pattern) ──
 
   describe('directory resolution tracking', () => {
-    it('should return false from hasChildrenLoaded for directory not yet loaded via loadDirectory', () => {
+    it('should return false from hasChildrenLoaded for directory not yet loaded via listDirectory', () => {
       const { service: localService } = createTreeHarness({
         proxy: createMockProxy(),
         initialEntries: [createEntry('.tau', 'dir'), createEntry('main.ts')],
@@ -273,12 +278,18 @@ describe('FileTreeService', () => {
       localService.dispose();
     });
 
-    it('should return true from hasChildrenLoaded after loadDirectory resolves', async () => {
+    it('should return true from hasChildrenLoaded after listDirectory resolves', async () => {
       vi.useRealTimers();
       const localProxy = createMockProxy({
         readDirectory: vi.fn().mockResolvedValue([
-          { name: 'parameters', children: [{ name: 'main.ts.json' }] },
-          { name: 'cache', children: [] },
+          {
+            id: 'parameters',
+            name: 'parameters',
+            size: 0,
+            mtimeMs: 0,
+            children: [{ id: 'main.ts.json', name: 'main.ts.json', size: 0, mtimeMs: 0 }],
+          },
+          { id: 'cache', name: 'cache', size: 0, mtimeMs: 0, children: [] },
         ]),
       });
       const { service: localService } = createTreeHarness({
@@ -286,7 +297,7 @@ describe('FileTreeService', () => {
         initialEntries: [createEntry('.tau', 'dir')],
       });
 
-      await localService.loadDirectory('.tau');
+      await localService.listDirectory('.tau');
 
       expect(localService.hasChildrenLoaded('.tau')).toBe(true);
       expect(localService.getTreeSnapshot().has(parametersDirectory)).toBe(true);
@@ -299,14 +310,22 @@ describe('FileTreeService', () => {
     it('should return false from hasChildrenLoaded after reset clears resolution state', async () => {
       vi.useRealTimers();
       const localProxy = createMockProxy({
-        readDirectory: vi.fn().mockResolvedValue([{ name: 'parameters', children: [{ name: 'main.ts.json' }] }]),
+        readDirectory: vi.fn().mockResolvedValue([
+          {
+            id: 'parameters',
+            name: 'parameters',
+            size: 0,
+            mtimeMs: 0,
+            children: [{ id: 'main.ts.json', name: 'main.ts.json', size: 0, mtimeMs: 0 }],
+          },
+        ]),
       });
       const { service: localService } = createTreeHarness({
         proxy: localProxy,
         initialEntries: [createEntry('.tau', 'dir')],
       });
 
-      await localService.loadDirectory('.tau');
+      await localService.listDirectory('.tau');
       expect(localService.hasChildrenLoaded('.tau')).toBe(true);
 
       localService.reset('/project', [createEntry('.tau', 'dir')]);
@@ -322,9 +341,15 @@ describe('FileTreeService', () => {
       const localProxy = createMockProxy({
         readFile: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
         readDirectory: vi.fn().mockResolvedValue([
-          { name: 'parameters', children: [{ name: 'main.ts.json' }] },
-          { name: 'cache', children: [] },
-          { name: 'artifacts', children: [] },
+          {
+            id: 'parameters',
+            name: 'parameters',
+            size: 0,
+            mtimeMs: 0,
+            children: [{ id: 'main.ts.json', name: 'main.ts.json', size: 0, mtimeMs: 0 }],
+          },
+          { id: 'cache', name: 'cache', size: 0, mtimeMs: 0, children: [] },
+          { id: 'artifacts', name: 'artifacts', size: 0, mtimeMs: 0, children: [] },
         ]),
       });
       const { service: localService } = createTreeHarness({
@@ -338,7 +363,7 @@ describe('FileTreeService', () => {
 
       expect(localService.hasChildrenLoaded('.tau')).toBe(false);
 
-      await localService.loadDirectory('.tau');
+      await localService.listDirectory('.tau');
 
       expect(localService.hasChildrenLoaded('.tau')).toBe(true);
       expect(localService.getTreeSnapshot().has(parametersDirectory)).toBe(true);
@@ -354,8 +379,14 @@ describe('FileTreeService', () => {
       vi.useRealTimers();
       const localProxy = createMockProxy({
         readDirectory: vi.fn().mockResolvedValue([
-          { name: 'parameters', children: [{ name: 'main.ts.json' }] },
-          { name: 'cache', children: [] },
+          {
+            id: 'parameters',
+            name: 'parameters',
+            size: 0,
+            mtimeMs: 0,
+            children: [{ id: 'main.ts.json', name: 'main.ts.json', size: 0, mtimeMs: 0 }],
+          },
+          { id: 'cache', name: 'cache', size: 0, mtimeMs: 0, children: [] },
         ]),
       });
       const { service: localService } = createTreeHarness({
@@ -371,7 +402,7 @@ describe('FileTreeService', () => {
       expect(localService.getTreeSnapshot().has(`${parametersDirectory}/main.ts.json`)).toBe(true);
       expect(localService.hasChildrenLoaded('.tau')).toBe(false);
 
-      await localService.loadDirectory('.tau');
+      await localService.listDirectory('.tau');
 
       expect(localService.hasChildrenLoaded('.tau')).toBe(true);
       expect(localService.getTreeSnapshot().has('.tau/cache')).toBe(true);
@@ -384,8 +415,14 @@ describe('FileTreeService', () => {
     it('should mark directory as resolved after executeRefresh patches entries', async () => {
       const localProxy = createMockProxy({
         readDirectory: vi.fn().mockResolvedValue([
-          { name: 'parameters', children: [{ name: 'main.ts.json' }] },
-          { name: 'cache', children: [] },
+          {
+            id: 'parameters',
+            name: 'parameters',
+            size: 0,
+            mtimeMs: 0,
+            children: [{ id: 'main.ts.json', name: 'main.ts.json', size: 0, mtimeMs: 0 }],
+          },
+          { id: 'cache', name: 'cache', size: 0, mtimeMs: 0, children: [] },
         ]),
       });
       const { service: localService } = createTreeHarness({
@@ -562,80 +599,6 @@ describe('FileTreeService', () => {
     });
   });
 
-  // ── readDirectoryEntries() ──
-
-  describe('readDirectoryEntries', () => {
-    it('should return directory entries from proxy', async () => {
-      const nodes: FileTreeNode[] = [
-        { id: 'a.ts', name: 'a.ts' },
-        { id: 'b.ts', name: 'b.ts' },
-      ];
-      vi.mocked(proxy.readDirectory).mockResolvedValueOnce(nodes);
-
-      const result = await service.readDirectoryEntries('lib');
-
-      expect(result).toEqual(nodes);
-      expect(proxy.readDirectory).toHaveBeenCalledWith('/project/lib');
-    });
-  });
-
-  // ── readDirectoryEntriesWithStats() ──
-
-  describe('readDirectoryEntriesWithStats', () => {
-    it('should fan out per-child stat calls and surface real size + mtime', async () => {
-      vi.mocked(proxy.readDirectory).mockResolvedValueOnce([
-        { id: 'a.ts', name: 'a.ts' },
-        { id: 'b.ts', name: 'b.ts' },
-        { id: 'sub', name: 'sub', children: [] },
-      ]);
-      const statByPath = new Map<string, { type: 'file' | 'dir'; size: number; mtimeMs: number }>([
-        ['/project/lib/a.ts', { type: 'file', size: 11, mtimeMs: 1700 }],
-        ['/project/lib/b.ts', { type: 'file', size: 222, mtimeMs: 1800 }],
-        ['/project/lib/sub', { type: 'dir', size: 0, mtimeMs: 1900 }],
-      ]);
-      vi.mocked(proxy.stat).mockImplementation(async (absolute: string) => {
-        const entry = statByPath.get(absolute);
-        if (!entry) {
-          throw new Error(`unexpected stat call: ${absolute}`);
-        }
-        return entry;
-      });
-
-      const result = await service.readDirectoryEntriesWithStats('lib');
-
-      expect(result).toEqual([
-        { name: 'a.ts', type: 'file', size: 11, mtimeMs: 1700 },
-        { name: 'b.ts', type: 'file', size: 222, mtimeMs: 1800 },
-        { name: 'sub', type: 'dir', size: 0, mtimeMs: 1900 },
-      ]);
-      expect(proxy.readDirectory).toHaveBeenCalledWith('/project/lib');
-      expect(proxy.stat).toHaveBeenCalledTimes(3);
-    });
-
-    it('should fall back to inferred type and zeroed stats when proxy.stat rejects', async () => {
-      vi.mocked(proxy.readDirectory).mockResolvedValueOnce([
-        { id: 'racy.ts', name: 'racy.ts' },
-        { id: 'dir', name: 'dir', children: [] },
-      ]);
-      vi.mocked(proxy.stat).mockRejectedValue(new Error('ENOENT'));
-
-      const result = await service.readDirectoryEntriesWithStats('');
-
-      expect(result).toEqual([
-        { name: 'racy.ts', type: 'file', size: 0, mtimeMs: 0 },
-        { name: 'dir', type: 'dir', size: 0, mtimeMs: 0 },
-      ]);
-    });
-
-    it('should resolve the project root when path is empty', async () => {
-      vi.mocked(proxy.readDirectory).mockResolvedValueOnce([]);
-
-      await service.readDirectoryEntriesWithStats('');
-
-      expect(proxy.readDirectory).toHaveBeenCalledWith('/project');
-    });
-  });
-
   // ── handleContentChange 'read' events ──
 
   describe('content read events', () => {
@@ -730,12 +693,12 @@ describe('FileTreeService', () => {
       contentService.dispose();
     });
 
-    it('should reflect newly loaded directories after loadDirectory', async () => {
+    it('should reflect newly loaded directories after listDirectory', async () => {
       vi.useRealTimers();
       const localProxy = createMockProxy({
         readDirectory: vi.fn().mockResolvedValue([
-          { id: 'cache', name: 'cache', children: [] },
-          { id: 'params.json', name: 'params.json' },
+          { id: 'cache', name: 'cache', size: 0, mtimeMs: 0, children: [] },
+          { id: 'params.json', name: 'params.json', size: 10, mtimeMs: 0 },
         ]),
       });
       const { service: localService } = createTreeHarness({
@@ -746,7 +709,7 @@ describe('FileTreeService', () => {
       const before = localService.getCachedFileItems();
       expect(before).toHaveLength(1);
 
-      await localService.loadDirectory('.tau');
+      await localService.listDirectory('.tau');
 
       const after = localService.getCachedFileItems();
       expect(after).toHaveLength(2);
@@ -1065,7 +1028,7 @@ describe('FileTreeService', () => {
       await vi.advanceTimersByTimeAsync(200);
 
       expect(proxy.readDirectory).not.toHaveBeenCalled();
-      expect(service.getTreeSnapshot().size).toBe(3);
+      expect(service.getTreeSnapshot().size).toBe(4);
     });
   });
 });

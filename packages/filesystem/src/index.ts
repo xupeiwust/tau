@@ -28,7 +28,6 @@ export { ResourceQueue } from '#resource-queue.js';
 export { WriteCoordinator } from '#write-coordinator.js';
 export { ResourceWriteQueue } from '#resource-write-queue.js';
 export { ChangeEventBus } from '#change-event-bus.js';
-export { DirectoryTreeCache } from '#directory-tree-cache.js';
 export { InMemoryFileTree } from '#in-memory-file-tree.js';
 export type { TreeNode } from '#in-memory-file-tree.js';
 export { EventCoalescer, coalesceEvents, coalesceChangeEvents } from '#event-coalescer.js';

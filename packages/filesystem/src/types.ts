@@ -65,18 +65,24 @@ export type FileReadStreamOptions = {
 };
 
 /**
- * Node in a standalone backend file tree.
- * Used by the /files route to display all backends side-by-side.
+ * Shallow directory row returned from the worker for {@link WorkspaceFileService.readDirectory}
+ * and standalone {@link WorkspaceFileService.readShallowDirectory}.
+ * Carries stat metadata from `readdirWithStats` / `stat` so main-thread consumers avoid synthesised zeros.
+ * Also used by the `/files` route to display all backends side-by-side.
  * @public
  */
 export type FileTreeNode = {
   id: string;
   name: string;
+  /** File byte length; directories use `0` when unknown. */
+  size: number;
+  /** Milliseconds since Unix epoch (provider stat). */
+  mtimeMs: number;
   children?: FileTreeNode[];
 };
 
 /**
- * Cached directory entry with metadata, used by {@link DirectoryTreeCache}.
+ * Directory listing row with stat metadata (worker readDirectory aggregation).
  * @public
  */
 export type TreeEntry = {

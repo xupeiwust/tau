@@ -3,7 +3,6 @@ import { MountTable } from '#mount-table.js';
 import { WorkspaceFileService } from '#workspace-file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
 import { ResourceQueue } from '#resource-queue.js';
-import { DirectoryTreeCache } from '#directory-tree-cache.js';
 import { ChangeEventBus } from '#change-event-bus.js';
 import { createMemoryProvider } from '#backend/memory-provider.js';
 import type { ChangeEvent, FileSystemProvider } from '#types.js';
@@ -19,13 +18,11 @@ async function createMountedWorkspaceFileService() {
   const providerRegistry = new ProviderRegistry();
 
   const resourceQueue = new ResourceQueue();
-  const treeCache = new DirectoryTreeCache();
   const eventBus = new ChangeEventBus();
 
   const service = new WorkspaceFileService({
     providerRegistry,
     resourceQueue,
-    treeCache,
     eventBus,
     mountTable,
   });
@@ -215,7 +212,6 @@ describe('MountTable integration', () => {
       const svc = new WorkspaceFileService({
         providerRegistry,
         resourceQueue: new ResourceQueue(),
-        treeCache: new DirectoryTreeCache(),
         eventBus: new ChangeEventBus(),
         mountTable: mt,
       });
@@ -320,7 +316,6 @@ describe('MountTable integration', () => {
       const projectService = new WorkspaceFileService({
         providerRegistry,
         resourceQueue: new ResourceQueue(),
-        treeCache: new DirectoryTreeCache(),
         eventBus: projectEventBus,
         mountTable: projectMountTable,
       });

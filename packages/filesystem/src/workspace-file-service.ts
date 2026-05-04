@@ -10,7 +10,6 @@ import type {
 } from '#types.js';
 import type { ProviderRegistry } from '#provider-registry.js';
 import type { ResourceQueue } from '#resource-queue.js';
-import type { DirectoryTreeCache } from '#directory-tree-cache.js';
 import type { ChangeEventBus } from '#change-event-bus.js';
 import { InMemoryFileTree } from '#in-memory-file-tree.js';
 import { WatchRegistry } from '#watch-registry.js';
@@ -49,7 +48,7 @@ export type WorkspaceMutationContext = {
  * Layer 3a UI-side workspace orchestrator.
  *
  * Composes the routing/watch backbone of {@link FileSystemService} (Layer 2)
- * with workspace-only concerns: tree caching, in-memory file index for fast
+ * with workspace-only concerns: in-memory file index for fast
  * search, cross-tab write coordination, shared-memory file pool, multi-backend
  * provider creation via {@link ProviderRegistry}, and tree-shaped helpers
  * (zip, copy directory, recursive stat).
@@ -59,7 +58,6 @@ export type WorkspaceMutationContext = {
 export class WorkspaceFileService {
   private readonly _registry: ProviderRegistry;
   private readonly _resourceQueue: ResourceQueue;
-  private readonly _treeCache: DirectoryTreeCache;
   private readonly _eventBus: ChangeEventBus;
   private readonly _watchRegistry: WatchRegistry;
   private readonly _crossTabCoordinator: CrossTabCoordinator;
@@ -78,7 +76,6 @@ export class WorkspaceFileService {
   public constructor(options: {
     providerRegistry: ProviderRegistry;
     resourceQueue: ResourceQueue;
-    treeCache: DirectoryTreeCache;
     eventBus: ChangeEventBus;
     crossTabCoordinator?: CrossTabCoordinator;
     /** Writer-side shared file pool for zero-IPC cached reads across threads. */
@@ -88,7 +85,6 @@ export class WorkspaceFileService {
   }) {
     this._registry = options.providerRegistry;
     this._resourceQueue = options.resourceQueue;
-    this._treeCache = options.treeCache;
     this._eventBus = options.eventBus;
     this._watchRegistry = new WatchRegistry(options.eventBus, { coalescingWindow: kernelCoalescingWindow });
     this._crossTabCoordinator = options.crossTabCoordinator ?? new CrossTabCoordinator();
@@ -302,7 +298,6 @@ export class WorkspaceFileService {
         this._filePool?.invalidate(path);
         const size = typeof data === 'string' ? new TextEncoder().encode(data).byteLength : data.byteLength;
         this._inMemoryTreeAddFile(path, size);
-        this._treeCache.invalidate(parentDirectory(path));
         this._emitChangeEvent(
           {
             type: 'fileWritten',
@@ -347,10 +342,6 @@ export class WorkspaceFileService {
       ),
     );
 
-    const parentDirectories = new Set(entries.map(([p]) => parentDirectory(p)));
-    for (const directory of parentDirectories) {
-      this._treeCache.invalidate(directory);
-    }
     this._emitChangeEvent(
       {
         type: 'directoryChanged',
@@ -375,12 +366,6 @@ export class WorkspaceFileService {
       await provider.mkdir(resolvedPath, options?.recursive ? { recursive: true } : undefined);
 
       this._inMemoryTreeAddDirectory(path);
-
-      if (options?.recursive) {
-        this._treeCache.invalidateAncestors(path);
-      } else {
-        this._treeCache.invalidate(parentDirectory(path));
-      }
 
       this._emitChangeEvent(
         {
@@ -418,9 +403,6 @@ export class WorkspaceFileService {
       this._filePool?.invalidate(from);
       this._filePool?.invalidate(to);
       this._inMemoryTreeRename(from, to);
-      this._treeCache.invalidate(parentDirectory(from));
-      this._treeCache.invalidate(parentDirectory(to));
-      this._treeCache.invalidateSubtree(from);
       this._emitChangeEvent(
         {
           type: 'fileRenamed',
@@ -447,7 +429,6 @@ export class WorkspaceFileService {
 
       this._filePool?.invalidate(path);
       this._inMemoryTreeRemoveFile(path);
-      this._treeCache.invalidate(parentDirectory(path));
       this._emitChangeEvent(
         {
           type: 'fileDeleted',
@@ -472,8 +453,6 @@ export class WorkspaceFileService {
       await provider.rmdir(resolvedPath);
 
       this._inMemoryTreeRemoveDirectory(path);
-      this._treeCache.invalidateSubtree(path);
-      this._treeCache.invalidate(parentDirectory(path));
       this._emitChangeEvent(
         {
           type: 'directoryChanged',
@@ -523,7 +502,6 @@ export class WorkspaceFileService {
 
       const size = data.byteLength;
       this._inMemoryTreeAddFile(destinationPath, size);
-      this._treeCache.invalidate(parentDirectory(destinationPath));
       this._emitChangeEvent(
         {
           type: 'fileWritten',
@@ -563,8 +541,6 @@ export class WorkspaceFileService {
         this._inMemoryTreeAddFile(destinationFile, content.byteLength);
       }
 
-      this._treeCache.invalidate(parentDirectory(destinationPath));
-      this._treeCache.invalidateSubtree(destinationPath);
       const destinationResolution = this._resolveProvider(destinationPath);
       this._emitChangeEvent(
         {
@@ -612,8 +588,8 @@ export class WorkspaceFileService {
   // --- Tree operations ---
 
   /**
-   * Read a directory with read-through cache. Used for incremental tree updates.
-   * On cache miss, reads from provider and caches. Returns sorted FileTreeNode array.
+   * Read one directory level from the routed provider (`readdirWithStats` when available)
+   * plus virtual child-mount rows. Stateless — no worker-side directory cache.
    *
    * @param path - Absolute directory path.
    * @param options - Optional abort signal for cancellation.
@@ -622,11 +598,6 @@ export class WorkspaceFileService {
   public async readDirectory(path: string, options?: { signal?: AbortSignal }): Promise<FileTreeNode[]> {
     if (options?.signal?.aborted) {
       throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-
-    const cached = this._treeCache.get(path);
-    if (cached) {
-      return this._treeEntriesToNodes(cached);
     }
 
     const { provider, path: resolvedPath } = this._resolveProvider(path);
@@ -669,7 +640,6 @@ export class WorkspaceFileService {
       }
     }
 
-    this._treeCache.set(path, entryMap);
     return this._treeEntriesToNodes(entryMap);
   }
 
@@ -773,9 +743,9 @@ export class WorkspaceFileService {
         for (const entry of statsEntries) {
           const fullPath = path === '/' ? `/${entry.name}` : `${path}/${entry.name}`;
           if (entry.type === 'dir') {
-            nodes.push({ id: fullPath, name: entry.name, children: [] });
+            nodes.push({ id: fullPath, name: entry.name, size: entry.size, mtimeMs: entry.mtimeMs, children: [] });
           } else {
-            nodes.push({ id: fullPath, name: entry.name });
+            nodes.push({ id: fullPath, name: entry.name, size: entry.size, mtimeMs: entry.mtimeMs });
           }
         }
       } else {
@@ -896,7 +866,6 @@ export class WorkspaceFileService {
     this._watchRegistry.dispose();
     this._fs.dispose();
     this._registry.disposeAll();
-    this._treeCache.clear();
     this._eventBus.dispose();
   }
 
@@ -947,7 +916,9 @@ export class WorkspaceFileService {
   ): Promise<FileTreeNode | undefined> {
     try {
       const stat = await provider.stat(fullPath);
-      return stat.type === 'dir' ? { id: fullPath, name, children: [] } : { id: fullPath, name };
+      return stat.type === 'dir'
+        ? { id: fullPath, name, size: stat.size, mtimeMs: stat.mtimeMs, children: [] }
+        : { id: fullPath, name, size: stat.size, mtimeMs: stat.mtimeMs };
     } catch {
       return undefined;
     }
@@ -1067,9 +1038,9 @@ export class WorkspaceFileService {
     const nodes: FileTreeNode[] = [];
     for (const [, entry] of entries) {
       if (entry.type === 'dir') {
-        nodes.push({ id: entry.name, name: entry.name, children: [] });
+        nodes.push({ id: entry.name, name: entry.name, size: entry.size, mtimeMs: entry.mtimeMs, children: [] });
       } else {
-        nodes.push({ id: entry.name, name: entry.name });
+        nodes.push({ id: entry.name, name: entry.name, size: entry.size, mtimeMs: entry.mtimeMs });
       }
     }
     return nodes.sort((a, b) => {

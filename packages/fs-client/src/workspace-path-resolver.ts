@@ -65,7 +65,12 @@ function resolvePathSegmentsUnderRoot(rootNorm: string, relativeSegments: string
  * ```
  */
 export class WorkspacePathResolver {
-  public constructor(private rootDirectory: string) {}
+  // oxlint-disable-next-line @typescript-eslint/parameter-properties -- erasableSyntaxOnly forbids constructor parameter properties
+  private rootDirectory: string;
+
+  public constructor(rootDirectory: string) {
+    this.rootDirectory = rootDirectory;
+  }
 
   /**
    * Absolute filesystem root configured for this resolver.

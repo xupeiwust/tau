@@ -32,7 +32,9 @@
     "./file-content-errors": "./src/file-content-errors.ts",
     "./seems-binary": "./src/seems-binary.ts",
     "./file-content-service": "./src/file-content-service.ts",
-    "./file-tree-service": "./src/file-tree-service.ts"
+    "./file-tree-service": "./src/file-tree-service.ts",
+    "./directory-listing": "./src/directory-listing.ts",
+    "./react/use-directory-listing": "./src/react/use-directory-listing.ts"
   },
   "publishConfig": {
     "access": "public",
@@ -146,11 +148,34 @@
           "types": "./dist/esm/file-tree-service.d.ts",
           "default": "./dist/esm/file-tree-service.js"
         }
+      },
+      "./directory-listing": {
+        "require": {
+          "types": "./dist/cjs/directory-listing.d.cts",
+          "default": "./dist/cjs/directory-listing.cjs"
+        },
+        "import": {
+          "types": "./dist/esm/directory-listing.d.ts",
+          "default": "./dist/esm/directory-listing.js"
+        }
+      },
+      "./react/use-directory-listing": {
+        "require": {
+          "types": "./dist/cjs/react/use-directory-listing.d.cts",
+          "default": "./dist/cjs/react/use-directory-listing.cjs"
+        },
+        "import": {
+          "types": "./dist/esm/react/use-directory-listing.d.ts",
+          "default": "./dist/esm/react/use-directory-listing.js"
+        }
       }
     }
   },
   "imports": {
     "#*": "./src/*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
     "@taucad/filesystem": "workspace:*",
@@ -159,6 +184,9 @@
     "@taucad/utils": "workspace:*"
   },
   "devDependencies": {
+    "@testing-library/react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "vitest": "catalog:"
   }
 }

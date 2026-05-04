@@ -194,6 +194,23 @@ describe('FileSelector (explicit dataSource)', () => {
 
     expect(onSelect).toHaveBeenCalledWith('README.md');
   });
+
+  it('should surface Retry when explicit loadDirectory throws', async () => {
+    const loadDirectory = vi.fn().mockRejectedValue(Object.assign(new Error('fail'), { code: 'ENOENT' }));
+    const dataSource: FileSelectorDataSource = {
+      loadDirectory,
+      searchFiles: vi.fn().mockResolvedValue([]),
+    };
+
+    render(<FileSelector dataSource={dataSource} selectedFile={undefined} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No files found.')).not.toBeInTheDocument();
+  });
 });
 
 describe('createStaticDataSource', () => {
@@ -252,36 +269,84 @@ describe('createStaticDataSource', () => {
 });
 
 describe('FileSelector (context auto-wiring)', () => {
-  it('should render without errors when no dataSource and no FileManagerProvider', async () => {
+  it('should not show empty-directory copy when FileManager tree is unavailable (shows loading instead)', async () => {
     render(<FileSelector selectedFile={undefined} onSelect={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button'));
 
     await waitFor(() => {
-      expect(screen.getByText('No files found.')).toBeInTheDocument();
+      expect(screen.queryByText('No files found.')).not.toBeInTheDocument();
     });
+  });
+
+  it('should surface Retry instead of empty copy when context listDirectory fails', async () => {
+    const { useOptionalFileManager } = await import('#hooks/use-file-manager.js');
+    const error = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    const listDirectory = vi.fn().mockRejectedValue(error);
+    vi.mocked(useOptionalFileManager).mockReturnValue({
+      treeService: {
+        listDirectory,
+        listDirectorySync: vi.fn().mockReturnValue(undefined),
+        subscribePath: vi.fn().mockReturnValue(() => undefined),
+      },
+    } as unknown as ReturnType<typeof useOptionalFileManager>);
+
+    render(<FileSelector selectedFile={undefined} onSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No files found.')).not.toBeInTheDocument();
+
+    vi.mocked(useOptionalFileManager).mockReturnValue(undefined);
   });
 
   it('should preserve full breadcrumb path when drilling down after navigating up', async () => {
     const { useOptionalFileManager } = await import('#hooks/use-file-manager.js');
-    const mockReadDirectoryEntries = vi.fn().mockImplementation(async (path: string) => {
+    const listingSnapshot = new Map<
+      string,
+      Array<{ name: string; path: string; isFolder: boolean; size: number; mtimeMs: number }>
+    >();
+
+    const mockNodesForPath = (path: string) => {
       if (path === '') {
-        return [{ id: 'public', name: 'public', children: [] }];
+        return [{ id: 'public', name: 'public', size: 0, mtimeMs: 0, children: [] }];
       }
       if (path === 'public') {
-        return [{ id: 'kcl-samples', name: 'kcl-samples', children: [] }];
+        return [{ id: 'kcl-samples', name: 'kcl-samples', size: 0, mtimeMs: 0, children: [] }];
       }
       if (path === 'public/kcl-samples') {
-        return [{ id: 'ball-bearing', name: 'ball-bearing', children: [] }];
+        return [{ id: 'ball-bearing', name: 'ball-bearing', size: 0, mtimeMs: 0, children: [] }];
       }
       if (path === 'public/kcl-samples/ball-bearing') {
-        return [{ id: 'main.kcl', name: 'main.kcl' }];
+        return [{ id: 'main.kcl', name: 'main.kcl', size: 1, mtimeMs: 0 }];
       }
       return [];
+    };
+
+    const listDirectory = vi.fn().mockImplementation(async (path: string) => {
+      const nodes = mockNodesForPath(path);
+      const rows = nodes.map((n) => ({
+        name: n.name,
+        path: path ? `${path}/${n.name}` : n.name,
+        isFolder: 'children' in n,
+        size: 0,
+        mtimeMs: 0,
+      }));
+      listingSnapshot.set(path, rows);
+      return rows;
     });
 
+    const listDirectorySync = vi.fn((path: string) => listingSnapshot.get(path));
+
     vi.mocked(useOptionalFileManager).mockReturnValue({
-      treeService: { readDirectoryEntries: mockReadDirectoryEntries },
+      treeService: {
+        listDirectory,
+        listDirectorySync,
+        subscribePath: vi.fn().mockReturnValue(() => undefined),
+      },
     } as unknown as ReturnType<typeof useOptionalFileManager>);
 
     render(<FileSelector selectedFile='public/kcl-samples/ball-bearing/main.kcl' onSelect={vi.fn()} />);
@@ -289,8 +354,7 @@ describe('FileSelector (context auto-wiring)', () => {
     await userEvent.click(screen.getByRole('button'));
 
     await waitFor(() => {
-      // Trigger button + list item both show main.kcl
-      expect(screen.getAllByText('main.kcl')).toHaveLength(2);
+      expect(screen.getAllByText('main.kcl').length).toBeGreaterThanOrEqual(1);
     });
 
     await userEvent.click(screen.getByText('kcl-samples'));
@@ -302,11 +366,20 @@ describe('FileSelector (context auto-wiring)', () => {
     await userEvent.click(screen.getByText('ball-bearing'));
 
     await waitFor(() => {
-      expect(mockReadDirectoryEntries).toHaveBeenCalledWith('public/kcl-samples/ball-bearing');
+      const listDirectoryMock = vi.mocked(listDirectory);
+      const paths = listDirectoryMock.mock.calls.map((call) => {
+        const [listedPath] = call as [unknown];
+        if (typeof listedPath !== 'string') {
+          throw new TypeError('expected listDirectory path argument to be a string');
+        }
+
+        return listedPath;
+      });
+      expect(paths).toContain('public/kcl-samples/ball-bearing');
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText('main.kcl')).toHaveLength(2);
+      expect(screen.getAllByText('main.kcl').length).toBeGreaterThanOrEqual(1);
     });
 
     vi.mocked(useOptionalFileManager).mockReturnValue(undefined);

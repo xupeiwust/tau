@@ -12,7 +12,6 @@ import { exposeFileSystem, workerReadyMessageType } from '@taucad/runtime/transp
 import {
   ProviderRegistry,
   ResourceQueue,
-  DirectoryTreeCache,
   ChangeEventBus,
   WorkspaceFileService,
   MountTable,
@@ -25,7 +24,6 @@ import { metaConfig } from '#constants/meta.constants.js';
 
 const providerRegistry = new ProviderRegistry({ databasePrefix: metaConfig.databasePrefix });
 const resourceQueue = new ResourceQueue();
-const treeCache = new DirectoryTreeCache();
 const eventBus = new ChangeEventBus();
 const mountTable = new MountTable();
 
@@ -122,7 +120,6 @@ async function createNodeModulesMount(): Promise<void> {
 const fileService = new WorkspaceFileService({
   providerRegistry,
   resourceQueue,
-  treeCache,
   eventBus,
   mountTable,
 });

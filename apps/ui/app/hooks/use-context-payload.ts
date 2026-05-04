@@ -8,7 +8,7 @@ const decoder = new TextDecoder();
 
 /**
  * Hook that assembles a context payload from the project's `.tau/` directory.
- * Uses targeted reads: `readDirectoryEntries('.tau/skills')` to discover skill
+ * Uses targeted reads: `listDirectory('.tau/skills')` to discover skill
  * directories and `getEntry('.tau/AGENTS.md')` for memory — never scans the
  * full project tree.
  *
@@ -25,21 +25,20 @@ export function useContextPayload(): ContextPayload | undefined {
     if (!treeService) {
       return;
     }
+    const ts = treeService;
     let cancelled = false;
 
     async function discover(): Promise<void> {
-      const [skillDirectories, agentsEntry] = await Promise.all([
-        treeService!.readDirectoryEntries('.tau/skills').catch(() => []),
-        treeService!.getEntry(agentsMdPath),
+      const [skillListing, agentsEntry] = await Promise.all([
+        ts.listDirectory('.tau/skills').catch(() => []),
+        ts.getEntry(agentsMdPath),
       ]);
 
       if (cancelled) {
         return;
       }
 
-      const paths = skillDirectories
-        .filter((node) => node.children !== undefined)
-        .map((node) => `.tau/skills/${node.name}/SKILL.md`);
+      const paths = skillListing.filter((row) => row.isFolder).map((row) => `.tau/skills/${row.name}/SKILL.md`);
 
       setSkillPaths(paths);
       setHasAgentsMd(agentsEntry?.type === 'file');

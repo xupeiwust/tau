@@ -14,6 +14,8 @@ const baseConfig: Options = {
     'src/seems-binary.ts',
     'src/file-content-service.ts',
     'src/file-tree-service.ts',
+    'src/directory-listing.ts',
+    'src/react/use-directory-listing.ts',
   ],
   sourcemap: false,
   clean: true,

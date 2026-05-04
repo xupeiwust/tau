@@ -226,20 +226,14 @@ const initializeServicesActor = fromSafeAsync<WorkerInitializedEvent, { context:
     try {
       const rootPath = context.rootDirectory;
       const absolutePath = normalizePath(rootPath);
-      console.debug(
-        `[FileManager] calling readDirectory('${absolutePath}') +${(performance.now() - initT0).toFixed(1)}ms`,
-      );
       const rootNodes = await proxy.readDirectory(absolutePath);
-      console.debug(
-        `[FileManager] readDirectory returned ${rootNodes.length} entries +${(performance.now() - initT0).toFixed(1)}ms`,
-      );
       for (const node of rootNodes) {
         initialEntries.push({
           path: node.name,
           name: node.name,
           type: node.children === undefined ? 'file' : 'dir',
-          size: 0,
-          mtimeMs: Date.now(),
+          size: node.size,
+          mtimeMs: node.mtimeMs,
           isLoaded: false,
         });
       }

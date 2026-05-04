@@ -32,6 +32,12 @@ export type FileTreeEntry = {
 export type FileEntry = FileTreeEntry & {
   isLoaded: boolean;
   mtimeMs: number;
+  /**
+   * When `type === 'dir'`, `true` means immediate children have been
+   * read from the worker and merged into the tree snapshot. Omitted for
+   * files and unresolved directory stubs.
+   */
+  isDirectoryResolved?: boolean;
 };
 
 /**

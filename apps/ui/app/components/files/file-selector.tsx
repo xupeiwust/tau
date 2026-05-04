@@ -2,6 +2,9 @@ import type { ReactNode } from 'react';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
+import { useDirectoryListing } from '@taucad/fs-client/react/use-directory-listing';
+import type { DirectoryListingError, ListedDirectoryEntry } from '@taucad/fs-client/directory-listing';
+import { classifyDirectoryListingError } from '@taucad/fs-client/directory-listing';
 import { useIsMobile } from '#hooks/use-mobile.js';
 import { useOptionalFileManager } from '#hooks/use-file-manager.js';
 import { useHorizontalScroll } from '#hooks/use-horizontal-scroll.js';
@@ -427,11 +430,12 @@ function FileSelectorItemList({
   if (items.length > virtualizationThreshold) {
     return (
       <Virtuoso
+        className='scroll-shadows-y'
         style={{ height: '300px' }}
         totalCount={items.length}
+        defaultItemHeight={40}
         itemContent={renderItem}
         components={{
-          Scroller: ({ children, ...properties }) => <div {...properties} className='scroll-shadows-y' />,
           List: (properties) => <div {...properties} className='px-1' />,
           Header: () => <div className='h-1' />,
           Footer: () => <div className='h-1' />,
@@ -459,29 +463,11 @@ function FileSelectorItemList({
   );
 }
 
-/**
- * Resolves a `FileSelectorDataSource` from `FileManagerProvider` context.
- * Returns `undefined` when outside a provider (e.g. import routes).
- */
-function useContextDataSource(shouldIncludeDirectories?: boolean): FileSelectorDataSource | undefined {
+function useFileSelectorContextSearch(
+  shouldIncludeDirectories?: boolean,
+): { searchFiles: (query: string) => Promise<FileSelectorEntry[]> } | undefined {
   const fileManager = useOptionalFileManager();
   const treeService = fileManager?.treeService;
-
-  const loadDirectory = useCallback(
-    async (path: string): Promise<FileSelectorEntry[]> => {
-      if (!treeService) {
-        return [];
-      }
-      const nodes = await treeService.readDirectoryEntries(path);
-      return nodes.map((n) => ({
-        name: n.name,
-        path: path ? `${path}/${n.name}` : n.name,
-        isFolder: n.children !== undefined,
-        size: undefined,
-      }));
-    },
-    [treeService],
-  );
 
   const searchFiles = useCallback(
     async (query: string): Promise<FileSelectorEntry[]> => {
@@ -502,9 +488,35 @@ function useContextDataSource(shouldIncludeDirectories?: boolean): FileSelectorD
     [treeService, shouldIncludeDirectories],
   );
 
-  return useMemo(
-    () => (treeService ? { loadDirectory, searchFiles } : undefined),
-    [treeService, loadDirectory, searchFiles],
+  return useMemo(() => (treeService ? { searchFiles } : undefined), [treeService, searchFiles]);
+}
+
+function listedEntriesToTreeNodes(entries: readonly ListedDirectoryEntry[]): TreeNode[] {
+  return entries
+    .map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isFolder: entry.isFolder,
+      size: entry.size,
+      children: new Map<string, TreeNode>(),
+    }))
+    .sort(sortNodes);
+}
+
+function FileSelectorBrowseErrorRow({
+  message,
+  onRetry,
+}: {
+  readonly message: string;
+  readonly onRetry: () => void;
+}): React.JSX.Element {
+  return (
+    <div className='flex flex-col items-center gap-2 p-4 text-center text-sm'>
+      <p className='text-destructive'>{message}</p>
+      <Button type='button' variant='outline' size='sm' onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
   );
 }
 
@@ -526,26 +538,37 @@ export function FileSelector({
   popoverProperties,
   initialPath,
 }: FileSelectorProps): React.JSX.Element {
-  const contextSource = useContextDataSource(shouldIncludeDirectories);
-  const dataSource = explicitSource ?? contextSource;
+  const fileManager = useOptionalFileManager();
+  const contextSearch = useFileSelectorContextSearch(shouldIncludeDirectories);
+  const isExplicitBrowse = explicitSource !== undefined;
+  const searchAdapter = explicitSource ?? contextSearch;
 
   const [open, setOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [listingReloadToken, setListingReloadToken] = useState(0);
   const isMobile = useIsMobile();
 
+  const directoryListing = useDirectoryListing(
+    !isExplicitBrowse && open ? fileManager?.treeService : undefined,
+    currentPath,
+    { reloadToken: listingReloadToken },
+  );
+
   const [items, setItems] = useState<TreeNode[]>([]);
+  const [browseError, setBrowseError] = useState<DirectoryListingError | undefined>(undefined);
   const [searchResults, setSearchResults] = useState<TreeNode[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 
-  const loadDirectory = useCallback(
+  const loadDirectoryExplicit = useCallback(
     async (path: string) => {
-      if (!dataSource) {
+      if (!explicitSource) {
         return;
       }
+      setBrowseError(undefined);
       setIsLoadingItems(true);
       try {
-        const entries = await dataSource.loadDirectory(path);
+        const entries = await explicitSource.loadDirectory(path);
         setItems(
           entries
             .map((entry) => ({
@@ -557,21 +580,24 @@ export function FileSelector({
             }))
             .sort(sortNodes),
         );
+      } catch (error) {
+        setBrowseError(classifyDirectoryListingError(error, path));
+        setItems([]);
       } finally {
         setIsLoadingItems(false);
       }
     },
-    [dataSource],
+    [explicitSource],
   );
 
   useEffect(() => {
-    if (!dataSource || !searchQuery) {
+    if (!searchAdapter || !searchQuery) {
       setSearchResults([]);
       return;
     }
     let cancelled = false;
     const fetchResults = async (): Promise<void> => {
-      const results = await dataSource.searchFiles(searchQuery);
+      const results = await searchAdapter.searchFiles(searchQuery);
       if (!cancelled) {
         setSearchResults(
           results.map((entry) => ({
@@ -588,7 +614,37 @@ export function FileSelector({
     return () => {
       cancelled = true;
     };
-  }, [dataSource, searchQuery]);
+  }, [searchAdapter, searchQuery]);
+
+  const contextBrowseItems = useMemo(() => {
+    if (directoryListing.kind !== 'ready') {
+      return [];
+    }
+    return listedEntriesToTreeNodes(directoryListing.entries);
+  }, [directoryListing]);
+
+  const explicitBrowseError = isExplicitBrowse ? browseError : undefined;
+  const contextBrowseError =
+    !isExplicitBrowse && directoryListing.kind === 'error' ? directoryListing.cause : undefined;
+  const activeBrowseError = explicitBrowseError ?? contextBrowseError;
+
+  const displayItems = searchQuery ? searchResults : isExplicitBrowse ? items : contextBrowseItems;
+
+  const isSearching = searchQuery.length > 0;
+
+  const isBrowsingLoading = isSearching
+    ? false
+    : isExplicitBrowse
+      ? isLoadingItems
+      : directoryListing.kind === 'loading' || directoryListing.kind === 'unready';
+
+  const handleBrowseRetry = useCallback(() => {
+    if (isExplicitBrowse) {
+      void loadDirectoryExplicit(currentPath);
+    } else {
+      setListingReloadToken((n) => n + 1);
+    }
+  }, [isExplicitBrowse, loadDirectoryExplicit, currentPath]);
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -604,10 +660,14 @@ export function FileSelector({
         }
         setCurrentPath(targetPath);
         setSearchQuery('');
-        void loadDirectory(targetPath);
+        setListingReloadToken(0);
+        setBrowseError(undefined);
+        if (isExplicitBrowse) {
+          void loadDirectoryExplicit(targetPath);
+        }
       }
     },
-    [initialPath, selectedFile, loadDirectory],
+    [initialPath, selectedFile, isExplicitBrowse, loadDirectoryExplicit],
   );
 
   const handleSelect = useCallback(
@@ -622,18 +682,22 @@ export function FileSelector({
     (path: string) => {
       setCurrentPath(path);
       setSearchQuery('');
-      void loadDirectory(path);
+      if (isExplicitBrowse) {
+        void loadDirectoryExplicit(path);
+      }
     },
-    [loadDirectory],
+    [isExplicitBrowse, loadDirectoryExplicit],
   );
 
   const handleNavigate = useCallback(
     (path: string) => {
       setCurrentPath(path);
       setSearchQuery('');
-      void loadDirectory(path);
+      if (isExplicitBrowse) {
+        void loadDirectoryExplicit(path);
+      }
     },
-    [loadDirectory],
+    [isExplicitBrowse, loadDirectoryExplicit],
   );
 
   const selectedFileName = selectedFile?.split('/').pop();
@@ -654,15 +718,25 @@ export function FileSelector({
     </Button>
   );
 
-  const displayItems = searchQuery ? searchResults : items;
-  const isSearching = searchQuery.length > 0;
-
   const content = (
     <Command shouldFilter={false} className='flex flex-col'>
       <BreadcrumbNav currentPath={currentPath} onNavigate={handleNavigate} />
       <CommandInput placeholder={searchPlaceholder} value={searchQuery} onValueChange={setSearchQuery} />
       <CommandList className='max-h-[300px] scroll-shadows-y'>
-        {isLoadingItems ? (
+        {isSearching ? (
+          <FileSelectorItemList
+            items={displayItems}
+            currentPath={currentPath}
+            selectedFile={selectedFile}
+            isSearching={isSearching}
+            virtualizationThreshold={virtualizationThreshold}
+            emptyMessage={emptyMessage}
+            onDrillDown={handleDrillDown}
+            onSelect={handleSelect}
+          />
+        ) : activeBrowseError ? (
+          <FileSelectorBrowseErrorRow message={activeBrowseError.message} onRetry={handleBrowseRetry} />
+        ) : isBrowsingLoading ? (
           <div className='flex items-center justify-center p-4'>
             <Loader className='size-4' />
           </div>

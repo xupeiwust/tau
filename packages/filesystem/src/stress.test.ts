@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { BoundedFileCache } from '#bounded-file-cache.js';
 import { WriteCoordinator } from '#write-coordinator.js';
 import { ChangeEventBus } from '#change-event-bus.js';
-import { DirectoryTreeCache } from '#directory-tree-cache.js';
 
 describe('BoundedFileCache stress tests', () => {
   it('should handle rapid set/get cycles without data loss', () => {
@@ -240,68 +239,5 @@ describe('ChangeEventBus stress tests', () => {
     // Note: depending on implementation, the good subscriber might or might not fire
     // This test verifies the bus doesn't crash
     bus.dispose();
-  });
-});
-
-describe('DirectoryTreeCache stress tests', () => {
-  it('should handle large cache with thousands of entries', () => {
-    const cache = new DirectoryTreeCache();
-
-    for (let i = 0; i < 1000; i++) {
-      const entries = new Map<string, { name: string; type: 'file' | 'dir'; size: number; mtimeMs: number }>();
-      for (let j = 0; j < 10; j++) {
-        entries.set(`file-${j}.txt`, { name: `file-${j}.txt`, type: 'file', size: j * 100, mtimeMs: Date.now() });
-      }
-      cache.set(`/dir-${i}`, entries);
-    }
-
-    expect(cache.get('/dir-500')).toBeDefined();
-    expect(cache.get('/dir-500')!.size).toBe(10);
-
-    // Set some children of /dir-5 to verify subtree invalidation
-    cache.set('/dir-5/sub1', new Map());
-    cache.set('/dir-5/sub2', new Map());
-
-    cache.invalidateSubtree('/dir-5');
-
-    expect(cache.get('/dir-5')).toBeUndefined();
-    expect(cache.get('/dir-5/sub1')).toBeUndefined();
-    expect(cache.get('/dir-5/sub2')).toBeUndefined();
-    // /dir-50 should still exist (not a subtree of /dir-5, just shares a prefix)
-    expect(cache.get('/dir-50')).toBeDefined();
-    expect(cache.get('/dir-500')).toBeDefined();
-    expect(cache.get('/dir-6')).toBeDefined();
-  });
-
-  let cache: DirectoryTreeCache;
-
-  beforeEach(() => {
-    cache = new DirectoryTreeCache();
-  });
-
-  it('should handle invalidateSubtree on root', () => {
-    cache.set('/', new Map());
-    cache.set('/a', new Map());
-    cache.set('/a/b', new Map());
-    cache.set('/a/b/c', new Map());
-
-    cache.invalidateSubtree('/');
-
-    expect(cache.get('/')).toBeUndefined();
-    expect(cache.get('/a')).toBeUndefined();
-    expect(cache.get('/a/b')).toBeUndefined();
-    expect(cache.get('/a/b/c')).toBeUndefined();
-  });
-
-  it('should handle rapid set/invalidate cycles', () => {
-    for (let round = 0; round < 100; round++) {
-      cache.set(`/round-${round}`, new Map());
-      if (round > 0) {
-        cache.invalidate(`/round-${round - 1}`);
-      }
-    }
-
-    expect(cache.get('/round-0')).toBeUndefined();
-    expect(cache.get('/round-99')).toBeDefined();
   });
 });

@@ -5,7 +5,6 @@ import { mock } from 'vitest-mock-extended';
 import { WorkspaceFileService } from '#workspace-file-service.js';
 import { ProviderRegistry } from '#provider-registry.js';
 import { ResourceQueue } from '#resource-queue.js';
-import { DirectoryTreeCache } from '#directory-tree-cache.js';
 import { ChangeEventBus } from '#change-event-bus.js';
 import { MountTable } from '#mount-table.js';
 import { SharedPool } from '@taucad/memory';
@@ -44,18 +43,16 @@ async function createWorkspaceFileService() {
   mountTable.mount('/', provider, { backend: 'memory' });
 
   const resourceQueue = new ResourceQueue();
-  const treeCache = new DirectoryTreeCache();
   const eventBus = new ChangeEventBus();
 
   const service = new WorkspaceFileService({
     providerRegistry,
     resourceQueue,
-    treeCache,
     eventBus,
     mountTable,
   });
 
-  return { service, eventBus, treeCache, providerRegistry, resourceQueue, mountTable, provider };
+  return { service, eventBus, providerRegistry, resourceQueue, mountTable, provider };
 }
 
 describe('WorkspaceFileService', () => {
@@ -384,7 +381,7 @@ describe('WorkspaceFileService', () => {
       await expect(service.mkdir('/x/y/z')).rejects.toThrow();
     });
 
-    it('should invalidate ancestor tree caches on recursive mkdir', async () => {
+    it('should list new subdirectories in readDirectory after recursive mkdir', async () => {
       await service.writeFile('/root/existing.txt', 'x');
       const beforeMkdir = await service.readDirectory('/root');
       expect(beforeMkdir.map((n) => n.name)).toEqual(['existing.txt']);
@@ -397,7 +394,7 @@ describe('WorkspaceFileService', () => {
       expect(names).toContain('deep');
     });
 
-    it('should only invalidate immediate parent for non-recursive mkdir', async () => {
+    it('should not require unrelated directory reads to refresh siblings after mkdir', async () => {
       await service.mkdir('/other', { recursive: true });
       await service.writeFile('/other/file.txt', 'y');
       await service.readDirectory('/other');
@@ -573,7 +570,7 @@ describe('WorkspaceFileService', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // readDirectory (tree cache)
+  // readDirectory
   // ---------------------------------------------------------------------------
 
   describe('readDirectory', () => {
@@ -639,7 +636,7 @@ describe('WorkspaceFileService', () => {
       }
     });
 
-    it('should cache results on subsequent calls', async () => {
+    it('should return equivalent listings on subsequent calls', async () => {
       await service.writeFile('/cached/a.txt', 'a');
       const first = await service.readDirectory('/cached');
       const second = await service.readDirectory('/cached');
@@ -662,10 +659,10 @@ describe('WorkspaceFileService', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // recursive mkdir + readDirectory cache coherence
+  // recursive mkdir + readDirectory
   // ---------------------------------------------------------------------------
 
-  describe('recursive mkdir + readDirectory cache coherence', () => {
+  describe('recursive mkdir + readDirectory', () => {
     it('should show new subdirectories in readDirectory after recursive mkdir', async () => {
       await service.writeFile('/project/.tau/parameters/main.ts.json', '{}');
       const before = await service.readDirectory('/project/.tau');
@@ -752,10 +749,10 @@ describe('WorkspaceFileService', () => {
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
 
       expect(nodes).toEqual([
-        { id: '/alpha', name: 'alpha', children: [] },
-        { id: '/alpha-dir', name: 'alpha-dir', children: [] },
-        { id: '/beta.txt', name: 'beta.txt' },
-        { id: '/zebra.txt', name: 'zebra.txt' },
+        { id: '/alpha', name: 'alpha', size: 10, mtimeMs: 1, children: [] },
+        { id: '/alpha-dir', name: 'alpha-dir', size: 10, mtimeMs: 1, children: [] },
+        { id: '/beta.txt', name: 'beta.txt', size: 10, mtimeMs: 1 },
+        { id: '/zebra.txt', name: 'zebra.txt', size: 10, mtimeMs: 1 },
       ]);
     });
 
@@ -791,7 +788,7 @@ describe('WorkspaceFileService', () => {
       vi.spyOn(providerRegistry, 'getStandaloneProvider').mockResolvedValue(mockProvider);
 
       const nodes = await service.readShallowDirectory('/', 'indexeddb');
-      expect(nodes).toEqual([{ id: '/good.txt', name: 'good.txt' }]);
+      expect(nodes).toEqual([{ id: '/good.txt', name: 'good.txt', size: 5, mtimeMs: 1 }]);
     });
 
     it('should build correct paths when root is /', async () => {
@@ -973,11 +970,11 @@ describe('WorkspaceFileService', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Tree cache invalidation
+  // readDirectory after mutations
   // ---------------------------------------------------------------------------
 
-  describe('tree cache invalidation', () => {
-    it('should invalidate cache on write so readDirectory returns fresh data', async () => {
+  describe('readDirectory after mutations', () => {
+    it('should return fresh listing after write', async () => {
       await service.writeFile('/cacheinv/a.txt', 'a');
       const first = await service.readDirectory('/cacheinv');
       expect(first).toHaveLength(1);
@@ -987,7 +984,7 @@ describe('WorkspaceFileService', () => {
       expect(second).toHaveLength(2);
     });
 
-    it('should invalidate cache on unlink', async () => {
+    it('should return fresh listing after unlink', async () => {
       await service.writeFile('/cacheinv2/a.txt', 'a');
       await service.readDirectory('/cacheinv2');
 
@@ -996,7 +993,7 @@ describe('WorkspaceFileService', () => {
       expect(after).toHaveLength(0);
     });
 
-    it('should invalidate cache on rename', async () => {
+    it('should return fresh listing after rename', async () => {
       await service.writeFile('/ren-cache/old.txt', 'data');
       await service.readDirectory('/ren-cache');
 
@@ -1259,13 +1256,11 @@ describe('WorkspaceFileService integration [DirectIDB]', () => {
     mountTable.mount('/', provider, { backend: 'indexeddb' });
 
     const resourceQueue = new ResourceQueue();
-    const treeCache = new DirectoryTreeCache();
     const eventBus = new ChangeEventBus();
 
     service = new WorkspaceFileService({
       providerRegistry,
       resourceQueue,
-      treeCache,
       eventBus,
       mountTable,
     });
@@ -1309,7 +1304,6 @@ describe('WorkspaceFileService integration [DirectIDB]', () => {
     const eventService = new WorkspaceFileService({
       providerRegistry,
       resourceQueue: new ResourceQueue(),
-      treeCache: new DirectoryTreeCache(),
       eventBus,
       mountTable,
     });
@@ -1379,13 +1373,11 @@ describe('WorkspaceFileService integration [DirectIDB]', () => {
       mountTable.mount('/', provider, { backend: 'memory' });
 
       const resourceQueue = new ResourceQueue();
-      const treeCache = new DirectoryTreeCache();
       const eventBus = new ChangeEventBus();
 
       const svc = new WorkspaceFileService({
         providerRegistry,
         resourceQueue,
-        treeCache,
         eventBus,
         filePool: pool,
         mountTable,
@@ -1540,7 +1532,6 @@ describe('WorkspaceFileService integration [DirectIDB]', () => {
       mountedService = new WorkspaceFileService({
         providerRegistry: mountedRegistry,
         resourceQueue: new ResourceQueue(),
-        treeCache: new DirectoryTreeCache(),
         eventBus: mountedEventBus,
         mountTable,
       });

@@ -32,6 +32,8 @@ import type {
 import type { FileExtension } from '@taucad/types';
 import { idPrefix } from '@taucad/types/constants';
 import { generatePrefixedId } from '@taucad/utils/id';
+import { DirectoryListingFailedError, DirectoryListingErrorCode } from '@taucad/fs-client/directory-listing';
+import type { FileTreeService } from '@taucad/fs-client/file-tree-service';
 
 import { screenshotRequestMachine, orthographicViews } from '#machines/screenshot-request.machine.js';
 import type { graphicsMachine } from '#machines/graphics.machine.js';
@@ -57,9 +59,7 @@ export type ResolveGraphicsForFile = (targetFile: string) => ActorRefFrom<typeof
  */
 type RpcHandlerTreeService = {
   exists(path: string): Promise<boolean>;
-  readDirectoryEntriesWithStats(
-    path: string,
-  ): Promise<Array<{ name: string; type: 'file' | 'dir'; size: number; mtimeMs: number }>>;
+  listDirectory(path: string, options?: { signal?: AbortSignal }): ReturnType<FileTreeService['listDirectory']>;
 };
 
 /**
@@ -111,15 +111,38 @@ function createBrowserRpcFileSystem(fileManager: RpcHandlerDependencies['fileMan
     },
     async readdir(
       path: string,
-    ): Promise<Array<{ name: string; type: 'file' | 'dir'; size: number; modifiedAt?: string }>> {
+      options?: { signal?: AbortSignal },
+    ): Promise<
+      Array<{
+        name: string;
+        type: 'file' | 'dir';
+        size: number;
+        modifiedAt?: string;
+        listingIssue?: { code: string; message: string };
+      }>
+    > {
       const { treeService } = await fileManager.whenServicesReady();
-      const entries = await treeService.readDirectoryEntriesWithStats(path);
-      return entries.map((entry) => ({
-        name: entry.name,
-        type: entry.type,
-        size: entry.size,
-        ...(entry.mtimeMs > 0 ? { modifiedAt: new Date(entry.mtimeMs).toISOString() } : {}),
-      }));
+      try {
+        const entries = await treeService.listDirectory(path, { signal: options?.signal });
+        return entries.map((entry) => ({
+          name: entry.name,
+          type: entry.isFolder ? 'dir' : 'file',
+          size: entry.size,
+          ...(entry.mtimeMs > 0 ? { modifiedAt: new Date(entry.mtimeMs).toISOString() } : {}),
+          ...(entry.listingError
+            ? { listingIssue: { code: entry.listingError.code, message: entry.listingError.message } }
+            : {}),
+        }));
+      } catch (cause: unknown) {
+        if (cause instanceof DirectoryListingFailedError) {
+          const err = new Error(cause.message) as Error & { code?: string };
+          if (cause.listing.code === DirectoryListingErrorCode.NotFound) {
+            err.code = 'ENOENT';
+          }
+          throw err;
+        }
+        throw cause;
+      }
     },
     async exists(path: string): Promise<boolean> {
       const { treeService } = await fileManager.whenServicesReady();

@@ -243,7 +243,8 @@ export function FileManagerProvider({
   const readdir = useCallback(
     async (path: string): Promise<string[]> => {
       const { treeService } = await whenServicesReady();
-      return treeService.readdir(path);
+      const entries = await treeService.listDirectory(path);
+      return entries.map((entry) => entry.name);
     },
     [whenServicesReady],
   );
