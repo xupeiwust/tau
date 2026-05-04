@@ -1,4 +1,5 @@
 import { Switch } from '#components/ui/switch.js';
+import { cn } from '#utils/ui.utils.js';
 
 type ParametersBooleanProps = {
   // oxlint-disable-next-line react-js/boolean-prop-naming -- third-party component prop
@@ -11,7 +12,11 @@ export function ParametersBoolean({ value, onChange, ...properties }: Parameters
   return (
     <Switch
       size='md'
-      className='opacity-70 transition-opacity hover:opacity-100 data-[state=checked]:opacity-100'
+      className={cn(
+        'border-border/50 transition-colors hover:border-border',
+        'data-[state=unchecked]:bg-muted',
+        'data-[state=checked]:bg-primary/15 hover:data-[state=checked]:bg-primary/40',
+      )}
       checked={Boolean(value)}
       onCheckedChange={(checkedValue) => {
         onChange(checkedValue);
