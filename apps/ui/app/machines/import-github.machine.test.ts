@@ -298,6 +298,26 @@ describe('importGitHubMachine', () => {
       }
       actor.stop();
     });
+
+    it('should return to enteringDetails on cancelReview from selectingMainFile', async () => {
+      const actor = createTestActor({ owner: 'test', repo: 'repo' });
+      actor.start();
+      await waitFor(actor, (s) => s.value === 'enteringDetails' && s.context.repoMetadata !== undefined, {
+        timeout: 5000,
+      });
+      actor.send({ type: 'startImport' });
+      await waitFor(actor, (s) => s.value === 'selectingMainFile', { timeout: 5000 });
+
+      actor.send({ type: 'cancelReview' });
+
+      const { context, value } = actor.getSnapshot();
+      expect(value).toBe('enteringDetails');
+      expect(context.repoUrl).toBe('');
+      expect(context.owner).toBe('');
+      expect(context.repo).toBe('');
+      expect(context.files.size).toBe(0);
+      actor.stop();
+    });
   });
 
   describe('branch and file selection', () => {

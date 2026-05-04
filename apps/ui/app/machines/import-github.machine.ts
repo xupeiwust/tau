@@ -92,6 +92,7 @@ type ImportGitHubInput = {
  */
 type ImportGitHubEventInternal =
   | { type: 'retry' }
+  | { type: 'cancelReview' }
   | { type: 'updateRepoUrl'; url: string }
   | { type: 'selectBranch'; branch: string }
   | { type: 'selectMainFile'; file: string }
@@ -392,6 +393,37 @@ export const importGitHubMachine = setup({
         files: undefined,
       },
     }),
+    /** Clear repo selection and extracted files; return to empty entry-details (`/import`). */
+    resetReview: assign(({ context }) => ({
+      parentRef: context.parentRef,
+      repoUrl: '',
+      owner: '',
+      repo: '',
+      ref: 'main',
+      requestedMainFile: '',
+      selectedMainFile: undefined,
+      repoMetadata: undefined,
+      branches: [],
+      selectedBranch: 'main',
+      branchesCursor: undefined,
+      hasMoreBranches: false,
+      isLoadingMoreBranches: false,
+      repoFiles: [],
+      isLoadingFiles: false,
+      downloadProgress: { loaded: 0, total: 0 },
+      extractProgress: { processed: 0, total: 0 },
+      files: new Map(),
+      importedFilePaths: [],
+      importWorker: undefined,
+      projectId: undefined,
+      error: undefined,
+      fetchErrors: {
+        metadata: undefined,
+        branches: undefined,
+        files: undefined,
+      },
+      urlFromNavigation: false,
+    })),
     updateRepoUrl: assign({
       repoUrl({ event }) {
         assertEvent(event, 'updateRepoUrl');
@@ -1149,6 +1181,10 @@ export const importGitHubMachine = setup({
         confirmImport: {
           target: 'creating',
           guard: 'hasSelectedMainFile',
+        },
+        cancelReview: {
+          target: 'enteringDetails',
+          actions: 'resetReview',
         },
       },
     },

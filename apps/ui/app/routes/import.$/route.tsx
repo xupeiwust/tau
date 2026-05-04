@@ -732,7 +732,9 @@ export default function ImportRoute(): React.JSX.Element {
             gitHubActorRef.send({ type: 'confirmImport' });
           }}
           onCancel={() => {
-            gitHubActorRef.send({ type: 'retry' });
+            gitHubActorRef.send({ type: 'cancelReview' });
+            setActiveMode(undefined);
+            void navigate('/import');
           }}
         />
       );
