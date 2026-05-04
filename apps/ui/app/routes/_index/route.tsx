@@ -114,7 +114,7 @@ export default function ChatStart(): React.JSX.Element {
       </div>
 
       {/* Community Projects */}
-      <LazySection minHeight='400px' rootMargin='200px' fallback={<CommunityGridSkeleton />}>
+      <LazySection minHeight='400px' fallback={<CommunityGridSkeleton />}>
         <div className='container mx-auto px-4 py-8'>
           <div className='mb-2 flex flex-row items-center justify-between'>
             <h1 className='text-lg font-medium tracking-tight'>From the Community</h1>
