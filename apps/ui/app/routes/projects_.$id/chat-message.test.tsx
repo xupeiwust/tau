@@ -259,7 +259,7 @@ describe('ChatMessage column wrapper layout', () => {
     expect(wrapper.className).toContain('flex-col');
     expect(wrapper.className).toContain('space-y-2');
     expect(wrapper.className).toContain('w-full');
-    expect(wrapper.className).toContain('ml-2');
+    expect(wrapper.className).toContain('mx-2');
   });
 
   it('should not create a nested scroll area on the message column wrapper for assistant messages', () => {
@@ -274,7 +274,7 @@ describe('ChatMessage column wrapper layout', () => {
     expect(wrapper.className).toContain('flex-col');
     expect(wrapper.className).toContain('space-y-2');
     expect(wrapper.className).toContain('w-full');
-    expect(wrapper.className).toContain('ml-4');
+    expect(wrapper.className).toContain('mx-4');
   });
 
   it('should still mount ChatMessagePlanning as a sibling of the message bubble inside the column wrapper', () => {
