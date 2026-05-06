@@ -17,7 +17,7 @@
 #      it via `flyctl deploy --image ...` so Fly.io skips its own builder.
 #
 # The UI is hosted on Netlify (staging site `taucad` / production site
-# `taucad-prod`); see docs/architecture/ui-deployment-topology.md for the
+# `taucad-prod-us`); see docs/architecture/ui-deployment-topology.md for the
 # full topology.
 
 name: Deploy to Fly.io

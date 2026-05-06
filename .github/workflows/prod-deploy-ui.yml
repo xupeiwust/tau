@@ -1,9 +1,15 @@
-# Manual production deploy of Tau UI to Netlify (`taucad-prod` site, https://tau.new).
+# Manual production deploy of Tau UI to Netlify (`taucad-prod-us` site, https://tau.new).
 #
 # Triggered exclusively via `workflow_dispatch` so a human can stage releases
 # off the back of a known-good `main` revision (or any other ref). The Netlify
-# `taucad-prod` site is configured with `skip_automatic_builds: true` (set by
-# `scripts/netlify-provision-prod.sh`), so this workflow is the only deploy path.
+# `taucad-prod-us` site has automatic Git builds stopped (Terraform sets
+# `deploy_mode = "ci"` → `stop_builds=true` in
+# `repos/cloud-infra/modules/netlify-site`), so this workflow is the only
+# deploy path.
+#
+# The `prod-us` suffix anticipates future regional production sites
+# (`taucad-prod-eu`, etc.). When adding a region, fork this workflow and
+# matching `apps/ui/netlify.{region}.toml`.
 #
 # Build flow:
 #   1. checkout → setup-nx → `pnpm nx build ui` (NX_PREFER_NODE_STRIP_TYPES so
@@ -13,14 +19,14 @@
 #      `pnpm -F @taucad/scripts exec netlify` (catalog-pinned in
 #      pnpm-workspace.yaml, installed under @taucad/scripts)
 #
-# Required GitHub `production` environment values (provisioned by
-# `scripts/netlify-provision-prod.sh`):
-#   - secrets.NETLIFY_AUTH_TOKEN  : Netlify personal access token
-#   - vars.NETLIFY_PROD_SITE_ID   : `taucad-prod` site ID
-#   - secrets.POSTHOG_CLI_TOKEN   : PostHog CLI token for source-map upload
-#   - secrets.POSTHOG_CLI_ENV_ID  : PostHog CLI environment ID
+# Required GitHub `production` environment values:
+#   - secrets.NETLIFY_AUTH_TOKEN     : Netlify personal access token
+#   - vars.NETLIFY_PROD_US_SITE_ID   : `taucad-prod-us` site UUID (output by
+#                                       `tau-cloud-prod-us` HCP workspace)
+#   - secrets.POSTHOG_CLI_TOKEN      : PostHog CLI token for source-map upload
+#   - secrets.POSTHOG_CLI_ENV_ID     : PostHog CLI environment ID
 
-name: Deploy UI to Netlify Production
+name: Deploy UI to Netlify Production (prod-us)
 
 on:
   workflow_dispatch:
@@ -30,11 +36,11 @@ on:
         required: false
         default: 'main'
 
-concurrency: deploy-ui-netlify-prod
+concurrency: deploy-ui-netlify-prod-us
 
 jobs:
   deploy:
-    name: Deploy UI to Netlify (taucad-prod)
+    name: Deploy UI to Netlify (taucad-prod-us)
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -55,18 +61,18 @@ jobs:
           POSTHOG_CLI_TOKEN: ${{ secrets.POSTHOG_CLI_TOKEN }}
           POSTHOG_CLI_ENV_ID: ${{ secrets.POSTHOG_CLI_ENV_ID }}
 
-      - name: Deploy to Netlify (taucad-prod)
+      - name: Deploy to Netlify (taucad-prod-us)
         run: |
           pnpm -F @taucad/scripts exec netlify deploy \
             --prod \
-            --site "${NETLIFY_PROD_SITE_ID}" \
+            --site "${NETLIFY_PROD_US_SITE_ID}" \
             --config apps/ui/netlify.prod.toml \
             --dir apps/ui/build/client \
             --functions apps/ui/build/server \
-            --message "prod ${GITHUB_SHA::7}"
+            --message "prod-us ${GITHUB_SHA::7}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_PROD_SITE_ID: ${{ vars.NETLIFY_PROD_SITE_ID }}
+          NETLIFY_PROD_US_SITE_ID: ${{ vars.NETLIFY_PROD_US_SITE_ID }}
 
       # Confirm the new SSR build is serving the UI health endpoint added
       # alongside R13 — surfaces a broken build (e.g. missing route, dead
