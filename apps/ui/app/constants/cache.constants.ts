@@ -13,6 +13,13 @@ export const browserRevalidateCacheControl = 'public, max-age=0, must-revalidate
 export const edgeDurableSsrRouteCacheControl = 'public, durable, s-maxage=86400, stale-while-revalidate=604800';
 
 /**
+ * Shorter edge TTL for marketing/homepage SSR where copy may change between
+ * deploys without a client hash bump. Browser still revalidates every
+ * navigation via {@link browserRevalidateCacheControl}.
+ */
+export const edgeShortLivedSsrRouteCacheControl = 'public, durable, s-maxage=600, stale-while-revalidate=86400';
+
+/**
  * Response header that carries the CDN-only cache policy. Netlify reads
  * `Netlify-CDN-Cache-Control`; other hosts may use `CDN-Cache-Control` or a
  * vendor-specific equivalent — keep names centralized here.
