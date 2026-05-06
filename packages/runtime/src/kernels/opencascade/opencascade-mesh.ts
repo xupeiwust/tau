@@ -23,6 +23,8 @@ type MeshOptions = {
  * Assign `ShapeConfig.name` onto the first `min(meshes, entries)` glTF meshes,
  * then propagate mesh names to parent nodes when nodes are anonymous — mirrors
  * the invariants `analyzeGlb` relies on for per-part feedback.
+ *
+ * @returns The tagged GLB.
  */
 const tagGlbMeshAndNodesFromShapeEntries = async (
   glb: Uint8Array<ArrayBuffer>,
@@ -43,7 +45,7 @@ const tagGlbMeshAndNodesFromShapeEntries = async (
   }
   for (const node of document.getRoot().listNodes()) {
     const mesh = node.getMesh();
-    const meshName = mesh.getName().trim();
+    const meshName = mesh?.getName().trim();
     if (meshName && node.getName().trim() === '') {
       node.setName(meshName);
     }
