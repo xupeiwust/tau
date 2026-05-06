@@ -357,7 +357,7 @@ export default defineKernel({
   },
 
   async createGeometry({ filePath, basePath, parameters, options }, runtime, context) {
-    const { tracer } = runtime;
+    const { logger, tracer } = runtime;
     const relativeFilePath = resolveToRelative(filePath, basePath);
     let bundleSourceMap: string | undefined;
     let entryUrl: string | undefined;
@@ -379,18 +379,13 @@ export default defineKernel({
       const mainFunction = module.default ?? module.main;
 
       if (!mainFunction || typeof mainFunction !== 'function') {
+        logger.warn('createGeometry returning empty: main-function-not-found', {
+          data: { filePath: relativeFilePath },
+        });
         return {
           geometry: [],
           nativeHandle: [],
-          issues: [
-            {
-              message: 'main() or default export function not found.',
-              code: 'RUNTIME',
-              type: 'runtime',
-              severity: 'warning',
-              location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 1 },
-            },
-          ],
+          issues: [],
         };
       }
 
@@ -414,18 +409,13 @@ export default defineKernel({
 
       const shapeEntries = normalizeShapes(mainResult.value);
       if (shapeEntries.length === 0) {
+        logger.warn('createGeometry returning empty: main-returned-no-shapes', {
+          data: { filePath: relativeFilePath },
+        });
         return {
           geometry: [],
           nativeHandle: [],
-          issues: [
-            {
-              message: 'main() did not return any shapes. Return a TopoDS_Shape or an array of shapes.',
-              code: 'RUNTIME',
-              type: 'runtime',
-              severity: 'warning',
-              location: { fileName: relativeFilePath, startLineNumber: 1, startColumn: 1 },
-            },
-          ],
+          issues: [],
         };
       }
 

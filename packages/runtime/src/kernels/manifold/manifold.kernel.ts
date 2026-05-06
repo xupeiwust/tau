@@ -303,23 +303,13 @@ export default defineKernel({
 
     if (model === undefined || (Array.isArray(model) && model.length === 0)) {
       await cleanupManifoldRuntime();
+      runtime.logger.warn('createGeometry returning empty: main-returned-undefined', {
+        data: { filePath: relativeFilePath },
+      });
       return {
         geometry: [],
         nativeHandle: undefined,
-        issues: [
-          {
-            message:
-              'main() did not return any model. Export a Manifold object (or an array of Manifold/GLTFNode objects).',
-            code: 'RUNTIME',
-            location: {
-              fileName: relativeFilePath,
-              startLineNumber: 1,
-              startColumn: 1,
-            },
-            type: 'runtime',
-            severity: 'warning',
-          },
-        ],
+        issues: [],
       };
     }
 

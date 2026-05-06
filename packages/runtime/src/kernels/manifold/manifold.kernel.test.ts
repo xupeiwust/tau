@@ -168,7 +168,7 @@ describe('ManifoldWorker', () => {
       await geometryHelpers.expectMeshCount(result, 1);
     });
 
-    it('should return warning when main does not return any geometry', async () => {
+    it('should return success with no issues when main returns undefined (no return statement)', async () => {
       const result = await createGeometry(
         {
           'no-return.ts': `
@@ -184,8 +184,51 @@ describe('ManifoldWorker', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.issues.some((issue) => issue.severity === 'warning')).toBe(true);
-        expect(result.issues.some((issue) => issue.message.includes('did not return any model'))).toBe(true);
+        expect(result.issues).toEqual([]);
+        expect(result.data).toHaveLength(0);
+      }
+    });
+
+    it('should return success with no issues when main explicitly returns undefined', async () => {
+      const result = await createGeometry(
+        {
+          'explicit_undefined.ts': `
+            import { Manifold } from 'manifold-3d/manifoldCAD';
+
+            export default function main() {
+              Manifold.cube([10, 10, 10], true);
+              return undefined;
+            }
+          `,
+        },
+        'explicit_undefined.ts',
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.issues).toEqual([]);
+        expect(result.data).toHaveLength(0);
+      }
+    });
+
+    it('should return success with no issues when main returns empty array', async () => {
+      const result = await createGeometry(
+        {
+          'empty_array.ts': `
+            import { Manifold } from 'manifold-3d/manifoldCAD';
+
+            export default function main() {
+              return [];
+            }
+          `,
+        },
+        'empty_array.ts',
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.issues).toEqual([]);
+        expect(result.data).toHaveLength(0);
       }
     });
 

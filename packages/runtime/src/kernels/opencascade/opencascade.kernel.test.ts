@@ -184,6 +184,9 @@ export default function main() {
       'empty.ts': `
 import init from 'opencascade.js';
 export default function main() {}`,
+      'default-not-function.ts': `
+import 'opencascade.js';
+export default 42;`,
       'bad-call.ts': `
 import { BRepPrimAPI_MakeBox, BRepFilletAPI_MakeFillet, ChFi3d_FilletShape, TopExp_Explorer, TopAbs_ShapeEnum, TopoDS } from 'opencascade.js';
 export default function main() {
@@ -270,6 +273,22 @@ export default function main() {
       const geometryFile = createGeometryFile('named.ts');
       const result = await worker.createGeometry({ file: geometryFile, parameters: {} });
       assertSuccess(result, 'named shapes createGeometry');
+    });
+
+    it('should return success with no issues when main returns undefined (empty body)', async () => {
+      const geometryFile = createGeometryFile('empty.ts');
+      const result = await worker.createGeometry({ file: geometryFile, parameters: {} });
+      assertSuccess(result, 'empty createGeometry');
+      expect(result.issues).toEqual([]);
+      expect(result.data).toHaveLength(0);
+    });
+
+    it('should return success with no issues when default export is not a function', async () => {
+      const geometryFile = createGeometryFile('default-not-function.ts');
+      const result = await worker.createGeometry({ file: geometryFile, parameters: {} });
+      assertSuccess(result, 'default-not-function createGeometry');
+      expect(result.issues).toEqual([]);
+      expect(result.data).toHaveLength(0);
     });
 
     // -- exportGeometry --
