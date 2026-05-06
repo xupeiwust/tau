@@ -297,6 +297,9 @@ function getLengthUnitData(symbol: LengthSymbol): LengthUnitData {
  * - Feet (factor=12): scaled by 0.6/factor to produce reasonable foot values
  * - Returned GridSizes values include all conversions and factors applied
  */
+// Lower values produce coarser spacing on average; raise to fit more cells per view.
+const baseGridSizeCoefficient = 3;
+
 // Grid size calculation logic (ported from React)
 function calculateGridSizes({
   cameraPosition,
@@ -310,7 +313,7 @@ function calculateGridSizes({
   unitFactor: number;
 }): GridSizes {
   const visibleWidthAtDistance = 2 * cameraPosition * Math.tan((cameraFov * Math.PI) / 360);
-  let baseGridSize = visibleWidthAtDistance / 5; // BaseGridSizeCoefficient
+  let baseGridSize = visibleWidthAtDistance / baseGridSizeCoefficient;
 
   let scalingFactor;
   if (gridUnitSystem === 'imperial') {
