@@ -5,7 +5,7 @@ describe('TauMetrics', () => {
   const metrics = Object.values(TauMetrics);
 
   it('should define all canonical metrics', () => {
-    expect(metrics).toHaveLength(23);
+    expect(metrics).toHaveLength(25);
   });
 
   it('should expose the agent-safeguard counter with the canonical OTEL name', () => {

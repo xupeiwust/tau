@@ -219,6 +219,26 @@ export const TauMetrics = {
     }),
   }),
 
+  publicationViewsTotal: defineCounter({
+    name: 'publication.views',
+    unit: '{view}',
+    description: 'Publication view PATCH outcomes (unique increment vs duplicate ping)',
+    attributes: z.object({
+      deduped: z.enum(['unique', 'duplicate']).optional(),
+    }),
+  }),
+
+  publicationViewsRejectedTotal: defineCounter({
+    name: 'publication.views.rejections',
+    unit: '{rejection}',
+    description: 'Publication view PATCH rejections by reason',
+    attributes: z.object({
+      reason: z
+        .enum(['cap_exceeded', 'owner_self_view', 'rate_limited', 'bad_cookie', 'invalid_publication'])
+        .optional(),
+    }),
+  }),
+
   // --- Client-reported (ingested via TelemetryController) ---
 
   kernelExecutionDuration: defineHistogram({
