@@ -15,6 +15,20 @@ import path from 'node:path';
 const MARKDOWN_LINK_REGEX = /\[(?<text>[^\]]*)\]\((?<url>[^)]+)\)/g;
 const EXTERNAL_REGEX = /^(?:https?:|mailto:|tel:|ftp:|#)/i;
 const CONTENT_DOCS_SEGMENT = `content${path.sep}docs`;
+const DOCS_PREFIX_REGEX = /^\/docs(?:\/|$)/;
+
+/**
+ * Mirrors `resourceRouteExtensions` in `apps/ui/app/components/markdown/markdown-hyperlink.tsx`.
+ * Duplicated rather than imported because `libs/oxlint` must not depend on `apps/ui`.
+ * Keep in sync if the canonical list changes.
+ *
+ * URLs ending in these extensions are react-router resource routes (loader-only,
+ * no default Component). `.mdx` resolves to the underlying MDX page on disk;
+ * `.txt` and `.webmanifest` are generated at request time by route loaders and
+ * have no filesystem-validatable target.
+ */
+const RESOURCE_ROUTE_EXTENSIONS = new Set(['.txt', '.mdx', '.webmanifest']);
+const RUNTIME_GENERATED_RESOURCE_EXTENSIONS = new Set(['.txt', '.webmanifest']);
 
 /**
  * @param {string} filePath
@@ -29,26 +43,17 @@ const findContentDocsRoot = (filePath) => {
 };
 
 /**
- * Scans a directory for route group folders (folders starting with `(`).
- * Returns a map from bare name to actual folder name, e.g. `runtime` → `(runtime)`.
- *
- * @param {string} directory
- * @returns {Map<string, string>}
+ * @param {string} pathname
+ * @returns {string}
  */
-const scanRouteGroups = (directory) => {
-  /** @type {Map<string, string>} */
-  const groups = new Map();
-  try {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (entry.isDirectory() && entry.name.startsWith('(') && entry.name.endsWith(')')) {
-        const bare = entry.name.slice(1, -1);
-        groups.set(bare, entry.name);
-      }
-    }
-  } catch {
-    // Directory doesn't exist or can't be read
+const lastSegmentExtension = (pathname) => {
+  const lastSlash = pathname.lastIndexOf('/');
+  const lastSegment = lastSlash === -1 ? pathname : pathname.slice(lastSlash + 1);
+  const dot = lastSegment.lastIndexOf('.');
+  if (dot <= 0) {
+    return '';
   }
-  return groups;
+  return lastSegment.slice(dot).toLowerCase();
 };
 
 /**
@@ -83,6 +88,10 @@ const validateRelativeLink = ({ context, href, rawUrl, fileDirectory, urlStart, 
  * @param {LinkValidationOptions} options
  */
 const validateAbsoluteLink = ({ context, href, rawUrl, urlStart, urlEnd }) => {
+  if (!DOCS_PREFIX_REGEX.test(href)) {
+    return;
+  }
+
   const contentRoot = findContentDocsRoot(context.filename);
   if (!contentRoot) {
     return;
@@ -93,16 +102,7 @@ const validateAbsoluteLink = ({ context, href, rawUrl, urlStart, urlEnd }) => {
     return;
   }
 
-  const segments = withoutBase.split('/');
-  const routeGroups = scanRouteGroups(contentRoot);
-
-  const firstSegment = segments[0];
-  const mappedFirst = routeGroups.get(firstSegment);
-  if (mappedFirst) {
-    segments[0] = mappedFirst;
-  }
-
-  const resolved = path.join(contentRoot, ...segments);
+  const resolved = path.join(contentRoot, ...withoutBase.split('/'));
 
   if (!targetExists(resolved)) {
     context.report({
@@ -139,7 +139,27 @@ export const validateMdxLinksRule = {
             continue;
           }
 
-          const href = rawUrl.split('#')[0];
+          const hrefWithoutAnchor = rawUrl.split('#')[0];
+          if (!hrefWithoutAnchor) {
+            continue;
+          }
+
+          const extension = lastSegmentExtension(hrefWithoutAnchor);
+          if (extension && !RESOURCE_ROUTE_EXTENSIONS.has(extension)) {
+            // Unknown non-MDX extension; not something this rule can validate.
+            continue;
+          }
+          if (RUNTIME_GENERATED_RESOURCE_EXTENSIONS.has(extension)) {
+            // Loader-only resource routes (e.g. /llms.txt, /site.webmanifest)
+            // have no filesystem target.
+            continue;
+          }
+
+          // Strip a trailing `.mdx` so URLs that target the per-page raw markdown
+          // resource route (e.g. /docs/runtime/getting-started/installation.mdx)
+          // resolve against the underlying MDX page.
+          const href = extension === '.mdx' ? hrefWithoutAnchor.slice(0, -extension.length) : hrefWithoutAnchor;
+
           if (!href) {
             continue;
           }
