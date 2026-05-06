@@ -1,7 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
-import { isExternalLink, MarkdownHyperlink, resolveRelativeHref } from '#components/markdown/markdown-hyperlink.js';
+import {
+  isExternalLink,
+  isResourceRouteHref,
+  MarkdownHyperlink,
+  resolveRelativeHref,
+} from '#components/markdown/markdown-hyperlink.js';
 
 describe('isExternalLink', () => {
   it('returns true for http:// URLs', () => {
@@ -38,6 +43,32 @@ describe('isExternalLink', () => {
 
   it('returns false for tel: links', () => {
     expect(isExternalLink('tel:+1234567890')).toBe(false);
+  });
+});
+
+describe('isResourceRouteHref', () => {
+  it('returns true for .txt paths', () => {
+    expect(isResourceRouteHref('/docs/runtime/llms.txt')).toBe(true);
+  });
+
+  it('returns true for .mdx paths', () => {
+    expect(isResourceRouteHref('/docs/runtime/getting-started/installation.mdx')).toBe(true);
+  });
+
+  it('returns true for .webmanifest paths', () => {
+    expect(isResourceRouteHref('/manifest.webmanifest')).toBe(true);
+  });
+
+  it('returns false for HTML routes', () => {
+    expect(isResourceRouteHref('/docs/runtime/getting-started/installation')).toBe(false);
+  });
+
+  it('returns false for hashed paths without an extension', () => {
+    expect(isResourceRouteHref('/docs/api/client#methods')).toBe(false);
+  });
+
+  it('returns true even when a query string is present', () => {
+    expect(isResourceRouteHref('/llms.txt?foo=bar')).toBe(true);
   });
 });
 
@@ -257,6 +288,17 @@ describe('MarkdownHyperlink', () => {
       );
 
       expect(screen.getByText('Click me')).toBeInTheDocument();
+    });
+
+    it('renders resource-route hrefs as plain anchors so the browser can do a full document load', () => {
+      render(
+        <MemoryRouter>
+          <MarkdownHyperlink href='/docs/runtime/llms.txt'>llms.txt</MarkdownHyperlink>
+        </MemoryRouter>,
+      );
+
+      const link = screen.getByRole('link', { name: 'llms.txt' });
+      expect(link).toHaveAttribute('href', '/docs/runtime/llms.txt');
     });
 
     it('passes through additional props', () => {

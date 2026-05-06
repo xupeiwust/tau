@@ -13,6 +13,30 @@ export function isExternalLink(href: string | undefined): boolean {
 const urlSchemeRegex = /^(?:[a-z][\d+.a-z-]*:|#)/i;
 
 /**
+ * File extensions that point at react-router resource routes (loader-only, no
+ * default Component). Client-side `<Link>` navigation to these URLs would
+ * fetch the loader but render no UI, leaving the previous page's layout
+ * visible while the address bar shows the new URL. Forcing a full document
+ * navigation lets the browser render the loader's text/* response directly.
+ */
+const resourceRouteExtensions = new Set(['.txt', '.mdx', '.webmanifest']);
+
+/**
+ * Returns true when `href` resolves to a path whose final segment ends in a
+ * known resource-route extension; the caller should request a full document
+ * navigation rather than client-side routing.
+ */
+export function isResourceRouteHref(href: string): boolean {
+  const pathOnly = href.split('?')[0]?.split('#')[0] ?? href;
+  const lastSegment = pathOnly.slice(pathOnly.lastIndexOf('/') + 1);
+  const dotIndex = lastSegment.lastIndexOf('.');
+  if (dotIndex <= 0) {
+    return false;
+  }
+  return resourceRouteExtensions.has(lastSegment.slice(dotIndex).toLowerCase());
+}
+
+/**
  * Resolves a possibly-relative href to an absolute URL path using standard
  * RFC 3986 / WHATWG URL resolution -- the same semantics the browser would
  * apply to an `<a href>` tag. React Router's `<Link relative='path'>` quirk
@@ -60,6 +84,7 @@ export function MarkdownHyperlink({
     <Link
       {...rest}
       to={to}
+      reloadDocument={isResourceRouteHref(to)}
       className={cn(
         className,
         'text-primary underline underline-offset-3 transition-all duration-200 hover:underline hover:underline-offset-4',
