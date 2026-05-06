@@ -1,0 +1,24 @@
+import type { UserConfig } from 'vite';
+import mkcert from 'vite-plugin-mkcert';
+
+import { httpsCertPemFilename, httpsCertsSavePath, httpsKeyPemFilename } from '#lib/certificates/https-certs-path.js';
+import { ensureMkcertCacheWritableForRegeneration } from '#lib/certificates/mkcert-cache-writable.js';
+
+type MkcertPluginShape = {
+  config?: (userConfig: UserConfig) => Promise<unknown>;
+};
+
+const plugin = mkcert({
+  apply: 'serve',
+  savePath: httpsCertsSavePath,
+  certFileName: httpsCertPemFilename,
+  keyFileName: httpsKeyPemFilename,
+}) as MkcertPluginShape;
+
+if (typeof plugin.config !== 'function') {
+  throw new TypeError('vite-plugin-mkcert: expected async `config` hook');
+}
+
+/** Headless contract: same host selection + cert files as `nx dev ui` (Vite plugin `config` hook). */
+ensureMkcertCacheWritableForRegeneration(httpsCertsSavePath);
+await plugin.config({ server: {} });

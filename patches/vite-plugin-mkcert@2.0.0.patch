@@ -1,0 +1,49 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index e8926a4a5ad022ed3d6ab94ac88b3e8e8031eb32..1a04bc9b7e5336d2320136f14374b10cf1200127 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -609,7 +609,9 @@ var Mkcert = class Mkcert {
+ 		}
+ 		await ensureDirExist(this.savePath);
+ 		await this.retainExistedCA();
+-		await exec(`${escapeStr(mkcertBinary)} -install -key-file ${escapeStr(this.keyFilePath)} -cert-file ${escapeStr(this.certFilePath)} ${names}`, { env: {
++		const mkcertTrustInstallSegment =
++			process$1.env["MKCERT_TRUST_INSTALL"] !== "false" ? "-install " : "";
++		await exec(`${escapeStr(mkcertBinary)} ${mkcertTrustInstallSegment}-key-file ${escapeStr(this.keyFilePath)} -cert-file ${escapeStr(this.certFilePath)} ${names}`, { env: {
+ 			...node_process.default.env,
+ 			CAROOT: this.savePath,
+ 			JAVA_HOME: void 0
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 18020c599880cd81fa0b92001dfb432237911369..faa57ee5dd27b03769dac11df58f49a243992895 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -573,7 +573,9 @@ var Mkcert = class Mkcert {
+ 		}
+ 		await ensureDirExist(this.savePath);
+ 		await this.retainExistedCA();
+-		await exec(`${escapeStr(mkcertBinary)} -install -key-file ${escapeStr(this.keyFilePath)} -cert-file ${escapeStr(this.certFilePath)} ${names}`, { env: {
++		const mkcertTrustInstallSegment =
++			process$1.env["MKCERT_TRUST_INSTALL"] !== "false" ? "-install " : "";
++		await exec(`${escapeStr(mkcertBinary)} ${mkcertTrustInstallSegment}-key-file ${escapeStr(this.keyFilePath)} -cert-file ${escapeStr(this.certFilePath)} ${names}`, { env: {
+ 			...process$1.env,
+ 			CAROOT: this.savePath,
+ 			JAVA_HOME: void 0
+diff --git a/plugin/src/mkcert/index.ts b/plugin/src/mkcert/index.ts
+index a976646837c15438609a996c435c36938d39833e..757338f6767a9630022e24d21e7617341e99fdaa 100644
+--- a/plugin/src/mkcert/index.ts
++++ b/plugin/src/mkcert/index.ts
+@@ -210,7 +210,13 @@ class Mkcert {
+     await ensureDirExist(this.savePath)
+     await this.retainExistedCA()
+ 
+-    const cmd = `${escapeStr(mkcertBinary)} -install -key-file ${escapeStr(
++    /** Omit `-install` when `MKCERT_TRUST_INSTALL=false` so headless workflows avoid sudo/keychain prompts. Default (unset) retains prior behavior. */
++    const shouldMkcertTrustInstall =
++      process.env['MKCERT_TRUST_INSTALL'] !== 'false'
++    const mkcertTrustInstallSegment = shouldMkcertTrustInstall
++      ? '-install '
++      : ''
++    const cmd = `${escapeStr(mkcertBinary)} ${mkcertTrustInstallSegment}-key-file ${escapeStr(
+       this.keyFilePath
+     )} -cert-file ${escapeStr(this.certFilePath)} ${names}`
+ 

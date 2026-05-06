@@ -111,7 +111,9 @@ export default defineConfig(({ mode }) => {
 
     server: {
       port: 3000,
-      // TODO: set to actual domain
+      // Permit LAN previews (e.g. `nx dev ui --host`); production deploys terminate TLS upstream.
+      // HTTPS is intentionally a `nx serve ui --https` concern (handled by `apps/ui/server.ts`),
+      // not a `nx dev ui` concern; dev is plain HTTP regardless of TTY/--host.
       allowedHosts: true,
     },
     build: {

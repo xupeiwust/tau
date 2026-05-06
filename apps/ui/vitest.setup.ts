@@ -3,13 +3,15 @@
 import '@testing-library/jest-dom';
 
 // Mock window.ENV for testing - required since the app uses window.ENV in browser environments
+const mockEnv = {
+  TAU_API_URL: 'http://localhost:4000',
+  TAU_FRONTEND_URL: 'http://localhost:3000',
+  NODE_ENV: 'test',
+};
+
 Object.defineProperty(globalThis, 'ENV', {
   writable: true,
-  value: {
-    TAU_API_URL: 'http://localhost:4000',
-    TAU_FRONTEND_URL: 'http://localhost:3000',
-    NODE_ENV: 'test',
-  },
+  value: mockEnv,
 });
 
 // Mock common browser APIs for testing
