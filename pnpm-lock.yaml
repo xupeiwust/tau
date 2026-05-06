@@ -24,6 +24,9 @@ catalogs:
     '@eslint-community/eslint-plugin-eslint-comments':
       specifier: ^4.7.1
       version: 4.7.1
+    '@fastify/cookie':
+      specifier: ^11.0.2
+      version: 11.0.2
     '@fastify/multipart':
       specifier: ^10.0.0
       version: 10.0.0
@@ -330,6 +333,9 @@ catalogs:
     gray-matter:
       specifier: ^4.0.3
       version: 4.0.3
+    hast-util-sanitize:
+      specifier: ^5.0.2
+      version: 5.0.2
     husky:
       specifier: ^9.1.7
       version: 9.1.7
@@ -393,6 +399,9 @@ catalogs:
     publint:
       specifier: ^0.3.17
       version: 0.3.17
+    qrcode-terminal:
+      specifier: ^0.12.0
+      version: 0.12.0
     react:
       specifier: ^19.2.4
       version: 19.2.4
@@ -402,9 +411,21 @@ catalogs:
     react-router:
       specifier: 7.14.2
       version: 7.14.2
+    rehype-sanitize:
+      specifier: ^6.0.0
+      version: 6.0.0
+    rehype-stringify:
+      specifier: ^10.0.1
+      version: 10.0.1
     remark-math:
       specifier: ^6.0.0
       version: 6.0.0
+    remark-parse:
+      specifier: ^11.0.0
+      version: 11.0.0
+    remark-rehype:
+      specifier: ^11.1.2
+      version: 11.1.2
     rolldown:
       specifier: 1.0.0-rc.17
       version: 1.0.0-rc.17
@@ -438,12 +459,21 @@ catalogs:
     uint8array-extras:
       specifier: ^1.5.0
       version: 1.5.0
+    unified:
+      specifier: ^11.0.5
+      version: 11.0.5
+    unist-util-visit:
+      specifier: ^5.1.0
+      version: 5.1.0
     uzip:
       specifier: ^0.20201231.0
       version: 0.20201231.0
     vite:
       specifier: 8.0.10
       version: 8.0.10
+    vite-plugin-mkcert:
+      specifier: ^2.0.0
+      version: 2.0.0
     vite-plugin-static-copy:
       specifier: ^4.1.0
       version: 4.1.0
@@ -480,6 +510,9 @@ patchedDependencies:
   '@taucad/replicad':
     hash: b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39
     path: patches/replicad.patch
+  vite-plugin-mkcert@2.0.0:
+    hash: 03b480d5b58a772a5b8d09aa61601839139c389c323e1d4fe6e70d399a4a2128
+    path: patches/vite-plugin-mkcert@2.0.0.patch
 
 importers:
 
@@ -506,6 +539,9 @@ importers:
       '@daveyplate/better-auth-ui':
         specifier: ^3.3.15
         version: 3.3.15(28fa6c4f14aecfa4fb968dcbb7019a69)
+      '@fastify/cookie':
+        specifier: 'catalog:'
+        version: 11.0.2
       '@fastify/cors':
         specifier: ^11.2.0
         version: 11.2.0
@@ -887,6 +923,9 @@ importers:
       geist:
         specifier: 'catalog:'
         version: 1.7.0(next@15.5.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.97.3))
+      hast-util-sanitize:
+        specifier: 'catalog:'
+        version: 5.0.2
       immer:
         specifier: ^10.2.0
         version: 10.2.0
@@ -1031,9 +1070,21 @@ importers:
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      rehype-sanitize:
+        specifier: 'catalog:'
+        version: 6.0.0
+      rehype-stringify:
+        specifier: 'catalog:'
+        version: 10.0.1
       remark-math:
         specifier: 'catalog:'
         version: 6.0.0
+      remark-parse:
+        specifier: 'catalog:'
+        version: 11.0.0
+      remark-rehype:
+        specifier: 'catalog:'
+        version: 11.1.2
       remix-themes:
         specifier: ^2.0.4
         version: 2.0.4(react-router@7.14.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
@@ -1094,6 +1145,12 @@ importers:
       uint8array-extras:
         specifier: 'catalog:'
         version: 1.5.0
+      unified:
+        specifier: 'catalog:'
+        version: 11.0.5
+      unist-util-visit:
+        specifier: 'catalog:'
+        version: 5.1.0
       uzip:
         specifier: 'catalog:'
         version: 0.20201231.0
@@ -1323,6 +1380,9 @@ importers:
       publint:
         specifier: 'catalog:'
         version: 0.3.17
+      qrcode-terminal:
+        specifier: 'catalog:'
+        version: 0.12.0
       rolldown:
         specifier: 'catalog:'
         version: 1.0.0-rc.17
@@ -1356,6 +1416,9 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      vite-plugin-mkcert:
+        specifier: 'catalog:'
+        version: 2.0.0(patch_hash=03b480d5b58a772a5b8d09aa61601839139c389c323e1d4fe6e70d399a4a2128)(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       vite-plugin-node:
         specifier: ^8.0.0
         version: 8.0.0(@swc/core@1.15.8(@swc/helpers@0.5.19))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -4077,6 +4140,9 @@ packages:
 
   '@fastify/busboy@3.2.0':
     resolution: {integrity: sha512-m9FVDXU3GT2ITSe0UaMA5rU3QkfC/UXtCU8y0gSN/GugTqtVldOBWIB5V6V3sbmenVZUIpU6f+mPEO2+m5iTaA==}
+
+  '@fastify/cookie@11.0.2':
+    resolution: {integrity: sha512-GWdwdGlgJxyvNv+QcKiGNevSspMQXncjMZ1J8IvuDQk0jvkzgWWZFNC2En3s+nHndZBGV8IbLwOI/sxCZw/mzA==}
 
   '@fastify/cors@11.2.0':
     resolution: {integrity: sha512-LbLHBuSAdGdSFZYTLVA3+Ch2t+sA6nq3Ejc6XLAKiQ6ViS2qFnvicpj0htsx03FyYeLs04HfRNBsz/a8SvbcUw==}
@@ -18590,6 +18656,10 @@ packages:
   qr.js@0.0.0:
     resolution: {integrity: sha512-c4iYnWb+k2E+vYpRimHqSu575b1/wKl4XFeJGpFmrJQz5I88v9aY2czh7s0w36srfCM1sXgC/xpoJz5dJfq+OQ==}
 
+  qrcode-terminal@0.12.0:
+    resolution: {integrity: sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==}
+    hasBin: true
+
   qs@6.13.0:
     resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
     engines: {node: '>=0.6'}
@@ -19010,6 +19080,9 @@ packages:
 
   rehype-sanitize@6.0.0:
     resolution: {integrity: sha512-CsnhKNsyI8Tub6L4sm5ZFsme4puGfc6pYylvXo1AeqaGbjOYyzNv3qZPwvs0oMJ39eryyeOdmxwUIo94IpEhqg==}
+
+  rehype-stringify@10.0.1:
+    resolution: {integrity: sha512-k9ecfXHmIPuFVI61B9DeLPN0qFHfawM6RsuX48hoqlaKSF61RskNjSm1lI8PhBEM0MRdLxVVm4WmTqJQccH9mA==}
 
   remark-cjk-friendly-gfm-strikethrough@1.2.3:
     resolution: {integrity: sha512-bXfMZtsaomK6ysNN/UGRIcasQAYkC10NtPmP0oOHOV8YOhA2TXmwRXCku4qOzjIFxAPfish5+XS0eIug2PzNZA==}
@@ -20787,6 +20860,10 @@ packages:
     resolution: {integrity: sha512-H/nlJ/h0ggGC+uRL3ovD+G0i4bqhvsDOpbDv7At5eFLlj2b41L8QliGbnl2H7SnDiYhENphh1tQFJZf+MyfLsQ==}
     engines: {node: '>=20.18.1'}
 
+  undici@8.2.0:
+    resolution: {integrity: sha512-Z+4Hx9GE26Lh9Upwfnc8C7SsrpBPGaM/Gm6kMFtiG7c+5IvQKlXi/t+9x9DrrCh29cww5TSP9YdVaBcnLDs5fQ==}
+    engines: {node: '>=22.19.0'}
+
   unicode-canonical-property-names-ecmascript@2.0.1:
     resolution: {integrity: sha512-dA8WbNeb2a6oQzAQ55YlT5vQAWGV9WXOsi3SskE3bcCdM0P4SDd+24zS/OCacdRq5BkdsRj9q3Pg6YyQoxIGqg==}
     engines: {node: '>=4'}
@@ -21196,6 +21273,12 @@ packages:
     resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
+
+  vite-plugin-mkcert@2.0.0:
+    resolution: {integrity: sha512-+5roXeOT91WRO3NKFRcDZKEHhze/1uahSSKOIq3vz2w19mJojBcyOo0JyLRHbME31Ym5qPRNJ8CwKO0mu4RJ2Q==}
+    engines: {node: '>=22.19.0'}
+    peerDependencies:
+      vite: '>=3'
 
   vite-plugin-node@8.0.0:
     resolution: {integrity: sha512-/jz+hrOULqRfsOwSrA3xU0rm2ED/XLsUkQU3VhuJqaR/gvyGxb0ZRxsamh/U84DCpvIEhYkp2ZwgyDVQ+AmIRQ==}
@@ -24126,6 +24209,11 @@ snapshots:
       fast-uri: 3.1.0
 
   '@fastify/busboy@3.2.0': {}
+
+  '@fastify/cookie@11.0.2':
+    dependencies:
+      cookie: 1.1.1
+      fastify-plugin: 5.1.0
 
   '@fastify/cors@11.2.0':
     dependencies:
@@ -31858,7 +31946,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/expect@4.1.5':
     dependencies:
@@ -31912,7 +32000,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/utils@4.1.5':
     dependencies:
@@ -41382,6 +41470,8 @@ snapshots:
 
   qr.js@0.0.0: {}
 
+  qrcode-terminal@0.12.0: {}
+
   qs@6.13.0:
     dependencies:
       side-channel: 1.1.0
@@ -41907,6 +41997,12 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.4
       hast-util-sanitize: 5.0.2
+
+  rehype-stringify@10.0.1:
+    dependencies:
+      '@types/hast': 3.0.4
+      hast-util-to-html: 9.0.5
+      unified: 11.0.5
 
   remark-cjk-friendly-gfm-strikethrough@1.2.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(unified@11.0.5):
     dependencies:
@@ -43990,6 +44086,8 @@ snapshots:
 
   undici@7.24.7: {}
 
+  undici@8.2.0: {}
+
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 
   unicode-emoji-modifier-base@1.0.0: {}
@@ -44446,6 +44544,13 @@ snapshots:
       - supports-color
       - terser
 
+  vite-plugin-mkcert@2.0.0(patch_hash=03b480d5b58a772a5b8d09aa61601839139c389c323e1d4fe6e70d399a4a2128)(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
+    dependencies:
+      debug: 4.4.3(supports-color@10.2.2)
+      supports-color: 10.2.2
+      undici: 8.2.0
+      vite: 8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+
   vite-plugin-node@8.0.0(@swc/core@1.15.8(@swc/helpers@0.5.19))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       chalk: 4.1.2
@@ -44532,7 +44637,7 @@ snapshots:
     dependencies:
       ts-essentials: 10.1.1(typescript@5.9.3)
       typescript: 5.9.3
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
 
   vitest@4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
