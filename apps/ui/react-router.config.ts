@@ -1,5 +1,4 @@
 import type { Config } from '@react-router/dev/config';
-import { listStaticPrerenderPaths } from './app/lib/static-paths';
 
 /**
  * Concurrency for parallel prerender requests. React Router defaults to 1
@@ -30,11 +29,16 @@ const prerenderConcurrency = 4;
  * `/api/*`, `/_index`) are auth-gated, runtime-only, or proxy endpoints that
  * would fail prerender. Each safelisted path below is one that genuinely has
  * no per-request work.
+ *
+ * Static paths delegate to `./app/lib/static-paths` via `import()` so the Nx
+ * config loader (`loadConfigFile`) does not eagerly resolve `#` aliases or an
+ * extensionless TS specifier as a filesystem path missing the `.ts` suffix.
  */
 export default {
   ssr: true,
   prerender: {
     async paths() {
+      const { listStaticPrerenderPaths } = await import('./app/lib/static-paths');
       return listStaticPrerenderPaths();
     },
     // eslint-disable-next-line @typescript-eslint/naming-convention -- React Router config field is `unstable_concurrency` (snake_case in upstream API).
