@@ -35,7 +35,7 @@ export const modelList: Record<CloudCatalogProviderId, Record<string, ModelListE
       details: {
         family: 'claude',
         families: ['claude'],
-        contextWindow: 1_000_000,
+        contextWindow: 300_000, // Maximum is 1M, but we reduce to 300K to keep costs down
         maxTokens: 128_000,
         knowledgeCutoff: '2026-01',
         cost: {
