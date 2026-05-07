@@ -3,8 +3,8 @@ import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
 import { convertToModelMessages, createUIMessageStreamResponse } from 'ai';
 import type { UIMessageChunk } from 'ai';
 import type { FastifyReply } from 'fastify';
-import type { ReactAgent } from 'langchain';
 import type { MyUIMessage, ToolSelection, ChatSnapshot, ContextPayload } from '@taucad/chat';
+import type { ChatMode } from '@taucad/chat/constants';
 import type { KernelProvider } from '@taucad/runtime';
 import { ChatService } from '#api/chat/chat.service.js';
 import { CheckpointerService } from '#api/chat/checkpointer.service.js';
@@ -22,6 +22,8 @@ import { createToolOutputTransform } from '#api/chat/utils/tool-output-transform
 import { createNewlineTrimTransform } from '#api/chat/utils/newline-trim-transform.js';
 import { createReasoningTimingTransform } from '#api/chat/utils/reasoning-timing-transform.js';
 import { createLatexDelimiterTransform } from '#api/chat/utils/latex-delimiter-transform.js';
+import { createTauEagerToolUiTransform } from '#api/chat/utils/tau-eager-tool-ui-transform.js';
+import { EagerToolDispatchHandler } from '#api/chat/eager-dispatch/eager-tool-dispatch.handler.js';
 import { ChatExceptionFilter } from '#api/chat/chat-exception.filter.js';
 import { ChatAbortError, isChatAbortError, registerChatAbort } from '#api/chat/utils/chat-abort.js';
 import { MetricsService } from '#telemetry/metrics.js';
@@ -38,7 +40,7 @@ type ChatRequestConfig = {
   kernel: KernelProvider;
   snapshot: ChatSnapshot | undefined;
   contextPayload: ContextPayload | undefined;
-  mode: 'agent' | 'plan';
+  mode: ChatMode;
   tools: {
     choice: ToolSelection;
     testingEnabled: boolean;
@@ -83,13 +85,15 @@ export class ChatController {
     }
 
     const langchainMessages = await this.prepareMessages(body.id, body.messages, snapshot);
-    const agent = await this.chatService.createAgent({ chatId: body.id, modelId, kernel, mode, tools, contextPayload });
 
     return this.streamAgentResponse({
       chatId: body.id,
-      agent,
       messages: langchainMessages,
       modelId,
+      kernel,
+      mode,
+      tools,
+      contextPayload,
       response,
     });
   }
@@ -101,12 +105,15 @@ export class ChatController {
   @Span()
   private async streamAgentResponse(options: {
     chatId: string;
-    agent: ReactAgent;
     messages: LangChainMessages;
     modelId: string;
+    kernel: KernelProvider;
+    mode: ChatMode;
+    tools: ChatRequestConfig['tools'];
+    contextPayload: ContextPayload | undefined;
     response: FastifyReply;
   }): Promise<void> {
-    const { chatId, agent, messages, modelId, response } = options;
+    const { chatId, messages, modelId, kernel, mode, tools, contextPayload, response } = options;
 
     // Abort the request if the client disconnects.
     // Listen on response.raw (ServerResponse) — for SSE, the response stream
@@ -132,6 +139,29 @@ export class ChatController {
     this.metricsService.sseActiveConnections.add(1);
 
     try {
+      const eagerHandler = new EagerToolDispatchHandler({
+        runnableConfigBaseline: {
+          configurable: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- LangGraph API requires snake_case
+            thread_id: chatId,
+            chatRpcService: this.chatRpcService,
+            fileEditService: this.fileEditService,
+            geometryAnalysisService: this.geometryAnalysisService,
+          },
+          signal: abortController.signal,
+        },
+      });
+
+      const agent = await this.chatService.createAgent({
+        chatId,
+        modelId,
+        kernel,
+        mode,
+        tools,
+        contextPayload,
+        eagerDispatchHandler: eagerHandler,
+      });
+
       const ttftHandler = new TtftCallbackHandler(this.metricsService, this.modelService, modelId);
 
       const stream = await agent.graph.stream(
@@ -146,7 +176,7 @@ export class ChatController {
           },
           signal: abortController.signal,
           streamMode: ['values', 'messages', 'custom'],
-          callbacks: [ttftHandler],
+          callbacks: [ttftHandler, eagerHandler],
           context: {
             chatId,
             modelId,
@@ -169,6 +199,7 @@ export class ChatController {
         // hot path (reasoning-delta) is a synchronous identity pass-through
         // so streaming throughput is unaffected.
         .pipeThrough(createReasoningTimingTransform())
+        .pipeThrough(createTauEagerToolUiTransform())
         .pipeThrough(createStaticToolTransform())
         .pipeThrough(createToolOutputTransform())
         .pipeThrough(createNewlineTrimTransform())

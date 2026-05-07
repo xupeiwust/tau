@@ -2,10 +2,11 @@
  * Interrupt-recovery middleware.
  *
  * After the user interrupts a turn, the UI persists the in-flight tool parts as
- * `output-error` with `errorCode: 'USER_INTERRUPTED'`
+ * `output-error` with structured error codes (`USER_INTERRUPTED`,
+ * `CLIENT_DISCONNECTED`, `STREAM_ERROR`, …)
  * (see `apps/ui/app/utils/chat.utils.ts` `finalizeInterruptedToolParts`). On the
  * next user turn those persisted parts arrive on the API as
- * `ToolMessage(status: 'error', content: '{"errorCode":"USER_INTERRUPTED",...}')`.
+ * `ToolMessage(status: 'error', content: '{"errorCode":...}')`.
  *
  * Without a turn-level signal the LLM has to infer the situation from a mix of
  * `output-available` and `output-error` parts. This middleware injects a single
@@ -21,7 +22,9 @@
  *   parent AIMessage's `tool_calls`).
  * - Dedup keys are stored in LangGraph state
  *   (`_interruptReminderFiredFor: string[]`) so a multi-superstep recovery
- *   does not re-fire for the same parent AIMessage signature.
+ *   does not re-fire for the same parent AIMessage signature. The signature
+ *   includes the dominant interrupted-tool error code so user-interrupt vs
+ *   network-drop reminders dedupe independently per turn shape.
  */
 import { createHash } from 'node:crypto';
 import { createMiddleware } from 'langchain';
@@ -38,9 +41,19 @@ import type { MetricsService } from '#telemetry/metrics.js';
 // =============================================================================
 
 /**
+ * Error codes written by the client's `finalizeInterruptedToolParts` (or
+ * in-process tool failures) that count as “turn interrupted, verify state”.
+ */
+export const interruptCauseErrorCodes = ['USER_INTERRUPTED', 'CLIENT_DISCONNECTED', 'STREAM_ERROR'] as const;
+
+/** @public */
+export type DominantInterruptCause = (typeof interruptCauseErrorCodes)[number];
+
+const interruptCauseErrorCodeSet = new Set<string>(interruptCauseErrorCodes);
+
+/**
  * The canonical errorCode emitted by `finalizeInterruptedToolParts` when a
- * user interrupt cancels an in-flight tool. Any ToolMessage whose JSON body
- * contains this code is considered an interrupted-tool result by the detector.
+ * user stops the stream. Kept as a named export for legacy tests and tooling.
  */
 export const userInterruptedErrorCode = 'USER_INTERRUPTED';
 
@@ -51,6 +64,8 @@ export const userInterruptedErrorCode = 'USER_INTERRUPTED';
  * - `kind: 'detected'` — at least one interrupted ToolMessage in the trailing
  *   tool block paired with the parent AIMessage; counts come from walking
  *   `parentAi.tool_calls` and matching by `tool_call_id`.
+ *   `dominantInterruptCause` summarises which error code appeared most among
+ *   interrupted tools (`USER_INTERRUPTED` | `CLIENT_DISCONNECTED` | `STREAM_ERROR`).
  */
 export type InterruptDetection =
   | { kind: 'clear' }
@@ -58,8 +73,9 @@ export type InterruptDetection =
       kind: 'detected';
       completedCount: number;
       interruptedCount: number;
-      /** Stable signature derived from the parent AIMessage id. */
+      /** Stable signature derived from parent AIMessage identity + dominant cause. */
       signature: string;
+      dominantInterruptCause: DominantInterruptCause;
     };
 
 // =============================================================================
@@ -70,22 +86,68 @@ const messageContent = (message: BaseMessage): string =>
   typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
 /**
- * True when the ToolMessage body decodes to an object with
- * `errorCode === 'USER_INTERRUPTED'`. Tolerant of non-JSON bodies (returns false).
+ * True when the ToolMessage is a terminal error whose `errorCode` is one of
+ * {@link interruptCauseErrorCodes} (user stop, network drop, stream failure).
  */
-function isUserInterruptedToolMessage(message: ToolMessage): boolean {
+function isInterruptCauseToolMessage(message: ToolMessage): boolean {
   if (message.status !== 'error') {
     return false;
   }
+
   try {
     const parsed: unknown = JSON.parse(messageContent(message));
     if (parsed && typeof parsed === 'object' && 'errorCode' in parsed) {
-      return (parsed as { errorCode: unknown }).errorCode === userInterruptedErrorCode;
+      const code = (parsed as { errorCode: unknown }).errorCode;
+      return typeof code === 'string' && interruptCauseErrorCodeSet.has(code);
     }
   } catch {
-    // Opaque error body — not USER_INTERRUPTED by this contract.
+    // Opaque error body — not an interrupt cause by this contract.
   }
+
   return false;
+}
+
+function parseInterruptErrorCode(message: ToolMessage): DominantInterruptCause | undefined {
+  if (message.status !== 'error') {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(messageContent(message));
+    if (parsed && typeof parsed === 'object' && 'errorCode' in parsed) {
+      const code = (parsed as { errorCode: unknown }).errorCode;
+      if (typeof code === 'string' && interruptCauseErrorCodeSet.has(code)) {
+        return code as DominantInterruptCause;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return undefined;
+}
+
+function dominantInterruptCauseFromMessages(messages: ToolMessage[]): DominantInterruptCause {
+  const tallies: Partial<Record<DominantInterruptCause, number>> = {};
+  for (const message of messages) {
+    const code = parseInterruptErrorCode(message);
+    if (code) {
+      tallies[code] = (tallies[code] ?? 0) + 1;
+    }
+  }
+
+  const priority: DominantInterruptCause[] = ['USER_INTERRUPTED', 'CLIENT_DISCONNECTED', 'STREAM_ERROR'];
+  let best: DominantInterruptCause = 'USER_INTERRUPTED';
+  let bestCount = -1;
+  for (const code of priority) {
+    const c = tallies[code] ?? 0;
+    if (c > bestCount) {
+      bestCount = c;
+      best = code;
+    }
+  }
+
+  return best;
 }
 
 /**
@@ -133,10 +195,10 @@ function findTrailingToolBlock(
 
 /**
  * Stable 16-hex-char SHA-256 of the parent AIMessage id (or, when absent, of
- * the canonical join of its tool_call ids). This is the dedup signature so
- * reruns of the same turn don't re-emit the reminder.
+ * the canonical join of its tool_call ids) plus the dominant interrupt error
+ * code. Dedup signature so reruns of the same turn+cause don't re-emit.
  */
-function computeSignature(parentAi: AIMessage): string {
+function computeSignature(parentAi: AIMessage, dominantInterruptCause: DominantInterruptCause): string {
   const seed =
     typeof parentAi.id === 'string' && parentAi.id.length > 0
       ? parentAi.id
@@ -145,7 +207,7 @@ function computeSignature(parentAi: AIMessage): string {
           .filter((id) => id.length > 0)
           .sort()
           .join(':');
-  return createHash('sha256').update(seed).digest('hex').slice(0, 16);
+  return createHash('sha256').update(`${seed}:${dominantInterruptCause}`).digest('hex').slice(0, 16);
 }
 
 /**
@@ -161,7 +223,7 @@ export function detectInterruptedTurn(messages: BaseMessage[]): InterruptDetecti
   const interruptedIds = new Set<string>();
   const completedIds = new Set<string>();
   for (const message of toolMessages) {
-    if (isUserInterruptedToolMessage(message)) {
+    if (isInterruptCauseToolMessage(message)) {
       interruptedIds.add(message.tool_call_id);
     } else {
       completedIds.add(message.tool_call_id);
@@ -194,11 +256,15 @@ export function detectInterruptedTurn(messages: BaseMessage[]): InterruptDetecti
     return { kind: 'clear' };
   }
 
+  const interruptedToolMessages = toolMessages.filter((m) => interruptedIds.has(m.tool_call_id));
+  const dominantInterruptCause = dominantInterruptCauseFromMessages(interruptedToolMessages);
+
   return {
     kind: 'detected',
     completedCount,
     interruptedCount,
-    signature: computeSignature(parentAi),
+    signature: computeSignature(parentAi, dominantInterruptCause),
+    dominantInterruptCause,
   };
 }
 
@@ -212,9 +278,19 @@ export function detectInterruptedTurn(messages: BaseMessage[]): InterruptDetecti
  * Required for prompt-cache-prefix stability (matches the same constraint the
  * agent-safeguards reminders honour).
  */
-export function interruptRecoveryReminder(input: { completedCount: number; interruptedCount: number }): string {
-  const { completedCount, interruptedCount } = input;
-  return `The previous turn was interrupted by the user. ${completedCount} tool call(s)
+export function interruptRecoveryReminder(input: {
+  completedCount: number;
+  interruptedCount: number;
+  dominantInterruptCause: DominantInterruptCause;
+}): string {
+  const { completedCount, interruptedCount, dominantInterruptCause } = input;
+  const opening =
+    dominantInterruptCause === 'USER_INTERRUPTED'
+      ? 'The previous turn was interrupted by the user.'
+      : dominantInterruptCause === 'CLIENT_DISCONNECTED'
+        ? 'The previous turn was cut short by a network drop.'
+        : 'The previous turn ended with a stream error.';
+  return `${opening} ${completedCount} tool call(s)
 completed successfully and ${interruptedCount} were cancelled before they
 finished. Tools that mutate state (file writes, edits, deletes) may have
 partially executed.
@@ -303,6 +379,7 @@ export const createInterruptRecoveryMiddleware = (metricsService: MetricsService
       const reminder = interruptRecoveryReminder({
         completedCount: detection.completedCount,
         interruptedCount: detection.interruptedCount,
+        dominantInterruptCause: detection.dominantInterruptCause,
       });
 
       const nudge = new HumanMessage({

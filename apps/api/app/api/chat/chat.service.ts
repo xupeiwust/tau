@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { openai } from '@ai-sdk/openai';
 import { createAgent } from 'langchain';
 import type { ReactAgent } from 'langchain';
+import type { StructuredToolInterface } from '@langchain/core/tools';
+import { createWriterCaptureMiddleware } from '#api/chat/eager-dispatch/writer-capture.middleware.js';
+import { createEagerDispatchMiddleware } from '#api/chat/middleware/eager-dispatch.middleware.js';
+import type { EagerToolDispatchHandler } from '#api/chat/eager-dispatch/eager-tool-dispatch.handler.js';
 import { streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 import type { KernelProvider } from '@taucad/runtime';
@@ -64,8 +68,9 @@ export class ChatService {
       testingEnabled?: boolean;
     };
     contextPayload?: ContextPayload;
+    eagerDispatchHandler?: EagerToolDispatchHandler;
   }): Promise<ReactAgent> {
-    const { chatId, modelId, kernel, mode = 'agent', contextPayload } = options;
+    const { chatId, modelId, kernel, mode = 'agent', contextPayload, eagerDispatchHandler } = options;
     const { choice, testingEnabled = true } = options.tools;
     const { tools } = this.toolService.getTools(choice, kernel);
 
@@ -148,6 +153,10 @@ export class ChatService {
         createToolMetricsMiddleware(this.metricsService),
         toolErrorHandlerMiddleware,
 
+        ...(eagerDispatchHandler
+          ? [createWriterCaptureMiddleware(eagerDispatchHandler), createEagerDispatchMiddleware(eagerDispatchHandler)]
+          : []),
+
         // --- Context prevention (offload large tool results before trimming) ---
         createToolOffloadingMiddleware(this.rpcBackendFactory),
         toolResultTrimmerMiddleware,
@@ -200,6 +209,10 @@ export class ChatService {
         createClientContextMiddleware(contextPayload),
       ],
     });
+
+    if (eagerDispatchHandler) {
+      eagerDispatchHandler.bindTools(allTools as StructuredToolInterface[]);
+    }
 
     return agent;
   }

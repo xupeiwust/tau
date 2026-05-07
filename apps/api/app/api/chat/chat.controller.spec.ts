@@ -19,6 +19,7 @@ import { AuthGuard } from '#auth/auth.guard.js';
 import type { CreateChatDto } from '#api/chat/chat.dto.js';
 import { MetricsService } from '#telemetry/metrics.js';
 import { CheckpointerService } from '#api/chat/checkpointer.service.js';
+import { EagerToolDispatchHandler } from '#api/chat/eager-dispatch/eager-tool-dispatch.handler.js';
 
 // Mock the @ai-sdk/langchain module
 vi.mock('@ai-sdk/langchain', () => ({
@@ -234,22 +235,33 @@ describe('ChatController', () => {
       await controller.createChat(body, mockResponse);
 
       // Assert
-      expect(chatService.createAgent).toHaveBeenCalledWith({
-        chatId: 'chat_123',
-        modelId: 'test-model',
-        kernel: 'openscad',
-        mode: 'agent',
-        tools: { choice: 'auto', testingEnabled: true },
-      });
+      expect(chatService.createAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatId: 'chat_123',
+          modelId: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
+          /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest `expect.any()` is typed as `any` */
+          eagerDispatchHandler: expect.any(EagerToolDispatchHandler),
+        }),
+      );
       expect(mockAgent.graph.stream).toHaveBeenCalledTimes(1);
 
       // Verify stream was called with messages and correct config
       const [streamArguments, streamConfig] = mockAgent.graph.stream.mock.calls[0] as [
         { messages: unknown[] },
-        { configurable: { thread_id: string }; maxConcurrency?: number },
+        {
+          configurable: { thread_id: string };
+          callbacks?: unknown[];
+          streamMode?: unknown;
+          maxConcurrency?: number;
+        },
       ];
       expect(streamArguments).toHaveProperty('messages');
       expect(Array.isArray(streamArguments.messages)).toBe(true);
+      expect(streamConfig.callbacks?.length).toBe(2);
+      expect(streamConfig.streamMode).toEqual(['values', 'messages', 'custom']);
       expect(streamConfig.configurable.thread_id).toBe('chat_123');
       // Parallel tool calls run unthrottled. `maxConcurrency: 1` triggers an
       // upstream off-by-one in @langchain/langgraph 1.1.5
@@ -335,13 +347,17 @@ describe('ChatController', () => {
       await controller.createChat(body, mockResponse);
 
       // Assert
-      expect(chatService.createAgent).toHaveBeenCalledWith({
-        chatId: 'chat_tool_choice',
-        modelId: 'test-model',
-        kernel: 'openscad',
-        mode: 'agent',
-        tools: { choice: 'none', testingEnabled: true },
-      });
+      expect(chatService.createAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatId: 'chat_tool_choice',
+          modelId: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          tools: { choice: 'none', testingEnabled: true },
+          /* oxlint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest `expect.any()` is typed as `any` */
+          eagerDispatchHandler: expect.any(EagerToolDispatchHandler),
+        }),
+      );
     });
   });
 

@@ -3,6 +3,7 @@ import { createTestApp } from '#testing/create-test-app.js';
 import type { TestApp } from '#testing/create-test-app.js';
 import { collectStreamChunks, collectFinalMessage } from '#testing/stream-consumer.js';
 import { expectChunkTypesInclude, expectNoErrors } from '#testing/stream-assertions.js';
+import { requiresEnv } from '#testing/skip-helpers.js';
 
 /**
  * Every `**Sub-title**`-style Markdown heading chunk in streamed reasoning text must begin
@@ -40,136 +41,139 @@ function assertBoldSubtitlesStartSection(reasoningMarkdown: string): void {
  *
  * Always-on coverage lives in `cross-provider-content-normalizer.middleware.test.ts`.
  */
-describe.skip('Cross-provider thinking-block portability (real LLM)', () => {
-  let testApp: TestApp;
+describe.skipIf(requiresEnv('ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_VERTEX_AI_CREDENTIALS'))(
+  'Cross-provider thinking-block portability (real LLM)',
+  () => {
+    let testApp: TestApp;
 
-  beforeAll(async () => {
-    testApp = await createTestApp();
-  });
-
-  afterAll(async () => {
-    await testApp.app.close();
-  });
-
-  const buildThinkingThenAskPayload = (models: { first: string; second: string }) => ({
-    id: `cross-provider-thinking-${models.first}-${models.second}-${Date.now()}`,
-    messages: [
-      {
-        id: 'msg_user_1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Reply with a single word: hello.' }],
-        metadata: { model: models.first, kernel: 'replicad' },
-      },
-      {
-        id: 'msg_assistant_thinking',
-        role: 'assistant',
-        parts: [
-          {
-            type: 'reasoning',
-            text: 'User wants one word.',
-            providerMetadata: { anthropic: { thinkingSignature: 'dummy-signature-for-portability-test' } },
-          },
-          { type: 'text', text: 'hello', state: 'done' },
-        ],
-        metadata: { model: models.first, kernel: 'replicad' },
-      },
-      {
-        id: 'msg_user_2',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Now reply with a single word: bye.' }],
-        metadata: { model: models.second, kernel: 'replicad' },
-      },
-    ],
-  });
-
-  it('accepts Anthropic-shaped thinking history then Gemini follow-up', async () => {
-    const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(
-        buildThinkingThenAskPayload({ first: 'anthropic-claude-haiku-4.5', second: 'google-gemini-3-flash' }),
-      ),
+    beforeAll(async () => {
+      testApp = await createTestApp();
     });
 
-    expect(response.ok, `HTTP ${response.status}`).toBe(true);
-    expect(response.headers.get('content-type')).toContain('text/event-stream');
-
-    const chunks = await collectStreamChunks(response);
-    expectNoErrors(chunks);
-    expectChunkTypesInclude(chunks, 'text-start');
-  });
-
-  it('accepts Anthropic-shaped thinking history then OpenAI follow-up', async () => {
-    const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(
-        buildThinkingThenAskPayload({ first: 'anthropic-claude-haiku-4.5', second: 'openai-gpt-5.3-codex' }),
-      ),
+    afterAll(async () => {
+      await testApp.app.close();
     });
 
-    expect(response.ok, `HTTP ${response.status}`).toBe(true);
-    const chunks = await collectStreamChunks(response);
-    expectNoErrors(chunks);
-    expectChunkTypesInclude(chunks, 'text-start');
-  });
-
-  it('accepts Vertex Gemini history then Anthropic follow-up (signature stripped upstream)', async () => {
-    const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(
-        buildThinkingThenAskPayload({ first: 'google-gemini-3-flash', second: 'anthropic-claude-haiku-4.5' }),
-      ),
+    const buildThinkingThenAskPayload = (models: { first: string; second: string }) => ({
+      id: `cross-provider-thinking-${models.first}-${models.second}-${Date.now()}`,
+      messages: [
+        {
+          id: 'msg_user_1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Reply with a single word: hello.' }],
+          metadata: { model: models.first, kernel: 'replicad' },
+        },
+        {
+          id: 'msg_assistant_thinking',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'reasoning',
+              text: 'User wants one word.',
+              providerMetadata: { anthropic: { thinkingSignature: 'dummy-signature-for-portability-test' } },
+            },
+            { type: 'text', text: 'hello', state: 'done' },
+          ],
+          metadata: { model: models.first, kernel: 'replicad' },
+        },
+        {
+          id: 'msg_user_2',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Now reply with a single word: bye.' }],
+          metadata: { model: models.second, kernel: 'replicad' },
+        },
+      ],
     });
 
-    expect(response.ok, `HTTP ${response.status}`).toBe(true);
-    const chunks = await collectStreamChunks(response);
-    expectNoErrors(chunks);
-    expectChunkTypesInclude(chunks, 'text-start');
-  });
+    it('accepts Anthropic-shaped thinking history then Gemini follow-up', async () => {
+      const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(
+          buildThinkingThenAskPayload({ first: 'anthropic-claude-haiku-4.5', second: 'google-gemini-3-flash' }),
+        ),
+      });
 
-  it('OpenAI GPT-5.5 reasoning bold subtitles are separated by paragraph breaks (summary seams)', async () => {
-    const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        id: `gpt55-summary-boundaries-${Date.now()}`,
-        messages: [
-          {
-            id: 'msg_user_boundary',
-            role: 'user',
-            parts: [
-              {
-                type: 'text',
-                text: 'In your internal reasoning stream only: plan in at least THREE short sections.\nEach section MUST start its title line with a markdown bold subtitle like **Considering X**, **Evaluating Y**, **Deciding Z**.\nWrite a concise paragraph after each subtitle.\nIn the FINAL assistant-visible reply send exactly: Ack.',
-              },
-            ],
-            metadata: { model: 'openai-gpt-5.5', kernel: 'replicad' },
-          },
-        ],
-      }),
+      expect(response.ok, `HTTP ${response.status}`).toBe(true);
+      expect(response.headers.get('content-type')).toContain('text/event-stream');
+
+      const chunks = await collectStreamChunks(response);
+      expectNoErrors(chunks);
+      expectChunkTypesInclude(chunks, 'text-start');
     });
 
-    expect(response.ok, `HTTP ${response.status}`).toBe(true);
-    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    it('accepts Anthropic-shaped thinking history then OpenAI follow-up', async () => {
+      const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(
+          buildThinkingThenAskPayload({ first: 'anthropic-claude-haiku-4.5', second: 'openai-gpt-5.3-codex' }),
+        ),
+      });
 
-    const chunks = await collectStreamChunks(response);
-    expectNoErrors(chunks);
-    expectChunkTypesInclude(chunks, 'reasoning-delta');
+      expect(response.ok, `HTTP ${response.status}`).toBe(true);
+      const chunks = await collectStreamChunks(response);
+      expectNoErrors(chunks);
+      expectChunkTypesInclude(chunks, 'text-start');
+    });
 
-    const finalAssistant = await collectFinalMessage(chunks);
-    expect(finalAssistant.parts.some((part) => part.type === 'text')).toBe(true);
+    it('accepts Vertex Gemini history then Anthropic follow-up (signature stripped upstream)', async () => {
+      const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(
+          buildThinkingThenAskPayload({ first: 'google-gemini-3-flash', second: 'anthropic-claude-haiku-4.5' }),
+        ),
+      });
 
-    let reasoningCombined = '';
+      expect(response.ok, `HTTP ${response.status}`).toBe(true);
+      const chunks = await collectStreamChunks(response);
+      expectNoErrors(chunks);
+      expectChunkTypesInclude(chunks, 'text-start');
+    });
 
-    for (const part of finalAssistant.parts) {
-      if (part.type === 'reasoning' && 'text' in part && typeof (part as { text: unknown }).text === 'string') {
-        reasoningCombined += (part as { text: string }).text;
+    it('OpenAI GPT-5.5 reasoning bold subtitles are separated by paragraph breaks (summary seams)', async () => {
+      const response = await fetch(`${testApp.baseUrl}/v1/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: `gpt55-summary-boundaries-${Date.now()}`,
+          messages: [
+            {
+              id: 'msg_user_boundary',
+              role: 'user',
+              parts: [
+                {
+                  type: 'text',
+                  text: 'In your internal reasoning stream only: plan in at least THREE short sections.\nEach section MUST start its title line with a markdown bold subtitle like **Considering X**, **Evaluating Y**, **Deciding Z**.\nWrite a concise paragraph after each subtitle.\nIn the FINAL assistant-visible reply send exactly: Ack.',
+                },
+              ],
+              metadata: { model: 'openai-gpt-5.5', kernel: 'replicad' },
+            },
+          ],
+        }),
+      });
+
+      expect(response.ok, `HTTP ${response.status}`).toBe(true);
+      expect(response.headers.get('content-type')).toContain('text/event-stream');
+
+      const chunks = await collectStreamChunks(response);
+      expectNoErrors(chunks);
+      expectChunkTypesInclude(chunks, 'reasoning-delta');
+
+      const finalAssistant = await collectFinalMessage(chunks);
+      expect(finalAssistant.parts.some((part) => part.type === 'text')).toBe(true);
+
+      let reasoningCombined = '';
+
+      for (const part of finalAssistant.parts) {
+        if (part.type === 'reasoning' && 'text' in part && typeof (part as { text: unknown }).text === 'string') {
+          reasoningCombined += (part as { text: string }).text;
+        }
       }
-    }
 
-    expect(reasoningCombined.length).toBeGreaterThan(120);
-    assertBoldSubtitlesStartSection(reasoningCombined);
-  }, 120_000);
-});
+      expect(reasoningCombined.length).toBeGreaterThan(120);
+      assertBoldSubtitlesStartSection(reasoningCombined);
+    }, 120_000);
+  },
+);

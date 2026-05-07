@@ -113,6 +113,51 @@ describe('detectInterruptedTurn', () => {
       expect(result.completedCount).toBe(0);
       expect(result.interruptedCount).toBe(1);
       expect(result.signature).toMatch(/^[\da-f]{16}$/);
+      expect(result.dominantInterruptCause).toBe('USER_INTERRUPTED');
+    }
+  });
+
+  it('T1.2b — CLIENT_DISCONNECTED errorCode is detected with dominant cause', () => {
+    const messages: BaseMessage[] = [
+      new HumanMessage('please write things'),
+      aiCallMessage({
+        id: 'ai_dc',
+        calls: [{ name: 'create_file', args: { targetFile: 'x.scad' }, id: 'tc_x' }],
+      }),
+      otherErrorToolMessage({
+        toolCallId: 'tc_x',
+        toolName: 'create_file',
+        errorCode: 'CLIENT_DISCONNECTED',
+        message: 'The connection was lost while the tool was running.',
+      }),
+    ];
+
+    const result = detectInterruptedTurn(messages);
+    expect(result.kind).toBe('detected');
+    if (result.kind === 'detected') {
+      expect(result.dominantInterruptCause).toBe('CLIENT_DISCONNECTED');
+    }
+  });
+
+  it('T1.2c — STREAM_ERROR errorCode is detected with dominant cause', () => {
+    const messages: BaseMessage[] = [
+      new HumanMessage('please write things'),
+      aiCallMessage({
+        id: 'ai_se',
+        calls: [{ name: 'create_file', args: { targetFile: 'x.scad' }, id: 'tc_x' }],
+      }),
+      otherErrorToolMessage({
+        toolCallId: 'tc_x',
+        toolName: 'create_file',
+        errorCode: 'STREAM_ERROR',
+        message: 'The chat stream ended before this tool could finish.',
+      }),
+    ];
+
+    const result = detectInterruptedTurn(messages);
+    expect(result.kind).toBe('detected');
+    if (result.kind === 'detected') {
+      expect(result.dominantInterruptCause).toBe('STREAM_ERROR');
     }
   });
 
@@ -219,13 +264,25 @@ describe('detectInterruptedTurn', () => {
 
 describe('interruptRecoveryReminder', () => {
   it('T1.5 — produces byte-identical output for byte-identical inputs', () => {
-    const a = interruptRecoveryReminder({ completedCount: 2, interruptedCount: 1 });
-    const b = interruptRecoveryReminder({ completedCount: 2, interruptedCount: 1 });
+    const a = interruptRecoveryReminder({
+      completedCount: 2,
+      interruptedCount: 1,
+      dominantInterruptCause: 'USER_INTERRUPTED',
+    });
+    const b = interruptRecoveryReminder({
+      completedCount: 2,
+      interruptedCount: 1,
+      dominantInterruptCause: 'USER_INTERRUPTED',
+    });
     expect(a).toBe(b);
   });
 
   it('T1.5 — body has no timestamps, UUIDs, or run identifiers', () => {
-    const body = interruptRecoveryReminder({ completedCount: 0, interruptedCount: 1 });
+    const body = interruptRecoveryReminder({
+      completedCount: 0,
+      interruptedCount: 1,
+      dominantInterruptCause: 'USER_INTERRUPTED',
+    });
     // ISO 8601 dates / UUIDs / random hex would invalidate the prompt cache
     // prefix on every turn — assert their absence.
     expect(body).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
@@ -233,15 +290,41 @@ describe('interruptRecoveryReminder', () => {
   });
 
   it('T1.5 — embeds the literal completed/interrupted counts', () => {
-    expect(interruptRecoveryReminder({ completedCount: 5, interruptedCount: 7 })).toContain(
-      '5 tool call(s)\ncompleted successfully and 7 were cancelled',
-    );
+    expect(
+      interruptRecoveryReminder({
+        completedCount: 5,
+        interruptedCount: 7,
+        dominantInterruptCause: 'USER_INTERRUPTED',
+      }),
+    ).toContain('5 tool call(s)\ncompleted successfully and 7 were cancelled');
   });
 
   it('T1.5 — body advises verification before retrying', () => {
-    const body = interruptRecoveryReminder({ completedCount: 1, interruptedCount: 2 });
+    const body = interruptRecoveryReminder({
+      completedCount: 1,
+      interruptedCount: 2,
+      dominantInterruptCause: 'USER_INTERRUPTED',
+    });
     expect(body).toMatch(/verify the current state/);
     expect(body).toMatch(/Do NOT assume/);
+  });
+
+  it('T1.5 — opening sentence reflects CLIENT_DISCONNECTED dominant cause', () => {
+    const body = interruptRecoveryReminder({
+      completedCount: 0,
+      interruptedCount: 1,
+      dominantInterruptCause: 'CLIENT_DISCONNECTED',
+    });
+    expect(body.startsWith('The previous turn was cut short by a network drop.')).toBe(true);
+  });
+
+  it('T1.5 — opening sentence reflects STREAM_ERROR dominant cause', () => {
+    const body = interruptRecoveryReminder({
+      completedCount: 0,
+      interruptedCount: 1,
+      dominantInterruptCause: 'STREAM_ERROR',
+    });
+    expect(body.startsWith('The previous turn ended with a stream error.')).toBe(true);
   });
 });
 
@@ -412,6 +495,53 @@ describe('createInterruptRecoveryMiddleware', () => {
     expect(result.messages).toHaveLength(1);
     expect(result._interruptReminderFiredFor).toHaveLength(2);
     expect(result._interruptReminderFiredFor[0]).toBe('previous-signature-aaaaaaaa');
+  });
+
+  it('injects CLIENT_DISCONNECTED-specific reminder opening line', () => {
+    const middleware = createInterruptRecoveryMiddleware(metricsService);
+    const disconnectTail: BaseMessage[] = [
+      new HumanMessage('hx'),
+      aiCallMessage({ id: 'ai_dis', calls: [{ name: 'read_file', args: { path: 'a' }, id: 'tc_dis' }] }),
+      otherErrorToolMessage({
+        toolCallId: 'tc_dis',
+        toolName: 'read_file',
+        errorCode: 'CLIENT_DISCONNECTED',
+      }),
+    ];
+
+    const result = callBeforeModel(middleware, { ...baseState(), messages: disconnectTail }, { context: {} }) as {
+      messages: BaseMessage[];
+    };
+
+    const content = (result.messages[0] as HumanMessage).content as string;
+    expect(content).toContain('The previous turn was cut short by a network drop.');
+  });
+
+  it('T1.11 — dominant interrupt cause changes the dedup signature for the same parent id', () => {
+    const userInterruptTail: BaseMessage[] = [
+      new HumanMessage('a'),
+      aiCallMessage({ id: 'shared', calls: [{ name: 'read_file', args: { path: 'a' }, id: 'tc_1' }] }),
+      interruptedToolMessage({ toolCallId: 'tc_1', toolName: 'read_file' }),
+    ];
+    const disconnectTail: BaseMessage[] = [
+      new HumanMessage('a'),
+      aiCallMessage({ id: 'shared', calls: [{ name: 'read_file', args: { path: 'a' }, id: 'tc_1' }] }),
+      otherErrorToolMessage({
+        toolCallId: 'tc_1',
+        toolName: 'read_file',
+        errorCode: 'CLIENT_DISCONNECTED',
+      }),
+    ];
+
+    const detUser = detectInterruptedTurn(userInterruptTail);
+    const detDisconnect = detectInterruptedTurn(disconnectTail);
+    expect(detUser.kind).toBe('detected');
+    expect(detDisconnect.kind).toBe('detected');
+    if (detUser.kind === 'detected' && detDisconnect.kind === 'detected') {
+      expect(detUser.signature).not.toBe(detDisconnect.signature);
+      expect(detUser.dominantInterruptCause).toBe('USER_INTERRUPTED');
+      expect(detDisconnect.dominantInterruptCause).toBe('CLIENT_DISCONNECTED');
+    }
   });
 });
 
