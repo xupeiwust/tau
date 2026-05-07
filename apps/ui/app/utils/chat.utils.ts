@@ -17,6 +17,8 @@ import { generatePrefixedId } from '@taucad/utils/id';
 import { ENV } from '#environment.config.js';
 import { metaConfig } from '#constants/meta.constants.js';
 import { formatExportDate } from '#utils/date.utils.js';
+import { getRpcOutcome } from '#services/rpc-ledger.js';
+import type { RequestTerminationCause } from '#hooks/chat-persistence.machine.js';
 
 export const useChatConstants: Parameters<typeof useChat>[0] = {
   transport: new DefaultChatTransport({
@@ -409,6 +411,38 @@ export function serializeTranscript(messages: MyUIMessage[], title: string): str
   return `${header}\n\n---\n\n${blocks}\n`;
 }
 
+function fallbackInterruptedToolError(cause: RequestTerminationCause): { errorCode: string; message: string } {
+  switch (cause) {
+    case 'user_stop':
+    case 'preempt': {
+      return { errorCode: 'USER_INTERRUPTED', message: 'Interrupted by user.' };
+    }
+
+    case 'disconnect': {
+      return {
+        errorCode: 'CLIENT_DISCONNECTED',
+        message: 'The network dropped while the tool was running.',
+      };
+    }
+
+    case 'error': {
+      return {
+        errorCode: 'STREAM_ERROR',
+        message: 'The chat stream ended before this tool could finish.',
+      };
+    }
+
+    case 'success': {
+      return { errorCode: 'USER_INTERRUPTED', message: 'Interrupted by user.' };
+    }
+
+    default: {
+      const _exhaustive: never = cause;
+      return _exhaustive;
+    }
+  }
+}
+
 /**
  * Transitions all in-progress tool parts in the last assistant message
  * to output-error state. Used when a stream is interrupted by the user
@@ -420,8 +454,15 @@ export function serializeTranscript(messages: MyUIMessage[], title: string): str
  * Only modifies the last message if it's an assistant message with
  * tool parts in `input-streaming` or `input-available` state.
  * Returns the original array if no changes are needed.
+ * @param messages - Chat messages (last assistant tail is finalized)
+ * @param chatId - When set, consults the RPC ledger so tools that already settled on the client stay `output-available`.
+ * @param cause - Why the request ended (wires user stop vs transport vs stream failure into persisted error codes).
  */
-export function finalizeInterruptedToolParts(messages: MyUIMessage[]): MyUIMessage[] {
+export function finalizeInterruptedToolParts(
+  messages: MyUIMessage[],
+  chatId: string | undefined,
+  cause: RequestTerminationCause,
+): MyUIMessage[] {
   const lastMessage = messages.at(-1);
   if (lastMessage?.role !== 'assistant') {
     return messages;
@@ -437,20 +478,49 @@ export function finalizeInterruptedToolParts(messages: MyUIMessage[]): MyUIMessa
 
   const updatedParts = lastMessage.parts.map((part) => {
     if (isToolPart(part) && (part.state === 'input-streaming' || part.state === 'input-available')) {
-      // Assertion needed: input-streaming parts have PartialObject<Schema> for `input`,
-      // but output-error expects the full Schema. The partial input is acceptable
-      // for display purposes since the tool was interrupted.
+      if (chatId) {
+        const ledgered = getRpcOutcome(chatId, part.toolCallId);
+        if (ledgered?.kind === 'success') {
+          // oxlint-disable-next-line typescript-eslint/consistent-type-assertions -- ledger payloads mirror live RPC outputs; tool union is wider than TS can correlate here.
+          return {
+            ...part,
+            state: 'output-available',
+            output: ledgered.output,
+          } as MyMessagePart;
+        }
+
+        if (ledgered?.kind === 'error') {
+          const toolNm = getStaticToolName<MyTools>(part);
+          const errorText = JSON.stringify({
+            errorCode: ledgered.errorCode,
+            message: ledgered.message,
+            toolCallId: part.toolCallId,
+            toolName: toolNm,
+          });
+          // oxlint-disable-next-line typescript-eslint/consistent-type-assertions -- see success branch rationale.
+          return {
+            ...part,
+            state: 'output-error',
+            errorText,
+          } as MyMessagePart;
+        }
+      }
+
+      const toolNm = getStaticToolName<MyTools>(part);
+      const { errorCode, message } = fallbackInterruptedToolError(cause);
       const errorText = JSON.stringify({
-        errorCode: 'USER_INTERRUPTED',
-        message: 'Interrupted by user.',
+        errorCode,
+        message,
         toolCallId: part.toolCallId,
+        toolName: toolNm,
       });
+      // oxlint-disable-next-line typescript-eslint/consistent-type-assertions -- interrupted tools may retain partial streamed inputs pending full tool schema.
       const interruptedPart = {
         ...part,
         state: 'output-error',
         errorText,
-      };
-      return interruptedPart as MyMessagePart;
+      } as MyMessagePart;
+      return interruptedPart;
     }
 
     return part;

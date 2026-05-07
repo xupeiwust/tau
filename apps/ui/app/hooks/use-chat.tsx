@@ -321,6 +321,37 @@ export function useChatById<T>(chatId: string, selector: (state: CombinedChatSta
   return useChatSelector(selector, chatId);
 }
 
+/**
+ * Snapshot of the chatPersistenceMachine's transparent auto-retry counters
+ * for the resolved chat. Returns `{ retryAttempt: 0 }` when no session is
+ * mounted so consumers can render unconditionally.
+ *
+ * Components use this (instead of reaching into `persistenceActorRef`
+ * directly) to render a "Reconnecting... N/M" indicator while the
+ * `requestLifecycle.retrying` substate is active between attempts.
+ */
+export type ChatRetrySnapshot = {
+  retryAttempt: number;
+  retryMaxAttempts: number;
+};
+
+const emptyRetrySnapshot: ChatRetrySnapshot = { retryAttempt: 0, retryMaxAttempts: 0 };
+
+export function useChatRetrySnapshot(chatId?: string): ChatRetrySnapshot {
+  const { persistenceActorRef } = useChatContext(chatId);
+  return useSelector(
+    persistenceActorRef,
+    (state) => {
+      if (!state) {
+        return emptyRetrySnapshot;
+      }
+      const { retryAttempt, retryMaxAttempts } = state.context;
+      return { retryAttempt, retryMaxAttempts };
+    },
+    (a, b) => a.retryAttempt === b.retryAttempt && a.retryMaxAttempts === b.retryMaxAttempts,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Action surface
 // ---------------------------------------------------------------------------
@@ -328,6 +359,14 @@ export function useChatById<T>(chatId: string, selector: (state: CombinedChatSta
 export type ChatActions = {
   sendMessage: (message: SendMessageInput) => void;
   regenerate: () => void;
+  /**
+   * Resume an interrupted stream WITHOUT re-running the trailing user
+   * message or slicing any assistant parts that already landed. Use this
+   * for the network-error banner's primary CTA -- `regenerate()` would
+   * destroy partial assistant content and is the wrong tool for transient
+   * transport failures.
+   */
+  continueChat: () => void;
   stop: () => void;
   setMessages: (messages: MyUIMessage[]) => void;
   setDraftText: (text: string) => void;
@@ -417,6 +456,14 @@ export function useChatActions(chatId?: string): ChatActions {
           return;
         }
         session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'regenerate' } });
+      },
+      continueChat() {
+        const session = resolveSession();
+        if (!session) {
+          warnNoInstance('continueChat', activeChatId);
+          return;
+        }
+        session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'continue' } });
       },
       stop() {
         const session = resolveSession();

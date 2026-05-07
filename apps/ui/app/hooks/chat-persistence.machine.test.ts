@@ -4,7 +4,7 @@ import type { Chat, MyUIMessage } from '@taucad/chat';
 import type { ChatError } from '@taucad/types';
 import type { KernelId } from '@taucad/types/constants';
 import { chatPersistenceMachine } from '#hooks/chat-persistence.machine.js';
-import type { ChatRequest, ChatRetrievedEvent } from '#hooks/chat-persistence.machine.js';
+import type { ChatRequest, ChatRetrievedEvent, RequestTerminationCause } from '#hooks/chat-persistence.machine.js';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 
 type MockMessage = { id: string; role: string; parts: Array<{ type: string; text?: string }> };
@@ -57,9 +57,9 @@ function createTestActor(options?: {
 type EmittedEvent =
   | { type: 'dispatchRequest'; request: ChatRequest }
   | { type: 'dispatchStop' }
-  | { type: 'applyFinishedRequest'; messages: MyUIMessage[] }
-  | { type: 'applyStoppedRequest'; messages: MyUIMessage[] }
-  | { type: 'applyResumedRequest'; messages: MyUIMessage[]; pendingRequest: ChatRequest };
+  | { type: 'applyFinishedRequest'; messages: MyUIMessage[]; cause: RequestTerminationCause }
+  | { type: 'applyStoppedRequest'; messages: MyUIMessage[]; cause: 'user_stop' }
+  | { type: 'applyResumedRequest'; messages: MyUIMessage[]; pendingRequest: ChatRequest; cause: 'preempt' };
 
 /**
  * Variant of `createTestActor` that also captures every requestLifecycle
@@ -742,12 +742,18 @@ describe('chatPersistenceMachine', () => {
       actor.send({ type: 'setPersistedError', error: sampleChatError });
 
       const finalMessages: MyUIMessage[] = [sampleMessage];
-      actor.send({ type: 'requestFinished', messages: finalMessages, isAbort: false, isError: false });
+      actor.send({
+        type: 'requestFinished',
+        messages: finalMessages,
+        isAbort: false,
+        isError: false,
+        isDisconnect: false,
+      });
 
       expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
       expect(actor.getSnapshot().context.persistedError).toBeUndefined();
       const lastEmit = emitLog.at(-1);
-      expect(lastEmit).toEqual({ type: 'applyFinishedRequest', messages: finalMessages });
+      expect(lastEmit).toEqual({ type: 'applyFinishedRequest', messages: finalMessages, cause: 'success' });
       actor.stop();
     });
 
@@ -760,12 +766,37 @@ describe('chatPersistenceMachine', () => {
       actor.send({ type: 'setPersistedError', error: sampleChatError });
 
       const finalMessages: MyUIMessage[] = [sampleMessage];
-      actor.send({ type: 'requestFinished', messages: finalMessages, isAbort: false, isError: true });
+      actor.send({
+        type: 'requestFinished',
+        messages: finalMessages,
+        isAbort: false,
+        isError: true,
+        isDisconnect: false,
+      });
 
       expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
       expect(actor.getSnapshot().context.persistedError).toEqual(sampleChatError);
       const lastEmit = emitLog.at(-1);
-      expect(lastEmit).toEqual({ type: 'applyFinishedRequest', messages: finalMessages });
+      expect(lastEmit).toEqual({ type: 'applyFinishedRequest', messages: finalMessages, cause: 'error' });
+      actor.stop();
+    });
+
+    it('should emit applyFinishedRequest with cause user_stop when requestFinished has isAbort', () => {
+      const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+      actor.start();
+
+      actor.send({ type: 'startRequest', request: { kind: 'regenerate' } });
+      const finalMessages: MyUIMessage[] = [sampleMessage];
+      actor.send({
+        type: 'requestFinished',
+        messages: finalMessages,
+        isAbort: true,
+        isError: false,
+        isDisconnect: false,
+      });
+
+      expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+      expect(emitLog.at(-1)).toEqual({ type: 'applyFinishedRequest', messages: finalMessages, cause: 'user_stop' });
       actor.stop();
     });
 
@@ -779,7 +810,13 @@ describe('chatPersistenceMachine', () => {
       actor.send({ type: 'startRequest', request: first });
       actor.send({ type: 'startRequest', request: queued });
       const interruptedMessages: MyUIMessage[] = [sampleMessage];
-      actor.send({ type: 'requestFinished', messages: interruptedMessages, isAbort: true, isError: false });
+      actor.send({
+        type: 'requestFinished',
+        messages: interruptedMessages,
+        isAbort: true,
+        isError: false,
+        isDisconnect: false,
+      });
 
       expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
       expect(actor.getSnapshot().context.pendingRequest).toBeUndefined();
@@ -793,6 +830,7 @@ describe('chatPersistenceMachine', () => {
         type: 'applyResumedRequest',
         messages: interruptedMessages,
         pendingRequest: queued,
+        cause: 'preempt',
       });
       expect(dispatched).toEqual({ type: 'dispatchRequest', request: queued });
       actor.stop();
@@ -805,11 +843,17 @@ describe('chatPersistenceMachine', () => {
       actor.send({ type: 'startRequest', request: { kind: 'regenerate' } });
       actor.send({ type: 'stopRequest' });
       const interruptedMessages: MyUIMessage[] = [sampleMessage];
-      actor.send({ type: 'requestFinished', messages: interruptedMessages, isAbort: true, isError: false });
+      actor.send({
+        type: 'requestFinished',
+        messages: interruptedMessages,
+        isAbort: true,
+        isError: false,
+        isDisconnect: false,
+      });
 
       expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
       const lastEmit = emitLog.at(-1);
-      expect(lastEmit).toEqual({ type: 'applyStoppedRequest', messages: interruptedMessages });
+      expect(lastEmit).toEqual({ type: 'applyStoppedRequest', messages: interruptedMessages, cause: 'user_stop' });
       actor.stop();
     });
 
@@ -842,6 +886,7 @@ describe('chatPersistenceMachine', () => {
         messages: [sampleMessage],
         isAbort: false,
         isError: false,
+        isDisconnect: false,
       });
 
       expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
@@ -863,6 +908,7 @@ describe('chatPersistenceMachine', () => {
         messages: [sampleMessage],
         isAbort: true,
         isError: false,
+        isDisconnect: false,
       });
 
       expect(emitLog.map((event) => event.type)).toEqual([
@@ -872,6 +918,423 @@ describe('chatPersistenceMachine', () => {
         'dispatchRequest',
       ]);
       actor.stop();
+    });
+  });
+
+  // ===========================================================================
+  // R2: transparent auto-retry on transport-level disconnects.
+  //
+  // The `requestLifecycle.retrying` substate gates on isError && isDisconnect
+  // and dispatches a `{ kind: 'continue' }` request after an exponential
+  // backoff delay (see `apps/ui/app/utils/backoff.utils.ts` for the curve).
+  // ===========================================================================
+
+  describe('requestLifecycle (auto-retry on disconnect)', () => {
+    it('enters `retrying` and increments retryAttempt on isError + isDisconnect with budget remaining', () => {
+      const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+      actor.start();
+      actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+      actor.send({
+        type: 'requestFinished',
+        messages: [sampleMessage],
+        isAbort: false,
+        isError: true,
+        isDisconnect: true,
+      });
+
+      expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+      expect(actor.getSnapshot().context.retryAttempt).toBe(1);
+      actor.stop();
+    });
+
+    it('does not emit applyFinishedRequest when entering retrying (transparent reconnect)', () => {
+      const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+      actor.start();
+      actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+      actor.send({
+        type: 'requestFinished',
+        messages: [sampleMessage],
+        isAbort: false,
+        isError: true,
+        isDisconnect: true,
+      });
+
+      expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+      expect(emitLog.map((event) => event.type)).toEqual(['dispatchRequest']);
+      expect(emitLog.some((event) => event.type === 'applyFinishedRequest')).toBe(false);
+      actor.stop();
+    });
+
+    it('after streamRetryDelay, emits dispatchRequest { kind: continue } and re-enters invoking', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+
+        // Initial backoff for attempt 1 is 500ms + up to 25% jitter.
+        // Advancing past the upper bound (~625ms) guarantees the timer fires.
+        await vi.advanceTimersByTimeAsync(700);
+
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+        const lastEmit = emitLog.at(-1);
+        expect(lastEmit).toEqual({ type: 'dispatchRequest', request: { kind: 'continue' } });
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('lands in `idle` when retryAttempt reaches retryMaxAttempts and preserves persistedError', async () => {
+      vi.useFakeTimers();
+      try {
+        // Tight budget keeps the test cycle short — exhaust after 2 attempts.
+        const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        // Override budget via input by recreating actor. The createActor in
+        // createTestActor uses default. Use direct approach: assert retry
+        // path trips the third disconnect into the `isError` non-retry guard.
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({ type: 'setPersistedError', error: sampleChatError });
+
+        // Walk the full default budget of 5 attempts.
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          actor.send({
+            type: 'requestFinished',
+            messages: [sampleMessage],
+            isAbort: false,
+            isError: true,
+            isDisconnect: true,
+          });
+          expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+          expect(actor.getSnapshot().context.retryAttempt).toBe(attempt);
+          // oxlint-disable-next-line no-await-in-loop -- sequential advancement is required to walk the retry chain
+          await vi.advanceTimersByTimeAsync(60_000); // > 32s cap + jitter
+          expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+        }
+
+        // 6th disconnect: budget exhausted -> non-retry isError guard -> idle.
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+        expect(actor.getSnapshot().context.persistedError).toEqual(sampleChatError);
+        expect(emitLog.at(-1)).toEqual({
+          type: 'applyFinishedRequest',
+          messages: [sampleMessage],
+          cause: 'disconnect',
+        });
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('cancels the backoff timer and returns to idle on stopRequest', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+
+        actor.send({ type: 'stopRequest' });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+
+        // Advance past any plausible backoff to prove the timer was cancelled.
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+        const continueEmit = emitLog.find(
+          (event) => event.type === 'dispatchRequest' && event.request.kind === 'continue',
+        );
+        expect(continueEmit).toBeUndefined();
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('cancels the backoff timer and dispatches the user-supplied request on startRequest', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+
+        const fresh: ChatRequest = { kind: 'send', message: { ...sampleMessage, id: 'msg_user_2' } };
+        actor.send({ type: 'startRequest', request: fresh });
+
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+        expect(actor.getSnapshot().context.persistedError).toBeUndefined();
+        const lastEmit = emitLog.at(-1);
+        expect(lastEmit).toEqual({ type: 'dispatchRequest', request: fresh });
+
+        // Late-firing timer must NOT subsequently dispatch a continue.
+        await vi.advanceTimersByTimeAsync(60_000);
+        const continueEmits = emitLog.filter(
+          (event) => event.type === 'dispatchRequest' && event.request.kind === 'continue',
+        );
+        expect(continueEmits).toHaveLength(0);
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('resets retryAttempt to 0 once a turn settles successfully after a retry chain', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+        // Two consecutive disconnects -> retryAttempt = 2.
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        await vi.advanceTimersByTimeAsync(700);
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().context.retryAttempt).toBe(2);
+
+        // Simulate the next continue running through (re-enter invoking,
+        // then a successful finish).
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: false,
+          isDisconnect: false,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does NOT enter `retrying` when isError but isDisconnect is false (e.g. 4xx/5xx)', () => {
+      const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+      actor.start();
+      actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+      actor.send({ type: 'setPersistedError', error: sampleChatError });
+
+      actor.send({
+        type: 'requestFinished',
+        messages: [sampleMessage],
+        isAbort: false,
+        isError: true,
+        isDisconnect: false,
+      });
+
+      expect(actor.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+      expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+      expect(actor.getSnapshot().context.persistedError).toEqual(sampleChatError);
+      actor.stop();
+    });
+
+    it('respects the configurable retryMaxAttempts input', () => {
+      // Pass a 1-attempt budget so a single disconnect exhausts immediately.
+      const machine = chatPersistenceMachine.provide({
+        actors: {
+          loadChatActor: fromSafeAsync(async () => {
+            const event: ChatRetrievedEvent = { type: 'chatRetrieved', chat: undefined };
+            return event;
+          }),
+          // oxlint-disable-next-line no-empty-function -- mock stub
+          persistMessagesActor: fromSafeAsync(async () => {}),
+          // oxlint-disable-next-line no-empty-function -- mock stub
+          persistErrorActor: fromSafeAsync(async () => {}),
+          // oxlint-disable-next-line no-empty-function -- mock stub
+          clearErrorActor: fromSafeAsync(async () => {}),
+        },
+      });
+      const actor = createActor(machine, {
+        input: { activeChatId: 'chat_abc', retryMaxAttempts: 1 },
+      });
+      actor.start();
+      actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+      // First disconnect uses the budget.
+      actor.send({
+        type: 'requestFinished',
+        messages: [sampleMessage],
+        isAbort: false,
+        isError: true,
+        isDisconnect: true,
+      });
+      expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+      expect(actor.getSnapshot().context.retryAttempt).toBe(1);
+      actor.stop();
+    });
+  });
+
+  // ===========================================================================
+  // R6: streamResumed — mid-turn recovery signal from AI SDK status → streaming
+  // ===========================================================================
+
+  describe('requestLifecycle (streamResumed)', () => {
+    it('T17: streamResumed in invoking resets retryAttempt and clears persistedError', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        await vi.advanceTimersByTimeAsync(700);
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(1);
+
+        actor.send({ type: 'setPersistedError', error: sampleChatError });
+        actor.send({ type: 'streamResumed' });
+
+        expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+        expect(actor.getSnapshot().context.persistedError).toBeUndefined();
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('T18: streamResumed while in retrying is a no-op', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({ type: 'setPersistedError', error: sampleChatError });
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+        const attemptBefore = actor.getSnapshot().context.retryAttempt;
+
+        actor.send({ type: 'streamResumed' });
+
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(attemptBefore);
+        expect(actor.getSnapshot().context.persistedError).toEqual(sampleChatError);
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('T19: each streamResumed resets the counter so the next disconnect starts at attempt 1', async () => {
+      vi.useFakeTimers();
+      try {
+        const { actor } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        await vi.advanceTimersByTimeAsync(700);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(1);
+
+        actor.send({ type: 'streamResumed' });
+        expect(actor.getSnapshot().context.retryAttempt).toBe(0);
+
+        actor.send({
+          type: 'requestFinished',
+          messages: [sampleMessage],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+        expect(actor.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+        expect(actor.getSnapshot().context.retryAttempt).toBe(1);
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('T20: streamResumed raises clearPersistedError so errorPersistence clearing runs', async () => {
+      vi.useFakeTimers();
+      try {
+        let clearErrorCallCount = 0;
+        const actor = createTestActor({
+          activeChatId: 'chat_abc',
+          clearErrorResult: async () => {
+            clearErrorCallCount++;
+          },
+        });
+        actor.start();
+        actor.send({ type: 'startRequest', request: { kind: 'send', message: sampleMessage } });
+        actor.send({ type: 'setPersistedError', error: sampleChatError });
+        await vi.advanceTimersByTimeAsync(0);
+        await waitFor(actor, (s) => s.matches({ errorPersistence: 'idle' }));
+
+        actor.send({ type: 'streamResumed' });
+        expect(actor.getSnapshot().matches({ errorPersistence: 'clearing' })).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(0);
+        await waitFor(actor, (s) => s.matches({ errorPersistence: 'idle' }));
+        expect(clearErrorCallCount).toBe(1);
+        actor.stop();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

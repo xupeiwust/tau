@@ -3,7 +3,8 @@ import type { RpcDependencies, RpcFileSystem } from '@taucad/chat/rpc';
 import { rpcClientErrorCodeSchema } from '@taucad/chat';
 import type { FileEntry, FileExtension } from '@taucad/types';
 import type { ListedDirectoryEntry } from '@taucad/fs-client/directory-listing';
-import type { RpcHandlerDependencies, ResolveGraphicsForFile } from '#hooks/rpc-handlers.js';
+import { rpcName } from '@taucad/chat/constants';
+import type { RpcHandlerDependencies, RpcCallInput, ResolveGraphicsForFile } from '#hooks/rpc-handlers.js';
 
 // ===================================================================
 // Module mocks
@@ -11,11 +12,23 @@ import type { RpcHandlerDependencies, ResolveGraphicsForFile } from '#hooks/rpc-
 
 let capturedDeps: RpcDependencies | undefined;
 
+const rpcDispatcherMocks = vi.hoisted(() => ({
+  dispatch: vi.fn(),
+}));
+
 vi.mock('@taucad/chat/rpc', () => ({
   createRpcDispatcher: (deps: RpcDependencies) => {
     capturedDeps = deps;
-    return { dispatch: vi.fn() };
+    return { dispatch: rpcDispatcherMocks.dispatch };
   },
+}));
+
+const ledgerMocks = vi.hoisted(() => ({
+  recordRpcOutcome: vi.fn(),
+}));
+
+vi.mock('#services/rpc-ledger.js', () => ({
+  recordRpcOutcome: ledgerMocks.recordRpcOutcome,
 }));
 
 const mockWaitFor = vi.fn();
@@ -147,6 +160,7 @@ function buildDeps(overrides?: {
   vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
 
   createRpcHandlers({
+    chatId: 'chat_rpc_handlers_test_deps',
     fileManager: mockFm as RpcHandlerDependencies['fileManager'],
     projectRef: (overrides?.projectRef ?? createMockBuildRef()) as unknown as RpcHandlerDependencies['projectRef'],
     resolveGraphicsForFile: overrides?.resolveGraphicsForFile,
@@ -169,6 +183,8 @@ describe('rpc-handlers', () => {
   beforeEach(() => {
     capturedDeps = undefined;
     mockWaitFor.mockReset();
+    rpcDispatcherMocks.dispatch.mockReset();
+    ledgerMocks.recordRpcOutcome.mockReset();
   });
 
   // ===============================================================
@@ -994,6 +1010,203 @@ describe('rpc-handlers', () => {
   });
 
   // ===============================================================
+  // executeRpcCall + RPC ledger
+  // ===============================================================
+
+  describe('executeRpcCall ledger recording', () => {
+    it('records successful side-effect RPC in the ledger', async () => {
+      const out = {
+        message: 'ok',
+        diffStats: {
+          linesAdded: 1,
+          linesRemoved: 0,
+          originalContent: '',
+          modifiedContent: '// x',
+        },
+      };
+      rpcDispatcherMocks.dispatch.mockResolvedValue(out);
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_ok',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await handlers.executeRpcCall({
+        rpcName: rpcName.createFile,
+        args: { targetFile: '/a.scad', content: '// x' },
+        toolCallId: 'tool_call_cf_1',
+      } as RpcCallInput);
+
+      expect(ledgerMocks.recordRpcOutcome).toHaveBeenCalledWith('chat_ledger_ok', 'tool_call_cf_1', {
+        kind: 'success',
+        output: out,
+      });
+    });
+
+    it('records failed side-effect RPC with valid code as-is before rethrowing', async () => {
+      // T2.3: valid RpcClientErrorCode passes through unchanged.
+      rpcDispatcherMocks.dispatch.mockRejectedValue(Object.assign(new Error('boom'), { code: 'IO_ERROR' }));
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_err',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await expect(
+        handlers.executeRpcCall({
+          rpcName: rpcName.editFile,
+          args: { targetFile: '/a.scad', oldString: 'a', newString: 'b' },
+          toolCallId: 'tool_call_ef_1',
+        } as RpcCallInput),
+      ).rejects.toThrow('boom');
+
+      expect(ledgerMocks.recordRpcOutcome).toHaveBeenCalledWith('chat_ledger_err', 'tool_call_ef_1', {
+        kind: 'error',
+        errorCode: 'IO_ERROR',
+        message: 'boom',
+      });
+    });
+
+    it('collapses non-string error codes to UNKNOWN before recording', async () => {
+      // T2.2: numeric `code` (not in the enum) collapses to UNKNOWN, never the
+      // free-form string '42'. This is what protects downstream `errorText`
+      // JSON consumers from receiving codes outside `rpcClientErrorCodeSchema`.
+      rpcDispatcherMocks.dispatch.mockRejectedValue(Object.assign(new Error('numeric'), { code: 42 }));
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_numeric',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await expect(
+        handlers.executeRpcCall({
+          rpcName: rpcName.createFile,
+          args: { targetFile: '/x.scad', content: '//' },
+          toolCallId: 'tool_call_num_1',
+        } as RpcCallInput),
+      ).rejects.toThrow('numeric');
+
+      expect(ledgerMocks.recordRpcOutcome).toHaveBeenCalledWith('chat_ledger_numeric', 'tool_call_num_1', {
+        kind: 'error',
+        errorCode: 'UNKNOWN',
+        message: 'numeric',
+      });
+    });
+
+    it('collapses missing error.code to UNKNOWN before recording', async () => {
+      // T2.4: bare error with no `code` lands as UNKNOWN.
+      rpcDispatcherMocks.dispatch.mockRejectedValue(new Error('plain'));
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_nocode',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await expect(
+        handlers.executeRpcCall({
+          rpcName: rpcName.deleteFile,
+          args: { targetFile: '/y.scad' },
+          toolCallId: 'tool_call_plain_1',
+        } as RpcCallInput),
+      ).rejects.toThrow('plain');
+
+      expect(ledgerMocks.recordRpcOutcome).toHaveBeenCalledWith('chat_ledger_nocode', 'tool_call_plain_1', {
+        kind: 'error',
+        errorCode: 'UNKNOWN',
+        message: 'plain',
+      });
+    });
+
+    it('collapses unknown string error codes to UNKNOWN before recording', async () => {
+      // T2.2 follow-on: a string code that is not a valid `RpcClientErrorCode`
+      // member (e.g. an arbitrary infra error string) collapses to UNKNOWN
+      // rather than being persisted verbatim.
+      rpcDispatcherMocks.dispatch.mockRejectedValue(Object.assign(new Error('unknown-str'), { code: 'E_RPC' }));
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_strcode',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await expect(
+        handlers.executeRpcCall({
+          rpcName: rpcName.appendFile,
+          args: { targetFile: '/y.scad', content: '//' },
+          toolCallId: 'tool_call_estr_1',
+        } as RpcCallInput),
+      ).rejects.toThrow('unknown-str');
+
+      expect(ledgerMocks.recordRpcOutcome).toHaveBeenCalledWith('chat_ledger_strcode', 'tool_call_estr_1', {
+        kind: 'error',
+        errorCode: 'UNKNOWN',
+        message: 'unknown-str',
+      });
+
+      // Sanity: the canonical schema would have rejected this too.
+      expect(rpcClientErrorCodeSchema.safeParse('E_RPC').success).toBe(false);
+    });
+
+    it('does not record read-only RPC outcomes', async () => {
+      rpcDispatcherMocks.dispatch.mockResolvedValue({ content: 'x', totalLines: 1 });
+
+      const mockFm = createMockFileManager();
+      const ts = createMockTreeService();
+      vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
+
+      const handlers = createRpcHandlers({
+        chatId: 'chat_ledger_readonly',
+        fileManager: mockFm as RpcHandlerDependencies['fileManager'],
+        projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
+        resolveGraphicsForFile: undefined,
+        screenshotQuality: 0.8,
+      });
+
+      await handlers.executeRpcCall({
+        rpcName: rpcName.readFile,
+        args: { targetFile: '/a.scad' },
+        toolCallId: 'tool_call_rf_1',
+      } as RpcCallInput);
+
+      expect(ledgerMocks.recordRpcOutcome).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===============================================================
   // createRpcHandlers (factory)
   // ===============================================================
 
@@ -1017,6 +1230,7 @@ describe('rpc-handlers', () => {
       vi.mocked(mockFm.whenServicesReady).mockResolvedValue({ treeService: ts });
 
       const handlers = createRpcHandlers({
+        chatId: 'chat_rpc_handlers_factory_test',
         fileManager: mockFm as RpcHandlerDependencies['fileManager'],
         projectRef: createMockBuildRef() as unknown as RpcHandlerDependencies['projectRef'],
         resolveGraphicsForFile: undefined,

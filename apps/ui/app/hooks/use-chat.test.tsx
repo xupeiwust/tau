@@ -37,7 +37,10 @@ type FakeChat = {
   sendMessage: ReturnType<typeof vi.fn>;
   regenerate: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
-  onFinish: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean }) => void;
+  // Private in AI SDK source; chat-session-store uses a typed shim. Exposed
+  // as a public spy here so we can assert continuation flows.
+  makeRequest: ReturnType<typeof vi.fn>;
+  onFinish: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean; isDisconnect: boolean }) => void;
   onError: (error: Error) => void;
 };
 
@@ -67,6 +70,7 @@ vi.mock('@ai-sdk/react', () => ({
     public sendMessage = vi.fn().mockResolvedValue(undefined);
     public regenerate = vi.fn().mockResolvedValue(undefined);
     public stop = vi.fn().mockResolvedValue(undefined);
+    public makeRequest = vi.fn().mockResolvedValue(undefined);
     readonly #messagesListeners = new Set<() => void>();
     readonly #statusListeners = new Set<() => void>();
     readonly #errorListeners = new Set<() => void>();
@@ -74,7 +78,12 @@ vi.mock('@ai-sdk/react', () => ({
     constructor(init: {
       id: string;
       messages?: MyUIMessage[];
-      onFinish?: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean }) => void;
+      onFinish?: (event: {
+        messages: MyUIMessage[];
+        isAbort: boolean;
+        isError: boolean;
+        isDisconnect: boolean;
+      }) => void;
       onError?: (error: Error) => void;
     }) {
       this.id = init.id;
@@ -260,6 +269,23 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     expect(fake.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('routes a `continueChat` request through to chat.makeRequest({ trigger: "submit-message" })', () => {
+    const { result } = renderProvider();
+
+    act(() => {
+      result.current.actions.continueChat();
+    });
+
+    const fake = getFake(defaultTestChatId);
+    expect(fake.makeRequest).toHaveBeenCalledTimes(1);
+    expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
+    // Critical: the partial-assistant-preserving recovery path MUST NOT
+    // touch regenerate (which slices the trailing assistant) or sendMessage
+    // (which appends a new user turn).
+    expect(fake.regenerate).not.toHaveBeenCalled();
+    expect(fake.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('routes a `stop` request through to chat.stop', () => {
     const { result } = renderProvider();
 
@@ -320,6 +346,10 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     expect(fake.messages[0]!.id).toBe('msg_user');
     expect(fake.messages[0]!.metadata?.model).toBe('new-model');
     expect(fake.regenerate).toHaveBeenCalledTimes(1);
+    // Regression guard for R1: per-message Try Again must NEVER bleed into
+    // the resumable-stream `continue` path (which would skip the message
+    // tail rollback and fail to re-issue the user turn).
+    expect(fake.makeRequest).not.toHaveBeenCalled();
   });
 
   it('skips retry dispatch when the target message is missing', () => {
@@ -451,7 +481,7 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     // Simulate the AI SDK aborting and calling onFinish — the store wired
     // this callback into `persistenceActorRef.send({ type: 'requestFinished', ... })`.
     act(() => {
-      fake.onFinish({ messages: [first], isAbort: true, isError: false });
+      fake.onFinish({ messages: [first], isAbort: true, isError: false, isDisconnect: false });
     });
 
     expect(fake.sendMessage).toHaveBeenCalledTimes(2);
@@ -487,7 +517,7 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     expect(fake.stop).toHaveBeenCalledTimes(1);
 
     act(() => {
-      fake.onFinish({ messages: [pending], isAbort: true, isError: false });
+      fake.onFinish({ messages: [pending], isAbort: true, isError: false, isDisconnect: false });
     });
 
     // Store's `applyStoppedRequest` listener marks the trailing pending
@@ -528,12 +558,201 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     });
 
     act(() => {
-      fake.onFinish({ messages: [], isAbort: false, isError: true });
+      fake.onFinish({ messages: [], isAbort: false, isError: true, isDisconnect: false });
     });
 
     expect(persistenceActorRef.getSnapshot().context.persistedError).toMatchObject({
       message: 'network died',
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // R4: onFinish forwards `isDisconnect` to the persistence machine.
+  // The machine then opens its `retrying` substate to drive transparent
+  // auto-retry. The store is the only seam between the AI SDK callback and
+  // the actor event so this test pins the wiring at the public boundary.
+  // ---------------------------------------------------------------------------
+
+  it('forwards isDisconnect=true into the requestFinished event so requestLifecycle enters `retrying`', async () => {
+    const { result } = renderProvider('chat_disco');
+    const persistenceActorRef = result.current.context.persistenceActorRef!;
+
+    await waitFor(() => {
+      expect(persistenceActorRef.getSnapshot().matches({ chatLoading: 'idle' })).toBe(true);
+    });
+
+    act(() => {
+      result.current.actions.sendMessage(makeUserMessage('msg_send', 'go'));
+    });
+
+    const fake = getFake('chat_disco');
+
+    act(() => {
+      fake.onFinish({ messages: [], isAbort: false, isError: true, isDisconnect: true });
+    });
+
+    expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+    expect(persistenceActorRef.getSnapshot().context.retryAttempt).toBe(1);
+  });
+
+  it('forwards isDisconnect=false (e.g. structured 4xx) so requestLifecycle settles in `idle`', async () => {
+    const { result } = renderProvider('chat_no_disco');
+    const persistenceActorRef = result.current.context.persistenceActorRef!;
+
+    await waitFor(() => {
+      expect(persistenceActorRef.getSnapshot().matches({ chatLoading: 'idle' })).toBe(true);
+    });
+
+    act(() => {
+      result.current.actions.sendMessage(makeUserMessage('msg_send', 'go'));
+    });
+
+    const fake = getFake('chat_no_disco');
+
+    act(() => {
+      fake.onFinish({ messages: [], isAbort: false, isError: true, isDisconnect: false });
+    });
+
+    expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+    expect(persistenceActorRef.getSnapshot().context.retryAttempt).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // T15 / T16: full integration cycles for transparent auto-retry.
+  //
+  // These exercise the end-to-end wiring across:
+  //   onFinish (R4) -> requestFinished -> retrying -> backoff -> dispatchRequest
+  //                 -> chat.makeRequest -> onFinish (success) -> idle
+  //
+  // Both paths assert that chat.messages is preserved across the cycle so
+  // the user never sees the partial-assistant flicker that prompted this work.
+  // ---------------------------------------------------------------------------
+
+  it('full cycle: success after one retry preserves chat.messages and never trips the banner', async () => {
+    const { result } = renderProvider('chat_t15');
+    const persistenceActorRef = result.current.context.persistenceActorRef!;
+
+    await waitFor(() => {
+      expect(persistenceActorRef.getSnapshot().matches({ chatLoading: 'idle' })).toBe(true);
+    });
+
+    // Switch to fake timers AFTER loading so loadChatActor microtasks settle
+    // first; otherwise the actor never reaches `chatLoading.idle` and every
+    // following waitFor times out.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    try {
+      const userMessage = makeUserMessage('msg_user', 'render a cube');
+      act(() => {
+        result.current.actions.sendMessage(userMessage);
+      });
+
+      const fake = getFake('chat_t15');
+      fake.messages = [
+        userMessage,
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal test message
+        {
+          id: 'msg_assistant',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'thinking', state: 'streaming' }],
+          metadata: { createdAt: 0 },
+        } as MyUIMessage,
+      ];
+      const partialMessagesRef = fake.messages;
+
+      act(() => {
+        fake.onFinish({ messages: fake.messages, isAbort: false, isError: true, isDisconnect: true });
+      });
+
+      expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+      expect(persistenceActorRef.getSnapshot().context.retryAttempt).toBe(1);
+      expect(fake.messages).toBe(partialMessagesRef);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+
+      expect(fake.makeRequest).toHaveBeenCalledTimes(1);
+      expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
+      expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+
+      act(() => {
+        fake.onFinish({ messages: fake.messages, isAbort: false, isError: false, isDisconnect: false });
+      });
+
+      expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+      expect(persistenceActorRef.getSnapshot().context.retryAttempt).toBe(0);
+      expect(persistenceActorRef.getSnapshot().context.persistedError).toBeUndefined();
+      expect(fake.messages).toBe(partialMessagesRef);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('full cycle: budget exhaustion preserves chat.messages and surfaces persistedError', async () => {
+    const { result } = renderProvider('chat_t16');
+    const persistenceActorRef = result.current.context.persistenceActorRef!;
+
+    await waitFor(() => {
+      expect(persistenceActorRef.getSnapshot().matches({ chatLoading: 'idle' })).toBe(true);
+    });
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    try {
+      const userMessage = makeUserMessage('msg_user', 'render a cube');
+      act(() => {
+        result.current.actions.sendMessage(userMessage);
+      });
+
+      const fake = getFake('chat_t16');
+      fake.messages = [
+        userMessage,
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal test message
+        {
+          id: 'msg_assistant',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'partial...', state: 'streaming' }],
+          metadata: { createdAt: 0 },
+        } as MyUIMessage,
+      ];
+      const partialMessagesRef = fake.messages;
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      act(() => {
+        fake.onError(new Error('Failed to fetch'));
+      });
+
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        act(() => {
+          fake.onFinish({ messages: fake.messages, isAbort: false, isError: true, isDisconnect: true });
+        });
+        expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+        expect(persistenceActorRef.getSnapshot().context.retryAttempt).toBe(attempt);
+
+        // oxlint-disable-next-line no-await-in-loop -- sequential timer advancement is the entire point of this loop; parallelising would race the actor transitions
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(60_000);
+        });
+        expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+      }
+
+      // 6th disconnect: budget exhausted -> idle, persistedError preserved.
+      act(() => {
+        fake.onFinish({ messages: fake.messages, isAbort: false, isError: true, isDisconnect: true });
+      });
+
+      consoleErrorSpy.mockRestore();
+      expect(persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'idle' })).toBe(true);
+      expect(persistenceActorRef.getSnapshot().context.persistedError).toMatchObject({
+        message: 'Failed to fetch',
+      });
+      // Critical: across the entire 5-retry chain plus exhaustion, the
+      // partial assistant tail in chat.messages is untouched.
+      expect(fake.messages).toBe(partialMessagesRef);
+      expect(fake.regenerate).not.toHaveBeenCalled();
+      expect(fake.sendMessage).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

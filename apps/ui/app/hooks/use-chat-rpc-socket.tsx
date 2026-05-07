@@ -24,6 +24,8 @@ import { useProject, useResolveGraphicsForFile } from '#hooks/use-project.js';
 import { useFileManager } from '#hooks/use-file-manager.js';
 import { useImageQuality } from '#hooks/use-image-quality.js';
 
+type RpcHandlerDepsBase = Omit<RpcHandlerDependencies, 'chatId'>;
+
 // -----------------------------------------------------------------------------
 // Context
 // -----------------------------------------------------------------------------
@@ -140,7 +142,7 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
 
   // Store dependencies in a ref so handler always uses current values
   // without causing effect re-runs when deps change
-  const depsRef = useRef<RpcHandlerDependencies | undefined>(undefined);
+  const depsRef = useRef<RpcHandlerDepsBase | undefined>(undefined);
   depsRef.current = {
     fileManager,
     resolveGraphicsForFile,
@@ -149,52 +151,57 @@ export function useChatRpcConnection(options: UseChatRpcConnectionOptions): UseC
   };
 
   // Create stable RPC request handler that reads deps from ref
-  const handleRpcRequest: RpcRequestHandler = useCallback(async (request: RpcRequest): Promise<RpcResponse> => {
-    const deps = depsRef.current;
-    if (!deps) {
-      return {
-        type: 'rpc_response',
-        rpcName: request.rpcName,
-        requestId: request.requestId,
-        toolCallId: request.toolCallId,
-        result: undefined,
-        error: 'RPC handler not initialized',
-      };
-    }
+  const handleRpcRequest: RpcRequestHandler = useCallback(
+    async (request: RpcRequest): Promise<RpcResponse> => {
+      const baseDeps = depsRef.current;
+      if (!baseDeps || !chatId) {
+        const errorReason = baseDeps ? 'RPC handler requires chatId' : 'RPC handler not initialized';
 
-    const { requestId, toolCallId, rpcName: currentRpcName } = request;
+        return {
+          type: 'rpc_response',
+          rpcName: request.rpcName,
+          requestId: request.requestId,
+          toolCallId: request.toolCallId,
+          result: undefined,
+          error: errorReason,
+        };
+      }
 
-    // Verify this is a valid RPC operation (runtime guard for malformed wire payloads).
-    const isValidRpc = rpcNames.includes(currentRpcName);
-    if (!isValidRpc) {
-      console.warn(`[ChatRpcSocket] Received request for unknown RPC: ${String(currentRpcName)}`);
-      return {
-        type: 'rpc_response',
-        rpcName: currentRpcName,
-        requestId,
-        toolCallId,
-        result: undefined,
-        error: `Unknown RPC: ${String(currentRpcName)}`,
-      };
-    }
+      const { requestId, toolCallId, rpcName: currentRpcName } = request;
 
-    try {
-      const handlers = createRpcHandlers(deps);
+      // Verify this is a valid RPC operation (runtime guard for malformed wire payloads).
+      const isValidRpc = rpcNames.includes(currentRpcName);
+      if (!isValidRpc) {
+        console.warn(`[ChatRpcSocket] Received request for unknown RPC: ${String(currentRpcName)}`);
+        return {
+          type: 'rpc_response',
+          rpcName: currentRpcName,
+          requestId,
+          toolCallId,
+          result: undefined,
+          error: `Unknown RPC: ${String(currentRpcName)}`,
+        };
+      }
 
-      const result = await handlers.executeRpcCall(request);
+      try {
+        const handlers = createRpcHandlers({ ...baseDeps, chatId });
 
-      return rpcWireSuccessResponse(request, result);
-    } catch (execError) {
-      return {
-        type: 'rpc_response',
-        rpcName: request.rpcName,
-        requestId: request.requestId,
-        toolCallId: request.toolCallId,
-        result: undefined,
-        error: execError instanceof Error ? execError.message : 'Unknown error',
-      };
-    }
-  }, []); // No dependencies - reads from ref
+        const result = await handlers.executeRpcCall(request);
+
+        return rpcWireSuccessResponse(request, result);
+      } catch (execError) {
+        return {
+          type: 'rpc_response',
+          rpcName: request.rpcName,
+          requestId: request.requestId,
+          toolCallId: request.toolCallId,
+          result: undefined,
+          error: execError instanceof Error ? execError.message : 'Unknown error',
+        };
+      }
+    },
+    [chatId],
+  );
 
   // Join/leave chat room based on enabled and chatId
   // Only re-runs when chatId or enabled changes, NOT when deps change

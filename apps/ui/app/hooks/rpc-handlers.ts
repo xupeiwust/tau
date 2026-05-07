@@ -19,7 +19,8 @@ import type {
   CaptureScreenshotRpcResult,
   FetchGeometryRpcResult,
 } from '@taucad/chat';
-import { rpcClientErrorCode } from '@taucad/chat';
+import { rpcClientErrorCode, rpcClientErrorCodeSchema } from '@taucad/chat';
+import { mutatingRpcNames } from '@taucad/chat/constants';
 import { createRpcDispatcher } from '@taucad/chat/rpc';
 import type {
   RpcDependencies,
@@ -35,6 +36,7 @@ import { generatePrefixedId } from '@taucad/utils/id';
 import { DirectoryListingFailedError, DirectoryListingErrorCode } from '@taucad/fs-client/directory-listing';
 import type { FileTreeService } from '@taucad/fs-client/file-tree-service';
 
+import { recordRpcOutcome } from '#services/rpc-ledger.js';
 import { screenshotRequestMachine, orthographicViews } from '#machines/screenshot-request.machine.js';
 import type { graphicsMachine } from '#machines/graphics.machine.js';
 import type { projectMachine } from '#machines/project.machine.js';
@@ -63,9 +65,31 @@ type RpcHandlerTreeService = {
 };
 
 /**
+ * Coerces an arbitrary thrown value into a {@link RpcClientErrorCode}.
+ *
+ * Reads `error.code` if present and validates against the canonical
+ * `rpcClientErrorCodeSchema` enum. Anything that doesn't parse (missing,
+ * non-string, or unknown enum member) collapses to `rpcClientErrorCode.unknown`
+ * so the ledger never stores a free-form string that downstream consumers
+ * (chat-utils, error-text JSON) would have to defensively re-validate.
+ */
+function extractRpcClientErrorCode(execError: unknown): RpcClientErrorCode {
+  if (execError && typeof execError === 'object' && 'code' in execError) {
+    const candidate: unknown = (execError as { code: unknown }).code;
+    const parsed = rpcClientErrorCodeSchema.safeParse(candidate);
+    if (parsed.success) {
+      return parsed.data;
+    }
+  }
+  return rpcClientErrorCode.unknown;
+}
+
+/**
  * Dependencies required for RPC execution.
  */
 export type RpcHandlerDependencies = {
+  /** Active chat thread identifier (ledger + Socket.IO room correlation). */
+  chatId: string;
   fileManager: {
     readFile: (path: string) => Promise<Uint8Array<ArrayBuffer>>;
     writeFile: (path: string, data: Uint8Array<ArrayBuffer>, options: { source: FileWriteSource }) => Promise<void>;
@@ -521,7 +545,7 @@ function createBrowserGraphicsClient(
  * to createRpcDispatcher from @taucad/chat/rpc.
  */
 export function createRpcHandlers(deps: RpcHandlerDependencies): RpcHandlers {
-  const { fileManager, resolveGraphicsForFile, projectRef, screenshotQuality } = deps;
+  const { chatId, fileManager, resolveGraphicsForFile, projectRef, screenshotQuality } = deps;
 
   const rpcDeps: RpcDependencies = {
     fileSystem: createBrowserRpcFileSystem(fileManager),
@@ -536,8 +560,28 @@ export function createRpcHandlers(deps: RpcHandlerDependencies): RpcHandlers {
   return {
     async executeRpcCall<C extends RpcCallInput>(rpcCall: C): Promise<RpcResult<C['rpcName']>> {
       const call = { rpcName: rpcCall.rpcName, args: rpcCall.args };
-      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- wire/union `RpcRequest` does not keep `rpcName`↔`args` paired in a fresh object for tsgo; handlers still correlate at runtime
-      return dispatcher.dispatch<C['rpcName']>(call as RpcCall<C['rpcName']>);
+      const shouldLedger = mutatingRpcNames.has(rpcCall.rpcName);
+
+      try {
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- wire/union `RpcRequest` does not keep `rpcName`↔`args` paired in a fresh object for tsgo; handlers still correlate at runtime
+        const result = await dispatcher.dispatch<C['rpcName']>(call as RpcCall<C['rpcName']>);
+        if (shouldLedger) {
+          recordRpcOutcome(chatId, rpcCall.toolCallId, { kind: 'success', output: result });
+        }
+
+        return result;
+      } catch (execError) {
+        if (shouldLedger) {
+          const message = execError instanceof Error ? execError.message : String(execError);
+          recordRpcOutcome(chatId, rpcCall.toolCallId, {
+            kind: 'error',
+            errorCode: extractRpcClientErrorCode(execError),
+            message,
+          });
+        }
+
+        throw execError;
+      }
     },
   };
 }

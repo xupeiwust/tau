@@ -1,6 +1,6 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles, WifiOff } from 'lucide-react';
 import { messageRole } from '@taucad/chat/constants';
-import { useChatSelector } from '#hooks/use-chat.js';
+import { useChatRetrySnapshot, useChatSelector } from '#hooks/use-chat.js';
 import { cn } from '#utils/ui.utils.js';
 import {
   ChatToolCard,
@@ -58,7 +58,10 @@ export function ChatMessagePlanning({
   messageId,
   className,
 }: ChatMessagePlanningProperties): React.JSX.Element | undefined {
-  const isStreamingOrSubmitted = useChatSelector((state) => ['submitted', 'streaming'].includes(state.status));
+  const status = useChatSelector((state) => state.status);
+  const isStreamingOrSubmitted = ['submitted', 'streaming'].includes(status);
+  const { retryAttempt, retryMaxAttempts } = useChatRetrySnapshot();
+  const isReconnecting = retryAttempt > 0;
 
   const message = useChatSelector((state) => state.messagesById.get(messageId));
 
@@ -85,8 +88,17 @@ export function ChatMessagePlanning({
     return false;
   });
 
-  // Show "Planning next moves" when streaming/submitted and this message qualifies for the indicator
-  const shouldShowPlanning = isStreamingOrSubmitted && shouldShowPlanningIndicator;
+  const isLastMessage = useChatSelector((state) => state.messages.at(-1)?.id === messageId);
+
+  // Two display modes share this slot:
+  //   - "Planning next moves..." while the AI SDK is actively streaming/submitted
+  //     AND the trailing message is in the idle-between-parts posture (gate above).
+  //   - "Reconnecting... N/M" while the persistence machine is between auto-retry
+  //     dispatches — show under the trailing message even when parts are still
+  //     streaming (mid-token / mid-tool-input disconnect); do NOT require
+  //     `areAllPartsConcluded`.
+  const shouldShowPlanning =
+    (isStreamingOrSubmitted && shouldShowPlanningIndicator) || (isReconnecting && isLastMessage);
 
   if (!shouldShowPlanning) {
     return undefined;
@@ -99,11 +111,17 @@ export function ChatMessagePlanning({
     <div className={cn(isUser ? 'ml-2' : undefined, className)}>
       <ChatToolCard variant='minimal' status='loading' isCollapsible={false}>
         <ChatToolCardHeader>
-          <ChatToolCardIcon icon={Sparkles} />
+          <ChatToolCardIcon icon={isReconnecting ? WifiOff : Sparkles} />
           <ChatToolCardTitle>
-            <ChatToolLabel verb='Planning'>
-              <ChatToolDescription>next moves...</ChatToolDescription>
-            </ChatToolLabel>
+            {isReconnecting ? (
+              <ChatToolLabel verb='Reconnecting'>
+                <ChatToolDescription>{`${retryAttempt}/${retryMaxAttempts}...`}</ChatToolDescription>
+              </ChatToolLabel>
+            ) : (
+              <ChatToolLabel verb='Planning'>
+                <ChatToolDescription>next moves...</ChatToolDescription>
+              </ChatToolLabel>
+            )}
           </ChatToolCardTitle>
         </ChatToolCardHeader>
       </ChatToolCard>

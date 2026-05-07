@@ -124,6 +124,18 @@ export type ToolUserInterruptedError = {
 };
 
 /**
+ * Chat SSE/stream ended before the tool invocation could complete (non-transport
+ * structured API failure). Distinct from {@link ToolDisconnectedError} (transport).
+ * @public
+ */
+export type ToolStreamError = {
+  errorCode: 'STREAM_ERROR';
+  message: string;
+  toolName: string;
+  toolCallId: string;
+};
+
+/**
  * Structured error for when a tool completes successfully but returns no results.
  * Common with web extraction (blocked pages, JS-rendered content, auth-gated sites).
  * Treated as a recoverable, expected case rather than a failure.
@@ -148,6 +160,7 @@ export type ToolExecutionError =
   | ToolValidationError
   | ToolGenericExecutionError
   | ToolUserInterruptedError
+  | ToolStreamError
   | ToolNoResultsError;
 
 // =============================================================================

@@ -8,16 +8,23 @@
  * following the pattern from use-project.tsx.
  */
 
-import { setup, assign, emit } from 'xstate';
+import { setup, assign, emit, raise } from 'xstate';
 import type { Chat, MyUIMessage } from '@taucad/chat';
 import type { ChatError } from '@taucad/types';
 import type { KernelId } from '@taucad/types/constants';
+import { getRetryDelay } from '#utils/backoff.utils.js';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
 
 // Input types
 export type ChatPersistenceMachineInput = {
   activeChatId?: string;
   resourceId?: string;
+  /**
+   * Override the auto-retry budget for this session. Tests use a small value
+   * (e.g. 2) to keep the retry-exhaustion path fast; production keeps the
+   * default of 5.
+   */
+  retryMaxAttempts?: number;
 };
 
 /**
@@ -28,12 +35,52 @@ export type ChatPersistenceMachineInput = {
  * - `regenerate`: re-roll the last assistant turn with the existing message tail
  * - `edit`: replace a user message and regenerate from there
  * - `retry`: roll back to a prior user message (optionally re-targeting a model) and regenerate
+ * - `continue`: resume a stream that was interrupted (network failure, manual
+ *   banner click, or transparent auto-retry). Distinct from `regenerate`
+ *   because it must NOT slice the assistant tail — partial parts already
+ *   visible to the user are preserved end-to-end. The consumer translates
+ *   this into AI SDK's private `Chat.makeRequest({ trigger: 'submit-message' })`
+ *   so `chat.messages` stays untouched.
  */
 export type ChatRequest =
   | { kind: 'send'; message: MyUIMessage }
   | { kind: 'regenerate' }
   | { kind: 'edit'; messageId: string; content: string; model: string; imageUrls?: string[] }
-  | { kind: 'retry'; messageId: string; modelId?: string };
+  | { kind: 'retry'; messageId: string; modelId?: string }
+  | { kind: 'continue' };
+
+/**
+ * Why the in-flight chat request ended, forwarded to `finalizeInterruptedToolParts`
+ * so persisted tool errors reflect user-stop vs transport vs stream failure.
+ */
+export type RequestTerminationCause = 'user_stop' | 'preempt' | 'disconnect' | 'error' | 'success';
+
+function deriveFinishedRequestCause(event: {
+  isAbort: boolean;
+  isError: boolean;
+  isDisconnect: boolean;
+}): RequestTerminationCause {
+  if (event.isError) {
+    if (event.isAbort) {
+      return 'user_stop';
+    }
+
+    if (event.isDisconnect) {
+      return 'disconnect';
+    }
+
+    return 'error';
+  }
+
+  if (event.isAbort) {
+    return 'user_stop';
+  }
+
+  return 'success';
+}
+
+/** Default retry budget. Mirrors Claude Code's transient-error allowance. */
+const defaultRetryMaxAttempts = 5;
 
 // Context
 export type ChatPersistenceMachineContext = {
@@ -67,6 +114,18 @@ export type ChatPersistenceMachineContext = {
    * as {@link ChatPersistenceMachineContext.activeModel}.
    */
   activeKernel?: KernelId;
+  /**
+   * Number of consecutive transparent auto-retry attempts the
+   * `requestLifecycle.retrying` substate has dispatched for the current
+   * stream. Reset to 0 once a turn settles successfully or the user takes
+   * a fresh action. `0` means we are not in a retry chain.
+   */
+  retryAttempt: number;
+  /**
+   * Hard cap on auto-retry attempts before we hand off to the manual error
+   * banner. Reads from machine input; defaults to {@link defaultRetryMaxAttempts}.
+   */
+  retryMaxAttempts: number;
 };
 
 export type ChatRetrievedEvent = { type: 'chatRetrieved'; chat: Chat | undefined };
@@ -83,10 +142,29 @@ type ChatPersistenceMachineEvents =
   // Request lifecycle
   | { type: 'startRequest'; request: ChatRequest }
   | { type: 'stopRequest' }
-  | { type: 'requestFinished'; messages: MyUIMessage[]; isAbort: boolean; isError: boolean }
+  | {
+      type: 'requestFinished';
+      messages: MyUIMessage[];
+      isAbort: boolean;
+      isError: boolean;
+      /**
+       * `true` when AI SDK classifies the failure as a transport-level
+       * disconnect (`TypeError: Failed to fetch` and friends) rather than a
+       * structured 4xx/5xx returned by the API. Used by `requestLifecycle`
+       * to gate transparent auto-retry on truly transient breaks.
+       */
+      isDisconnect: boolean;
+    }
   // Active selection (chat-scoped model / kernel)
   | { type: 'setActiveModel'; model: string | undefined }
   | { type: 'setActiveKernel'; kernel: KernelId | undefined }
+  /**
+   * AI SDK entered `status: 'streaming'` again — bytes are flowing after a
+   * transport blip. Resets the transparent retry counter and clears the
+   * persisted error layer in the same frame as `chat.error` clears (see
+   * `ChatSessionStore` `~registerStatusCallback`).
+   */
+  | { type: 'streamResumed' }
   | ChatRetrievedEvent;
 
 /**
@@ -102,9 +180,9 @@ type ChatPersistenceMachineEvents =
 type ChatPersistenceMachineEmitted =
   | { type: 'dispatchRequest'; request: ChatRequest }
   | { type: 'dispatchStop' }
-  | { type: 'applyFinishedRequest'; messages: MyUIMessage[] }
-  | { type: 'applyStoppedRequest'; messages: MyUIMessage[] }
-  | { type: 'applyResumedRequest'; messages: MyUIMessage[]; pendingRequest: ChatRequest };
+  | { type: 'applyFinishedRequest'; messages: MyUIMessage[]; cause: RequestTerminationCause }
+  | { type: 'applyStoppedRequest'; messages: MyUIMessage[]; cause: 'user_stop' }
+  | { type: 'applyResumedRequest'; messages: MyUIMessage[]; pendingRequest: ChatRequest; cause: 'preempt' };
 
 const loadChatActor = fromSafeAsync<ChatRetrievedEvent, { chatId: string }>(async () => {
   throw new Error('loadChatActor not provided');
@@ -178,6 +256,14 @@ export const chatPersistenceMachine = setup({
   },
   delays: {
     persistDebounce: 100,
+    /**
+     * Computed at scheduling time off the post-`assign` `retryAttempt`
+     * counter, so each `retrying` re-entry advances the curve. See
+     * {@link getRetryDelay} for the curve specification.
+     */
+    streamRetryDelay({ context }) {
+      return getRetryDelay(context.retryAttempt);
+    },
   },
 }).createMachine({
   id: 'chatPersistence',
@@ -193,6 +279,8 @@ export const chatPersistenceMachine = setup({
       pendingRequest: undefined,
       activeModel: undefined,
       activeKernel: undefined,
+      retryAttempt: 0,
+      retryMaxAttempts: input.retryMaxAttempts ?? defaultRetryMaxAttempts,
     };
   },
   type: 'parallel',
@@ -360,6 +448,8 @@ export const chatPersistenceMachine = setup({
                 assign({
                   persistedError: undefined,
                   pendingRequest: ({ event }) => event.request,
+                  // User initiated a fresh action -- abandon any in-flight retry chain.
+                  retryAttempt: 0,
                 }),
                 emit({ type: 'dispatchStop' }),
               ],
@@ -368,17 +458,80 @@ export const chatPersistenceMachine = setup({
               target: 'stopping',
               actions: emit({ type: 'dispatchStop' }),
             },
-            requestFinished: {
-              target: 'idle',
+            streamResumed: {
+              actions: [assign({ retryAttempt: 0, persistedError: undefined }), raise({ type: 'clearPersistedError' })],
+            },
+            // Three-way guarded transition:
+            //   1. Transient transport disconnect with budget remaining --> retrying
+            //   2. Any other failure --> idle, leave persistedError so the banner stays up
+            //   3. Success/abort --> idle, clear persistedError, reset retry counter
+            requestFinished: [
+              {
+                guard: ({ context, event }) =>
+                  event.isError && event.isDisconnect && context.retryAttempt < context.retryMaxAttempts,
+                target: 'retrying',
+              },
+              {
+                guard: ({ event }) => event.isError,
+                target: 'idle',
+                actions: [
+                  // Mid-stream errors keep persistedError (set by onError) visible.
+                  assign({ retryAttempt: 0 }),
+                  emit(({ event }) => ({
+                    type: 'applyFinishedRequest',
+                    messages: event.messages,
+                    cause: deriveFinishedRequestCause(event),
+                  })),
+                ],
+              },
+              {
+                target: 'idle',
+                actions: [
+                  // Success/abort clears persistedError and the retry counter.
+                  assign({ persistedError: undefined, retryAttempt: 0 }),
+                  emit(({ event }) => ({
+                    type: 'applyFinishedRequest',
+                    messages: event.messages,
+                    cause: deriveFinishedRequestCause(event),
+                  })),
+                ],
+              },
+            ],
+          },
+        },
+        // Transparent auto-retry on transport-level disconnects.
+        // Persisted error stays set so consumers can render a "Reconnecting..."
+        // indicator instead of the destructive failure banner. After
+        // `streamRetryDelay` (exponential backoff with jitter) we re-dispatch
+        // the in-flight stream as a `continue` request so partial assistant
+        // parts stay in `chat.messages`.
+        retrying: {
+          entry: assign({ retryAttempt: ({ context }) => context.retryAttempt + 1 }),
+          after: {
+            streamRetryDelay: {
+              target: 'invoking',
+              actions: emit({ type: 'dispatchRequest', request: { kind: 'continue' } }),
+            },
+          },
+          on: {
+            // User submitted a fresh action mid-backoff -- exit `retrying`
+            // (XState auto-cancels the `after` timer) and dispatch the new
+            // request through the same path as `idle.startRequest`.
+            startRequest: {
+              target: 'invoking',
               actions: [
-                // Mid-stream errors keep persistedError (set by onError) visible.
-                // Success/abort clear it as a safety net for any stale state.
-                assign({
-                  persistedError: ({ context, event }) => (event.isError ? context.persistedError : undefined),
-                }),
-                emit(({ event }) => ({ type: 'applyFinishedRequest', messages: event.messages })),
+                assign({ persistedError: undefined, retryAttempt: 0 }),
+                emit(({ event }) => ({ type: 'dispatchRequest', request: event.request })),
               ],
             },
+            // User explicitly bailed during backoff -- drop the chain.
+            // The `after` timer is auto-cancelled on state exit.
+            stopRequest: {
+              target: 'idle',
+              actions: assign({ retryAttempt: 0 }),
+            },
+            // Late `streaming` status callbacks during the backoff window — ignore.
+            streamResumed: {},
           },
         },
         stopping: {
@@ -400,6 +553,7 @@ export const chatPersistenceMachine = setup({
                     type: 'applyResumedRequest',
                     messages: event.messages,
                     pendingRequest: context.pendingRequest!,
+                    cause: 'preempt',
                   })),
                   emit(({ context }) => ({
                     type: 'dispatchRequest',
@@ -413,6 +567,7 @@ export const chatPersistenceMachine = setup({
                 actions: emit(({ event }) => ({
                   type: 'applyStoppedRequest',
                   messages: event.messages,
+                  cause: 'user_stop',
                 })),
               },
             ],

@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/explicit-member-accessibility -- mock class constructors omit the `public` keyword to mirror the AI SDK's published shape. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Chat as ChatEntity, MyUIMessage } from '@taucad/chat';
+import { clearLedger, recordRpcOutcome } from '#services/rpc-ledger.js';
 
 // ---------------------------------------------------------------------------
 // Hoisted test harness
@@ -24,6 +25,10 @@ type FakeChatInstance = {
   sendMessage: ReturnType<typeof vi.fn>;
   regenerate: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
+  // Private in AI SDK source; the chat-session-store reaches it via a typed
+  // shim. The mock exposes it as a public spy so tests can assert the
+  // continuation path calls it with the expected arg shape.
+  makeRequest: ReturnType<typeof vi.fn>;
   // Test driver — invoke any registered messages callback
   emitMessagesChange: () => void;
   emitStatusChange: () => void;
@@ -48,6 +53,7 @@ vi.mock('@ai-sdk/react', () => ({
     public sendMessage = vi.fn().mockResolvedValue(undefined);
     public regenerate = vi.fn().mockResolvedValue(undefined);
     public stop = vi.fn().mockResolvedValue(undefined);
+    public makeRequest = vi.fn().mockResolvedValue(undefined);
     readonly #messagesListeners = new Set<() => void>();
     readonly #statusListeners = new Set<() => void>();
     readonly #errorListeners = new Set<() => void>();
@@ -516,9 +522,152 @@ describe('ChatSessionStore', () => {
     });
   });
 
-  // ===========================================================================
-  // hydration: setActiveChatId is sent to the persistence actor
-  // ===========================================================================
+  describe('milestone incremental persistence', () => {
+    it('queues debounced IndexedDB persistence when milestone parts appear on the trailing assistant row', async () => {
+      vi.useFakeTimers();
+      const chatIdForMilestonePersistence = 'chat_milestone_integration';
+      const store = new ChatSessionStore();
+      const deps = createStubDeps();
+      store.setDependencies(deps);
+
+      store.acquire(chatIdForMilestonePersistence);
+      await vi.runOnlyPendingTimersAsync();
+      deps.patchChat.mockClear();
+
+      const fake = harness.created.at(-1)!;
+      fake.messages = [
+        {
+          id: 'm_as_ms',
+          role: 'assistant',
+          metadata: { model: 'test-model', createdAt: 1 },
+          parts: [
+            {
+              type: 'tool-create_file',
+              toolCallId: 'tc_done_ms',
+              state: 'output-available',
+              input: { targetFile: 'a.scad', content: '//' },
+              output: {
+                message: 'ok',
+                diffStats: {
+                  linesAdded: 1,
+                  linesRemoved: 0,
+                  originalContent: '',
+                  modifiedContent: '//',
+                },
+              },
+            },
+          ],
+        },
+      ];
+
+      fake.emitMessagesChange();
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(deps.patchChat).toHaveBeenCalledTimes(1);
+      expect(deps.patchChat).toHaveBeenCalledWith(chatIdForMilestonePersistence, 'messages', fake.messages);
+
+      vi.useRealTimers();
+
+      store.release(chatIdForMilestonePersistence);
+    });
+
+    it('preserves ledger-success tools through stop finalization while restoring output on the stalled tool part', async () => {
+      vi.useFakeTimers();
+
+      try {
+        const chatLedgerStopIntegration = 'chat_stop_ledger_integration';
+        const diffOutputB = {
+          message: '',
+          diffStats: {
+            linesAdded: 1,
+            linesRemoved: 0,
+            originalContent: '',
+            modifiedContent: '// b',
+          },
+        };
+
+        const store = new ChatSessionStore();
+        const deps = createStubDeps();
+        store.setDependencies(deps);
+
+        const session = store.acquire(chatLedgerStopIntegration);
+        await Promise.resolve();
+
+        deps.patchChat.mockClear();
+
+        const fake = harness.created.at(-1)!;
+        fake.messages = [
+          {
+            id: 'm_as_ls',
+            role: 'assistant',
+            metadata: { model: 'test-model', createdAt: 2 },
+            parts: [
+              {
+                type: 'tool-create_file',
+                toolCallId: 'tool_call_settled_integration',
+                state: 'output-available',
+                input: { targetFile: 'a.scad', content: '// a' },
+                output: {
+                  message: '',
+                  diffStats: {
+                    linesAdded: 1,
+                    linesRemoved: 0,
+                    originalContent: '',
+                    modifiedContent: '// a',
+                  },
+                },
+              },
+              {
+                type: 'tool-create_file',
+                toolCallId: 'tool_call_rpc_settled_but_ui_pending',
+                state: 'input-available',
+                input: { targetFile: 'b.scad', content: '// b' },
+              },
+            ],
+          },
+        ];
+
+        session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'regenerate' } });
+        session.persistenceActorRef.send({ type: 'stopRequest' });
+
+        recordRpcOutcome(chatLedgerStopIntegration, 'tool_call_rpc_settled_but_ui_pending', {
+          kind: 'success',
+          output: diffOutputB,
+        });
+
+        session.persistenceActorRef.send({
+          type: 'requestFinished',
+          messages: [...fake.messages],
+          isAbort: true,
+          isError: false,
+          isDisconnect: false,
+        });
+
+        await vi.advanceTimersByTimeAsync(100);
+        await vi.runOnlyPendingTimersAsync();
+
+        const lastPatchCallArgs = deps.patchChat.mock.calls.at(-1);
+        expect(lastPatchCallArgs).toBeDefined();
+        const persistedMessages = lastPatchCallArgs![2];
+        expect(Array.isArray(persistedMessages)).toBe(true);
+        const msgs = persistedMessages as MyUIMessage[];
+
+        const lastAssistant = msgs.at(-1);
+        expect(lastAssistant?.role).toBe('assistant');
+        const parts = lastAssistant?.parts ?? [];
+        expect((parts[0] as { state: string }).state).toBe('output-available');
+
+        expect((parts[1] as { state: string }).state).toBe('output-available');
+        expect((parts[1] as { output: typeof diffOutputB }).output).toEqual(diffOutputB);
+
+        store.release(chatLedgerStopIntegration);
+        clearLedger(chatLedgerStopIntegration);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 
   describe('hydration on acquire', () => {
     it('calls deps.getChat on first acquire so hydration kicks off', async () => {
@@ -543,6 +692,153 @@ describe('ChatSessionStore', () => {
       await Promise.resolve();
 
       expect(deps.getChat).toHaveBeenCalledWith('chat_a');
+    });
+  });
+
+  // ===========================================================================
+  // R4 + R1: onFinish forwards isDisconnect, dispatchRequest({kind:'continue'})
+  // calls makeRequest({trigger:'submit-message'}) without slicing chat.messages
+  // ===========================================================================
+  describe('resumable streams (R4 plumbing + R1 continue dispatch)', () => {
+    it('dispatchRequest { kind: "continue" } calls chat.makeRequest({ trigger: "submit-message" }) and does NOT mutate chat.messages', () => {
+      const store = createStore();
+      const session = store.acquire('chat_resume');
+      const fake = harness.created.find((entry) => entry.id === 'chat_resume')!;
+      const before: MyUIMessage[] = [
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal MyUIMessage shape for test
+        {
+          id: 'msg_user_1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hi' }],
+          metadata: { createdAt: 0 },
+        } as MyUIMessage,
+      ];
+      fake.messages = before;
+      const beforeRef = fake.messages;
+
+      session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'continue' } });
+
+      expect(fake.makeRequest).toHaveBeenCalledTimes(1);
+      expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
+      // Identity check: chat.messages reference unchanged.
+      expect(fake.messages).toBe(beforeRef);
+      expect(fake.regenerate).not.toHaveBeenCalled();
+      expect(fake.sendMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('tool cause attribution (TT3)', () => {
+    it('does not persist on disconnect retry; completion persists after streamResumed + messages', async () => {
+      vi.useFakeTimers();
+      try {
+        const chatId = 'chat_tt3_retry';
+        const store = new ChatSessionStore();
+        const deps = createStubDeps();
+        store.setDependencies(deps);
+
+        const session = store.acquire(chatId);
+        await Promise.resolve();
+        deps.patchChat.mockClear();
+
+        const fake = harness.created.at(-1)!;
+        fake.messages = [
+          {
+            id: 'm_as',
+            role: 'assistant',
+            metadata: { model: 'test-model', createdAt: 2 },
+            parts: [
+              {
+                type: 'tool-create_file',
+                toolCallId: 'tc_tt3',
+                state: 'input-streaming',
+                input: { targetFile: 'z.scad', content: '//' },
+              },
+            ],
+          },
+        ];
+
+        session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'regenerate' } });
+
+        session.persistenceActorRef.send({
+          type: 'requestFinished',
+          messages: [...fake.messages],
+          isAbort: false,
+          isError: true,
+          isDisconnect: true,
+        });
+
+        expect(session.persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'retrying' })).toBe(true);
+        expect((fake.messages[0]!.parts[0] as { state: string }).state).toBe('input-streaming');
+        expect(deps.patchChat).not.toHaveBeenCalled();
+
+        const output = {
+          message: '',
+          diffStats: {
+            linesAdded: 1,
+            linesRemoved: 0,
+            originalContent: '',
+            modifiedContent: '// ok',
+          },
+        };
+
+        fake.messages = [
+          {
+            ...fake.messages[0]!,
+            parts: [
+              {
+                type: 'tool-create_file',
+                toolCallId: 'tc_tt3',
+                state: 'output-available',
+                input: { targetFile: 'z.scad', content: '//' },
+                output,
+              },
+            ],
+          },
+        ];
+
+        session.persistenceActorRef.send({ type: 'streamResumed' });
+        fake.emitMessagesChange();
+
+        await vi.advanceTimersByTimeAsync(100);
+        await vi.runOnlyPendingTimersAsync();
+
+        expect(deps.patchChat).toHaveBeenCalled();
+        const persisted = deps.patchChat.mock.calls.at(-1)![2] as MyUIMessage[];
+        const persistedPart = persisted.at(-1)?.parts[0] as { state: string; output: typeof output };
+        expect(persistedPart.state).toBe('output-available');
+        expect(persistedPart.output).toEqual(output);
+
+        store.release(chatId);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('streamResumed (R6)', () => {
+    it('T21: sends streamResumed to the persistence actor only on transition into streaming', () => {
+      const store = createStore();
+      const session = store.acquire('chat_r6');
+      const fake = harness.created.find((entry) => entry.id === 'chat_r6')!;
+      const sendSpy = vi.spyOn(session.persistenceActorRef, 'send');
+
+      const countStreamResumed = (): number =>
+        sendSpy.mock.calls.filter((call) => call[0].type === 'streamResumed').length;
+
+      fake.status = 'submitted';
+      fake.emitStatusChange();
+      const afterSubmitted = countStreamResumed();
+
+      fake.status = 'streaming';
+      fake.emitStatusChange();
+      const afterStreaming = countStreamResumed();
+
+      expect(afterSubmitted).toBe(0);
+      expect(afterStreaming).toBe(1);
+
+      // Idempotent repeated "streaming" emissions without a status change.
+      fake.emitStatusChange();
+      expect(countStreamResumed()).toBe(1);
     });
   });
 });

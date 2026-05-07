@@ -4,7 +4,7 @@ import { ChevronRight, RefreshCcw } from 'lucide-react';
 import { errorCategory } from '@taucad/types/constants';
 import type { ChatError as NormalizedChatError } from '@taucad/types';
 import { Button } from '#components/ui/button.js';
-import { useChatActions, useChatSelector } from '#hooks/use-chat.js';
+import { useChatActions, useChatRetrySnapshot, useChatSelector } from '#hooks/use-chat.js';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#components/ui/collapsible.js';
 import { CodeViewer } from '#components/code/code-viewer.js';
 import { MarkdownViewer } from '#components/markdown/markdown-viewer.js';
@@ -30,7 +30,7 @@ function tryFormatJson(text: string): string {
 
 export const ChatError = memo(function ({ className }: { readonly className?: string }): React.ReactNode {
   const [genericDetailsOpen, setGenericDetailsOpen] = useState(false);
-
+  const { retryAttempt } = useChatRetrySnapshot();
   // Derive parsed error inside selector - prefer runtime error, fallback to persisted
   const parsedError = useChatSelector((state): NormalizedChatError | undefined => {
     if (state.error) {
@@ -39,11 +39,33 @@ export const ChatError = memo(function ({ className }: { readonly className?: st
 
     return state.persistedError;
   });
-  const { regenerate } = useChatActions();
+  const { regenerate, continueChat } = useChatActions();
+
+  // R7: hide the banner during transparent auto-retry; the reconnecting affordance
+  // is `ChatMessagePlanning`, not this component. The early return MUST sit below
+  // every hook call -- crossing the hook list with a conditional return triggers
+  // React error #300 ("Rendered fewer hooks than expected") on the
+  // retryAttempt 0 -> N transition, which the FloatingPanel boundary then
+  // surfaces as the "Chat Unavailable" screen.
+  if (retryAttempt > 0) {
+    return null;
+  }
 
   if (!parsedError) {
     return null;
   }
+
+  // Pick the recovery action based on whether the underlying failure invalidates
+  // the request itself (auth/credits/rateLimit/toolError -> `regenerate`, the
+  // request payload needs to change) or only invalidates the connection
+  // (network/server/overloaded -> `continueChat`, the partial assistant tail
+  // is still valid). Generic falls through to `regenerate` because we don't
+  // know whether it's safe to resume.
+  const isResumableCategory =
+    parsedError.category === errorCategory.network ||
+    parsedError.category === errorCategory.server ||
+    parsedError.category === errorCategory.overloaded;
+  const handleRetry = isResumableCategory ? continueChat : regenerate;
 
   // Render the generic/server error view with collapsible details
   const renderGenericError = (): React.ReactNode => {
@@ -79,7 +101,7 @@ export const ChatError = memo(function ({ className }: { readonly className?: st
                   className='h-7 shrink-0 hover:border-neutral/50'
                   size='sm'
                   onClick={() => {
-                    regenerate();
+                    handleRetry();
                   }}
                 >
                   <RefreshCcw className='size-3.5' />

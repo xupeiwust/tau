@@ -3,15 +3,20 @@ import type { ErrorCategory, ChatError } from '@taucad/types';
 import { errorCategoryTitles } from '@taucad/chat/utils';
 
 /**
- * Checks if error is a client-side network error (never reaches the API).
+ * Client-side transport failure (request never reaches the API as structured JSON).
+ * Mirrors AI SDK `Chat.makeRequest` disconnect classification in `ai` package
+ * (`ai/src/ui/chat.ts`, TypeError branch: `fetch` / `network` substrings on the message).
  */
-function isNetworkError(message: string): boolean {
-  return (
-    message.includes('Failed to fetch') ||
-    message.includes('NetworkError') ||
-    message.includes('net::ERR_') ||
-    message.includes('Load failed')
-  );
+function isTransportError(error: Error): boolean {
+  if (error instanceof TypeError) {
+    const lowered = error.message.toLowerCase();
+    if (lowered.includes('fetch') || lowered.includes('network')) {
+      return true;
+    }
+  }
+
+  const lowered = error.message.toLowerCase();
+  return lowered.includes('load failed') || error.message.includes('net::ERR_');
 }
 
 /**
@@ -67,7 +72,7 @@ function tryParseChatError(message: string): ChatError | undefined {
  */
 export function parseErrorForPersistence(error: Error): ChatError {
   // Handle client-side network errors (these never reach the API)
-  if (isNetworkError(error.message)) {
+  if (isTransportError(error)) {
     return {
       category: errorCategory.network,
       title: errorCategoryTitles[errorCategory.network],

@@ -16,7 +16,7 @@ type FakeChat = {
   sendMessage: ReturnType<typeof vi.fn>;
   regenerate: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
-  onFinish: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean }) => void;
+  onFinish: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean; isDisconnect: boolean }) => void;
   onError: (error: Error) => void;
 };
 
@@ -46,7 +46,12 @@ vi.mock('@ai-sdk/react', () => ({
     constructor(init: {
       id: string;
       messages?: MyUIMessage[];
-      onFinish?: (event: { messages: MyUIMessage[]; isAbort: boolean; isError: boolean }) => void;
+      onFinish?: (event: {
+        messages: MyUIMessage[];
+        isAbort: boolean;
+        isError: boolean;
+        isDisconnect: boolean;
+      }) => void;
       onError?: (error: Error) => void;
     }) {
       this.id = init.id;

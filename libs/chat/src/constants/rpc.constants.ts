@@ -35,6 +35,48 @@ export const rpcName = {
 export const rpcNames = Object.values(rpcName) as [(typeof rpcName)[keyof typeof rpcName]];
 
 /**
+ * RPC operation names whose execution mutates client-side state (the user's
+ * filesystem). Used by the UI's `rpcLedger` to decide which outcomes to
+ * record so that `finalizeInterruptedToolParts` can preserve mutations that
+ * already settled on the client when an SSE stream is interrupted before
+ * the matching `tool-output-available` chunk arrives.
+ *
+ * Read-only RPCs (`readFile`, `grep`, `globSearch`, `listDirectory`,
+ * `getKernelResult`, `captureScreenshot`, etc.) intentionally bypass the
+ * ledger — re-issuing them after an interrupt is harmless.
+ *
+ * Adding a new mutating RPC requires adding it here; the partition invariant
+ * test in `rpc.constants.test.ts` enforces that every `rpcName` is classified
+ * exactly once.
+ * @public
+ */
+export const mutatingRpcNames = new Set<(typeof rpcName)[keyof typeof rpcName]>([
+  rpcName.createFile,
+  rpcName.deleteFile,
+  rpcName.appendFile,
+  rpcName.editFile,
+]);
+
+/**
+ * RPC operation names that do not mutate client-side state. Complement of
+ * {@link mutatingRpcNames}. Authored explicitly (rather than computed) so
+ * that mis-categorising a new RPC is a build-time failure of the partition
+ * invariant test, not a silent omission.
+ * @public
+ */
+export const readOnlyRpcNames = new Set<(typeof rpcName)[keyof typeof rpcName]>([
+  rpcName.readFile,
+  rpcName.listDirectory,
+  rpcName.grep,
+  rpcName.globSearch,
+  rpcName.getKernelResult,
+  rpcName.captureObservations,
+  rpcName.fetchGeometry,
+  rpcName.exportGeometry,
+  rpcName.captureScreenshot,
+]);
+
+/**
  * Error codes for RPC infrastructure failures.
  * These represent issues with the RPC transport/execution itself,
  * not business-level errors from the client.

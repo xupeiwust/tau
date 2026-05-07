@@ -1,7 +1,14 @@
 import process from 'node:process';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyUIMessage } from '@taucad/chat';
-import { createMessage, serializeMessage, serializeTranscript } from '#utils/chat.utils.js';
+import {
+  createMessage,
+  finalizeInterruptedToolParts,
+  serializeMessage,
+  serializeTranscript,
+} from '#utils/chat.utils.js';
+import type { RequestTerminationCause } from '#hooks/chat-persistence.machine.js';
+import { clearLedger, recordRpcOutcome } from '#services/rpc-ledger.js';
 import { metaConfig } from '#constants/meta.constants.js';
 
 const baseMessage = (parts: MyUIMessage['parts']): MyUIMessage => ({
@@ -520,6 +527,173 @@ describe('serializeTranscript', () => {
   it('emits role header only when message body is empty (e.g. step-start only)', () => {
     const message = baseMessage([{ type: 'step-start' }]);
     expect(serializeTranscript([message], 'Test Chat')).toBe(`${header}\n\n---\n\n**Assistant**\n`);
+  });
+});
+
+describe('finalizeInterruptedToolParts', () => {
+  afterEach(() => {
+    clearLedger('chat_finalize_test');
+  });
+
+  it('returns the same reference when the last message is not an assistant message', () => {
+    const userOnly: MyUIMessage[] = [
+      { id: 'u', role: 'user', parts: [{ type: 'text', text: 'hi' }], metadata: { createdAt: 1 } },
+    ];
+
+    expect(finalizeInterruptedToolParts(userOnly, undefined, 'user_stop')).toBe(userOnly);
+  });
+
+  it.each<{
+    cause: RequestTerminationCause;
+    expectedCode: 'USER_INTERRUPTED' | 'CLIENT_DISCONNECTED' | 'STREAM_ERROR';
+    expectedMessage: string;
+  }>([
+    {
+      cause: 'user_stop',
+      expectedCode: 'USER_INTERRUPTED',
+      expectedMessage: 'Interrupted by user.',
+    },
+    {
+      cause: 'preempt',
+      expectedCode: 'USER_INTERRUPTED',
+      expectedMessage: 'Interrupted by user.',
+    },
+    {
+      cause: 'disconnect',
+      expectedCode: 'CLIENT_DISCONNECTED',
+      expectedMessage: 'The network dropped while the tool was running.',
+    },
+    {
+      cause: 'error',
+      expectedCode: 'STREAM_ERROR',
+      expectedMessage: 'The chat stream ended before this tool could finish.',
+    },
+  ])(
+    'demotes in-flight tools to the fallback error for cause $cause when ledger is unavailable',
+    ({ cause, expectedCode, expectedMessage }) => {
+      const messages: MyUIMessage[] = [
+        {
+          id: 'a',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-create_file',
+              toolCallId: 'tc_x',
+              state: 'input-available',
+              input: { targetFile: 'z.scad', content: '//' },
+            },
+          ],
+          metadata: { model: 'm', createdAt: 2 },
+        },
+      ];
+
+      const next = finalizeInterruptedToolParts(messages, 'chat_finalize_test', cause);
+
+      expect(next).not.toBe(messages);
+      const part = next.at(-1)!.parts[0]!;
+      expect(part.type).toBe('tool-create_file');
+      expect((part as { state: string }).state).toBe('output-error');
+
+      expect(JSON.parse((part as { errorText: string }).errorText)).toEqual({
+        errorCode: expectedCode,
+        message: expectedMessage,
+        toolCallId: 'tc_x',
+        toolName: 'create_file',
+      });
+    },
+  );
+
+  it('upgrades interrupted parts to output-available when the ledger captured success', () => {
+    recordRpcOutcome('chat_finalize_test', 'tc_keep', {
+      kind: 'success',
+      output: { wrote: true },
+    });
+
+    const messages: MyUIMessage[] = [
+      {
+        id: 'a',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-create_file',
+            toolCallId: 'tc_keep',
+            state: 'input-available',
+            input: { targetFile: 'z.scad', content: '//' },
+          },
+        ],
+        metadata: { model: 'm', createdAt: 2 },
+      },
+    ];
+
+    const next = finalizeInterruptedToolParts(messages, 'chat_finalize_test', 'disconnect');
+
+    const part = next.at(-1)!.parts[0] as { state: string; output: unknown };
+    expect(part.state).toBe('output-available');
+    expect(part.output).toEqual({ wrote: true });
+  });
+
+  it('writes output-error using ledger codes when ledger captured failure', () => {
+    recordRpcOutcome('chat_finalize_test', 'tc_fail', {
+      kind: 'error',
+      errorCode: 'IO_ERROR',
+      message: 'broken',
+    });
+
+    const messages: MyUIMessage[] = [
+      {
+        id: 'a',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-create_file',
+            toolCallId: 'tc_fail',
+            state: 'input-available',
+            input: { targetFile: 'z.scad', content: '//' },
+          },
+        ],
+        metadata: { model: 'm', createdAt: 2 },
+      },
+    ];
+
+    const next = finalizeInterruptedToolParts(messages, 'chat_finalize_test', 'error');
+    const { errorText } = next.at(-1)!.parts[0] as { errorText: string };
+    expect(JSON.parse(errorText)).toMatchObject({
+      errorCode: 'IO_ERROR',
+      message: 'broken',
+      toolName: 'create_file',
+      toolCallId: 'tc_fail',
+    });
+  });
+
+  // T2.6: chatId provided but no ledger entry → USER_INTERRUPTED preserved.
+  it('falls through to USER_INTERRUPTED when chatId is provided but ledger has no entry', () => {
+    const messages: MyUIMessage[] = [
+      {
+        id: 'a',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-create_file',
+            toolCallId: 'tc_no_ledger',
+            state: 'input-available',
+            input: { targetFile: 'z.scad', content: '//' },
+          },
+        ],
+        metadata: { model: 'm', createdAt: 2 },
+      },
+    ];
+
+    const next = finalizeInterruptedToolParts(messages, 'chat_finalize_test', 'user_stop');
+
+    expect(next).not.toBe(messages);
+    const part = next.at(-1)!.parts[0] as { state: string; errorText: string };
+    expect(part.state).toBe('output-error');
+    expect(JSON.parse(part.errorText)).toMatchObject({
+      errorCode: 'USER_INTERRUPTED',
+      message: 'Interrupted by user.',
+      toolCallId: 'tc_no_ledger',
+      toolName: 'create_file',
+    });
   });
 });
 

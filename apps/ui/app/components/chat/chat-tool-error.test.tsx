@@ -55,6 +55,22 @@ describe('StructuredToolError', () => {
     expect(icon?.getAttribute('class') ?? '').not.toContain('text-destructive');
   });
 
+  it('should render STREAM_ERROR with Stream Failed title and destructive icon', () => {
+    render(<StructuredToolError error={createError('STREAM_ERROR')} />);
+
+    expect(screen.getByText('Stream Failed')).toBeInTheDocument();
+    const icon = screen.getByRole('button').querySelector('svg');
+    expect(icon?.getAttribute('class') ?? '').toContain('text-destructive');
+  });
+
+  it('should render CLIENT_DISCONNECTED with Connection Lost title and destructive icon', () => {
+    render(<StructuredToolError error={createError('CLIENT_DISCONNECTED')} />);
+
+    expect(screen.getByText('Connection Lost')).toBeInTheDocument();
+    const icon = screen.getByRole('button').querySelector('svg');
+    expect(icon?.getAttribute('class') ?? '').toContain('text-destructive');
+  });
+
   it('should render every error inside a collapsible (trigger present, body initially closed)', () => {
     render(<StructuredToolError error={createError('TOOL_NO_RESULTS')} />);
 

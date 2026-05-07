@@ -10,7 +10,7 @@ export const ChatErrorServiceUnavailable = memo(function ({
 }: {
   readonly className?: string;
 }): React.JSX.Element {
-  const { regenerate } = useChatActions();
+  const { continueChat } = useChatActions();
 
   return (
     <div className={cn('flex flex-col gap-2 rounded-md border border-warning/20 bg-warning/10 p-3 text-sm', className)}>
@@ -27,7 +27,10 @@ export const ChatErrorServiceUnavailable = memo(function ({
           variant='outline'
           size='sm'
           onClick={() => {
-            regenerate();
+            // Resume the interrupted stream WITHOUT slicing the trailing assistant
+            // tail. `regenerate()` would discard partial parts the user already
+            // saw -- the whole point of this banner is recovery, not re-roll.
+            continueChat();
           }}
         >
           <RefreshCcw className='size-3.5' />

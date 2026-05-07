@@ -35,6 +35,7 @@ import type { ChatStatus } from 'ai';
 import { createActor } from 'xstate';
 import type { ActorRefFrom } from 'xstate';
 import type { Chat as ChatEntity, MyUIMessage } from '@taucad/chat';
+import { isToolPart } from '@taucad/chat';
 import { generatePrefixedId } from '@taucad/utils/id';
 import { idPrefix } from '@taucad/types/constants';
 import { fromSafeAsync } from '#lib/xstate.lib.js';
@@ -44,6 +45,7 @@ import { draftMachine } from '#hooks/draft.machine.js';
 import { resizeImageActor } from '#hooks/resize-image.actor.js';
 import { inspect } from '#machines/inspector.js';
 import { ENV } from '#environment.config.js';
+import { clearLedger } from '#services/rpc-ledger.js';
 import { parseErrorForPersistence } from '#utils/error.utils.js';
 import { extractMimeTypeFromDataUrl, finalizeInterruptedToolParts } from '#utils/chat.utils.js';
 
@@ -154,6 +156,27 @@ function aggregateUsageCost(messages: readonly MyUIMessage[]): number {
   return total;
 }
 
+function countPersistMilestones(message: MyUIMessage): number {
+  let count = 0;
+  for (const part of message.parts) {
+    if (isToolPart(part) && (part.state === 'output-available' || part.state === 'output-error')) {
+      count += 1;
+      continue;
+    }
+
+    if (part.type === 'text' && 'state' in part && part.state === 'done') {
+      count += 1;
+      continue;
+    }
+
+    if (part.type === 'reasoning' && 'state' in part && part.state === 'done') {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
 // ---------------------------------------------------------------------------
 // ChatSessionStore
 // ---------------------------------------------------------------------------
@@ -238,6 +261,7 @@ export class ChatSessionStore {
     session.persistenceActorRef.stop();
     session.draftActorRef.stop();
     this.#sessions.delete(chatId);
+    clearLedger(chatId);
     this.#refreshSnapshot();
     this.#notifyMembership();
   }
@@ -371,8 +395,8 @@ export class ChatSessionStore {
       id: chatId,
       transport: sharedChatTransport,
       generateId: () => generatePrefixedId(idPrefix.message),
-      onFinish({ messages, isAbort, isError }) {
-        persistenceActorRef.send({ type: 'requestFinished', messages, isAbort, isError });
+      onFinish({ messages, isAbort, isError, isDisconnect }) {
+        persistenceActorRef.send({ type: 'requestFinished', messages, isAbort, isError, isDisconnect });
       },
       onError(error) {
         persistenceActorRef.send({ type: 'handleError', error });
@@ -382,6 +406,16 @@ export class ChatSessionStore {
         });
       },
     });
+
+    const milestonePersistState = {
+      lastPersistedMilestoneIndex: -1,
+      lastPersistedMilestonePartCount: 0,
+    };
+
+    const resetMilestonePersistTracking = (): void => {
+      milestonePersistState.lastPersistedMilestoneIndex = -1;
+      milestonePersistState.lastPersistedMilestonePartCount = 0;
+    };
 
     // Translate persistence-actor emits into AI SDK side effects on the
     // store-owned `Chat`. Identical wiring to the prior `<ChatInstance>` —
@@ -415,6 +449,32 @@ export class ChatSessionStore {
           }
           chat.messages = next;
           void chat.regenerate();
+          return;
+        }
+
+        // Resume an interrupted stream WITHOUT slicing chat.messages.
+        // AI SDK's public surface only ships `sendMessage`/`regenerate`/
+        // `resumeStream` (the latter requires a server-side resumable-stream
+        // backend we don't run yet -- see docs/research/resumable-chat-streams.md).
+        // The private `Chat.makeRequest({ trigger: 'submit-message' })` is the
+        // exact pathway both `sendMessage` and `regenerate` use internally,
+        // minus the message mutation step. Pinned to ai@6.0.x; the contract
+        // test in chat-session-store.contract.test.ts fails loudly the moment
+        // AI SDK renames or removes this method.
+        case 'continue': {
+          type ChatMakeRequestShim = {
+            makeRequest: (args: {
+              trigger: 'submit-message' | 'resume-stream' | 'regenerate-message';
+            }) => Promise<void>;
+          };
+          // `makeRequest` is declared `private` in AI SDK's source so a direct
+          // intersection collapses to `never`. We hop through `unknown` to
+          // forcibly re-shape the runtime value -- the contract test in
+          // chat-session-store.contract.test.ts asserts the method exists at
+          // runtime so this assertion can never silently rot.
+          // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- typed shim over AI SDK's private method, guarded by chat-session-store.contract.test.ts
+          const chatShim = chat as unknown as ChatMakeRequestShim;
+          void chatShim.makeRequest({ trigger: 'submit-message' });
         }
       }
     });
@@ -423,16 +483,18 @@ export class ChatSessionStore {
       void chat.stop();
     });
 
-    const finishedSubscription = persistenceActorRef.on('applyFinishedRequest', ({ messages }) => {
-      const sanitized = finalizeInterruptedToolParts(messages);
+    const finishedSubscription = persistenceActorRef.on('applyFinishedRequest', ({ messages, cause }) => {
+      resetMilestonePersistTracking();
+      const sanitized = finalizeInterruptedToolParts(messages, chatId, cause);
       if (sanitized !== messages) {
         chat.messages = sanitized;
       }
       persistenceActorRef.send({ type: 'queuePersist', messages: sanitized });
     });
 
-    const stoppedSubscription = persistenceActorRef.on('applyStoppedRequest', ({ messages }) => {
-      let sanitized = finalizeInterruptedToolParts(messages);
+    const stoppedSubscription = persistenceActorRef.on('applyStoppedRequest', ({ messages, cause }) => {
+      resetMilestonePersistTracking();
+      let sanitized = finalizeInterruptedToolParts(messages, chatId, cause);
 
       const last = sanitized.at(-1);
       if (last?.role === 'user' && last.metadata?.status === 'pending') {
@@ -446,8 +508,9 @@ export class ChatSessionStore {
       persistenceActorRef.send({ type: 'queuePersist', messages: sanitized });
     });
 
-    const resumedSubscription = persistenceActorRef.on('applyResumedRequest', ({ messages }) => {
-      const sanitized = finalizeInterruptedToolParts(messages);
+    const resumedSubscription = persistenceActorRef.on('applyResumedRequest', ({ messages, cause }) => {
+      resetMilestonePersistTracking();
+      const sanitized = finalizeInterruptedToolParts(messages, chatId, cause);
       chat.messages = sanitized;
       persistenceActorRef.send({ type: 'queuePersist', messages: sanitized });
     });
@@ -457,6 +520,20 @@ export class ChatSessionStore {
     // the AI SDK's "internal-but-intended-for-subscribers" marker — see
     // node_modules/@ai-sdk/react/dist/index.d.ts).
     const unregisterMessages = chat['~registerMessagesCallback'](() => {
+      const lastIndex = chat.messages.length - 1;
+      const last = chat.messages[lastIndex];
+      if (last?.role === 'assistant') {
+        const milestoneCount = countPersistMilestones(last);
+        if (
+          lastIndex !== milestonePersistState.lastPersistedMilestoneIndex ||
+          milestoneCount > milestonePersistState.lastPersistedMilestonePartCount
+        ) {
+          milestonePersistState.lastPersistedMilestoneIndex = lastIndex;
+          milestonePersistState.lastPersistedMilestonePartCount = milestoneCount;
+          persistenceActorRef.send({ type: 'queuePersist', messages: chat.messages });
+        }
+      }
+
       // Track per-turn cost aggregated across `data-usage` parts.
       const totalCost = aggregateUsageCost(chat.messages);
       if (totalCost > 0 && totalCost !== session.usage?.totalCost) {
@@ -473,6 +550,9 @@ export class ChatSessionStore {
       const next = chat.status;
       if (session.status !== next) {
         session.status = next;
+        if (next === 'streaming') {
+          persistenceActorRef.send({ type: 'streamResumed' });
+        }
         for (const listener of this.#statusListeners.get(chatId) ?? []) {
           listener();
         }

@@ -1,4 +1,4 @@
-import { Clock, Unplug, WifiOff, TriangleAlert, CircleStop, SearchX } from 'lucide-react';
+import { Clock, Unplug, WifiOff, TriangleAlert, CircleStop, SearchX, OctagonAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ToolExecutionError } from '@taucad/chat';
 import { getToolErrorTitle, getToolErrorDescription, parseToolErrorText } from '@taucad/chat/utils';
@@ -38,6 +38,8 @@ const errorIcons = {
   TOOL_EXECUTION_ERROR: TriangleAlert,
   // eslint-disable-next-line @typescript-eslint/naming-convention -- error code
   USER_INTERRUPTED: CircleStop,
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- error code
+  STREAM_ERROR: OctagonAlert,
   // eslint-disable-next-line @typescript-eslint/naming-convention -- error code
   TOOL_NO_RESULTS: SearchX,
 } as const;

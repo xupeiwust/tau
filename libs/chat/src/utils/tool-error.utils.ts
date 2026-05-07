@@ -15,6 +15,7 @@ export const toolErrorCodes = [
   'TOOL_OUTPUT_VALIDATION_FAILED',
   'TOOL_EXECUTION_ERROR',
   'USER_INTERRUPTED',
+  'STREAM_ERROR',
   'TOOL_NO_RESULTS',
 ] as const;
 
@@ -164,6 +165,10 @@ export function getToolErrorTitle(errorCode: ToolErrorCode): string {
       return 'Interrupted';
     }
 
+    case 'STREAM_ERROR': {
+      return 'Stream Failed';
+    }
+
     case 'TOOL_NO_RESULTS': {
       return 'No Results';
     }
@@ -202,6 +207,10 @@ export function getToolErrorDescription(errorCode: ToolErrorCode): string {
 
     case 'USER_INTERRUPTED': {
       return 'Tool execution was interrupted by user.';
+    }
+
+    case 'STREAM_ERROR': {
+      return 'The chat stream ended before this tool could finish.';
     }
 
     case 'TOOL_NO_RESULTS': {
