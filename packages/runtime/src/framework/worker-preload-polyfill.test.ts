@@ -52,7 +52,7 @@ describe('worker-preload-polyfill', () => {
      * `@taucad/runtime/testing` (see worker-preload-polyfill.ts).
      */
     (globalThis as Record<string, unknown>)['importScripts'] = function importScriptsStub(): void {
-      /* noop — presence-only marker for `inWorkerScope` detection */
+      /* No-op — presence-only marker for `inWorkerScope` detection */
     };
     vi.resetModules();
   });

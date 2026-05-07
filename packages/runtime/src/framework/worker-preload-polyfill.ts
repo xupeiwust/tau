@@ -49,7 +49,7 @@ const noop = (): void => {};
  */
 const globalScope = globalThis as Record<string, unknown>;
 const inWorkerScope =
-  typeof globalScope['WorkerGlobalScope'] !== 'undefined' || typeof globalScope['importScripts'] === 'function';
+  globalScope['WorkerGlobalScope'] !== undefined || typeof globalScope['importScripts'] === 'function';
 
 if (inWorkerScope && typeof document === 'undefined') {
   const noopElement = {
