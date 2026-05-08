@@ -9,11 +9,14 @@ import { ActiveChatProvider } from '#hooks/active-chat-provider.js';
 import { toast } from '#components/ui/sonner.js';
 import { useProjectManager } from '#hooks/use-project-manager.js';
 import { useKernel } from '#hooks/use-kernel.js';
+import { useChatActions, useChatContext } from '#hooks/use-chat.js';
 
-export function CtaSection(): React.JSX.Element {
+function CtaChatComposer(): React.JSX.Element {
   const navigate = useNavigate();
   const { kernel, setKernel } = useKernel();
   const projectManager = useProjectManager();
+  const { clearDraft } = useChatActions();
+  const { draftActorRef } = useChatContext();
 
   const onSubmit: ChatTextareaProperties['onSubmit'] = useCallback(
     async ({ content, model, metadata, imageUrls }) => {
@@ -26,16 +29,35 @@ export function CtaSection(): React.JSX.Element {
         });
 
         await navigate(`/projects/${createProject.id}`);
+        clearDraft();
+        draftActorRef.send({ type: 'flushNow' });
       } catch (error) {
         console.error('Failed to create project:', error);
         toast.error('Failed to create project');
       }
     },
-    [kernel, projectManager, navigate],
+    [kernel, projectManager, navigate, clearDraft, draftActorRef],
   );
 
   return (
-    <div className='border-t bg-gradient-to-b from-muted/50 to-background'>
+    <div className='space-y-4'>
+      <div className='flex justify-center'>
+        <KernelSelector selectedKernel={kernel} onKernelChange={setKernel} />
+      </div>
+      <ChatTextarea
+        enableAutoFocus={false}
+        enableContextActions={false}
+        enableKernelSelector={false}
+        className='pt-1'
+        onSubmit={onSubmit}
+      />
+    </div>
+  );
+}
+
+export function CtaSection(): React.JSX.Element {
+  return (
+    <div className='border-t bg-linear-to-b from-muted/50 to-background'>
       <div className='container mx-auto px-4 py-20'>
         <div className='mx-auto max-w-3xl'>
           {/* Heading */}
@@ -52,18 +74,7 @@ export function CtaSection(): React.JSX.Element {
               memory only. The marketing CTA never persists; it just routes
               into project creation on submit. */}
           <ActiveChatProvider chatId={undefined}>
-            <div className='space-y-4'>
-              <div className='flex justify-center'>
-                <KernelSelector selectedKernel={kernel} onKernelChange={setKernel} />
-              </div>
-              <ChatTextarea
-                enableAutoFocus={false}
-                enableContextActions={false}
-                enableKernelSelector={false}
-                className='pt-1'
-                onSubmit={onSubmit}
-              />
-            </div>
+            <CtaChatComposer />
           </ActiveChatProvider>
 
           {/* CTA Button */}

@@ -234,7 +234,13 @@ describe('ChatStart', () => {
       expect(mockCreateProject).toHaveBeenCalledOnce();
     });
     expect(mockCreateChat).toHaveBeenCalledTimes(0);
-    expect(mockNavigate).toHaveBeenCalledWith('/projects/project_123');
+    // `HomepageChatInput` awaits a dev-only 1200ms delay before navigation (see route.tsx).
+    await waitFor(
+      () => {
+        expect(mockNavigate).toHaveBeenCalledWith('/projects/project_123');
+      },
+      { timeout: 2000 },
+    );
   });
 
   it('should pass cookie kernel and per-message model to createProject so the seeded chat owns them', async () => {

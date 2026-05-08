@@ -34,7 +34,26 @@ export type ChatEditorProps = {
   readonly contextKeydownRef: React.RefObject<((event: KeyboardEvent) => boolean) | undefined>;
   // oxlint-disable-next-line @typescript-eslint/no-restricted-types -- React ref object
   readonly slashKeydownRef: React.RefObject<((event: KeyboardEvent) => boolean) | undefined>;
+  /**
+   * When true, paints the contenteditable text with the shared
+   * `animate-shiny-text` shimmer gradient (bg-clip-text +
+   * text-transparent) so the user's just-submitted message visibly reads
+   * as "in flight" while the chat status is `'submitted'`. Caller is
+   * responsible for also disabling Tiptap editing via
+   * `editor.setEditable(false)` so the text can't be mutated mid-flight.
+   */
+  readonly isLoading?: boolean;
 };
+
+// Shimmer treatment applied to the inner `.tiptap` contenteditable while
+// `isLoading` is true. Mirrors the gradient stack used by
+// `AnimatedShinyText` so the composer text reads as live and matches the
+// `Planning next moves...` indicator from `chat-message-planning.tsx`.
+const tiptapShimmerOverrides = cn(
+  '[&_.tiptap]:bg-clip-text [&_.tiptap]:text-transparent',
+  '[&_.tiptap]:animate-shiny-text [&_.tiptap]:bg-repeat [&_.tiptap]:[background-size:170%_100%]',
+  '[&_.tiptap]:bg-gradient-to-r [&_.tiptap]:from-foreground/30 [&_.tiptap]:via-foreground [&_.tiptap]:via-25% [&_.tiptap]:to-foreground/30 [&_.tiptap]:to-50%',
+);
 
 export const ChatEditor = memo(function ChatEditor({
   editor,
@@ -43,6 +62,7 @@ export const ChatEditor = memo(function ChatEditor({
   slashCommandState,
   contextKeydownRef,
   slashKeydownRef,
+  isLoading = false,
 }: ChatEditorProps): React.JSX.Element {
   return (
     <>
@@ -53,6 +73,7 @@ export const ChatEditor = memo(function ChatEditor({
           'mb-10 size-full max-h-48 min-h-6 overflow-y-auto',
           'px-3 pb-3 pt-2',
           'text-sm',
+          isLoading && tiptapShimmerOverrides,
           className,
         )}
       />

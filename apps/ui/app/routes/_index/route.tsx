@@ -186,11 +186,9 @@ function HomepageChatInput({
           editorState: { panelState: { openPanels: { chat: true } } },
         });
 
+        await navigate(`/projects/${createProject.id}`);
         clearDraft();
         draftActorRef.send({ type: 'flushNow' });
-
-        // Navigate immediately - the project page will handle the streaming
-        await navigate(`/projects/${createProject.id}`);
       } catch (error) {
         console.error('Failed to create project:', error);
         toast.error('Failed to create project');

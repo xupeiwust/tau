@@ -14,6 +14,7 @@ import { SvgIcon } from '#components/icons/svg-icon.js';
 import { formatKeyCombination } from '#utils/keys.utils.js';
 import { cn } from '#utils/ui.utils.js';
 import { ChatContextIndicator } from '#components/chat/chat-context-indicator.js';
+import { ChatTextareaBorderBeam } from '#components/chat/chat-textarea-border-beam.js';
 import { ChatTextareaDesktopImages } from '#components/chat/chat-textarea-desktop-images.js';
 import { ChatTextareaSubmitButton } from '#components/chat/chat-textarea-submit-button.js';
 import { focusTrapAttribute } from '#components/chat/chat-textarea-types.js';
@@ -230,6 +231,18 @@ export const ChatTextareaDesktop = memo(function ({
     }
   }, [enableAutoFocus, editor]);
 
+  // Lock Tiptap while `await onSubmit(...)` is in-flight inside the textarea
+  // hook (homepage create-project + `await navigate`, vs fire-and-forget
+  // `sendMessage` on the project route). Only long submits flip `true`,
+  // so the tracer beam + shimmer indicate CDN-heavy navigation without
+  // flashing during normal chat sends on `/projects/:id`.
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    editor.setEditable(!isSubmitting);
+  }, [editor, isSubmitting]);
+
   const focusEditor = useCallback(() => {
     editorRef.current?.commands.focus('end');
   }, []);
@@ -251,68 +264,77 @@ export const ChatTextareaDesktop = memo(function ({
   const isDisabled = inputText.trim().length === 0 && images.length === 0;
 
   return (
-    <div
-      ref={containerReference}
-      className={cn(
-        'group/chat-textarea @container',
-        'relative flex size-full flex-col rounded-2xl border bg-background',
-        'cursor-text overflow-auto',
-        'shadow-md',
-        'focus-within:border-primary/50',
-        className,
-      )}
-      onBlur={handleTextareaBlur}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* Editor */}
-      <div className={cn('flex size-full flex-col overflow-auto')} onClick={handleEditorAreaClick}>
-        <ChatEditor
-          editor={editor}
-          className={cn(images.length > 0 ? 'pt-10' : 'pt-2')}
-          contextSuggestionState={chatEditor.contextSuggestionState}
-          slashCommandState={chatEditor.slashCommandState}
-          contextKeydownRef={chatEditor.contextKeydownRef}
-          slashKeydownRef={chatEditor.slashKeydownRef}
+    // Outer wrapper is purely a positioning context for the beam overlay
+    // and intentionally takes NO `className` passthrough — see
+    // ChatTextareaBorderBeam's docs for why. All layout / styling
+    // overrides live on the inner border container below.
+    <div className='relative size-full'>
+      <ChatTextareaBorderBeam isActive={isSubmitting} />
+
+      <div
+        ref={containerReference}
+        className={cn(
+          'group/chat-textarea @container',
+          'relative flex size-full flex-col rounded-2xl border bg-background',
+          'cursor-text overflow-auto',
+          'shadow-md',
+          'focus-within:border-primary/50',
+          className,
+        )}
+        onBlur={handleTextareaBlur}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Editor */}
+        <div className={cn('flex size-full flex-col overflow-auto')} onClick={handleEditorAreaClick}>
+          <ChatEditor
+            editor={editor}
+            className={cn(images.length > 0 ? 'pt-10' : 'pt-2')}
+            contextSuggestionState={chatEditor.contextSuggestionState}
+            slashCommandState={chatEditor.slashCommandState}
+            contextKeydownRef={chatEditor.contextKeydownRef}
+            slashKeydownRef={chatEditor.slashKeydownRef}
+            isLoading={isSubmitting}
+          />
+        </div>
+
+        {/* Images overlay */}
+        <ChatTextareaDesktopImages images={images} onRemoveImage={removeImage} />
+
+        {/* Drag and drop feedback */}
+        {dragKind ? (
+          <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-primary/10 backdrop-blur-xs'>
+            <p className='rounded-md border bg-background/50 px-2 font-medium text-primary'>
+              {dragOverlayCopy[dragKind]}
+            </p>
+          </div>
+        ) : null}
+
+        {/* Bottom-left controls — wrapped in memo'd component to isolate Radix tooltip re-renders */}
+        <ChatTextareaLeftControls
+          selectedModel={selectedModel}
+          enableKernelSelector={enableKernelSelector}
+          selectedToolChoice={selectedToolChoice}
+          focusEditor={focusEditor}
+          setDraftToolChoice={setDraftToolChoice}
+          fileInputReference={fileInputReference}
+          handleFileChange={handleFileChange}
+        />
+
+        {/* Bottom-right controls */}
+        <ChatTextareaRightControls
+          enableContextActions={enableContextActions}
+          handleAtButtonClick={handleAtButtonClick}
+          handleFileSelect={handleFileSelect}
+          status={status}
+          isSubmitting={isSubmitting}
+          isDisabled={isDisabled}
+          formattedCancelKeyCombination={formattedCancelKeyCombination}
+          handleSubmit={handleSubmit}
+          handleCancelClick={handleCancelClick}
         />
       </div>
-
-      {/* Images overlay */}
-      <ChatTextareaDesktopImages images={images} onRemoveImage={removeImage} />
-
-      {/* Drag and drop feedback */}
-      {dragKind ? (
-        <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-primary/10 backdrop-blur-xs'>
-          <p className='rounded-md border bg-background/50 px-2 font-medium text-primary'>
-            {dragOverlayCopy[dragKind]}
-          </p>
-        </div>
-      ) : null}
-
-      {/* Bottom-left controls — wrapped in memo'd component to isolate Radix tooltip re-renders */}
-      <ChatTextareaLeftControls
-        selectedModel={selectedModel}
-        enableKernelSelector={enableKernelSelector}
-        selectedToolChoice={selectedToolChoice}
-        focusEditor={focusEditor}
-        setDraftToolChoice={setDraftToolChoice}
-        fileInputReference={fileInputReference}
-        handleFileChange={handleFileChange}
-      />
-
-      {/* Bottom-right controls */}
-      <ChatTextareaRightControls
-        enableContextActions={enableContextActions}
-        handleAtButtonClick={handleAtButtonClick}
-        handleFileSelect={handleFileSelect}
-        status={status}
-        isSubmitting={isSubmitting}
-        isDisabled={isDisabled}
-        formattedCancelKeyCombination={formattedCancelKeyCombination}
-        handleSubmit={handleSubmit}
-        handleCancelClick={handleCancelClick}
-      />
     </div>
   );
 });
