@@ -101,3 +101,7 @@ Here are some specific rules to be aware of, and why they are important:
   - `@typescript-eslint/explicit-member-accessibility`: requires explicit accessibility modifiers for class members, enforcing the Single Responsibility Principle by making class member responsibilities and boundaries explicit.
   - `@typescript-eslint/no-explicit-any`: prevents use of `any` type, enforcing the Liskov Substitution Principle by ensuring type safety and preventing unsafe substitutions.
   - `@typescript-eslint/explicit-module-boundary-types`: all `export`ed functions and `public` methods must have a return type, including React components for the sake of consistency (even though it may seem overly verbose). This enforces the Interface Segregation Principle by making return types intentional and well-defined, with the additional benefit of reducing load on the TypeScript compiler by avoiding module-level type inference.
+
+### Production releases
+
+Production UI deploys ship from Netlify on pushes to the **`production`** git branch after maintainers merge the bot-managed trail PR; the Fly **`tau-api`** app deploys via [`.github/workflows/prod-deploy-on-merge.yml`](.github/workflows/prod-deploy-on-merge.yml). Operational checklist: **[docs/architecture/production-gitops-runbook.md](docs/architecture/production-gitops-runbook.md)**. Do **not** push directly to **`production`** or manually rewrite **`release/main-to-production`**.

@@ -1,0 +1,125 @@
+# Maintains the standing `release/main-to-production` branch and a single
+# trailing PR (base=production, head=release/main-to-production) that
+# represents "what's in main but not yet released to production".
+#
+# On every push to `main` (including merge commits from contributor PRs):
+#   1. Force-sync release/main-to-production to main HEAD (--force-with-lease).
+#   2. Open or update an open PR with that head, base=production.
+#   3. PR title = "Promote main → production (<UTC>)"; body = commit count
+#      + git log delta vs origin/production.
+#
+# Modelled on novuhq/novu's prepare-cloud-release.yaml
+# (https://github.com/novuhq/novu/blob/main/.github/workflows/prepare-cloud-release.yaml)
+# with deviations: push trigger on `main`, single trailing branch name, no
+# auto-merge.
+#
+# Merge of the PR advances `production` → Netlify Git builds `taucad-prod-us`
+# UI and `prod-deploy-on-merge.yml` deploys Fly `tau-api`.
+#
+name: Prepare Production Release PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-prod-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: main
+          persist-credentials: true
+
+      - name: Configure git identity
+        run: |
+          git config user.email "release-bot@taucad.dev"
+          git config user.name "Tau Release Bot"
+
+      - name: Force-sync release/main-to-production
+        run: |
+          git push --force-with-lease origin main:release/main-to-production
+
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin production 2>/dev/null || true
+          if git rev-parse --verify refs/remotes/origin/production >/dev/null 2>&1; then
+            COMMIT_COUNT=$(git rev-list --count origin/production..main || echo 0)
+            COMMIT_LOG=$(git log --pretty=format:'- %h %s (@%an)' origin/production..main | head -100)
+            PROD_SHA=$(git rev-parse --short origin/production)
+          else
+            COMMIT_COUNT="0"
+            COMMIT_LOG=$'- **`production` branch not found on remote yet.** Create it once with `git push origin main:production` (operator runbook), then re-run this workflow by pushing to `main`.'
+            PROD_SHA="(none)"
+          fi
+          MAIN_SHA=$(git rev-parse --short main)
+          TS_UTC=$(date -u +'%Y-%m-%d %H:%M UTC')
+          {
+            echo "commit_count=$COMMIT_COUNT"
+            echo "main_sha=$MAIN_SHA"
+            echo "prod_sha=$PROD_SHA"
+            echo "ts_utc=$TS_UTC"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo 'commit_log<<PRBODYEOF'
+            echo "$COMMIT_LOG"
+            echo 'PRBODYEOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert trail PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse --verify refs/remotes/origin/production >/dev/null 2>&1; then
+            echo "::notice::origin/production absent — skipping PR upsert. Bootstrap with: git push origin main:production"
+            exit 0
+          fi
+          BODY=$(cat <<EOF
+          Promotes \`main\` (\`${{ steps.meta.outputs.main_sha }}\`) →
+          \`production\` (currently at \`${{ steps.meta.outputs.prod_sha }}\`).
+
+          **${{ steps.meta.outputs.commit_count }}** commits since the last production release:
+
+          ${{ steps.meta.outputs.commit_log }}
+
+          ---
+
+          - This PR is **bot-managed** — force-updated on every push to \`main\`. Do not push to \`release/main-to-production\` manually.
+          - **No required PR checks.** Verify staging (\`https://taucad.dev\`, \`https://api.taucad.dev/health/live\`) before merging.
+          - Merge triggers Netlify prod UI build (\`taucad-prod-us\`) + \`.github/workflows/prod-deploy-on-merge.yml\` (Fly API \`tau-api\`).
+          EOF
+          )
+          PR_NUMBER=$(gh pr list \
+            --base production \
+            --head release/main-to-production \
+            --state open \
+            --json number --jq '.[0].number // empty')
+
+          TITLE="Promote main → production (${{ steps.meta.outputs.ts_utc }})"
+          if [ -z "$PR_NUMBER" ]; then
+            gh pr create \
+              --base production \
+              --head release/main-to-production \
+              --title "$TITLE" \
+              --body "$BODY"
+          else
+            gh pr edit "$PR_NUMBER" \
+              --title "$TITLE" \
+              --body "$BODY"
+          fi

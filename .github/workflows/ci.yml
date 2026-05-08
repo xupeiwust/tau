@@ -4,8 +4,10 @@ on:
   push:
     branches: [main] # Only run on pushes to main branch
   pull_request:
-    # Run CI on all pull requests
-
+    # PRs vs `main`: full CI. PRs targeting `production` only (trail PR): skip
+    # checks — release gate is staging smoke + human merge.
+    branches-ignore:
+      - production
 env:
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
