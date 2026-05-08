@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention -- mock `gl` stubs mirror three.js `isWebGPURenderer` spelling */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, waitFor } from '@testing-library/react';
 import type { WebGPURenderer } from 'three/webgpu';
 
 const inspectorHideSpy = vi.fn();
@@ -53,13 +53,17 @@ describe('three-webgpu-inspector-bootstrap', () => {
 
     const { unmount } = render(<ThreeWebGpuInspectorBootstrap />);
 
-    expect(hoistedMocks.inspectorConstructorSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(hoistedMocks.inspectorConstructorSpy).toHaveBeenCalledTimes(1);
+    });
 
     const inspectorAttachment = hoistedMocks.inspectorConstructorSpy.mock.results.at(-1)?.value as {
       domElement: HTMLElement;
     };
 
-    expect(globalThis.document.body.contains(inspectorAttachment.domElement)).toBe(true);
+    await waitFor(() => {
+      expect(globalThis.document.body.contains(inspectorAttachment.domElement)).toBe(true);
+    });
     expect(webGpuStub.inspector).toBe(inspectorAttachment);
 
     unmount();
