@@ -596,7 +596,7 @@ export function ChatStackTrace({ entryFile, className, side, ...props }: ChatSta
   );
 
   return (
-    <div {...props} className={cn('overflow-hidden rounded-md border border-border bg-sidebar/50', className)}>
+    <div {...props} className={cn('max-w-md overflow-hidden rounded-md border border-border bg-sidebar/50', className)}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         {side === 'top' ? (
           <>
