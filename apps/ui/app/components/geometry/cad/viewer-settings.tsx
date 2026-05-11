@@ -88,11 +88,11 @@ const graphicsBackendOptions: Array<{
   {
     id: 'auto',
     label: 'Auto',
-    description: 'Use WebGPU when available; otherwise WebGL2.',
+    description: 'Use WebGPU when available; otherwise WebGL.',
   },
   {
     id: 'webgl',
-    label: 'WebGL 2',
+    label: 'WebGL',
     description: 'Legacy path; widest browser support.',
   },
   {
@@ -424,7 +424,7 @@ export function ViewerSettings({ className, overflowControls }: ViewerSettingsPr
             onValueChange={handleGraphicsBackendChange}
           >
             <Layers />
-            Rendering API
+            Backend
           </DropdownMenuSelectItem>
         )}
         <DropdownMenuSelectItem
