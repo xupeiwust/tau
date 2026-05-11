@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { PerspectiveCamera as ThreePerspectiveCamera, Scene as ThreeScene } from 'three';
 import type { ResolvedGraphicsBackend } from '#constants/editor.constants.js';
 import { offscreenWebGpuCanvasContextAvailable } from '#components/geometry/graphics/graphics-backend.js';
-import { createTauRenderer } from '#components/geometry/graphics/three/tau-renderer.js';
+import { createRenderer } from '#components/geometry/graphics/three/renderer.js';
 import type { ViewportCadGl } from '#components/geometry/graphics/three/viewport-cad-renderer.js';
 
 /* oxlint-disable promise/prefer-await-to-then -- render queue intentionally chains async WebGPU frames */
@@ -32,7 +32,7 @@ export class SharedRenderer {
     const canvas = this.offscreen as unknown as HTMLCanvasElement;
 
     const backend: ResolvedGraphicsBackend = offscreenWebGpuCanvasContextAvailable() ? 'webgpu' : 'webgl';
-    this.initPromise = createTauRenderer('offscreen', backend, canvas).then((renderer) => {
+    this.initPromise = createRenderer('offscreen', backend, canvas).then((renderer) => {
       // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- runtime union narrowed by bootstrap
       this.renderer = renderer as ViewportCadGl;
       this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio, 2));

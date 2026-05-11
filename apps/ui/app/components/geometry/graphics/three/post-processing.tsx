@@ -1,16 +1,29 @@
+import { useFrame } from '@react-three/fiber';
 import { EffectComposer, N8AO } from '@react-three/postprocessing';
+import type { ReactNode } from 'react';
 import { useGraphicsSelector } from '#hooks/use-graphics.js';
 import { useThreeGraphicsBackend } from '#components/geometry/graphics/three/three-graphics-backend-context.js';
 import { PostProcessingWebGPU } from '#components/geometry/graphics/three/post-processing-webgpu.js';
 
 /**
+ * When ambient occlusion / GTAO post-processing is off, R3F still needs a terminal
+ * positive-priority `useFrame` that calls `gl.render(scene, camera)` once any other
+ * `priority > 0` subscriber exists (gizmo at priority **3**, `SceneOverlay` at **2**, …).
+ * This component owns that priority-**1** main-scene colour pass whenever PP is disabled.
+ */
+function MainSceneFallback(): undefined {
+  useFrame((state) => {
+    state.gl.render(state.scene, state.camera);
+  }, 1);
+  return undefined;
+}
+
+/**
  * Conditionally mounts the post-processing subtree for the active graphics backend.
  *
- * **Disabling** `enablePostProcessing` **fully unmounts** the entire post stack on **both**
- * backends: WebGPU drops `PostProcessingWebGPU` / `RenderPipeline`, and WebGL drops
- * `EffectComposer` + `N8AO` (no partial graph / no TRAA-only continuation). `SceneOverlay`
- * then auto-adapts via `state.internal.priority` detection because the priority-1 owner
- * disappears.
+ * **Disabling** `enablePostProcessing` **unmounts** the AO stack on **both** backends but
+ * **mounts** `MainSceneFallback` priority-**1** so the main scene is still shaded
+ * every frame when other positive-priority owners exist (`SceneOverlay`, gizmo).
  *
  * WebGL `N8AO` path (when mounted) is configured with `screenSpaceRadius={true}`, which means `aoRadius`
  * is measured in **pixels** (not world units). This makes the ambient occlusion
@@ -30,12 +43,12 @@ import { PostProcessingWebGPU } from '#components/geometry/graphics/three/post-p
  * single-body CAD geometry this has negligible visual impact -- AO still darkens
  * corners and crevices correctly via angular occlusion alone.
  */
-export function PostProcessing(): React.JSX.Element | undefined {
+export function PostProcessing(): ReactNode {
   const enablePostProcessing = useGraphicsSelector((state) => state.context.enablePostProcessing);
   const backend = useThreeGraphicsBackend();
 
   if (!enablePostProcessing) {
-    return undefined;
+    return <MainSceneFallback />;
   }
 
   if (backend === 'webgpu') {

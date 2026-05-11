@@ -8,10 +8,14 @@ type SceneOverlayFrameLoopProps = Readonly<{
 }>;
 
 /**
- * Runs the depth-restore / main-scene / overlay renders at R3F priority `2`.
+ * Depth-restore + overlay render at R3F priority `2`.
  * Mounted only when the overlay subtree has geometry to draw so we do not hold a
  * positive-priority subscriber when overlay children are absent (fixes blank CAD when
  * both grid and axes are disabled — see audit R4).
+ *
+ * Assumes priority `1` has already drawn main-scene colour (`MainSceneFallback` /
+ * EffectComposer / `PostProcessingWebGPU`). Performs a lightweight depth-only override
+ * pass on the root scene before compositing overlay geometry.
  */
 function SceneOverlayFrameLoop({ overlayScene }: SceneOverlayFrameLoopProps): ReactNode {
   const depthOnlyMaterial = useMemo(() => {
@@ -25,25 +29,10 @@ function SceneOverlayFrameLoop({ overlayScene }: SceneOverlayFrameLoopProps): Re
     const previousAutoClear = gl.autoClear;
     gl.autoClear = false;
 
-    // `internal.priority` is the count of subscribed `useFrame` callbacks with
-    // `priority > 0`, not an EffectComposer/WebGPU sentinel. When it is strictly
-    // greater than `1`, at least two positive-priority owners exist — typically
-    // WebGL `@react-three/postprocessing` `EffectComposer` or WebGPU
-    // `PostProcessingWebGPU` (priority `1`), plus this overlay (priority `2`).
-    if (state.internal.priority > 1) {
-      // Another owner already drew colour (`composer.render`, `RenderPipeline.render`, …).
-      // Restore scene depth with a lightweight override pass before drawing the overlay.
-      const previousOverrideMaterial = scene.overrideMaterial;
-      scene.overrideMaterial = depthOnlyMaterial;
-      gl.render(scene, camera);
-      scene.overrideMaterial = previousOverrideMaterial;
-    } else {
-      // Sole positive-priority subscriber: R3F has disabled its default terminal
-      // `gl.render(scene, camera)` — we must shade the full main scene ourselves.
-      gl.autoClear = true;
-      gl.render(scene, camera);
-      gl.autoClear = false;
-    }
+    const previousOverrideMaterial = scene.overrideMaterial;
+    scene.overrideMaterial = depthOnlyMaterial;
+    gl.render(scene, camera);
+    scene.overrideMaterial = previousOverrideMaterial;
 
     gl.render(overlayScene, camera);
 
@@ -56,8 +45,9 @@ function SceneOverlayFrameLoop({ overlayScene }: SceneOverlayFrameLoopProps): Re
 type SceneOverlayProperties = Readonly<{
   children: ReactNode;
   /**
-   * When `false`, omit the priority-2 subscriber entirely so CAD still renders via
-   * R3F's default pipeline when overlay children are omitted (axes + grid off).
+   * When `false`, omit the priority-2 overlay subscriber entirely. Grid/axes overlays are
+   * skipped while the canvas still renders the main scene via priority-**1**
+   * (`MainSceneFallback` vs post-processing when enabled).
    */
   overlayActive: boolean;
 }>;
@@ -69,8 +59,10 @@ type SceneOverlayProperties = Readonly<{
  * not darken them.
  *
  * When {@link SceneOverlayProperties.overlayActive} is `true`, registers at R3F
- * **`renderPriority = 2`**, ordered after priority-**1** viewport post-processing
- * (WebGL **`EffectComposer`**, WebGPU **`RenderPipeline`** via `PostProcessingWebGPU`).
+ * **`renderPriority = 2`**, after priority-**1** main-scene shading
+ * (`MainSceneFallback` vs **EffectComposer** / **`PostProcessingWebGPU`** — always exactly one
+ * subscriber from the **`PostProcessing`** component). Viewport gizmos overlay at
+ * priority **3**.
  *
  * `frameloop` / demand-render conventions for the parent `<Canvas>` are policy-bound in
  * **`docs/policy/graphics-backend-policy.md`** §7.

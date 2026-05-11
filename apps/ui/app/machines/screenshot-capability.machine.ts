@@ -8,8 +8,8 @@ import {
   disposeClonedSceneMaterials,
 } from '#components/geometry/graphics/three/materials/gltf-matcap.js';
 import { ensureMatcapTextureLoaded } from '#components/geometry/graphics/three/materials/matcap-material.js';
-import type { TauRendererInstance } from '#components/geometry/graphics/three/tau-renderer.js';
-import { createTauRenderer } from '#components/geometry/graphics/three/tau-renderer.js';
+import type { RendererInstance } from '#components/geometry/graphics/three/renderer.js';
+import { createRenderer } from '#components/geometry/graphics/three/renderer.js';
 import type { ViewportCadGl } from '#components/geometry/graphics/three/viewport-cad-renderer.js';
 import { isViewportWebGpu } from '#components/geometry/graphics/three/viewport-cad-renderer.js';
 import { calculateFovDistanceCompensation } from '#components/geometry/graphics/three/utils/math.utils.js';
@@ -556,11 +556,11 @@ async function captureScreenshots({
   screenshotCanvas.width = width;
   screenshotCanvas.height = height;
 
-  let screenshotRenderer: TauRendererInstance | undefined;
+  let screenshotRenderer: RendererInstance | undefined;
 
   try {
     const screenshotBackend: ResolvedGraphicsBackend = isViewportWebGpu(gl) ? 'webgpu' : 'webgl';
-    screenshotRenderer = await createTauRenderer('screenshot', screenshotBackend, screenshotCanvas);
+    screenshotRenderer = await createRenderer('screenshot', screenshotBackend, screenshotCanvas);
 
     screenshotRenderer.setSize(width, height, false);
 

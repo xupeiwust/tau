@@ -1,24 +1,24 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
-  createTauRenderer: vi.fn(),
+  createRenderer: vi.fn(),
 }));
 
-vi.mock('#components/geometry/graphics/three/tau-renderer.js', () => ({
-  createTauRenderer: hoisted.createTauRenderer,
+vi.mock('#components/geometry/graphics/three/renderer.js', () => ({
+  createRenderer: hoisted.createRenderer,
 }));
 
 describe('createTauR3fGlProp', () => {
   beforeEach(() => {
-    hoisted.createTauRenderer.mockReset();
-    hoisted.createTauRenderer.mockImplementation(async () => ({
+    hoisted.createRenderer.mockReset();
+    hoisted.createRenderer.mockImplementation(async () => ({
       init: vi.fn(async () => {
         //
       }),
     }));
   });
 
-  it('delegates WebGPU canvases to createTauRenderer viewport presets', async () => {
+  it('delegates WebGPU canvases to createRenderer viewport presets', async () => {
     const { createTauR3fGlProp } = await import('#components/geometry/graphics/three/canvas-three-gl.js');
     const glFactory = createTauR3fGlProp('webgpu');
 
@@ -30,11 +30,11 @@ describe('createTauR3fGlProp', () => {
       alpha: true,
     });
 
-    expect(hoisted.createTauRenderer).toHaveBeenCalledTimes(1);
-    expect(hoisted.createTauRenderer).toHaveBeenCalledWith('viewport', 'webgpu', canvas);
+    expect(hoisted.createRenderer).toHaveBeenCalledTimes(1);
+    expect(hoisted.createRenderer).toHaveBeenCalledWith('viewport', 'webgpu', canvas);
   });
 
-  it('delegates WebGL canvases to createTauRenderer viewport presets', async () => {
+  it('delegates WebGL canvases to createRenderer viewport presets', async () => {
     const { createTauR3fGlProp } = await import('#components/geometry/graphics/three/canvas-three-gl.js');
     const glFactory = createTauR3fGlProp('webgl');
 
@@ -46,7 +46,7 @@ describe('createTauR3fGlProp', () => {
       alpha: true,
     });
 
-    expect(hoisted.createTauRenderer).toHaveBeenCalledTimes(1);
-    expect(hoisted.createTauRenderer).toHaveBeenCalledWith('viewport', 'webgl', canvas);
+    expect(hoisted.createRenderer).toHaveBeenCalledTimes(1);
+    expect(hoisted.createRenderer).toHaveBeenCalledWith('viewport', 'webgl', canvas);
   });
 });

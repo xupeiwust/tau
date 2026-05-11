@@ -26,7 +26,7 @@ type PostProcessingPipelineResources = Readonly<{
  * Priority-1 `useFrame` drives `RenderPipeline.render()` so R3F suppresses default `gl.render`.
  *
  * **AA strategy.** Anti-aliasing comes from hardware MSAA on the `WebGPURenderer`
- * (`createTauRenderer('viewport', 'webgpu', …)` sets `antialias: true`).
+ * (`createRenderer('viewport', 'webgpu', …)` sets `antialias: true`).
  * TRAA was removed because the viewport runs `frameloop='demand'`: temporal AA cannot accumulate
  * while the scene is idle, and a single un-converged TRAA frame surfaces as edge graininess.
  * The pre-pass therefore omits a velocity MRT — only depth + normals are needed for GTAO.
