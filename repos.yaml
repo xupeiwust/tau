@@ -54,6 +54,8 @@ groups:
       - glTF-Transform
       - assimpjs
       - three-viewport-gizmo
+      - three-mesh-bvh
+      - three-cad-viewer
   dev-tools:
     description: Development tools and frameworks
     repos:
@@ -451,7 +453,7 @@ repos:
     upstream: Fennec-hub/three-viewport-gizmo
     description: Three Viewport Gizmo - interactive three.js view helper
     fork: taucad/three-viewport-gizmo
-    commit: ba52643f1c5e3f72cfbded53e5fbf93ff9951429
+    commit: af81ccf4923343d0f285300e9b230390b673e5dd
   terraform-provider-netlify:
     upstream: netlify/terraform-provider-netlify
     description: Netlify Terraform provider source (schema/release reference for Tau cloud-infra stacks).
@@ -464,3 +466,10 @@ repos:
   vscode-wasm:
     upstream: microsoft/vscode-wasm
     description: A WASI implementation that uses VS Code's extension host as the implementing API
+  # three-mesh-bvh PR #434: vertex-on-edge degeneracy when plane cuts a triangle (see plane-mesh-contour.ts)
+  three-mesh-bvh:
+    upstream: gkjohnson/three-mesh-bvh
+    description: BVH-accelerated geometry queries for three.js incl. clippedEdges section-view example
+  three-cad-viewer:
+    upstream: bernhard-42/three-cad-viewer
+    description: TypeScript CAD viewer on three.js with clipping and section view
