@@ -22,6 +22,13 @@ groups:
       - ForgeCAD
       - tinyusdz
       - SysML-v2-Release
+      - rhino3dm
+      - ammo.js
+      - box2d-wasm
+      - draco
+      - occt-import-js
+      - skia
+      - opencv
   slicers:
     description: 3D printer slicer applications
     repos:
@@ -466,10 +473,30 @@ repos:
   vscode-wasm:
     upstream: microsoft/vscode-wasm
     description: A WASI implementation that uses VS Code's extension host as the implementing API
-  # three-mesh-bvh PR #434: vertex-on-edge degeneracy when plane cuts a triangle (see plane-mesh-contour.ts)
   three-mesh-bvh:
     upstream: gkjohnson/three-mesh-bvh
     description: BVH-accelerated geometry queries for three.js incl. clippedEdges section-view example
   three-cad-viewer:
     upstream: bernhard-42/three-cad-viewer
     description: TypeScript CAD viewer on three.js with clipping and section view
+  rhino3dm:
+    upstream: mcneel/rhino3dm
+    description: Rhino 3D geometry library — OpenNURBS C++ via Python embind codegen
+  ammo.js:
+    upstream: kripken/ammo.js
+    description: Bullet Physics WASM port — WebIDL Binder bindgen, not embind
+  box2d-wasm:
+    upstream: Birch-san/box2d-wasm
+    description: Box2D WebAssembly bindings — embind, modern reference
+  draco:
+    upstream: google/draco
+    description: Draco 3D geometry compression — embind reference, Google quality
+  occt-import-js:
+    upstream: kovacsv/occt-import-js
+    description: OCCT STEP/IGES importer — direct OCJS peer, hand-written embind
+  skia:
+    upstream: google/skia
+    description: Skia 2D graphics — CanvasKit WASM under modules/canvaskit, largest hand-written embind binding
+  opencv:
+    upstream: opencv/opencv
+    description: OpenCV — modules/js Python codegen → embind, largest C++ codebase with auto-gen JS bindings
