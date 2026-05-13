@@ -1190,8 +1190,11 @@
       "plugins": ["jsdoc"]
     },
     {
-      // Package entry points need barrel file imports.
-      "files": ["{packages,libs}/**/index.ts"],
+      // Package entry points need barrel file imports. `apps/ui/app/lib/`
+      // is the UI app's internal package-equivalent layer (each subdirectory
+      // behaves like a libs/-style local package without being extracted),
+      // so its `index.ts` aggregators inherit the same exemption.
+      "files": ["{packages,libs}/**/index.ts", "apps/ui/app/lib/**/index.ts"],
       "rules": {
         "no-barrel-files/no-barrel-files": "off"
       }
@@ -1281,12 +1284,6 @@
       }
     },
     {
-      "files": ["examples/electron-tau/src/renderer/app.tsx"],
-      "rules": {
-        "@typescript-eslint/consistent-type-definitions": "off"
-      }
-    },
-    {
       /*
        * CJS compatibility shims deliberately check globals like `globalThis.__dirname === undefined`
        * where TypeScript types say the value is always `string`. The types are wrong — at runtime
@@ -1322,7 +1319,11 @@
         "no-restricted-imports": "off",
         "@typescript-eslint/no-unsafe-assignment": "off",
         "@typescript-eslint/no-unsafe-argument": "off",
-        "@typescript-eslint/no-unnecessary-condition": "off"
+        "@typescript-eslint/no-unsafe-call": "off",
+        "@typescript-eslint/no-unnecessary-condition": "off",
+        "@typescript-eslint/no-unnecessary-type-assertion": "off",
+        "@typescript-eslint/prefer-optional-chain": "off",
+        "@typescript-eslint/no-duplicate-type-constituents": "off"
       }
     },
     {

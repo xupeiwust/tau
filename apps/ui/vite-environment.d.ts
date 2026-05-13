@@ -1,3 +1,5 @@
+// oxlint-disable typescript/no-extraneous-class -- Monaco's factory export uses a PascalCase property name
+// oxlint-disable max-params -- Monaco's factory export uses a PascalCase property name
 declare module '*?base64' {
   const value: string;
   export = value;

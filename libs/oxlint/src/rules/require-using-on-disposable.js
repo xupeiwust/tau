@@ -45,22 +45,30 @@
 
 const DISPOSABLE_STACK_SINKS = new Set(['use', 'adopt', 'defer']);
 
+const STANDARD_LIB_DECLARATION_FILE = /[/\\]lib\.[^/\\]+\.d\.ts$/;
+
+const NODE_WALK_SKIP_KEYS = new Set(['parent', 'range', 'loc', 'start', 'end']);
+
 /**
  * Returns true iff the property's declaration originates from a TypeScript
  * standard `lib.*.d.ts` file. Built-in `[Symbol.dispose]` implementations
  * (e.g. `IterableIterator` since TS 5.2) are exempt — flagging them
  * generates noise without catching real leaks.
  *
- * @param {import('typescript').Symbol} prop
+ * @param {import('typescript').Symbol} property
  * @returns {boolean}
  */
-function propertyIsFromStandardLib(prop) {
-  const decls = prop.getDeclarations?.() ?? prop.declarations;
-  if (!decls || decls.length === 0) return false;
-  return decls.every((decl) => {
-    const fileName = decl.getSourceFile()?.fileName ?? '';
-    if (!fileName) return false;
-    return /[\\/]lib\.[^\\/]+\.d\.ts$/.test(fileName);
+function propertyIsFromStandardLib(property) {
+  const declarations = property.getDeclarations?.() ?? property.declarations;
+  if (!declarations || declarations.length === 0) {
+    return false;
+  }
+  return declarations.every((declaration) => {
+    const fileName = declaration.getSourceFile()?.fileName ?? '';
+    if (!fileName) {
+      return false;
+    }
+    return STANDARD_LIB_DECLARATION_FILE.test(fileName);
   });
 }
 
@@ -70,23 +78,31 @@ function propertyIsFromStandardLib(prop) {
  * @returns {boolean}
  */
 function typeHasSymbolDispose(checker, type) {
-  if (!type) return false;
+  if (!type) {
+    return false;
+  }
   if (type.isUnionOrIntersection?.()) {
     for (const member of type.types) {
-      if (typeHasSymbolDispose(checker, member)) return true;
+      if (typeHasSymbolDispose(checker, member)) {
+        return true;
+      }
     }
     return false;
   }
-  const props = checker.getPropertiesOfType(type);
-  for (const prop of props) {
-    const name = String(prop.escapedName);
+  const properties = checker.getPropertiesOfType(type);
+  for (const property of properties) {
+    const name = String(property.escapedName);
     const isDispose =
       name.startsWith('__@dispose@') ||
       name === '[Symbol.dispose]' ||
       name.startsWith('__@asyncDispose@') ||
       name === '[Symbol.asyncDispose]';
-    if (!isDispose) continue;
-    if (propertyIsFromStandardLib(prop)) continue;
+    if (!isDispose) {
+      continue;
+    }
+    if (propertyIsFromStandardLib(property)) {
+      continue;
+    }
     return true;
   }
   return false;
@@ -103,9 +119,9 @@ function typeHasSymbolDispose(checker, type) {
 function unwrapOwnership(node) {
   let current = /** @type {EstreeNode & { parent?: EstreeNode }} */ (node);
   while (current.parent) {
-    const parent =
-      /** @type {EstreeNode & { parent?: EstreeNode; type: string; expression?: EstreeNode; argument?: EstreeNode }} */ (
-        current.parent
+    const { parent } =
+      /** @type {{ parent: EstreeNode & { type: string; expression?: EstreeNode; argument?: EstreeNode } }} */ (
+        /** @type {unknown} */ (current)
       );
     if (parent.type === 'AwaitExpression' && parent.argument === current) {
       current = parent;
@@ -136,21 +152,32 @@ function unwrapOwnership(node) {
  * @returns {boolean}
  */
 function containsExpressionNode(root, target) {
-  if (root === target) return true;
-  if (!root || typeof root !== 'object') return false;
+  if (root === target) {
+    return true;
+  }
+  if (!root || typeof root !== 'object') {
+    return false;
+  }
   for (const key of Object.keys(root)) {
-    if (key === 'parent' || key === 'range' || key === 'loc' || key === 'start' || key === 'end') {
+    if (NODE_WALK_SKIP_KEYS.has(key)) {
       continue;
     }
-    const val = /** @type {any} */ (root)[key];
-    if (Array.isArray(val)) {
-      for (const item of val) {
-        if (item && typeof item === 'object' && containsExpressionNode(item, target)) {
+    const value = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (root))[key];
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === 'object' && containsExpressionNode(/** @type {EstreeNode} */ (item), target)) {
           return true;
         }
       }
-    } else if (val && typeof val === 'object' && 'type' in val) {
-      if (containsExpressionNode(val, target)) return true;
+      continue;
+    }
+    if (
+      value &&
+      typeof value === 'object' &&
+      'type' in value &&
+      containsExpressionNode(/** @type {EstreeNode} */ (value), target)
+    ) {
+      return true;
     }
   }
   return false;
@@ -166,13 +193,91 @@ function containsExpressionNode(root, target) {
 function referenceEscapesViaReturn(identifier) {
   let node = /** @type {EstreeNode & { parent?: EstreeNode }} */ (identifier);
   while (node.parent) {
-    const parent = node.parent;
+    const { parent } = node;
     if (parent.type === 'ReturnStatement' && parent.argument && containsExpressionNode(parent.argument, identifier)) {
       return true;
     }
     node = parent;
   }
   return false;
+}
+
+/**
+ * Ownership absorbed by a `using` / `await using` binding, or by a `const`
+ * binding whose value escapes via `return`.
+ *
+ * @param {{ type: string; init?: EstreeNode; id?: EstreeNode & { type?: string; name?: string } }} parent
+ * @param {EstreeNode} outer
+ * @param {RuleContext | undefined} context
+ * @returns {boolean}
+ */
+function isOwnedByDeclarator(parent, outer, context) {
+  if (parent.type !== 'VariableDeclarator' || parent.init !== outer) {
+    return false;
+  }
+  const declList = /** @type {{ parent?: { type: string; kind: string } }} */ (/** @type {unknown} */ (parent)).parent;
+  if (!declList || declList.type !== 'VariableDeclaration') {
+    return false;
+  }
+  const { kind } = declList;
+  if (kind === 'using' || kind === 'await using') {
+    return true;
+  }
+  if (kind !== 'const' || !context || parent.id?.type !== 'Identifier') {
+    return false;
+  }
+  const scope = context.sourceCode.getScope(/** @type {EslintRuleNode} */ (/** @type {unknown} */ (parent)));
+  const variable = scope.variables.find((v) => v.name === parent.id?.name);
+  if (!variable) {
+    return false;
+  }
+  return variable.references.some((ref) => referenceEscapesViaReturn(ref.identifier));
+}
+
+/**
+ * Ownership forwarded via `return expr`, `throw expr`, `yield expr`, or an
+ * arrow expression body.
+ *
+ * @param {{ type: string; argument?: EstreeNode; body?: unknown }} parent
+ * @param {EstreeNode} outer
+ * @returns {boolean}
+ */
+function isOwnedByControlFlowExpression(parent, outer) {
+  if (parent.type === 'ReturnStatement' && parent.argument === outer) {
+    return true;
+  }
+  if (parent.type === 'ThrowStatement' && parent.argument === outer) {
+    return true;
+  }
+  if (parent.type === 'YieldExpression' && parent.argument === outer) {
+    return true;
+  }
+  if (parent.type === 'ArrowFunctionExpression' && parent.body === outer) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Ownership absorbed by `stack.use(expr)` / `stack.adopt(expr, _)` /
+ * `stack.defer(...)` — `DisposableStack` sinks adopt the disposable.
+ *
+ * @param {{ type: string; callee?: EstreeNode & { type?: string }; arguments?: EstreeNode[] }} parent
+ * @param {EstreeNode} outer
+ * @returns {boolean}
+ */
+function isOwnedByDisposableStackSink(parent, outer) {
+  if (parent.type !== 'CallExpression' || !parent.callee || parent.callee.type !== 'MemberExpression') {
+    return false;
+  }
+  const { property } = /** @type {{ property: EstreeNode & { type?: string; name?: string } }} */ (
+    /** @type {unknown} */ (parent.callee)
+  );
+  return (
+    property?.type === 'Identifier' &&
+    DISPOSABLE_STACK_SINKS.has(property.name ?? '') &&
+    parent.arguments?.[0] === outer
+  );
 }
 
 /**
@@ -185,48 +290,26 @@ function referenceEscapesViaReturn(identifier) {
  */
 function isOwnedByContext(node, context) {
   const outer = unwrapOwnership(node);
-  const parent =
-    /** @type {EstreeNode & { parent?: EstreeNode; type: string; init?: EstreeNode; argument?: EstreeNode; expression?: EstreeNode; body?: EstreeNode | unknown; kind?: string; arguments?: EstreeNode[]; callee?: EstreeNode; property?: EstreeNode; name?: string; id?: EstreeNode }} */ (
-      /** @type {any} */ (outer).parent
-    );
-  if (!parent) return false;
-
-  // `using x = expr;` / `await using x = expr;`
-  if (parent.type === 'VariableDeclarator' && parent.init === outer) {
-    const declList = /** @type {any} */ (parent).parent;
-    if (declList && declList.type === 'VariableDeclaration') {
-      const kind = declList.kind;
-      if (kind === 'using' || kind === 'await using') return true;
-      // `const x = <disposable>();` forwarded when any read escapes via `return`.
-      if (kind === 'const' && context && parent.id?.type === 'Identifier') {
-        const scope = context.sourceCode.getScope(/** @type {any} */ (parent));
-        const variable = scope.variables.find((v) => v.name === parent.id.name);
-        if (variable && variable.references.some((ref) => referenceEscapesViaReturn(ref.identifier))) {
-          return true;
-        }
-      }
-    }
+  const { parent } = /** @type {{ parent?: EstreeNode & {
+    type: string;
+    init?: EstreeNode;
+    argument?: EstreeNode;
+    expression?: EstreeNode;
+    body?: unknown;
+    arguments?: EstreeNode[];
+    callee?: EstreeNode & { type?: string };
+    id?: EstreeNode & { type?: string; name?: string };
+  } }} */ (/** @type {unknown} */ (outer));
+  if (!parent) {
+    return false;
   }
-
-  // `return expr;` / `throw expr;` / `yield expr` / arrow expression body
-  if (parent.type === 'ReturnStatement' && parent.argument === outer) return true;
-  if (parent.type === 'ThrowStatement' && parent.argument === outer) return true;
-  if (parent.type === 'YieldExpression' && parent.argument === outer) return true;
-  if (parent.type === 'ArrowFunctionExpression' && parent.body === outer) return true;
-
-  // `stack.use(expr)` / `stack.adopt(expr, _)` / `stack.defer(...)`
-  if (parent.type === 'CallExpression' && parent.callee && parent.callee.type === 'MemberExpression') {
-    const property = /** @type {any} */ (parent.callee).property;
-    if (
-      property?.type === 'Identifier' &&
-      DISPOSABLE_STACK_SINKS.has(property.name) &&
-      parent.arguments?.[0] === outer
-    ) {
-      return true;
-    }
+  if (isOwnedByDeclarator(parent, outer, context)) {
+    return true;
   }
-
-  return false;
+  if (isOwnedByControlFlowExpression(parent, outer)) {
+    return true;
+  }
+  return isOwnedByDisposableStackSink(parent, outer);
 }
 
 /**
@@ -236,12 +319,34 @@ function isOwnedByContext(node, context) {
  *   if it can't be located.
  */
 function findKeywordRange(declNode) {
-  const range = /** @type {readonly [number, number] | undefined} */ (/** @type {any} */ (declNode).range);
-  if (!range) return null;
-  const kind = declNode.kind;
+  const { range } = /** @type {{ range?: readonly [number, number] }} */ (/** @type {unknown} */ (declNode));
+  if (!range) {
+    return null;
+  }
+  const { kind } = declNode;
   // `range[0]` points at the start of the declaration text. The keyword is
   // the first whitespace-trimmed identifier.
   return { start: range[0], length: kind.length };
+}
+
+/**
+ * Report a `const x = <disposable>` violation, with the auto-fix that
+ * rewrites the keyword `const` → `using`.
+ *
+ * @param {RuleContext} context
+ * @param {{ esNode: EstreeNode; declNode: VariableDeclaration & { kind: string }; typeText: string }} report
+ */
+function reportConstDeclaration(context, report) {
+  const { esNode, declNode, typeText } = report;
+  const keywordRange = findKeywordRange(/** @type {VariableDeclaration & { kind: 'const' }} */ (declNode));
+  context.report({
+    node: /** @type {EslintRuleNode} */ (/** @type {unknown} */ (esNode)),
+    messageId: 'missingUsing',
+    data: { typeText },
+    fix: keywordRange
+      ? (fixer) => fixer.replaceTextRange([keywordRange.start, keywordRange.start + keywordRange.length], 'using')
+      : undefined,
+  });
 }
 
 /** @type {RuleModule} */
@@ -276,10 +381,15 @@ export const requireUsingOnDisposableRule = {
     // `parserServices` is set up by typescript-eslint when
     // `parserOptions.project` is configured. Fall back to a no-op if the
     // consumer hasn't enabled type-aware linting.
-    const services = /** @type {any} */ (context).sourceCode?.parserServices ??
-    /** @type {any} */ (context).parserServices;
-    const program = services?.program;
-    const esTreeNodeToTSNodeMap = services?.esTreeNodeToTSNodeMap;
+    const services =
+      /** @type {{ sourceCode?: { parserServices?: unknown }; parserServices?: unknown }} */ (
+        /** @type {unknown} */ (context)
+      ).sourceCode?.parserServices ??
+      /** @type {{ parserServices?: unknown }} */ (/** @type {unknown} */ (context)).parserServices;
+    const { program, esTreeNodeToTSNodeMap } =
+      /** @type {{ program?: import('typescript').Program; esTreeNodeToTSNodeMap?: Map<unknown, import('typescript').Node> }} */ (
+        services ?? {}
+      );
     if (!program || !esTreeNodeToTSNodeMap) {
       return {};
     }
@@ -290,13 +400,24 @@ export const requireUsingOnDisposableRule = {
      */
     const checkExpression = (esNode) => {
       const tsNode = esTreeNodeToTSNodeMap.get(esNode);
-      if (!tsNode) return;
+      if (!tsNode) {
+        return;
+      }
       const type = checker.getTypeAtLocation(tsNode);
-      if (!typeHasSymbolDispose(checker, type)) return;
-      if (isOwnedByContext(/** @type {EstreeNode} */ (esNode), context)) return;
+      if (!typeHasSymbolDispose(checker, type)) {
+        return;
+      }
+      if (isOwnedByContext(/** @type {EstreeNode} */ (esNode), context)) {
+        return;
+      }
 
       const outer = unwrapOwnership(/** @type {EstreeNode} */ (esNode));
-      const parent = /** @type {any} */ (outer).parent;
+      const { parent } = /** @type {{ parent?: EstreeNode & {
+        type: string;
+        init?: EstreeNode;
+        id?: EstreeNode & { type?: string };
+        parent?: EstreeNode & { type?: string };
+      } }} */ (/** @type {unknown} */ (outer));
       const typeText = checker.typeToString(type);
 
       // Case A: `const x = expr;` → auto-fix by replacing the keyword
@@ -309,23 +430,14 @@ export const requireUsingOnDisposableRule = {
         parent.id?.type === 'Identifier' &&
         parent.parent?.type === 'VariableDeclaration'
       ) {
-        const declNode = /** @type {VariableDeclaration & { kind: string }} */ (parent.parent);
+        const declNode = /** @type {VariableDeclaration & { kind: string }} */ (/** @type {unknown} */ (parent.parent));
         if (declNode.kind === 'const') {
-          const keywordRange = findKeywordRange(/** @type {any} */ (declNode));
-          context.report({
-            node: /** @type {any} */ (esNode),
-            messageId: 'missingUsing',
-            data: { typeText },
-            fix: keywordRange
-              ? (fixer) =>
-                  fixer.replaceTextRange([keywordRange.start, keywordRange.start + keywordRange.length], 'using')
-              : undefined,
-          });
+          reportConstDeclaration(context, { esNode: /** @type {EstreeNode} */ (esNode), declNode, typeText });
           return;
         }
         if (declNode.kind === 'let') {
           context.report({
-            node: /** @type {any} */ (esNode),
+            node: /** @type {EslintRuleNode} */ (/** @type {unknown} */ (esNode)),
             messageId: 'missingUsing',
             data: { typeText },
           });
@@ -341,7 +453,7 @@ export const requireUsingOnDisposableRule = {
         (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')
       ) {
         context.report({
-          node: /** @type {any} */ (esNode),
+          node: /** @type {EslintRuleNode} */ (/** @type {unknown} */ (esNode)),
           messageId: 'missingUsingDestructure',
           data: { typeText },
         });
@@ -350,7 +462,7 @@ export const requireUsingOnDisposableRule = {
 
       // Case C: inline disposable — no auto-fix: hoist `using <name> = …` manually.
       context.report({
-        node: /** @type {any} */ (esNode),
+        node: /** @type {EslintRuleNode} */ (/** @type {unknown} */ (esNode)),
         messageId: 'missingUsingInline',
         data: { typeText },
       });

@@ -5,16 +5,16 @@ import { RuleTester } from 'eslint';
 import tseslint from 'typescript-eslint';
 import { requireUsingOnDisposableRule } from './require-using-on-disposable.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixtureDir = path.join(__dirname, 'fixtures', 'require-using-on-disposable');
-const caseFile = path.join(fixtureDir, 'rule-tester-cases.ts');
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const fixtureDirectory = path.join(currentDirectory, 'fixtures', 'require-using-on-disposable');
+const caseFile = path.join(fixtureDirectory, 'rule-tester-cases.ts');
 
 const ruleTester = new RuleTester({
   languageOptions: {
     parser: tseslint.parser,
     parserOptions: {
       project: './tsconfig.json',
-      tsconfigRootDir: fixtureDir,
+      tsconfigRootDir: fixtureDirectory,
       ecmaVersion: 'latest',
       sourceType: 'module',
     },
