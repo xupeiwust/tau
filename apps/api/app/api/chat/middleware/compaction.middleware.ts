@@ -3,7 +3,9 @@ import type { AgentMiddleware } from 'langchain';
 import { AIMessage, ToolMessage, HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { ContextOverflowError } from '@langchain/core/errors';
+import { Command } from '@langchain/langgraph';
 import { z } from 'zod';
+import type { RecentReadsResetSignal } from '#api/chat/state/recent-reads-state.js';
 import { idPrefix } from '@taucad/types/constants';
 import { generatePrefixedId } from '@taucad/utils/id';
 import { CompactionService } from '#api/chat/compaction.service.js';
@@ -268,6 +270,13 @@ export const createCompactionMiddleware = (
       const estimatedTokens = Math.ceil(estimateMessageTokens(messages) * tokenEstimationMultiplier);
 
       let processedMessages = messages;
+      // Tracks whether the current model call summarised the message tail.
+      // When true, the post-handler return wraps the AIMessage in a Command
+      // that also resets `_recentReads` so dedup pointers referencing
+      // now-summarised ToolMessages cannot be re-used by the next read_file
+      // call. The reset is atomic with the AIMessage append, eliminating any
+      // window where stale pointers could be observed.
+      let compactionHappened = false;
 
       if (estimatedTokens > triggerThreshold && messages.length > 2) {
         // Tier 1: Truncate tool args in old messages
@@ -319,6 +328,7 @@ export const createCompactionMiddleware = (
             });
 
             processedMessages = [...addContinuityInstructions(compactedMessages), ...recentMessages];
+            compactionHappened = true;
 
             if (writer) {
               writer({
@@ -339,6 +349,8 @@ export const createCompactionMiddleware = (
           } catch (compactionError) {
             // If Morph API fails, fall back to keeping truncated args
             processedMessages = [...truncateToolArgs(evictedMessages), ...recentMessages];
+            // Truncated args still leave the original ToolMessage tail intact,
+            // so dedup pointers remain valid; do NOT set compactionHappened.
             const errorMessage =
               compactionError instanceof Error ? compactionError.message : 'Unknown compaction error';
             if (writer) {
@@ -361,10 +373,11 @@ export const createCompactionMiddleware = (
       processedMessages = stripExcessMedia(processedMessages);
 
       try {
-        return await handler({
+        const response = await handler({
           ...request,
           messages: processedMessages,
         });
+        return wrapWithRecentReadsReset(response, compactionHappened);
       } catch (error) {
         // Tier 3: Emergency re-compaction on ContextOverflowError
         if (error instanceof ContextOverflowError) {
@@ -374,14 +387,43 @@ export const createCompactionMiddleware = (
           const keep = findSafeCutoffPoint(processedMessages, emergencyKeep);
           const emergencyMessages = stripImageBlocks(processedMessages.slice(processedMessages.length - keep));
 
-          return handler({
+          // Emergency re-compaction also evicts ToolMessages, so the same
+          // dedup-pointer reset rule applies.
+          const emergencyResponse = await handler({
             ...request,
             messages: emergencyMessages,
           });
+          return wrapWithRecentReadsReset(emergencyResponse, true);
         }
 
         throw error;
       }
+    },
+  });
+};
+
+/**
+ * Wraps the post-handler response in a {@link Command} that resets
+ * `_recentReads` to an empty record when compaction or emergency truncation
+ * evicted the message tail. The wrapper is a no-op when no eviction
+ * occurred so the normal AIMessage append path stays unchanged.
+ *
+ * Reset rationale: dedup pointers in the `_recentReads` channel reference
+ * `tool_call_id`s on prior `ToolMessage`s. Eviction removes those messages
+ * from state, so any pointer to them becomes dangling and must not be
+ * re-used to short-circuit a fresh `read_file` call. Atomic reset via the
+ * same checkpoint write keeps state consistent across instances.
+ */
+const recentReadsResetSignal: RecentReadsResetSignal = { __resetRecentReads: true };
+
+const wrapWithRecentReadsReset = (response: AIMessage, evicted: boolean): AIMessage | Command => {
+  if (!evicted) {
+    return response;
+  }
+  return new Command({
+    update: {
+      messages: [response],
+      _recentReads: recentReadsResetSignal,
     },
   });
 };

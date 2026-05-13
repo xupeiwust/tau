@@ -619,6 +619,38 @@ describe('getCadSystemPrompt', () => {
       expect(block).toMatch(/never use placeholders/i);
     });
 
+    it('should direct the agent to prefer offset and limit for large source reads', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = result.static.slice(
+        result.static.indexOf('<tool_usage_policy>'),
+        result.static.indexOf('</tool_usage_policy>'),
+      );
+      expect(block).toMatch(/prefer `offset` \+ `limit`/);
+      expect(block).toMatch(/>2000 lines/);
+    });
+
+    it('should direct the agent to use narrow grep + headLimit before read_file on dense generated code', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = result.static.slice(
+        result.static.indexOf('<tool_usage_policy>'),
+        result.static.indexOf('</tool_usage_policy>'),
+      );
+      expect(block).toMatch(/narrow regex/);
+      expect(block).toMatch(/headLimit/);
+      expect(block).toMatch(/most-relevant ranges/);
+    });
+
+    it('should endorse node_modules as the canonical location for third-party reads', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = result.static.slice(
+        result.static.indexOf('<tool_usage_policy>'),
+        result.static.indexOf('</tool_usage_policy>'),
+      );
+      expect(block).toMatch(/node_modules\//);
+      expect(block).toMatch(/canonical location/);
+      expect(block).toMatch(/read it freely/);
+    });
+
     it('should NOT appear in dynamic section', async () => {
       const result = await getCadSystemPrompt('openscad');
       expect(result.dynamic).not.toContain('<tool_usage_policy>');

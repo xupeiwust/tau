@@ -188,6 +188,9 @@ Check \`<project_layout>\` for existing files. Read before editing.${tddNote}
     compute: () => `<tool_usage_policy>
 - You can call multiple tools in a single response. If multiple tool calls are independent, make all of them in parallel in one response. If a tool call depends on the result of a previous one, run them sequentially.
 - Never use placeholders or guess missing parameters in tool calls. If a required value is unknown, read the source first.
+- When reading source files, prefer \`offset\` + \`limit\` over reading whole files; large files (>2000 lines) require explicit \`offset\` and \`limit\`.
+- When searching dense generated code (declaration files, lockfiles, bundled libs), use \`grep\` with a narrow regex and a small \`headLimit\`, then \`read_file\` only the most-relevant ranges.
+- \`node_modules/\` is the canonical location for 3rd-party type and source reads via the node_modules FS mount — read it freely. The mount is a flattened projection: each package exposes only \`<pkg>/index.d.ts\` and \`<pkg>/package.json\` (no \`dist/\`, \`lib/\`, or other transitive subdirs); all type information is consolidated in \`<pkg>/index.d.ts\`. Large \`.d.ts\` files are protected by server-side caps and offload, so prefer narrow \`grep\` queries followed by targeted \`read_file\` ranges.
 </tool_usage_policy>`,
   });
 

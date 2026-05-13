@@ -36,6 +36,8 @@ import { createAgentSafeguardsMiddleware } from '#api/chat/middleware/agent-safe
 import { createInterruptRecoveryMiddleware } from '#api/chat/middleware/interrupt-recovery.middleware.js';
 import { createCompactionMiddleware } from '#api/chat/middleware/compaction.middleware.js';
 import { createToolOffloadingMiddleware } from '#api/chat/middleware/tool-offloading.middleware.js';
+import { createToolResultBudgetMiddleware } from '#api/chat/middleware/tool-result-budget.middleware.js';
+import { createReadDedupStateMiddleware } from '#api/chat/state/recent-reads-state.js';
 import { createTranscriptMiddleware } from '#api/chat/middleware/transcript.middleware.js';
 import { createContextUsageMiddleware } from '#api/chat/middleware/context-usage.middleware.js';
 import { CheckpointerService } from '#api/chat/checkpointer.service.js';
@@ -149,6 +151,10 @@ export class ChatService {
       systemPrompt,
       checkpointer,
       middleware: [
+        // --- State channels (registered early so the agent graph picks up
+        //     stateSchema contributions before any hook touches state) ---
+        createReadDedupStateMiddleware(),
+
         // --- Metrics and error handling ---
         createToolMetricsMiddleware(this.metricsService),
         toolErrorHandlerMiddleware,
@@ -158,7 +164,8 @@ export class ChatService {
           : []),
 
         // --- Context prevention (offload large tool results before trimming) ---
-        createToolOffloadingMiddleware(this.rpcBackendFactory),
+        createToolOffloadingMiddleware(this.rpcBackendFactory, this.metricsService),
+        createToolResultBudgetMiddleware(this.rpcBackendFactory, this.metricsService),
         toolResultTrimmerMiddleware,
 
         // --- Context compaction ---

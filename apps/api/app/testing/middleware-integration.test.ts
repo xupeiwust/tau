@@ -91,7 +91,7 @@ describe.skipIf(providerEnvVariable === undefined || requiresEnv(providerEnvVari
     // Tool offloading middleware
     // ===========================================================================
 
-    it('should offload large tool results to .tau/offloaded-tool-results/', async () => {
+    it('should offload large tool results to .tau/tool-results/', async () => {
       const threadId = `test-offload-${Date.now()}`;
 
       const response = await fetch(`${testApp.baseUrl}/v1/chat`, {

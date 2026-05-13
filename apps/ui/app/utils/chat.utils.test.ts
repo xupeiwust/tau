@@ -354,6 +354,8 @@ describe('serializeMessage', () => {
           output: {
             matches: [{ file: 'a.ts', line: 1, content: 'foo' }],
             totalMatches: 1,
+            appliedHeadLimit: 50,
+            appliedOffset: 0,
           },
         },
       ]);
