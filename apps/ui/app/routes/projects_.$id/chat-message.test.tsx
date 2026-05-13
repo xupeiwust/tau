@@ -202,12 +202,6 @@ vi.mock('#components/ui/dropdown-menu.js', () => ({
   ),
 }));
 
-vi.mock('react-virtuoso', () => ({
-  Virtuoso: ({ totalCount, className }: { readonly totalCount: number; readonly className?: string }) => (
-    <div data-testid='virtuoso' data-total-count={totalCount} className={className} />
-  ),
-}));
-
 const setMessages = (messages: MyUIMessage[], status: 'ready' | 'streaming' = 'ready'): void => {
   mockMessagesById.clear();
   mockMessageOrder.length = 0;
@@ -288,7 +282,7 @@ describe('ChatMessage column wrapper layout', () => {
     expect(planning.dataset['messageId']).toBe('msg-1');
   });
 
-  it('should still allow long user messages to opt into their own bounded bubble (max-h-58.5)', () => {
+  it('should cap collapsed long user bubbles at max-h-58.5 for parity with focused ChatTextarea, without nested Virtuoso scroll', () => {
     const longText = Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n');
     setMessages([userMessage('msg-1', longText)]);
 
@@ -302,7 +296,14 @@ describe('ChatMessage column wrapper layout', () => {
 
     expect(innerBubble.className).toContain('max-h-58.5');
     expect(innerBubble.className).toContain('overflow-hidden');
+    expect(innerBubble.querySelector('[data-testid="virtuoso-scroller"]')).toBeNull();
+
     expect(wrapper.className).not.toContain('overflow-y-auto');
+    expect(wrapper.className).not.toContain('overflow-y-scroll');
+
+    const rowsWrap = innerBubble.querySelector('.flex.flex-col.gap-1');
+    expect(rowsWrap).not.toBeNull();
+    expect(rowsWrap!.querySelectorAll('p').length).toBeGreaterThan(0);
   });
 });
 
