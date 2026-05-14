@@ -1985,8 +1985,8 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
       opencascade.js:
-        specifier: npm:@taucad/opencascade.js@3.0.0-beta.1
-        version: '@taucad/opencascade.js@3.0.0-beta.1(ws@8.19.0)'
+        specifier: file:../../tarballs/opencascade-fork/taucad-opencascade.js-3.0.0-beta.d3056ef.tgz
+        version: '@taucad/opencascade.js@file:tarballs/opencascade-fork/taucad-opencascade.js-3.0.0-beta.d3056ef.tgz(ws@8.19.0)'
       replicad:
         specifier: npm:@taucad/replicad@0.21.0-v8.57.1
         version: '@taucad/replicad@0.21.0-v8.57.1(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)'
@@ -10229,6 +10229,12 @@ packages:
 
   '@taucad/opencascade.js@3.0.0-beta.1':
     resolution: {integrity: sha512-FBg5DAmwR0AomxgkNCoi83RpdTMPUkO27qk0eZeSnhMeNdUoTxiUa3uZTVc5OW8Po6GS1n0kUHgOZfnYmkJjvg==}
+    peerDependencies:
+      ws: ^8.5.0
+
+  '@taucad/opencascade.js@file:tarballs/opencascade-fork/taucad-opencascade.js-3.0.0-beta.d3056ef.tgz':
+    resolution: {integrity: sha512-L43IAmbQRZs6LuW9JCEsxFS23t3L5bB9AJxVOdGqzxjcH5c504PyXwSSUDI6rNyWYF4KPfqogMRtYs1/Brcxcg==, tarball: file:tarballs/opencascade-fork/taucad-opencascade.js-3.0.0-beta.d3056ef.tgz}
+    version: 3.0.0-beta.d3056ef
     peerDependencies:
       ws: ^8.5.0
 
@@ -31006,6 +31012,12 @@ snapshots:
       '@gltf-transform/functions': 4.3.0
       ws: 8.19.0
 
+  '@taucad/opencascade.js@file:tarballs/opencascade-fork/taucad-opencascade.js-3.0.0-beta.d3056ef.tgz(ws@8.19.0)':
+    dependencies:
+      '@gltf-transform/core': 4.3.0
+      '@gltf-transform/functions': 4.3.0
+      ws: 8.19.0
+
   '@taucad/replicad-opencascadejs@0.21.0-v8.57': {}
 
   '@taucad/replicad@0.21.0-v8.57.1(patch_hash=b6ecc1ad0094dab60773fcac8449dfad615b406c272ce575101dbb704a428c39)':
@@ -32033,7 +32045,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
 
   '@vitest/expect@4.1.5':
     dependencies:
@@ -32087,7 +32099,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
 
   '@vitest/utils@4.1.5':
     dependencies:
@@ -44711,7 +44723,7 @@ snapshots:
     dependencies:
       ts-essentials: 10.1.1(typescript@5.9.3)
       typescript: 5.9.3
-      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
+      vitest: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@25.3.0)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@25.3.0)(esbuild@0.28.0)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4))
 
   vitest@4.1.5(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(happy-dom@16.8.1)(jsdom@26.0.0(canvas@3.2.1))(vite@8.0.10(@types/node@24.0.15)(esbuild@0.27.3)(jiti@2.6.1)(less@4.5.1)(sass-embedded@1.97.3)(sass@1.97.3)(stylus@0.64.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.4)):
     dependencies:
