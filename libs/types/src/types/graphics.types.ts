@@ -84,6 +84,35 @@ export type ScreenshotOptions = {
     isPreview?: boolean;
   };
   composite?: CompositeScreenshotOptions;
+
+  /**
+   * Optional top-left chip overlay stamped onto the captured image
+   * (file-extension icon + full file path in the chat-purple chip palette).
+   *
+   * When provided, every output of the screenshot pipeline — single-view,
+   * SVG, and composite (one chip on the composite as a whole) — is stamped
+   * with the chip. When omitted, no overlay is drawn.
+   *
+   * See `docs/research/screenshot-overlay-watermark-architecture.md`.
+   */
+  overlay?: ScreenshotOverlay;
+};
+
+/**
+ * Identifies what to stamp in the top-left of a captured screenshot.
+ *
+ * `iconKey` is `string` at the libs/types boundary so this lib does not
+ * depend on the apps/ui icon enum; consumers narrow it to their concrete
+ * icon-id union (e.g. `IconId` in `apps/ui`).
+ */
+export type ScreenshotOverlay = {
+  /** Full file path of the geometry unit being captured, e.g. `src/main.scad`. */
+  readonly filePath: string;
+  /**
+   * Sprite/PNG icon key for the file extension. When omitted (or unknown to
+   * the rasteriser), the overlay falls back to a generic file glyph.
+   */
+  readonly iconKey?: string;
 };
 
 export type CompositeScreenshotOptions = {

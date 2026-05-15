@@ -1,8 +1,9 @@
 import { setup, sendTo, fromCallback, assertEvent, enqueueActions, assign } from 'xstate';
 import type { AnyActorRef } from 'xstate';
 import * as THREE from 'three';
-import type { ScreenshotOptions, CameraAngle, CompositeScreenshotOptions } from '@taucad/types';
+import type { ScreenshotOptions, ScreenshotOverlay, CameraAngle, CompositeScreenshotOptions } from '@taucad/types';
 import type { ResolvedGraphicsBackend } from '#constants/editor.constants.js';
+import { drawScreenshotOverlay } from '#machines/screenshot-overlay.utils.js';
 import {
   applyMatcapToClonedScene,
   disposeCloneOwnedMaterials,
@@ -122,11 +123,20 @@ export function calculateOptimalGrid(
 }
 
 /**
- * Create composite image from multiple screenshots
+ * Create composite image from multiple screenshots.
+ *
+ * When `overlay` is supplied, the chip is stamped **once** on the assembled
+ * composite (top-left of the entire grid) — not per tile. The composite
+ * actor passes `suppressOverlay: true` to the per-angle `captureScreenshots`
+ * call so tiles arrive un-stamped, then this function stamps the chip on
+ * the final canvas. See `docs/research/screenshot-overlay-watermark-architecture.md`
+ * Finding 7 for the rationale (per-tile chips would compete with the
+ * existing angle labels).
  */
 async function createCompositeImage(
   screenshots: Array<{ label: string; dataUrl: string }>,
   options: CompositeScreenshotOptions = defaultCompositeOptions,
+  overlay?: ScreenshotOverlay,
 ): Promise<string> {
   const mergedOptions = {
     ...defaultCompositeOptions,
@@ -243,6 +253,19 @@ async function createCompositeImage(
     context.stroke();
   }
 
+  if (overlay) {
+    // Composite canvas is drawn in device pixels (no DPR scale on `context`),
+    // so the overlay's internal `scale(pixelRatio)` is paired with `pixelRatio = 1`
+    // to keep the chip pinned to a 12 px CSS-equivalent margin in the
+    // composite's native coordinate space.
+    await drawScreenshotOverlay(context, {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      pixelRatio: 1,
+      overlay,
+    });
+  }
+
   // Convert canvas to blob with optimized settings for speed
   const outputFormat = 'image/webp';
   const outputQuality = 0.75;
@@ -335,8 +358,18 @@ function inlineSvgStyles(clone: Element, original: Element): void {
 /**
  * Core SVG screenshot capture logic.
  * Captures the current SVG view as a flat image (camera angles are ignored).
+ *
+ * When `options.overlay` is set and `suppressOverlay` is false, stamps the
+ * top-left chip via {@link drawScreenshotOverlay} on the existing 2D canvas
+ * between the SVG raster and the encode step. SVG composites use the same
+ * suppress-on-tile + stamp-on-composite contract as the Three.js path —
+ * see `docs/research/screenshot-overlay-watermark-architecture.md`.
  */
-async function captureSvgScreenshots(svgElement: SVGSVGElement, options?: ScreenshotOptions): Promise<string[]> {
+async function captureSvgScreenshots(
+  svgElement: SVGSVGElement,
+  options?: ScreenshotOptions,
+  suppressOverlay?: boolean,
+): Promise<string[]> {
   if (!svgElement.isConnected) {
     throw new Error('Screenshot attempted on disconnected SVG element');
   }
@@ -433,6 +466,25 @@ async function captureSvgScreenshots(svgElement: SVGSVGElement, options?: Screen
 
     context.drawImage(img, 0, 0, width, height);
 
+    if (!suppressOverlay && options?.overlay) {
+      // The SVG path has already applied `ctx.scale(pixelRatio, pixelRatio)`.
+      // Reset the transform around the overlay so its internal `scale(pixelRatio)`
+      // composes against an identity matrix, matching the Three.js path's
+      // expectations (overlay reasons in CSS pixels and DPR-scales internally).
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      try {
+        await drawScreenshotOverlay(context, {
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height,
+          pixelRatio,
+          overlay: options.overlay,
+        });
+      } finally {
+        context.restore();
+      }
+    }
+
     // Export as data URL via Blob → FileReader (consistent with Three.js path)
     const mimeType = config.output.format;
     const quality = mimeType === 'image/jpeg' || mimeType === 'image/webp' ? config.output.quality : undefined;
@@ -495,8 +547,60 @@ export function removeCloneUnsafeObjects(scene: THREE.Scene): void {
 }
 
 /**
+ * Encode a freshly-rendered 3D screenshot canvas to a dataURL, optionally
+ * stamping an overlay chip first. The 3D canvas already owns a WebGL or
+ * WebGPU context, so a 2D context cannot be acquired from it directly —
+ * we blit into a fresh 2D canvas, draw the overlay there, and encode from
+ * the 2D canvas. When `overlay` is undefined, we skip the blit entirely
+ * and return the 3D canvas's `toDataURL` to preserve the original encode
+ * path for non-overlay callers (zero behavioural change).
+ */
+async function encodeScreenshotCanvas(args: {
+  screenshotCanvas: HTMLCanvasElement;
+  format: string;
+  quality: number;
+  overlay: ScreenshotOverlay | undefined;
+  pixelRatio: number;
+}): Promise<string> {
+  const { screenshotCanvas, format, quality, overlay, pixelRatio } = args;
+  if (!overlay) {
+    return screenshotCanvas.toDataURL(format, quality);
+  }
+
+  const stampedCanvas = document.createElement('canvas');
+  stampedCanvas.width = screenshotCanvas.width;
+  stampedCanvas.height = screenshotCanvas.height;
+  try {
+    const stampedContext = stampedCanvas.getContext('2d');
+    if (!stampedContext) {
+      // Couldn't get a 2D context — fall back to the un-stamped capture so
+      // the screenshot pipeline never fails because of overlay setup.
+      return screenshotCanvas.toDataURL(format, quality);
+    }
+    stampedContext.drawImage(screenshotCanvas, 0, 0);
+    await drawScreenshotOverlay(stampedContext, {
+      canvasWidth: stampedCanvas.width,
+      canvasHeight: stampedCanvas.height,
+      pixelRatio,
+      overlay,
+    });
+    return stampedCanvas.toDataURL(format, quality);
+  } finally {
+    stampedCanvas.width = 0;
+    stampedCanvas.height = 0;
+  }
+}
+
+/**
  * Core screenshot capture logic.
  * Renders each camera angle into a temporary canvas and returns data URLs.
+ *
+ * When `options.overlay` is set and `suppressOverlay` is false (single-view
+ * path), each rendered frame is blitted into a fresh 2D canvas and stamped
+ * with a top-left chip via {@link drawScreenshotOverlay} before encoding.
+ * The composite path passes `suppressOverlay: true` so the chip is drawn
+ * once on the assembled grid instead of once per tile — see
+ * `docs/research/screenshot-overlay-watermark-architecture.md` Finding 7.
  */
 // oxlint-disable-next-line eslint(complexity) -- multi-angle capture composes camera fitting, cropping, DPI, cloning, matcap, and teardown in one tool entry point
 async function captureScreenshots({
@@ -504,11 +608,13 @@ async function captureScreenshots({
   scene,
   camera,
   options,
+  suppressOverlay,
 }: {
   gl: ViewportCadGl;
   scene: THREE.Scene;
   camera: THREE.Camera;
   options?: ScreenshotOptions;
+  suppressOverlay?: boolean;
 }): Promise<string[]> {
   if (!gl.domElement.isConnected) {
     throw new Error('Screenshot attempted on disconnected canvas - canvas may have been recreated');
@@ -686,7 +792,15 @@ async function captureScreenshots({
 
       screenshotRenderer.render(screenshotScene, screenshotCamera);
 
-      dataUrls.push(screenshotCanvas.toDataURL(config.output.format, config.output.quality));
+      // oxlint-disable-next-line no-await-in-loop -- sequential await intentional: the shared `screenshotCanvas` is overwritten on every render, so the overlay blit must read it before the next loop iteration starts
+      const stampedDataUrl = await encodeScreenshotCanvas({
+        screenshotCanvas,
+        format: config.output.format,
+        quality: config.output.quality,
+        overlay: !suppressOverlay && options?.overlay ? options.overlay : undefined,
+        pixelRatio,
+      });
+      dataUrls.push(stampedDataUrl);
     }
 
     disposeCloneOwnedMaterials(cloneOwnedMaterials);
@@ -766,7 +880,9 @@ export const screenshotCapabilityMachine = setup({
 
       (async () => {
         try {
-          const dataUrls = await captureScreenshots({ gl, scene, camera, options });
+          // Suppress per-tile overlay so the chip only appears once on the
+          // assembled composite (createCompositeImage stamps it below).
+          const dataUrls = await captureScreenshots({ gl, scene, camera, options, suppressOverlay: true });
           const compositeOptions = options?.composite ?? defaultCompositeOptions;
 
           const screenshots = dataUrls.map((dataUrl, index) => {
@@ -775,7 +891,7 @@ export const screenshotCapabilityMachine = setup({
             return { label, dataUrl };
           });
 
-          const compositeDataUrl = await createCompositeImage(screenshots, compositeOptions);
+          const compositeDataUrl = await createCompositeImage(screenshots, compositeOptions, options?.overlay);
 
           sendBack({
             type: 'screenshotCompleted',
@@ -831,7 +947,7 @@ export const screenshotCapabilityMachine = setup({
 
       (async () => {
         try {
-          const dataUrls = await captureSvgScreenshots(svgElement, options);
+          const dataUrls = await captureSvgScreenshots(svgElement, options, /* suppressOverlay */ true);
           const compositeOptions = options?.composite ?? defaultCompositeOptions;
 
           const screenshots = dataUrls.map((dataUrl) => ({
@@ -839,7 +955,7 @@ export const screenshotCapabilityMachine = setup({
             dataUrl,
           }));
 
-          const compositeDataUrl = await createCompositeImage(screenshots, compositeOptions);
+          const compositeDataUrl = await createCompositeImage(screenshots, compositeOptions, options?.overlay);
           sendBack({
             type: 'screenshotCompleted',
             dataUrls: [compositeDataUrl],
