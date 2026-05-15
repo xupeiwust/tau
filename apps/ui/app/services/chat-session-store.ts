@@ -420,63 +420,84 @@ export class ChatSessionStore {
     // Translate persistence-actor emits into AI SDK side effects on the
     // store-owned `Chat`. Identical wiring to the prior `<ChatInstance>` —
     // moved outside React so the listeners outlive any subtree mount cycle.
+    //
+    // The listener body is deferred onto a microtask so that
+    // `chat.sendMessage` / `chat.regenerate` / `chatShim.makeRequest` never
+    // run nested inside another `Chat.makeRequest`'s `finally` block. AI SDK
+    // v6's `makeRequest` clobbers `this.activeResponse = void 0` AFTER its
+    // `onFinish` callback returns; a synchronous re-entry from `onFinish` →
+    // `requestFinished` → `stopping → invoking` → emit `dispatchRequest`
+    // would let the new `makeRequest` assign `this.activeResponse =
+    // activeResponse_B` only to have the outer finally null it back out.
+    // The new `makeRequest`'s own finally would then access
+    // `this.activeResponse.state.message` (no optional chaining in ai@6.0.175)
+    // and throw a TypeError that the surrounding try/catch swallows,
+    // suppressing `onFinish` and stranding the persistence machine in
+    // `invoking`. See docs/research/chat-followup-message-swallow.md.
+    //
+    // The microtask deferral is strictly local to this listener: the
+    // sibling `applyResumedRequest` listener still runs synchronously so
+    // its `chat.messages = sanitized` mutation is observable to the deferred
+    // `chat.sendMessage(B)` call when it fires on the next tick.
     const dispatchSubscription = persistenceActorRef.on('dispatchRequest', ({ request }) => {
-      switch (request.kind) {
-        case 'send': {
-          void chat.sendMessage(request.message);
-          return;
-        }
-
-        case 'regenerate': {
-          void chat.regenerate();
-          return;
-        }
-
-        case 'edit': {
-          const messageIndex = chat.messages.findIndex((m) => m.id === request.messageId);
-          if (messageIndex === -1) {
+      queueMicrotask(() => {
+        switch (request.kind) {
+          case 'send': {
+            void chat.sendMessage(request.message);
             return;
           }
-          chat.messages = [...chat.messages.slice(0, messageIndex), buildEditedMessage(request)];
-          void chat.regenerate();
-          return;
-        }
 
-        case 'retry': {
-          const next = buildRetryMessages(chat.messages, request);
-          if (!next) {
+          case 'regenerate': {
+            void chat.regenerate();
             return;
           }
-          chat.messages = next;
-          void chat.regenerate();
-          return;
-        }
 
-        // Resume an interrupted stream WITHOUT slicing chat.messages.
-        // AI SDK's public surface only ships `sendMessage`/`regenerate`/
-        // `resumeStream` (the latter requires a server-side resumable-stream
-        // backend we don't run yet -- see docs/research/resumable-chat-streams.md).
-        // The private `Chat.makeRequest({ trigger: 'submit-message' })` is the
-        // exact pathway both `sendMessage` and `regenerate` use internally,
-        // minus the message mutation step. Pinned to ai@6.0.x; the contract
-        // test in chat-session-store.contract.test.ts fails loudly the moment
-        // AI SDK renames or removes this method.
-        case 'continue': {
-          type ChatMakeRequestShim = {
-            makeRequest: (args: {
-              trigger: 'submit-message' | 'resume-stream' | 'regenerate-message';
-            }) => Promise<void>;
-          };
-          // `makeRequest` is declared `private` in AI SDK's source so a direct
-          // intersection collapses to `never`. We hop through `unknown` to
-          // forcibly re-shape the runtime value -- the contract test in
-          // chat-session-store.contract.test.ts asserts the method exists at
-          // runtime so this assertion can never silently rot.
-          // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- typed shim over AI SDK's private method, guarded by chat-session-store.contract.test.ts
-          const chatShim = chat as unknown as ChatMakeRequestShim;
-          void chatShim.makeRequest({ trigger: 'submit-message' });
+          case 'edit': {
+            const messageIndex = chat.messages.findIndex((m) => m.id === request.messageId);
+            if (messageIndex === -1) {
+              return;
+            }
+            chat.messages = [...chat.messages.slice(0, messageIndex), buildEditedMessage(request)];
+            void chat.regenerate();
+            return;
+          }
+
+          case 'retry': {
+            const next = buildRetryMessages(chat.messages, request);
+            if (!next) {
+              return;
+            }
+            chat.messages = next;
+            void chat.regenerate();
+            return;
+          }
+
+          // Resume an interrupted stream WITHOUT slicing chat.messages.
+          // AI SDK's public surface only ships `sendMessage`/`regenerate`/
+          // `resumeStream` (the latter requires a server-side resumable-stream
+          // backend we don't run yet -- see docs/research/resumable-chat-streams.md).
+          // The private `Chat.makeRequest({ trigger: 'submit-message' })` is the
+          // exact pathway both `sendMessage` and `regenerate` use internally,
+          // minus the message mutation step. Pinned to ai@6.0.x; the contract
+          // test in chat-session-store.contract.test.ts fails loudly the moment
+          // AI SDK renames or removes this method.
+          case 'continue': {
+            type ChatMakeRequestShim = {
+              makeRequest: (args: {
+                trigger: 'submit-message' | 'resume-stream' | 'regenerate-message';
+              }) => Promise<void>;
+            };
+            // `makeRequest` is declared `private` in AI SDK's source so a direct
+            // intersection collapses to `never`. We hop through `unknown` to
+            // forcibly re-shape the runtime value -- the contract test in
+            // chat-session-store.contract.test.ts asserts the method exists at
+            // runtime so this assertion can never silently rot.
+            // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- typed shim over AI SDK's private method, guarded by chat-session-store.contract.test.ts
+            const chatShim = chat as unknown as ChatMakeRequestShim;
+            void chatShim.makeRequest({ trigger: 'submit-message' });
+          }
         }
-      }
+      });
     });
 
     const stopSubscription = persistenceActorRef.on('dispatchStop', () => {

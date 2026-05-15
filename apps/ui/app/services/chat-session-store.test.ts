@@ -700,7 +700,7 @@ describe('ChatSessionStore', () => {
   // calls makeRequest({trigger:'submit-message'}) without slicing chat.messages
   // ===========================================================================
   describe('resumable streams (R4 plumbing + R1 continue dispatch)', () => {
-    it('dispatchRequest { kind: "continue" } calls chat.makeRequest({ trigger: "submit-message" }) and does NOT mutate chat.messages', () => {
+    it('dispatchRequest { kind: "continue" } calls chat.makeRequest({ trigger: "submit-message" }) and does NOT mutate chat.messages', async () => {
       const store = createStore();
       const session = store.acquire('chat_resume');
       const fake = harness.created.find((entry) => entry.id === 'chat_resume')!;
@@ -718,12 +718,169 @@ describe('ChatSessionStore', () => {
 
       session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'continue' } });
 
+      // The dispatchRequest listener defers AI SDK calls onto a microtask
+      // so they never run nested inside an outer makeRequest's finally
+      // (see docs/research/chat-followup-message-swallow.md).
+      await Promise.resolve();
+
       expect(fake.makeRequest).toHaveBeenCalledTimes(1);
       expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
       // Identity check: chat.messages reference unchanged.
       expect(fake.messages).toBe(beforeRef);
       expect(fake.regenerate).not.toHaveBeenCalled();
       expect(fake.sendMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  // Preempt-clobber defense: the dispatchRequest listener must not call into
+  // AI SDK's `Chat.sendMessage` / `Chat.regenerate` / `Chat.makeRequest`
+  // synchronously inside the persistence machine's emit transition.
+  //
+  // Why: `chat.onFinish` synchronously sends `requestFinished` to the
+  // machine from inside AI SDK's `Chat.makeRequest` finally block. When the
+  // machine resumes a queued `pendingRequest` from `stopping → invoking`,
+  // it emits `applyResumedRequest` followed by `dispatchRequest` in the
+  // same transition. If `dispatchRequest`'s listener calls `chat.sendMessage`
+  // synchronously, the new `makeRequest`'s `this.activeResponse = ...`
+  // assignment lands BEFORE the outer makeRequest's finally runs its trailing
+  // `this.activeResponse = void 0`. The outer finally clobbers the new
+  // activeResponse, and when the new makeRequest's own finally later accesses
+  // `this.activeResponse.state.message` (no optional chaining in ai@6.0.175)
+  // it throws a TypeError that the surrounding try/catch swallows --
+  // `onFinish` for the new request never fires, the machine never receives
+  // `requestFinished`, and follow-up sends are silently dropped.
+  //
+  // See docs/research/chat-followup-message-swallow.md for the full trace.
+  // ===========================================================================
+  describe('preempt-clobber defense', () => {
+    it('does NOT call chat.sendMessage synchronously inside startRequest dispatch (deferred onto a microtask)', async () => {
+      const store = createStore();
+      const session = store.acquire('chat_clobber_send');
+      const fake = harness.created.find((entry) => entry.id === 'chat_clobber_send')!;
+
+      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal MyUIMessage shape for test
+      const message: MyUIMessage = {
+        id: 'msg_user_B',
+        role: 'user',
+        parts: [{ type: 'text', text: 'follow-up' }],
+        metadata: { createdAt: 0, status: 'pending' },
+      } as MyUIMessage;
+
+      session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'send', message } });
+
+      // Synchronous assertion: the listener has NOT touched the AI SDK yet.
+      // This is the core fix -- a synchronous call would re-enter
+      // `Chat.makeRequest` inside an outer makeRequest's finally and trigger
+      // the activeResponse clobber.
+      expect(fake.sendMessage).not.toHaveBeenCalled();
+
+      await Promise.resolve();
+
+      expect(fake.sendMessage).toHaveBeenCalledTimes(1);
+      expect(fake.sendMessage).toHaveBeenCalledWith(message);
+    });
+
+    it('does NOT call chat.regenerate synchronously inside startRequest dispatch', async () => {
+      const store = createStore();
+      const session = store.acquire('chat_clobber_regen');
+      const fake = harness.created.find((entry) => entry.id === 'chat_clobber_regen')!;
+
+      session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'regenerate' } });
+
+      expect(fake.regenerate).not.toHaveBeenCalled();
+
+      await Promise.resolve();
+
+      expect(fake.regenerate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT call chat.makeRequest synchronously inside continue dispatch', async () => {
+      const store = createStore();
+      const session = store.acquire('chat_clobber_continue');
+      const fake = harness.created.find((entry) => entry.id === 'chat_clobber_continue')!;
+
+      session.persistenceActorRef.send({ type: 'startRequest', request: { kind: 'continue' } });
+
+      expect(fake.makeRequest).not.toHaveBeenCalled();
+
+      await Promise.resolve();
+
+      expect(fake.makeRequest).toHaveBeenCalledTimes(1);
+      expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
+    });
+
+    it('end-to-end preempt path: applyResumedRequest mutates chat.messages SYNCHRONOUSLY, dispatchRequest defers chat.sendMessage onto the next microtask', async () => {
+      // This is the critical ordering. `applyResumedRequest` must mutate
+      // `chat.messages = sanitized` synchronously inside the transition so
+      // that when the deferred `dispatchRequest` listener fires
+      // `chat.sendMessage(B)` on the next microtask, the AI SDK sees the
+      // sanitized message tail (with the partial assistant turn finalised)
+      // rather than the in-flight pre-preempt array.
+      const store = createStore();
+      const session = store.acquire('chat_preempt_ordering');
+      const fake = harness.created.find((entry) => entry.id === 'chat_preempt_ordering')!;
+
+      const initialMessages: MyUIMessage[] = [
+        // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal MyUIMessage shape for test
+        {
+          id: 'msg_user_A',
+          role: 'user',
+          parts: [{ type: 'text', text: 'first turn' }],
+          metadata: { createdAt: 0 },
+        } as MyUIMessage,
+      ];
+      fake.messages = initialMessages;
+
+      // oxlint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal MyUIMessage shape for test
+      const pendingMessage: MyUIMessage = {
+        id: 'msg_user_B',
+        role: 'user',
+        parts: [{ type: 'text', text: 'preempting follow-up' }],
+        metadata: { createdAt: 1, status: 'pending' },
+      } as MyUIMessage;
+
+      // Kick off A (idle -> invoking).
+      session.persistenceActorRef.send({
+        type: 'startRequest',
+        request: { kind: 'send', message: initialMessages[0]! },
+      });
+      // Drain the microtask so the listener fires for A.
+      await Promise.resolve();
+      fake.sendMessage.mockClear();
+
+      // Preempt with B (invoking -> stopping, pendingRequest = B-send).
+      session.persistenceActorRef.send({
+        type: 'startRequest',
+        request: { kind: 'send', message: pendingMessage },
+      });
+      expect(session.persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'stopping' })).toBe(true);
+
+      // Simulate AI SDK's onFinish wiring: AI SDK aborts A, then calls onFinish
+      // with the current messages. This is the synchronous re-entry we are
+      // defending against.
+      session.persistenceActorRef.send({
+        type: 'requestFinished',
+        messages: initialMessages,
+        isAbort: true,
+        isError: false,
+        isDisconnect: false,
+      });
+
+      // Synchronous post-conditions:
+      // 1. Machine has transitioned stopping -> invoking (preempt branch).
+      expect(session.persistenceActorRef.getSnapshot().matches({ requestLifecycle: 'invoking' })).toBe(true);
+      // 2. applyResumedRequest fired synchronously and mutated chat.messages.
+      //    `finalizeInterruptedToolParts` returns the same reference when no
+      //    sanitisation is needed, so we observe identity preservation.
+      expect(fake.messages).toBe(initialMessages);
+      // 3. dispatchRequest's chat.sendMessage call was deferred (not yet seen).
+      expect(fake.sendMessage).not.toHaveBeenCalled();
+
+      // Drain the microtask: chat.sendMessage(B) now fires.
+      await Promise.resolve();
+      expect(fake.sendMessage).toHaveBeenCalledTimes(1);
+      expect(fake.sendMessage).toHaveBeenCalledWith(pendingMessage);
     });
   });
 
