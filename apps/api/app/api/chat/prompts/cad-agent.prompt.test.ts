@@ -15,19 +15,78 @@ describe('getCadSystemPrompt', () => {
       expect(result.static).toContain('</constraints>');
     });
 
-    it('should forbid adding unrequested features', async () => {
+    it('should scope anti-gold-plating to code, not geometry', async () => {
       const result = await getCadSystemPrompt('openscad');
-      expect(result.static).toMatch(/do not add features.*beyond what was asked/i);
+      const block = result.static.slice(
+        result.static.indexOf('<constraints>'),
+        result.static.indexOf('</constraints>'),
+      );
+      expect(block).toMatch(/anti-gold-plating applies to code, not to geometry/i);
+      expect(block).toMatch(/do not add unrelated code features/i);
+      expect(block).toMatch(/implicit ask for a CAD deliverable/i);
+      expect(block).toMatch(/modelling a real fastener, fillet, or sub-component is the task/i);
     });
 
-    it('should forbid unnecessary error handling', async () => {
+    it('should forbid unnecessary code-level error handling', async () => {
       const result = await getCadSystemPrompt('openscad');
-      expect(result.static).toMatch(/do not add error handling.*cannot happen/i);
+      expect(result.static).toMatch(/do not add code-level error handling.*cannot happen/i);
     });
 
     it('should forbid premature abstractions', async () => {
       const result = await getCadSystemPrompt('openscad');
       expect(result.static).toMatch(/do not create helpers.*one-time/i);
+    });
+  });
+
+  // ===================================================================
+  // Production-grade role / quality bar
+  //   Closes deferred R11/F9 from docs/research/system-prompt-audit.md
+  //   and Finding 6 of docs/research/complex-task-agent-gap-analysis.md
+  //   ("Anti-Gold-Plating Rules Conflict with Engineering Detail").
+  // ===================================================================
+
+  describe('production-grade <role>', () => {
+    const extractRole = (prompt: string) => prompt.slice(prompt.indexOf('<role>'), prompt.indexOf('</role>'));
+
+    it('should name the target audience (architects / engineers / product designers / manufacturing)', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = extractRole(result.static);
+      expect(block).toMatch(/architects/i);
+      expect(block).toMatch(/engineers/i);
+      expect(block).toMatch(/product designers/i);
+      expect(block).toMatch(/manufacturing/i);
+    });
+
+    it('should set a production-grade quality bar and reject toy/hobbyist defaults', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = extractRole(result.static);
+      expect(block).toMatch(/production-grade/i);
+      expect(block).toMatch(/not a hobbyist sketch/i);
+      expect(block).toMatch(/real engineering deliverable/i);
+      expect(block).toMatch(/dimensionally faithful/i);
+      expect(block).toMatch(/manufacturable as-is/i);
+    });
+
+    it('should instruct the agent to model visible engineering features rather than picking the simplest path', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = extractRole(result.static);
+      expect(block).toMatch(/visible feature would exist on the real part/i);
+      expect(block).toMatch(/simplest path that compiles/i);
+      expect(block).toMatch(/omit detail "for simplicity"/i);
+    });
+
+    it('should NOT contain the old terse "CAD expert ... Create parametric 3D models for manufacturing" wording', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = extractRole(result.static);
+      expect(block).not.toMatch(/Create parametric 3D models for manufacturing\./);
+    });
+
+    it('should keep the LaTeX formatting instruction', async () => {
+      const result = await getCadSystemPrompt('openscad');
+      const block = extractRole(result.static);
+      expect(block).toMatch(/LaTeX/);
+      expect(block).toContain('$...$');
+      expect(block).toContain('$$...$$');
     });
   });
 
@@ -591,15 +650,14 @@ describe('getCadSystemPrompt', () => {
       expect(block).toMatch(/most-relevant ranges/);
     });
 
-    it('should endorse node_modules as the canonical location for third-party reads', async () => {
+    it('should NOT steer the agent into node_modules via <tool_usage_policy>', async () => {
       const result = await getCadSystemPrompt('openscad');
       const block = result.static.slice(
         result.static.indexOf('<tool_usage_policy>'),
         result.static.indexOf('</tool_usage_policy>'),
       );
-      expect(block).toMatch(/node_modules\//);
-      expect(block).toMatch(/canonical location/);
-      expect(block).toMatch(/read it freely/);
+      expect(block).not.toMatch(/node_modules/);
+      expect(block).not.toMatch(/canonical location/);
     });
 
     it('should NOT appear in dynamic section', async () => {
