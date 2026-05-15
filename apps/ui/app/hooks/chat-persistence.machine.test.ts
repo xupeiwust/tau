@@ -919,6 +919,50 @@ describe('chatPersistenceMachine', () => {
       ]);
       actor.stop();
     });
+
+    /**
+     * The listener-side fix in `chat-session-store.ts` (queueMicrotask wrap
+     * around the `dispatchRequest` listener body — see
+     * `docs/research/chat-followup-message-swallow.md`) relies on the
+     * machine emitting `applyResumedRequest` IMMEDIATELY before the resumed
+     * `dispatchRequest` in the same synchronous transition. If the order
+     * ever changed, the React side's microtask-deferred `chat.sendMessage`
+     * call would fire before `chat.messages` had been sanitised, so this
+     * test pins that invariant down explicitly.
+     */
+    it('emits applyResumedRequest synchronously and immediately before dispatchRequest on the preempt branch', () => {
+      const { actor, emitLog } = createTestActorWithEmits({ activeChatId: 'chat_abc' });
+      actor.start();
+
+      const first: ChatRequest = { kind: 'send', message: sampleMessage };
+      const queued: ChatRequest = { kind: 'send', message: { ...sampleMessage, id: 'msg_user_2' } };
+      const interruptedMessages: MyUIMessage[] = [sampleMessage];
+
+      actor.send({ type: 'startRequest', request: first });
+      actor.send({ type: 'startRequest', request: queued });
+      const beforeFinish = emitLog.length;
+      actor.send({
+        type: 'requestFinished',
+        messages: interruptedMessages,
+        isAbort: true,
+        isError: false,
+        isDisconnect: false,
+      });
+
+      // Exactly two emits land synchronously on `requestFinished` in the
+      // preempt branch: applyResumedRequest then dispatchRequest, with no
+      // other interleaved events.
+      const afterFinishSlice = emitLog.slice(beforeFinish);
+      expect(afterFinishSlice).toHaveLength(2);
+      const [resumed, dispatched] = afterFinishSlice;
+      expect(resumed).toEqual({
+        type: 'applyResumedRequest',
+        messages: interruptedMessages,
+        pendingRequest: queued,
+        cause: 'preempt',
+      });
+      expect(dispatched).toEqual({ type: 'dispatchRequest', request: queued });
+    });
   });
 
   // ===========================================================================
