@@ -101,7 +101,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       // Assert
@@ -114,19 +115,22 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
       await service.createAgent({
         chatId: 'test-chat-1',
         modelId: 'model-2',
         kernel: 'replicad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
       await service.createAgent({
         chatId: 'test-chat-1',
         modelId: 'model-3',
         kernel: 'jscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       // Assert - checkpointer retrieved each time (but same instance from service)
@@ -140,26 +144,36 @@ describe('ChatService', () => {
           chatId: 'test-chat-1',
           modelId: 'model-1',
           kernel: 'openscad',
-          tools: { choice: 'auto' },
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
         }),
         service.createAgent({
           chatId: 'test-chat-1',
           modelId: 'model-2',
           kernel: 'replicad',
-          tools: { choice: 'auto' },
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
         }),
-        service.createAgent({ chatId: 'test-chat-1', modelId: 'model-3', kernel: 'jscad', tools: { choice: 'auto' } }),
+        service.createAgent({
+          chatId: 'test-chat-1',
+          modelId: 'model-3',
+          kernel: 'jscad',
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
+        }),
         service.createAgent({
           chatId: 'test-chat-1',
           modelId: 'model-4',
           kernel: 'openscad',
-          tools: { choice: 'auto' },
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
         }),
         service.createAgent({
           chatId: 'test-chat-1',
           modelId: 'model-5',
           kernel: 'replicad',
-          tools: { choice: 'auto' },
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
         }),
       ]);
 
@@ -173,7 +187,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'claude-3-opus',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       // Assert
@@ -186,7 +201,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       // Assert
@@ -198,7 +214,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'replicad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
       expect(mockToolService.getTools).toHaveBeenCalledWith('auto', 'replicad');
     });
@@ -208,7 +225,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       expect(mockModelService.getProviderId).toHaveBeenCalledWith('model-1');
@@ -219,7 +237,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-order',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       const createAgentMock = vi.mocked(createAgent);
@@ -243,7 +262,8 @@ describe('ChatService', () => {
           chatId: 'test-chat-provider',
           modelId: 'orphan-model',
           kernel: 'openscad',
-          tools: { choice: 'auto' },
+          mode: 'agent',
+          tools: { choice: 'auto', testingEnabled: true },
         }),
       ).rejects.toThrow('Could not resolve provider for model orphan-model');
     });
@@ -253,7 +273,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-1',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       const createAgentMock = vi.mocked(createAgent);
@@ -279,7 +300,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-token-usage',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       const createAgentMock = vi.mocked(createAgent);
@@ -307,7 +329,8 @@ describe('ChatService', () => {
         chatId: 'test-chat-interrupt-recovery',
         modelId: 'model-1',
         kernel: 'openscad',
-        tools: { choice: 'auto' },
+        mode: 'agent',
+        tools: { choice: 'auto', testingEnabled: true },
       });
 
       const createAgentMock = vi.mocked(createAgent);

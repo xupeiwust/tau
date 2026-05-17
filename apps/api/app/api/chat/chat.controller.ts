@@ -13,7 +13,7 @@ import { ModelService } from '#api/models/model.service.js';
 import { FileEditService } from '#api/file-edit/file-edit.service.js';
 import { GeometryAnalysisService } from '#api/analysis/geometry-analysis.service.js';
 import { AuthGuard } from '#auth/auth.guard.js';
-import { CreateChatDto } from '#api/chat/chat.dto.js';
+import { CreateChatDto, lastUserMessageMetadataSchema } from '#api/chat/chat.dto.js';
 import { sendSimpleModelStream } from '#api/chat/utils/simple-model-stream.js';
 import { injectSnapshotContext } from '#api/chat/utils/inject-snapshot-context.js';
 import { createStaticToolTransform } from '#api/chat/utils/static-tool-transform.js';
@@ -233,30 +233,36 @@ export class ChatController {
   }
 
   /**
-   * Parses and validates the last user message to extract model configuration.
+   * Pure mapper from the validated chat request body to the controller's
+   * `ChatRequestConfig`. Presence and shape of every required field on the
+   * last user message's metadata are enforced by `createChatSchema`'s
+   * `superRefine` (see {@link CreateChatDto}); this method never falls back
+   * silently and never throws on invalid input — invalid bodies are rejected
+   * at the Fastify body-parse boundary before this method runs.
+   *
+   * We re-parse the last message's metadata through
+   * {@link lastUserMessageMetadataSchema} to narrow the controller-side type
+   * from the permissive {@link import('@taucad/chat').MyMetadata} (every
+   * field optional, for historical messages) to the strict required-fields
+   * shape the agent stack consumes. This is a cheap structural parse on a
+   * tiny object and keeps the invariant locally enforced without `!`
+   * assertions sprinkled through the mapper.
    */
   private extractRequestConfig(body: CreateChatDto): ChatRequestConfig {
-    const lastHumanMessage = body.messages.findLast((message) => message.role === 'user');
-
-    if (lastHumanMessage?.role !== 'user') {
-      throw new Error('Last message is not a user message');
+    const lastMessage = body.messages.at(-1);
+    if (!lastMessage) {
+      throw new Error('Unreachable: createChatSchema enforces .nonempty() on messages');
     }
-
-    const messageModel = lastHumanMessage.metadata?.model;
-
-    if (!messageModel) {
-      throw new Error('Message model is required');
-    }
-
+    const metadata = lastUserMessageMetadataSchema.parse(lastMessage.metadata);
     return {
-      modelId: messageModel,
-      kernel: lastHumanMessage.metadata?.kernel ?? 'openscad',
-      snapshot: lastHumanMessage.metadata?.snapshot,
-      contextPayload: lastHumanMessage.metadata?.contextPayload,
-      mode: lastHumanMessage.metadata?.mode ?? 'agent',
+      modelId: metadata.model,
+      kernel: metadata.kernel,
+      snapshot: metadata.snapshot,
+      contextPayload: metadata.contextPayload,
+      mode: metadata.mode,
       tools: {
-        choice: lastHumanMessage.metadata?.toolChoice ?? 'auto',
-        testingEnabled: lastHumanMessage.metadata?.testingEnabled ?? true,
+        choice: metadata.toolChoice,
+        testingEnabled: metadata.testingEnabled,
       },
     };
   }

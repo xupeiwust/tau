@@ -65,16 +65,23 @@ export class ChatService {
     chatId: string;
     modelId: string;
     kernel: KernelProvider;
-    mode?: ChatMode;
+    /**
+     * Required. The controller resolves `mode` from validated request
+     * metadata (see `chat.dto.ts` `lastUserMessageMetadataSchema`); we do
+     * not silently default at this layer because that masks API contract
+     * drift one layer downstream.
+     */
+    mode: ChatMode;
     tools: {
       choice: ToolSelection;
-      testingEnabled?: boolean;
+      /** Required for the same reason as `mode`. */
+      testingEnabled: boolean;
     };
     contextPayload?: ContextPayload;
     eagerDispatchHandler?: EagerToolDispatchHandler;
   }): Promise<ReactAgent> {
-    const { chatId, modelId, kernel, mode = 'agent', contextPayload, eagerDispatchHandler } = options;
-    const { choice, testingEnabled = true } = options.tools;
+    const { chatId, modelId, kernel, mode, contextPayload, eagerDispatchHandler } = options;
+    const { choice, testingEnabled } = options.tools;
     const { tools } = this.toolService.getTools(choice, kernel);
 
     const checkpointer = this.checkpointerService.getCheckpointer();

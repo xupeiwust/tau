@@ -63,13 +63,23 @@ vi.mock('ai', async (importOriginal) => {
  */
 type StreamTextResult = StreamTextResultType<ToolSet, never>;
 
-// Helper to create mock MyUIMessage
+// Helper to create mock MyUIMessage. Mirrors the strict last-user-message
+// metadata contract enforced by `createChatSchema` (see chat.dto.ts) so the
+// controller's `extractRequestConfig` re-parse succeeds — tests in this spec
+// bypass the validation pipe and would otherwise trip the schema's required
+// fields.
 function createMockUserMessage(model: string): MyUIMessage {
   return {
     id: 'msg_1',
     role: 'user',
     parts: [{ type: 'text', text: 'Hello' }],
-    metadata: { model, kernel: 'openscad' },
+    metadata: {
+      model,
+      kernel: 'openscad',
+      mode: 'agent',
+      toolChoice: 'auto',
+      testingEnabled: true,
+    },
   };
 }
 
@@ -304,10 +314,14 @@ describe('ChatController', () => {
         metadata: { model: 'test-model', createdAt: 1 },
       };
 
+      // Order matches the new last-user-message contract enforced by
+      // `createChatSchema`: the assistant turn whose stale tool part the
+      // checkpoint splice repairs sits before the trailing user message that
+      // drives the current turn.
       await controller.createChat(
         {
           id: 'chat_ck_merge_integration',
-          messages: [createMockUserMessage('test-model'), assistantMessage],
+          messages: [createMockUserMessage('test-model'), assistantMessage, createMockUserMessage('test-model')],
         } satisfies CreateChatDto,
         createMockResponse(),
       );
@@ -320,7 +334,8 @@ describe('ChatController', () => {
 
       expect(vi.mocked(toBaseMessages)).toHaveBeenCalledTimes(1);
       const passedIntoBase = vi.mocked(toBaseMessages).mock.calls[0]?.[0] as MyUIMessage[];
-      expect(passedIntoBase.at(-1)?.parts[0]).toMatchObject({
+      const splicedAssistant = passedIntoBase.find((message) => message.id === 'm_as');
+      expect(splicedAssistant?.parts[0]).toMatchObject({
         toolCallId: 'cid_ck_merge_controller',
         state: 'output-available',
         output: { merged: true },
@@ -338,7 +353,13 @@ describe('ChatController', () => {
             id: 'msg_1',
             role: 'user',
             parts: [{ type: 'text', text: 'Hello' }],
-            metadata: { model: 'test-model', kernel: 'openscad', toolChoice: 'none' },
+            metadata: {
+              model: 'test-model',
+              kernel: 'openscad',
+              mode: 'agent',
+              toolChoice: 'none',
+              testingEnabled: true,
+            },
           },
         ],
       } as const satisfies CreateChatDto;
@@ -405,44 +426,12 @@ describe('ChatController', () => {
     });
   });
 
-  describe('createChat - Error Handling', () => {
-    it('should throw error when last message is not a user message', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-
-      const assistantMessage: MyUIMessage = {
-        id: 'msg_1',
-        role: 'assistant',
-        parts: [{ type: 'text', text: 'Hello' }],
-      };
-      const body = {
-        id: 'chat_no_user',
-        messages: [assistantMessage],
-      };
-
-      // Act & Assert
-      await expect(controller.createChat(body, mockResponse)).rejects.toThrow('Last message is not a user message');
-    });
-
-    it('should throw error when message model is missing', async () => {
-      // Arrange
-      const mockResponse = createMockResponse();
-
-      const userMessageWithoutModel: MyUIMessage = {
-        id: 'msg_1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Hello' }],
-        metadata: {}, // No model specified
-      };
-      const body = {
-        id: 'chat_no_model',
-        messages: [userMessageWithoutModel],
-      };
-
-      // Act & Assert
-      await expect(controller.createChat(body, mockResponse)).rejects.toThrow('Message model is required');
-    });
-  });
+  // Validation of the chat request body lives in `chat.dto.ts` as a single
+  // Zod schema (`createChatSchema`) enforced at the Fastify body-parse
+  // boundary by `nestjs-zod`'s validation pipe. Cases like "last message is
+  // not a user message" and "metadata.model is missing" are covered by
+  // `chat.dto.test.ts`; this spec exercises only post-validation controller
+  // behaviour.
 
   describe('createChat - Response Headers', () => {
     it('should set correct SSE headers for agent execution', async () => {
@@ -503,7 +492,14 @@ describe('ChatController', () => {
         id: 'msg_snapshot',
         role: 'user',
         parts: [{ type: 'text', text: 'Create a cube' }],
-        metadata: { model: 'test-model', kernel: 'openscad', snapshot },
+        metadata: {
+          model: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          toolChoice: 'auto',
+          testingEnabled: true,
+          snapshot,
+        },
       } as const satisfies MyUIMessage;
 
       const body = {
@@ -546,7 +542,13 @@ describe('ChatController', () => {
         id: 'msg_no_snapshot',
         role: 'user',
         parts: [{ type: 'text', text: 'Create a sphere' }],
-        metadata: { model: 'test-model', kernel: 'openscad' },
+        metadata: {
+          model: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          toolChoice: 'auto',
+          testingEnabled: true,
+        },
       };
 
       const body = {
@@ -583,7 +585,14 @@ describe('ChatController', () => {
         id: 'msg_partial_snapshot',
         role: 'user',
         parts: [{ type: 'text', text: 'Help me' }],
-        metadata: { model: 'test-model', kernel: 'openscad', snapshot: partialSnapshot },
+        metadata: {
+          model: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          toolChoice: 'auto',
+          testingEnabled: true,
+          snapshot: partialSnapshot,
+        },
       };
 
       const body = {
@@ -621,7 +630,14 @@ describe('ChatController', () => {
         id: 'msg_empty_snapshot',
         role: 'user',
         parts: [{ type: 'text', text: 'Test' }],
-        metadata: { model: 'test-model', kernel: 'openscad', snapshot: emptySnapshot },
+        metadata: {
+          model: 'test-model',
+          kernel: 'openscad',
+          mode: 'agent',
+          toolChoice: 'auto',
+          testingEnabled: true,
+          snapshot: emptySnapshot,
+        },
       };
 
       const body = {
