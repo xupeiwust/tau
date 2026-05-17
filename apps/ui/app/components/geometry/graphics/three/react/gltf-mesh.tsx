@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { GLTFLoader } from 'three/addons';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import type { Group, Object3D, Material, BufferGeometry, Mesh, Texture } from 'three';
+import type { Camera, Group, Object3D, Material, BufferGeometry, Mesh, Texture } from 'three';
 import { Vector2, Box3 } from 'three';
 import { useThree } from '@react-three/fiber';
 import { applyMatcap } from '#components/geometry/graphics/three/materials/gltf-matcap.js';
@@ -305,7 +305,7 @@ export function GltfMesh({
   const [baseScene, setBaseScene] = useState<Group | undefined>(undefined);
   // The rendered scene has material mode applied and is what <primitive> displays.
   const [scene, setScene] = useState<Group | undefined>(undefined);
-  const { size, invalidate } = useThree();
+  const { size, invalidate, gl, camera } = useThree();
   const { theme } = useTheme();
   const matcapTint = theme === Theme.DARK ? darkModeIntensityScale : 1;
 
@@ -339,13 +339,21 @@ export function GltfMesh({
   // Parses the GLTF, converts line segments, and saves original materials.
   // Does not apply matcap or any material overrides -- that is handled by Effect 2.
   useEffect(() => {
-    let cancelled = false;
+    // Object-wrapped cancellation token (mirrors `viewport-gizmo-cube.tsx`'s
+    // `warmupCancellation` shape). The function-call indirection through
+    // `isCancelled()` defeats TS's flow-narrowing across the second await-then-check
+    // pair: without it TS pins `cancellation.cancelled` to `false` along every branch
+    // following an `if (cancellation.cancelled) return` early-return, and the
+    // post-`compileAsync` re-check would be flagged as a useless conditional even
+    // though the cleanup function mutates the property outside TS's view.
+    const cancellation = { cancelled: false };
+    const isCancelled = (): boolean => cancellation.cancelled;
 
     const loadGltf = async (): Promise<void> => {
       try {
         const gltf = await gltfLoader.parseAsync(gltfFile.buffer, '');
 
-        if (cancelled) {
+        if (isCancelled()) {
           disposeSceneResources(gltf.scene);
           return;
         }
@@ -359,10 +367,34 @@ export function GltfMesh({
         disposeSavedMaterials(originalMaterialsRef.current);
         originalMaterialsRef.current = saveOriginalMaterials(gltf.scene);
 
+        // R4: pipeline pre-warm. The `Line2NodeMaterial` for edges (and the surface mesh
+        // pipelines) would otherwise pay `createRenderPipelineAsync` latency on the first
+        // visible frame, producing the "skipped frames on model load" artifact documented
+        // in `docs/research/gltf-edges-fat-line-performance.md` (Finding 5). Mirror the
+        // viewport-gizmo-cube.tsx precedent: capture `compileAsync` to a local for TS
+        // narrowing, call via `compile.call(renderer, ...)`, and re-check cancellation
+        // after the await so a teardown mid-warmup is a no-op. On WebGL `compileAsync`
+        // is absent, so the guard skips the call entirely.
+        const renderer = gl as unknown as {
+          compileAsync?: (scene: Object3D, camera: Camera) => Promise<unknown>;
+        };
+        const compile = renderer.compileAsync;
+        if (typeof compile === 'function') {
+          try {
+            await compile.call(renderer, gltf.scene, camera);
+          } catch (error) {
+            console.error('GLTF pipeline warm-up failed', error);
+          }
+          if (isCancelled()) {
+            disposeSceneResources(gltf.scene);
+            return;
+          }
+        }
+
         setBaseScene(gltf.scene);
         invalidate();
       } catch (error) {
-        if (!cancelled) {
+        if (!isCancelled()) {
           console.error('Failed to load GLTF:', error);
         }
       }
@@ -381,9 +413,9 @@ export function GltfMesh({
     void loadGltf();
 
     return () => {
-      cancelled = true;
+      cancellation.cancelled = true;
     };
-  }, [gltfFile, graphicsBackendThree, invalidate]);
+  }, [gltfFile, graphicsBackendThree, invalidate, gl, camera]);
 
   // Cleanup on unmount: dispose base scene and saved materials
   useEffect(
