@@ -66,6 +66,10 @@ export const ChatError = memo(function ({ className }: { readonly className?: st
     parsedError.category === errorCategory.server ||
     parsedError.category === errorCategory.overloaded;
   const handleRetry = isResumableCategory ? continueChat : regenerate;
+  // Label mirrors the action: `continueChat` resumes the live stream without
+  // slicing `chat.messages` (partial assistant tail survives), whereas
+  // `regenerate` re-issues the request from scratch.
+  const retryLabel = isResumableCategory ? 'Resume' : 'Retry';
 
   // Render the generic/server error view with collapsible details
   const renderGenericError = (): React.ReactNode => {
@@ -105,7 +109,7 @@ export const ChatError = memo(function ({ className }: { readonly className?: st
                   }}
                 >
                   <RefreshCcw className='size-3.5' />
-                  Retry
+                  {retryLabel}
                 </Button>
               </div>
             </div>

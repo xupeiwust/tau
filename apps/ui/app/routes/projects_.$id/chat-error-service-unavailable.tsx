@@ -34,7 +34,7 @@ export const ChatErrorServiceUnavailable = memo(function ({
           }}
         >
           <RefreshCcw className='size-3.5' />
-          Retry
+          Resume
         </Button>
       </div>
     </div>

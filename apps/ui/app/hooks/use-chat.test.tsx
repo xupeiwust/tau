@@ -151,7 +151,7 @@ vi.mock('#hooks/use-project-manager.js', () => ({
   }),
 }));
 
-const { ChatSessionStoreProvider } = await import('#hooks/chat-session-store-provider.js');
+const { ChatSessionStoreProvider, useChatSessionStore } = await import('#hooks/chat-session-store-provider.js');
 const { ActiveChatProvider, useActiveChatId } = await import('#hooks/active-chat-provider.js');
 const { useChatActions, useChatContext, useChatSelector, useChatById } = await import('#hooks/use-chat.js');
 
@@ -286,6 +286,36 @@ describe('chat session lifecycle wiring (via ChatSessionStore)', () => {
     expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message' });
     expect(fake.regenerate).not.toHaveBeenCalled();
     expect(fake.sendMessage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Regression for the "Unable to reach Tau" Retry banner: when the resumed
+   * stream re-issues the POST it MUST carry the per-turn `agent` block that
+   * the active chat-client published via `setLatestAgentBody`. Otherwise the
+   * API rejects the retry with `agent: expected object, received undefined`.
+   */
+  it('threads latestAgentBody onto the resumed makeRequest body for continueChat', async () => {
+    const { result } = renderHook(
+      () => ({
+        actions: useChatActions(),
+        store: useChatSessionStore(),
+      }),
+      { wrapper: createWrapper(defaultTestChatId) },
+    );
+
+    const latestBody = { agent: { profile: 'cad', model: 'cad-default', kernel: 'replicad' } };
+    act(() => {
+      result.current.store.setLatestAgentBody(defaultTestChatId, latestBody);
+    });
+
+    act(() => {
+      result.current.actions.continueChat();
+    });
+    await Promise.resolve();
+
+    const fake = getFake(defaultTestChatId);
+    expect(fake.makeRequest).toHaveBeenCalledTimes(1);
+    expect(fake.makeRequest).toHaveBeenCalledWith({ trigger: 'submit-message', body: latestBody });
   });
 
   it('routes a `stop` request through to chat.stop', async () => {
