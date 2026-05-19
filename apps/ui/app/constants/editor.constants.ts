@@ -98,9 +98,9 @@ export type PinnedMeasurement = {
 };
 
 /** User preference for CAD viewer rendering API. */
-export type GraphicsBackendPreference = 'auto' | 'webgl' | 'webgpu';
+export type GraphicsBackendPreference = 'webgl' | 'webgpu';
 
-/** Resolved active backend passed to THREE renderers (`auto` collapses during resolve). */
+/** Resolved active backend passed to THREE renderers (matches preference 1:1; `webgpu` falls back to `webgl` when unsupported). */
 export type ResolvedGraphicsBackend = 'webgl' | 'webgpu';
 
 export type GraphicsViewSettings = {
@@ -120,16 +120,17 @@ export type GraphicsViewSettings = {
   pinnedMeasurements?: PinnedMeasurement[];
   /**
    * Graphics API preference. Added in schema v3.
-   * @default 'auto'
+   * @default 'webgl'
    */
   graphicsBackend?: GraphicsBackendPreference;
   /**
    * Settings schema version. Absent / `1` = legacy seconds-based renderTimeout
    * persisted before the milliseconds-only migration; values are multiplied
    * by 1000 on parse. `2` = milliseconds-only + no graphics backend column.
-   * `3` = adds persisted `graphicsBackend` (defaults to `auto`).
+   * `3` = adds persisted `graphicsBackend` with `'auto' | 'webgl' | 'webgpu'`.
+   * `4` = drops `'auto'`; persisted `'auto'` migrates to `'webgl'`.
    */
-  schemaVersion?: 2 | 3;
+  schemaVersion?: 2 | 3 | 4;
 };
 
 // ============================================================================
@@ -164,9 +165,10 @@ export const graphicsViewSettingsSchema = z.object({
   /**
    * Settings schema version. Absent / `1` = legacy seconds-based renderTimeout;
    * `2` = milliseconds-only contract.
-   * `3` = adds persisted `graphicsBackend`.
+   * `3` = adds persisted `graphicsBackend` with `'auto' | 'webgl' | 'webgpu'`.
+   * `4` = drops `'auto'`; persisted `'auto'` migrates to `'webgl'`.
    */
-  schemaVersion: z.union([z.literal(2), z.literal(3)]).optional(),
+  schemaVersion: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
 });
 
 /**
@@ -186,26 +188,35 @@ export function parseGraphicsViewSettings(raw: unknown): GraphicsViewSettings {
   }
 
   const parsed = result.data;
+  if (parsed.schemaVersion === 4) {
+    const persistedBackend = parsed.graphicsBackend;
+    return {
+      ...parsed,
+      graphicsBackend: persistedBackend === 'webgpu' ? 'webgpu' : 'webgl',
+    };
+  }
+
   if (parsed.schemaVersion === 3) {
     return {
       ...parsed,
-      graphicsBackend: parsed.graphicsBackend ?? 'auto',
+      graphicsBackend: parsed.graphicsBackend === 'webgpu' ? 'webgpu' : 'webgl',
+      schemaVersion: 4,
     };
   }
 
   if (parsed.schemaVersion === 2) {
     return {
       ...parsed,
-      graphicsBackend: 'auto',
-      schemaVersion: 3,
+      graphicsBackend: 'webgl',
+      schemaVersion: 4,
     };
   }
 
   return {
     ...parsed,
     renderTimeout: parsed.renderTimeout * 1000,
-    graphicsBackend: 'auto',
-    schemaVersion: 3,
+    graphicsBackend: 'webgl',
+    schemaVersion: 4,
   };
 }
 
@@ -225,8 +236,8 @@ export const defaultGraphicsSettings: GraphicsViewSettings = {
   cameraFovAngle: 60,
   renderTimeout: 30_000,
   environmentPreset: 'performance',
-  graphicsBackend: 'auto',
-  schemaVersion: 3,
+  graphicsBackend: 'webgl',
+  schemaVersion: 4,
 };
 
 // ============================================================================
