@@ -130,7 +130,7 @@ export function Layout({ children }: { readonly children: ReactNode }): React.JS
     <AuthConfigProvider>
       <QueryClientProvider client={queryClient}>
         <AnalyticsProvider>
-          <FileManagerProvider rootDirectory='/'>
+          <FileManagerProvider rootDirectory='/' initialBackend='indexeddb'>
             <ProjectManagerProvider>
               <ThemeProvider specifiedTheme={ssrTheme} themeAction='/action/set-theme'>
                 <ColorProvider>
