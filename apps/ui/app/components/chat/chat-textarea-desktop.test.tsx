@@ -58,6 +58,7 @@ vi.mock('#flags/use-feature.js', () => ({
 }));
 
 vi.mock('#components/chat/chat-model-selector.js', () => ({
+  openModelSelectorKeyCombination: { key: '/', modKey: true },
   ChatModelSelector: ({ children }: { readonly children: (props: unknown) => React.ReactNode }) => (
     <div>{children({})}</div>
   ),

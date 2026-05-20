@@ -33,6 +33,9 @@ type ComboBoxResponsiveProperties<T> = Omit<
   readonly value?: T | undefined;
   readonly onSelect?: (value: string) => void;
   readonly onClose?: () => void;
+  /** Controlled open state. When provided, parent owns open/close. */
+  readonly isOpen?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
   /**
    * The className for the popover/drawer content.
    */
@@ -75,6 +78,8 @@ export function ComboBoxResponsive<T>({
   value,
   onSelect,
   onClose,
+  isOpen: isOpenProperty,
+  onOpenChange,
   className,
   popoverProperties,
   drawerProperties,
@@ -96,9 +101,22 @@ export function ComboBoxResponsive<T>({
   footer,
   ...properties
 }: ComboBoxResponsiveProperties<T>): React.JSX.Element {
-  const [open, setOpen] = React.useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+  const isControlled = isOpenProperty !== undefined;
+  const open = isControlled ? isOpenProperty : uncontrolledOpen;
   const isMobile = useIsMobile();
   const selectionMadeReference = React.useRef(false);
+
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!isControlled) {
+        setUncontrolledOpen(next);
+      }
+
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange],
+  );
 
   const handleSelect = (item: T) => {
     const resolved = getValue(item);

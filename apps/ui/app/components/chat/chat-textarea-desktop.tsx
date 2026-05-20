@@ -3,7 +3,7 @@ import { ChevronDown, Paperclip, Wrench, AtSign } from 'lucide-react';
 import type { Chat, ToolSelection } from '@taucad/chat';
 import type { FileEntry } from '@taucad/types';
 import type { FileTreeService } from '@taucad/fs-client/file-tree-service';
-import { ChatModelSelector } from '#components/chat/chat-model-selector.js';
+import { ChatModelSelector, openModelSelectorKeyCombination } from '#components/chat/chat-model-selector.js';
 import { ChatKernelSelector } from '#components/chat/chat-kernel-selector.js';
 import { ChatToolSelector } from '#components/chat/chat-tool-selector.js';
 import { ChatAgentSelector, toggleModeKeyCombination } from '#components/chat/chat-mode-selector.js';
@@ -374,7 +374,6 @@ export const ChatTextareaLeftControls = memo(function ({
   const {
     kernel: { kernel: selectedKernel },
   } = useChatComposer();
-  const selectedKernelName = selectedKernel?.name;
 
   return (
     <div className='absolute bottom-2 left-2 flex flex-row items-center gap-1 text-muted-foreground'>
@@ -407,8 +406,10 @@ export const ChatTextareaLeftControls = memo(function ({
           )}
         </ChatModelSelector>
         <TooltipContent>
-          <span>Select model{` `}</span>
-          <span>({selectedModel.name})</span>
+          <span className='flex items-center gap-1.5'>
+            Select model ({selectedModel.name})
+            <KeyShortcut variant='tooltip'>{formatKeyCombination(openModelSelectorKeyCombination)}</KeyShortcut>
+          </span>
         </TooltipContent>
       </Tooltip>
       {/* Kernel selector */}
@@ -427,11 +428,13 @@ export const ChatTextareaLeftControls = memo(function ({
                   size='sm'
                   className='h-7 cursor-pointer! rounded-full text-muted-foreground hover:text-foreground @max-[22rem]:w-7 @xs:max-w-fit @[22rem]:pr-2'
                 >
-                  <span className='hidden truncate text-xs @[22rem]:block'>{selectedKernel?.name ?? 'OpenSCAD'}</span>
+                  <span className='hidden items-center gap-1.5 truncate text-xs @[22rem]:inline-flex'>
+                    {selectedKernel.name}
+                  </span>
                   <span className='relative flex size-4 items-center justify-center'>
                     <ChevronDown className='absolute scale-0 transition-transform duration-200 ease-in-out group-hover:scale-0 @[22rem]:scale-100' />
                     <SvgIcon
-                      id={selectedKernel?.id ?? 'openscad'}
+                      id={selectedKernel.id}
                       className='absolute scale-100 grayscale transition-transform duration-200 ease-in-out group-hover:scale-100 @[22rem]:scale-0'
                     />
                   </span>
@@ -441,7 +444,7 @@ export const ChatTextareaLeftControls = memo(function ({
           </ChatKernelSelector>
           <TooltipContent>
             <span>Select kernel{` `}</span>
-            <span>({selectedKernelName})</span>
+            <span>({selectedKernel.name})</span>
           </TooltipContent>
         </Tooltip>
       ) : null}
