@@ -45,6 +45,10 @@ vi.mock('#hooks/active-chat-provider.js', () => ({
   useChatComposer: () => useChatComposerMock(),
 }));
 
+vi.mock('#hooks/use-keyboard.js', () => ({
+  useKeybinding: () => ({ formattedKeyCombination: '' }),
+}));
+
 const modelCatalogue: Model[] = [
   {
     id: 'cookie-model',

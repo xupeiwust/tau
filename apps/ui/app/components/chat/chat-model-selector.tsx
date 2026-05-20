@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, Plus } from 'lucide-react';
 import type { Model } from '@taucad/chat';
@@ -10,8 +10,15 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '#components/ui/ho
 import { useModels } from '#hooks/use-models.js';
 import type { ResolvedModel } from '#hooks/use-models.js';
 import { useChatComposer } from '#hooks/active-chat-provider.js';
+import { useKeybinding } from '#hooks/use-keyboard.js';
 import { openSettingsDialog } from '#hooks/use-settings-dialog.js';
+import type { KeyCombination } from '#utils/keys.utils.js';
 import { cn } from '#utils/ui.utils.js';
+
+export const openModelSelectorKeyCombination = {
+  key: '/',
+  modKey: true,
+} satisfies KeyCombination;
 
 type ChatModelSelectorProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'onSelect'> & {
   readonly onSelect?: (modelId: string) => void;
@@ -44,6 +51,14 @@ export const ChatModelSelector = memo(function ({
   isNested,
   ...properties
 }: ChatModelSelectorProps): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+
+  const handleOpenFromShortcut = useCallback(() => {
+    setOpen(true);
+  }, []);
+
+  useKeybinding(openModelSelectorKeyCombination, handleOpenFromShortcut);
+
   // Write through the chat-scoped resolver populated by the active provider
   // (composer-only → cookie; session-backed → chat row + cookie dual-write).
   // Reads `data: models` from the global hook because the catalogue itself
@@ -147,6 +162,8 @@ export const ChatModelSelector = memo(function ({
       placeholder='Select a model'
       value={comboboxSelectedModel}
       isNested={isNested}
+      isOpen={open}
+      onOpenChange={setOpen}
       onSelect={handleSelectModel}
       onClose={onClose}
       footer={
