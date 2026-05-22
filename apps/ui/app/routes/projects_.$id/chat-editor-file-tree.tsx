@@ -7,7 +7,7 @@ import {
   FolderPlus,
   MoreHorizontal,
   Search,
-  Eye,
+  Box,
   Folder,
   FolderOpen,
   CopyMinus,
@@ -1584,7 +1584,7 @@ function TreeItem({
                     onOpenInViewer(item.getId());
                   }}
                 >
-                  <Eye />
+                  <Box />
                   <span>Open in Viewer</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -1665,7 +1665,7 @@ function TreeItem({
                 onOpenInViewer(item.getId());
               }}
             >
-              <Eye />
+              <Box />
               <span>Open in Viewer</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
