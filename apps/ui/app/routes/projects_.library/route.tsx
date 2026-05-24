@@ -50,6 +50,7 @@ import { cn } from '#utils/ui.utils.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#components/ui/tabs.js';
 import { CadPreviewViewer } from '#components/cad-preview.js';
 import { CadPreviewProvider } from '#hooks/use-cad-preview.js';
+import { FileManagerProvider, SharedWorkerGate } from '#hooks/use-file-manager.js';
 import { useProjects } from '#hooks/use-projects.js';
 import { toast } from '#components/ui/sonner.js';
 import type { Handle } from '#types/matches.types.js';
@@ -527,7 +528,12 @@ type ProjectLibraryCardProps = {
   readonly onSelect?: () => void;
 };
 
-function ProjectLibraryCard({ project, actions, isSelected, onSelect }: ProjectLibraryCardProps) {
+export function ProjectLibraryCard({
+  project,
+  actions,
+  isSelected,
+  onSelect,
+}: ProjectLibraryCardProps): React.JSX.Element {
   const [showPreview, setShowPreview] = useState(false);
 
   const mechanicalAsset = project.assets.mechanical;
@@ -559,21 +565,30 @@ function ProjectLibraryCard({ project, actions, isSelected, onSelect }: ProjectL
               event.preventDefault();
             }}
           >
-            <CadPreviewProvider projectId={project.id} mainFile={mainFile} isEnabled={showPreview}>
-              <CadPreviewViewer
-                enablePan={false}
-                stageOptions={{ zoomLevel: 1.5 }}
-                graphicsOptions={{
-                  enableLines: false,
-                  viewerClassName: 'bg-muted',
-                }}
-              />
-            </CadPreviewProvider>
+            <SharedWorkerGate>
+              <FileManagerProvider
+                projectId={project.id}
+                rootDirectory={`/projects/${project.id}`}
+                initialBackend='indexeddb'
+              >
+                <CadPreviewProvider projectId={project.id} mainFile={mainFile}>
+                  <CadPreviewViewer
+                    enablePan={false}
+                    stageOptions={{ zoomLevel: 1.5 }}
+                    graphicsOptions={{
+                      enableLines: false,
+                      viewerClassName: 'bg-muted',
+                    }}
+                  />
+                </CadPreviewProvider>
+              </FileManagerProvider>
+            </SharedWorkerGate>
           </div>
         ) : null}
         <Button
           variant='outline'
           size='icon'
+          aria-label='Preview model'
           className={cn('absolute top-2 right-2', showPreview && 'text-primary')}
           onClick={(event) => {
             event.stopPropagation();
