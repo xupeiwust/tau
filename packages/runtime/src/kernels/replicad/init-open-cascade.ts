@@ -1,7 +1,7 @@
 // oxlint-disable-next-line @typescript-eslint/triple-slash-reference -- emscripten types are not available as a module
 /// <reference types="emscripten" />
 
-import type { OpenCascadeInstance } from 'replicad-opencascadejs/src/replicad_single.js';
+import type { OpenCascadeInstance } from 'replicad-opencascadejs';
 import type { RuntimeSpanTracer } from '#types/runtime-tracer.types.js';
 import { compileWasmStreaming } from '#framework/wasm-loader.js';
 
@@ -48,7 +48,10 @@ export async function initOpenCascade(
 
   const instantiateSpan = tracer?.startSpan('wasm.emscripten-init');
   const instance = await bindingsFactory({
-    instantiateWasm(imports: WebAssembly.Imports, successCallback: (instance: WebAssembly.Instance) => void) {
+    instantiateWasm(
+      imports: WebAssembly.Imports,
+      successCallback: (instance: WebAssembly.Instance, module?: WebAssembly.Module) => void,
+    ) {
       const instSpan = tracer?.startSpan('wasm.instantiate');
       // async-iife: bootstrap — Emscripten's instantiateWasm hook is a
       // synchronous callback that hands control back via `successCallback`;
@@ -57,7 +60,11 @@ export async function initOpenCascade(
         try {
           const wasmInstance = await WebAssembly.instantiate(compiledModule, imports);
           instSpan?.end();
-          successCallback(wasmInstance);
+          // Pass the module alongside the instance so pthread workers (multi
+          // build) receive the same WebAssembly.Module via postMessage. For
+          // single-threaded builds the second arg is harmless. See OCJS multi
+          // glue `Ca()`: `g.instantiateWasm(b, (e, f) => d(a(e, f)))`.
+          successCallback(wasmInstance, compiledModule);
         } catch (error) {
           instSpan?.end();
           throw error instanceof Error ? error : new Error(String(error));
