@@ -55,6 +55,7 @@ groups:
       - props
       - pi
       - text-to-cad
+      - codex
   3d:
     description: 3D rendering and visualization
     repos:
@@ -521,3 +522,7 @@ repos:
   text-to-cad:
     upstream: earthtojake/text-to-cad
     description: A collection of agent skills for CAD, robotics and hardware design
+  codex:
+    upstream: openai/codex
+    branch: main
+    description: OpenAI Codex - terminal coding agent (Rust core in codex-rs + TS SDK)
