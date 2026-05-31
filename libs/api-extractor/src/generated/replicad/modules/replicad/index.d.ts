@@ -16,6 +16,7 @@ import { gp_Ax2 } from 'replicad-opencascadejs';
 import { gp_Ax2d } from 'replicad-opencascadejs';
 import { gp_Ax3 } from 'replicad-opencascadejs';
 import { gp_Dir } from 'replicad-opencascadejs';
+import { gp_Pln } from 'replicad-opencascadejs';
 import { gp_Pnt } from 'replicad-opencascadejs';
 import { gp_Trsf } from 'replicad-opencascadejs';
 import { gp_Vec } from 'replicad-opencascadejs';
@@ -133,6 +134,23 @@ export declare class _3DShape<Type extends TopoDS_Shape> extends Shape<Type> imp
      * @category Shape Modifications
      */
     chamfer(radiusConfig: RadiusConfig<ChamferRadius>, filter?: (e: EdgeFinder) => EdgeFinder): Shape3D;
+    /**
+     * Applies a draft angle to selected faces of the shape.
+     *
+     * A draft angle is a taper applied to faces, commonly used in moulding
+     * and casting to allow parts to be released from a mould. The selected
+     * faces are tilted by the given angle relative to the neutral plane.
+     *
+     * The face finder function receives a `FaceFinder` and should return it
+     * with the desired filters applied to select which faces to draft.
+     *
+     * The neutral plane defines the reference from which the draft angle is
+     * measured — faces are unchanged where they intersect this plane and
+     * taper away from it.
+     *
+     * @category Shape Modifications
+     */
+    draft(angle: number, faceFinder: (e: FaceFinder) => FaceFinder, neutralPlane?: Plane | PlaneName): AnyShape;
 }
 
 export declare const addHolesInFace: (face: Face, holes: Wire[]) => Face;
@@ -220,7 +238,7 @@ export declare class BaseSketcher2d {
     /**
      * Changes the corner between the previous and next segments.
      */
-    customCorner(radius: number | ((first: Curve2D, second: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer"): this;
+    customCorner(radius: number | ((first: Curve2D, second: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer" | "dogbone"): this;
     protected _customCornerLastWithFirst(radius: number | ((f: Curve2D, s: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer" | "dogbone"): void;
     protected _closeSketch(): void;
     protected _closeWithMirror(): void;
@@ -443,8 +461,9 @@ export declare class CompoundSketch implements SketchInterface {
      * Revolves the drawing on an axis (defined by its direction and an origin
      * (defaults to the sketch origin)
      */
-    revolve(revolutionAxis?: Point, { origin }?: {
+    revolve(revolutionAxis?: Point, { origin, angle }?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     loftWith(otherCompound: this, loftConfig: LoftConfig): Shape3D;
 }
@@ -565,7 +584,7 @@ export declare const cutBlueprints: (first: Blueprint, second: Blueprint) => nul
 
 export declare const DEG2RAD: number;
 
-declare interface Deletable {
+export declare interface Deletable {
     delete: () => void;
 }
 
@@ -1477,6 +1496,19 @@ export declare function importSTEP(STLBlob: Blob): Promise<AnyShape>;
  */
 export declare function importSTL(STLBlob: Blob): Promise<AnyShape>;
 
+/**
+ * Imports an STL file (as a Blob or a File) and creates a MeshShape.
+ *
+ * Unlike `importSTL` which converts through OpenCascade's BRep representation,
+ * this function directly creates a MeshShape from the triangle data, which is
+ * faster and preserves the original mesh.
+ *
+ * Supports both binary and ASCII STL formats.
+ *
+ * @category Import
+ */
+export declare function importSTLAsMesh(stlBlob: Blob): Promise<MeshShape>;
+
 export declare function intersect2D(first: Shape2D, second: Shape2D): Blueprint | Blueprints | CompoundBlueprint | null;
 
 export declare const intersectBlueprints: (first: Blueprint, second: Blueprint) => null | Blueprint | Blueprints;
@@ -1586,9 +1618,15 @@ export declare const makeOffset: (face: Face, offset: number, tolerance?: number
 
 export declare function makePlane(plane: Plane): Plane;
 
+export declare function makePlane(plane: PlaneName): Plane;
+
+export declare function makePlane(plane: Plane | PlaneName): Plane;
+
 export declare function makePlane(plane?: PlaneName, origin?: Point | number): Plane;
 
 export declare const makePlaneFromFace: (face: Face, originOnSurface?: Point2D) => Plane;
+
+export declare function makePln(origin: Point, dir: Point): gp_Pln;
 
 export declare const makePolygon: (points: Point[]) => Face;
 
@@ -1690,6 +1728,18 @@ export declare class MeshShape extends WrappingObj<ManifoldInstance> implements 
     numVert(): number;
     numEdge(): number;
     get isEmpty(): boolean;
+    /**
+     * Exports the mesh shape as an STL file Blob.
+     *
+     * Since MeshShape is already a triangle mesh, no tessellation parameters
+     * are needed (tolerance/angularTolerance are accepted but ignored for
+     * API compatibility).
+     *
+     * @category Shape Export
+     */
+    blobSTL({ binary }?: {
+        binary?: boolean | undefined;
+    }): Blob;
 }
 
 export declare interface MeshShapeMesh {
@@ -1831,6 +1881,14 @@ export declare class Shape<Type extends TopoDS_Shape> extends WrappingObj<Type> 
     get isNull(): boolean;
     isSame(other: AnyShape): boolean;
     isEqual(other: AnyShape): boolean;
+    /**
+     * Asserts that this shape is a 3D shape (Shell, Solid, CompSolid, or
+     * Compound) and returns it typed as Shape3D. Throws if the shape is not 3D.
+     *
+     * Useful for chaining after operations that return a generic shape type.
+     *
+     */
+    asShape3D(): Shape3D;
     /**
      * Simplifies the shape by removing unnecessary edges and faces
      */
@@ -2029,8 +2087,9 @@ export declare class Sketch implements SketchInterface {
      * Revolves the drawing on an axis (defined by its direction and an origin
      * (defaults to the sketch origin)
      */
-    revolve(revolutionAxis?: Point, { origin }?: {
+    revolve(revolutionAxis?: Point, { origin, angle }?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     /** Extrudes the sketch to a certain distance.(along the default direction
      * and origin of the sketch).
@@ -2161,14 +2220,15 @@ export declare class Sketches {
         extrusionProfile?: ExtrusionProfile;
         twistAngle?: number;
         origin?: Point;
-    }): Shape3D;
+    }): AnyShape;
     /**
      * Revolves the drawing on an axis (defined by its direction and an origin
      * (defaults to the sketch origin)
      */
     revolve(revolutionAxis?: Point, config?: {
         origin?: Point;
-    }): Shape3D;
+        angle?: number;
+    }): AnyShape;
 }
 
 /**
@@ -2197,6 +2257,7 @@ export declare interface SketchInterface {
      */
     revolve(revolutionAxis?: Point, config?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     /**
      * Extrudes the sketch to a certain distance.(along the default direction
@@ -2327,11 +2388,14 @@ declare type TopoEntity = 'vertex' | 'edge' | 'wire' | 'face' | 'shell' | 'solid
 
 export declare class Transformation extends WrappingObj<gp_Trsf> {
     constructor(transform?: gp_Trsf);
+    clone(): Transformation;
     translate(xDist: number, yDist: number, zDist: number): Transformation;
     translate(vector: Point): Transformation;
     rotate(angle: number, position?: Point, direction?: Point): Transformation;
     mirror(inputPlane?: Plane | PlaneName | Point, inputOrigin?: Point): this;
     scale(center: Point, scale: number): this;
+    inverse(): this;
+    inverted(): Transformation;
     coordSystemChange(fromSystem: CoordSystem, toSystem: CoordSystem): this;
     transformPoint(point: Point): gp_Pnt;
     transform(shape: TopoDS_Shape): TopoDS_Shape;
