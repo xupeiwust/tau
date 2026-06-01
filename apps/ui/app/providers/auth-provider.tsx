@@ -6,7 +6,6 @@ import { authClient } from '#lib/auth-client.js';
 import { ENV } from '#environment.config.js';
 import { apiKeyPlugin } from '#utils/api-key-plugin.js';
 import { magicLinkPlugin } from '#utils/magic-link-plugin.js';
-import { usernamePlugin } from '#utils/username-plugin.js';
 
 export function AuthConfigProvider({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
   const navigate = useNavigate();
@@ -16,7 +15,7 @@ export function AuthConfigProvider({ children }: { readonly children: React.Reac
       authClient={authClient}
       navigate={({ to, replace }) => void navigate(to, { replace: replace ?? false })}
       Link={(props) => <Link {...props} to={props.href} />}
-      plugins={[magicLinkPlugin(), usernamePlugin(), apiKeyPlugin()]}
+      plugins={[magicLinkPlugin(), apiKeyPlugin()]}
       socialProviders={['github', 'google']}
       redirectTo='/'
       baseURL={ENV.TAU_FRONTEND_URL}

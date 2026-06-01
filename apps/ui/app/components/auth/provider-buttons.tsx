@@ -1,5 +1,7 @@
 import { useAuth } from '@better-auth-ui/react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import type React from 'react';
+import type { SocialProvider } from 'better-auth/social-providers';
 
 import { cn } from '#utils/ui.utils.js';
 import { ProviderButton } from '#components/auth/provider-button.js';
@@ -16,8 +18,9 @@ export type SocialLayout = 'auto' | 'horizontal' | 'vertical' | 'grid';
  *
  * @param socialLayout - Preferred layout for the provider buttons; `"auto"` chooses based on the number of providers.
  */
-export function ProviderButtons({ socialLayout = 'auto' }: ProviderButtonsProps) {
+export function ProviderButtons({ socialLayout = 'auto' }: ProviderButtonsProps): React.JSX.Element {
   const { socialProviders } = useAuth();
+  const [activeProvider, setActiveProvider] = useState<SocialProvider | undefined>();
 
   const resolvedSocialLayout = useMemo(() => {
     if (socialLayout === 'auto') {
@@ -44,6 +47,8 @@ export function ProviderButtons({ socialLayout = 'auto' }: ProviderButtonsProps)
         <ProviderButton
           key={provider}
           provider={provider}
+          activeProvider={activeProvider}
+          onActiveProviderChange={setActiveProvider}
           display={resolvedSocialLayout === 'vertical' ? 'full' : resolvedSocialLayout === 'grid' ? 'name' : 'icon'}
           className={cn(resolvedSocialLayout === 'horizontal' && 'flex-1')}
         />

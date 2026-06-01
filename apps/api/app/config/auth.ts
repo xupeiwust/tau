@@ -27,7 +27,17 @@ export const staticAuthConfig = {
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 60 * 60, // 1 hour
+    revokeSessionsOnPasswordReset: true,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: true,
+    autoSignInAfterVerification: true,
+    async sendVerificationEmail() {
+      // No-op for mock configuration
+    },
   },
   basePath: '/v1/auth',
   appName: 'Tau',

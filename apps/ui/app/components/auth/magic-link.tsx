@@ -4,7 +4,7 @@ import { authMutationKeys } from '@better-auth-ui/core';
 import { useAuth, useAuthPlugin, useSignInMagicLink } from '@better-auth-ui/react';
 import type { MagicLinkAuthClient } from '@better-auth-ui/react';
 import { useIsMutating } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -18,6 +18,7 @@ import { cn } from '#utils/ui.utils.js';
 import { Label } from '#components/ui/label.js';
 import { ProviderButtons } from '#components/auth/provider-buttons.js';
 import type { SocialLayout } from '#components/auth/provider-buttons.js';
+import { useAuthEmailDraft } from '#components/auth/auth-email-draft.js';
 
 export type MagicLinkProps = {
   className?: string;
@@ -28,12 +29,10 @@ export type MagicLinkProps = {
 /**
  * Render a card-based sign-in form that sends an email magic link and optionally shows social provider buttons.
  *
- * @param className - Additional CSS class names applied to the card container
- * @param socialLayout - Layout style for social provider buttons
- * @param socialPosition - Position of social provider buttons; `"top"` or `"bottom"`. Defaults to `"bottom"`.
+ * @param props - Magic-link form rendering options.
  * @returns The magic-link sign-in UI as a JSX element
  */
-export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }: MagicLinkProps) {
+export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }: MagicLinkProps): React.JSX.Element {
   const {
     authClient,
     basePaths,
@@ -47,15 +46,30 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
     Link,
   } = useAuth();
   const { localization: magicLinkLocalization } = useAuthPlugin(magicLinkPlugin);
+  const { emailDraft, setEmailDraft } = useAuthEmailDraft();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(emailDraft);
+  const [isMagicLinkSubmitActive, setIsMagicLinkSubmitActive] = useState(false);
+
+  useEffect(() => {
+    if (!email && emailDraft) {
+      setEmail(emailDraft);
+    }
+  }, [email, emailDraft]);
 
   const { mutate: signInMagicLink, isPending: signInMagicLinkPending } = useSignInMagicLink(
     authClient as MagicLinkAuthClient,
     {
       onSuccess: () => {
-        setEmail('');
         toast.success(magicLinkLocalization.magicLinkSent);
+        globalThis.setTimeout(() => {
+          setIsMagicLinkSubmitActive(false);
+        }, 250);
+      },
+      onError: () => {
+        globalThis.setTimeout(() => {
+          setIsMagicLinkSubmitActive(false);
+        }, 250);
       },
     },
   );
@@ -72,8 +86,9 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
     email?: string;
   }>({});
 
-  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = (event: SyntheticEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    setIsMagicLinkSubmitActive(true);
     signInMagicLink({ email, callbackURL: `${baseURL}${redirectTo}` });
   };
 
@@ -110,8 +125,9 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
                   type='email'
                   autoComplete='email'
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
+                  onChange={(event) => {
+                    setEmail(event.currentTarget.value);
+                    setEmailDraft(event.currentTarget.value);
 
                     setFieldErrors((previous) => ({
                       ...previous,
@@ -121,12 +137,12 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
                   placeholder={localization.auth.emailPlaceholder}
                   required
                   disabled={isPending}
-                  onInvalid={(e) => {
-                    e.preventDefault();
+                  onInvalid={(event) => {
+                    event.preventDefault();
 
                     setFieldErrors((previous) => ({
                       ...previous,
-                      email: (e.target as HTMLInputElement).validationMessage,
+                      email: event.currentTarget.validationMessage,
                     }));
                   }}
                   aria-invalid={Boolean(fieldErrors.email)}
@@ -136,8 +152,8 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
               </Field>
 
               <div className='flex flex-col gap-3'>
-                <Button type='submit' disabled={isPending}>
-                  {signInMagicLinkPending && <Spinner />}
+                <Button type='submit' disabled={isPending} aria-busy={isMagicLinkSubmitActive}>
+                  {(isMagicLinkSubmitActive || signInMagicLinkPending) && <Spinner />}
 
                   {magicLinkLocalization.sendMagicLink}
                 </Button>
@@ -164,7 +180,7 @@ export function MagicLink({ className, socialLayout, socialPosition = 'bottom' }
           )}
         </div>
 
-        {emailAndPassword?.enabled && (
+        {emailAndPassword.enabled && (
           <div className='mt-4 flex w-full flex-col items-center gap-3'>
             <FieldDescription className='text-center'>
               {localization.auth.needToCreateAnAccount}{' '}

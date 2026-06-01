@@ -4,7 +4,7 @@ import { authMutationKeys, parseAdditionalFieldValue } from '@better-auth-ui/cor
 import { useAuth, useFetchOptions, useSignUpEmail } from '@better-auth-ui/react';
 import { useIsMutating } from '@tanstack/react-query';
 import { Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '#components/ui/button.js';
@@ -19,6 +19,7 @@ import { Label } from '#components/ui/label.js';
 import { AdditionalField } from '#components/auth/additional-field.js';
 import { ProviderButtons } from '#components/auth/provider-buttons.js';
 import type { SocialLayout } from '#components/auth/provider-buttons.js';
+import { useAuthEmailDraft } from '#components/auth/auth-email-draft.js';
 
 export type SignUpProps = {
   className?: string;
@@ -45,6 +46,7 @@ export function SignUp({ className, socialLayout, socialPosition = 'bottom' }: S
     additionalFields,
     authClient,
     basePaths,
+    baseURL,
     emailAndPassword,
     localization,
     plugins,
@@ -56,9 +58,17 @@ export function SignUp({ className, socialLayout, socialPosition = 'bottom' }: S
   } = useAuth();
 
   const { fetchOptions, resetFetchOptions } = useFetchOptions();
+  const { emailDraft, setEmailDraft } = useAuthEmailDraft();
 
+  const [email, setEmail] = useState(emailDraft);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  useEffect(() => {
+    if (!email && emailDraft) {
+      setEmail(emailDraft);
+    }
+  }, [email, emailDraft]);
 
   const { mutate: signUpEmail, isPending: signUpEmailPending } = useSignUpEmail(authClient, {
     onError: (error) => {
@@ -103,7 +113,6 @@ export function SignUp({ className, socialLayout, socialPosition = 'bottom' }: S
     const formData = new FormData(e.currentTarget);
     // `emailAndPassword.name === false` hides the name field and submits "".
     const name = (formData.get('name') as string | undefined) ?? '';
-    const email = formData.get('email') as string;
 
     if (emailAndPassword?.confirmPassword && password !== confirmPassword) {
       toast.error(localization.auth.passwordsDoNotMatch);
@@ -139,6 +148,7 @@ export function SignUp({ className, socialLayout, socialPosition = 'bottom' }: S
       name,
       email,
       password,
+      callbackURL: `${baseURL}${redirectTo}`,
       ...additionalFieldValues,
       fetchOptions,
     });
@@ -210,10 +220,13 @@ export function SignUp({ className, socialLayout, socialPosition = 'bottom' }: S
                     name='email'
                     type='email'
                     autoComplete='email'
+                    value={email}
                     placeholder={localization.auth.emailPlaceholder}
                     required
                     disabled={isPending}
-                    onChange={() => {
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailDraft(e.target.value);
                       setFieldErrors((previous) => ({
                         ...previous,
                         email: undefined,

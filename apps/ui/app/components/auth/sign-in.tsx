@@ -1,7 +1,7 @@
 import { authMutationKeys } from '@better-auth-ui/core';
 import { useAuth, useFetchOptions, useSendVerificationEmail, useSignInEmail } from '@better-auth-ui/react';
 import { useIsMutating } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -16,6 +16,7 @@ import { cn } from '#utils/ui.utils.js';
 import { getCaptchaComponentFromPlugins } from '#utils/auth-plugin.js';
 import { ProviderButtons } from '#components/auth/provider-buttons.js';
 import type { SocialLayout } from '#components/auth/provider-buttons.js';
+import { useAuthEmailDraft } from '#components/auth/auth-email-draft.js';
 
 export type SignInProps = {
   className?: string;
@@ -47,8 +48,16 @@ export function SignIn({ className, socialLayout, socialPosition = 'bottom' }: S
   } = useAuth();
 
   const { fetchOptions, resetFetchOptions } = useFetchOptions();
+  const { emailDraft, setEmailDraft } = useAuthEmailDraft();
 
+  const [email, setEmail] = useState(emailDraft);
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (!email && emailDraft) {
+      setEmail(emailDraft);
+    }
+  }, [email, emailDraft]);
 
   const { mutate: sendVerificationEmail } = useSendVerificationEmail(authClient, {
     onSuccess: () => toast.success(localization.auth.verificationEmailSent),
@@ -100,7 +109,6 @@ export function SignIn({ className, socialLayout, socialPosition = 'bottom' }: S
     e.preventDefault();
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
     const rememberMe = formData.get('rememberMe') === 'on';
 
     signInEmail({
@@ -144,10 +152,13 @@ export function SignIn({ className, socialLayout, socialPosition = 'bottom' }: S
                     name='email'
                     type='email'
                     autoComplete='email'
+                    value={email}
                     placeholder={localization.auth.emailPlaceholder}
                     required
                     disabled={isPending}
-                    onChange={() => {
+                    onChange={(event) => {
+                      setEmail(event.currentTarget.value);
+                      setEmailDraft(event.currentTarget.value);
                       setFieldErrors((previous) => ({
                         ...previous,
                         email: undefined,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth, useFetchOptions, useRequestPasswordReset } from '@better-auth-ui/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -13,9 +13,27 @@ import { Spinner } from '#components/ui/spinner.js';
 import { cn } from '#utils/ui.utils.js';
 import { getCaptchaComponentFromPlugins } from '#utils/auth-plugin.js';
 import { Label } from '#components/ui/label.js';
+import { useAuthEmailDraft } from '#components/auth/auth-email-draft.js';
 
 export type ForgotPasswordProps = {
   className?: string;
+};
+
+const toPasswordResetErrorMessage = (error: unknown): string => {
+  if (typeof error !== 'object' || error === null) {
+    return 'Could not send reset link';
+  }
+
+  const candidate = error as { error?: { message?: unknown }; message?: unknown };
+  if (typeof candidate.error?.message === 'string') {
+    return candidate.error.message;
+  }
+
+  if (typeof candidate.message === 'string') {
+    return candidate.message;
+  }
+
+  return 'Could not send reset link';
 };
 
 /**
@@ -27,24 +45,32 @@ export type ForgotPasswordProps = {
  * @param className - Optional additional CSS class names applied to the card
  * @returns The forgot-password form UI as a JSX element
  */
-export function ForgotPassword({ className }: ForgotPasswordProps) {
-  const { authClient, basePaths, localization, plugins, viewPaths, Link } = useAuth();
+export function ForgotPassword({ className }: ForgotPasswordProps): React.JSX.Element {
+  const { authClient, basePaths, baseURL, localization, plugins, viewPaths, Link } = useAuth();
+  const { emailDraft, setEmailDraft } = useAuthEmailDraft();
 
   const { fetchOptions, resetFetchOptions } = useFetchOptions();
+  const [email, setEmail] = useState(emailDraft);
+
+  useEffect(() => {
+    if (!email && emailDraft) {
+      setEmail(emailDraft);
+    }
+  }, [email, emailDraft]);
 
   const { mutate: requestPasswordReset, isPending } = useRequestPasswordReset(authClient, {
-    onError: (error) => {
-      toast.error(error.error?.message ?? error.message);
+    onError: (error: unknown) => {
+      toast.error(toPasswordResetErrorMessage(error));
       resetFetchOptions();
     },
     onSuccess: () => toast.success(localization.auth.passwordResetEmailSent),
   });
 
-  function handleSubmit(e: SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>): void {
+    event.preventDefault();
     requestPasswordReset({
-      email: formData.get('email') as string,
+      email,
+      redirectTo: `${baseURL}${basePaths.auth}/${viewPaths.auth.resetPassword}`,
       fetchOptions,
     });
   }
@@ -72,21 +98,24 @@ export function ForgotPassword({ className }: ForgotPasswordProps) {
                 name='email'
                 type='email'
                 autoComplete='email'
+                value={email}
                 placeholder={localization.auth.emailPlaceholder}
                 required
                 disabled={isPending}
-                onChange={() => {
+                onChange={(event) => {
+                  setEmail(event.currentTarget.value);
+                  setEmailDraft(event.currentTarget.value);
                   setFieldErrors((previous) => ({
                     ...previous,
                     email: undefined,
                   }));
                 }}
-                onInvalid={(e) => {
-                  e.preventDefault();
+                onInvalid={(event) => {
+                  event.preventDefault();
 
                   setFieldErrors((previous) => ({
                     ...previous,
-                    email: (e.target as HTMLInputElement).validationMessage,
+                    email: event.currentTarget.validationMessage,
                   }));
                 }}
                 aria-invalid={Boolean(fieldErrors.email)}

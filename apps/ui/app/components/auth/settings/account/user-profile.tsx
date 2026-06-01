@@ -1,7 +1,4 @@
-import { parseAdditionalFieldValue } from '@better-auth-ui/core';
-import type { AdditionalFieldValue } from '@better-auth-ui/core';
 import { useAuth, useSession, useUpdateUser } from '@better-auth-ui/react';
-import type { UsernameAuthClient } from '@better-auth-ui/react';
 import { useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { toast } from 'sonner';
@@ -14,22 +11,15 @@ import { Label } from '#components/ui/label.js';
 import { Skeleton } from '#components/ui/skeleton.js';
 import { Spinner } from '#components/ui/spinner.js';
 import { cn } from '#utils/ui.utils.js';
-import { AdditionalField } from '#components/auth/additional-field.js';
 import { ChangeAvatar } from '#components/auth/settings/account/change-avatar.js';
 
 export type UserProfileProps = {
   className?: string;
 };
 
-/**
- * Render a profile card that lets the authenticated user view and update their display name, username, and avatar.
- *
- * @param className - Optional additional CSS class names applied to the card container
- * @returns A JSX element containing the profile card with avatar upload and editable name/username fields
- */
-export function UserProfile({ className }: UserProfileProps) {
-  const { additionalFields, authClient, localization } = useAuth();
-  const { data: session } = useSession(authClient as UsernameAuthClient);
+export function UserProfile({ className }: UserProfileProps): React.JSX.Element {
+  const { authClient, localization } = useAuth();
+  const { data: session } = useSession(authClient);
 
   const { mutate: updateUser, isPending } = useUpdateUser(authClient, {
     onSuccess: () => toast.success(localization.settings.profileUpdatedSuccess),
@@ -39,45 +29,20 @@ export function UserProfile({ className }: UserProfileProps) {
     name?: string;
   }>({});
 
-  async function handleSubmit(e: SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>): void {
+    event.preventDefault();
 
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(event.currentTarget);
     const name = formData.get('name') as string;
-
-    const additionalFieldValues: Record<string, unknown> = {};
-
-    for (const field of additionalFields ?? []) {
-      if (field.profile === false || field.readOnly) {
-        continue;
-      }
-      const value = parseAdditionalFieldValue(field, formData.get(field.name) as string | undefined);
-
-      if (field.validate) {
-        try {
-          // oxlint-disable-next-line no-await-in-loop -- stop on first validation failure; order matters for UX
-          await field.validate(value);
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : String(error));
-          return;
-        }
-      }
-
-      // `null` = explicit clear (forward to backend); `undefined` = omitted.
-      if (value !== undefined) {
-        additionalFieldValues[field.name] = value;
-      }
-    }
 
     updateUser({
       name,
-      ...additionalFieldValues,
     });
   }
 
   return (
     <div>
-      <h2 className='mb-3 text-sm font-semibold'>{localization.settings.profile}</h2>
+      <h2 className='mb-3 text-sm font-semibold'>{localization.settings.userProfile}</h2>
 
       <form onSubmit={handleSubmit}>
         <Card className={cn(className)}>
@@ -89,11 +54,11 @@ export function UserProfile({ className }: UserProfileProps) {
 
               {session ? (
                 <Input
-                  key={session?.user.name}
+                  key={session.user.name}
                   id='name'
                   name='name'
                   autoComplete='name'
-                  defaultValue={session?.user.name}
+                  defaultValue={session.user.name}
                   placeholder={localization.auth.name}
                   disabled={isPending}
                   required
@@ -103,12 +68,12 @@ export function UserProfile({ className }: UserProfileProps) {
                       name: undefined,
                     }));
                   }}
-                  onInvalid={(e) => {
-                    e.preventDefault();
+                  onInvalid={(event) => {
+                    event.preventDefault();
 
                     setFieldErrors((previous) => ({
                       ...previous,
-                      name: (e.target as HTMLInputElement).validationMessage,
+                      name: (event.target as HTMLInputElement).validationMessage,
                     }));
                   }}
                   aria-invalid={Boolean(fieldErrors.name)}
@@ -121,52 +86,6 @@ export function UserProfile({ className }: UserProfileProps) {
 
               <FieldError>{fieldErrors.name}</FieldError>
             </Field>
-
-            {additionalFields?.map((field) => {
-              if (field.profile === false) {
-                return null;
-              }
-
-              if (!session) {
-                if (field.inputType === 'hidden') {
-                  return null;
-                }
-
-                return (
-                  <Skeleton key={field.name}>
-                    <Input className='invisible' />
-                  </Skeleton>
-                );
-              }
-
-              const value = (session.user as Record<string, unknown>)[field.name];
-
-              // Re-mount when the session value loads so the field's
-              // uncontrolled `defaultValue` reflects the latest data.
-              const key = `${field.name}:${
-                value instanceof Date
-                  ? value.toISOString()
-                  : value === null || value === undefined
-                    ? ''
-                    : typeof value === 'object'
-                      ? JSON.stringify(value)
-                      : String(value as string | number | bigint | boolean)
-              }`;
-
-              return (
-                <AdditionalField
-                  key={key}
-                  name={field.name}
-                  field={{
-                    ...field,
-                    // `defaultValue` is sign-up-only; on the profile we
-                    // always seed from the session.
-                    defaultValue: value as AdditionalFieldValue | undefined,
-                  }}
-                  isPending={isPending}
-                />
-              );
-            })}
           </CardContent>
 
           <CardFooter>
