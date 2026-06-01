@@ -493,6 +493,7 @@
     "@taucad/rpc": "workspace:*",
     "@taucad/types": "workspace:*",
     "@taucad/utils": "workspace:*",
+    "@taucad/vm": "workspace:*",
     "cdn-resolve": "catalog:",
     "culori": "catalog:",
     "deepmerge": "catalog:",

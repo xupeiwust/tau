@@ -1,10 +1,5 @@
 {
   "copyFiles": [
-    // esbuild WASM for in-browser bundling
-    {
-      "from": "./node_modules/esbuild-wasm/esbuild.wasm",
-      "to": "src/bundler/wasm/esbuild.wasm"
-    },
     // OpenCascade WASM files for Replicad kernel.
     // - single: pthread-free build, default for COOP/COEP-less environments.
     // - multi: pthread build, picked by default when SharedArrayBuffer is usable.

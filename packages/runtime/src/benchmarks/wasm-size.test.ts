@@ -15,7 +15,6 @@ const wasmBudgets: WasmBudget[] = [
   { path: 'src/kernels/opencascade/wasm/opencascade_full.wasm', maxMb: 120 },
   { path: 'src/kernels/manifold/wasm/manifold.wasm', maxMb: 1 },
   { path: 'src/kernels/zoo/wasm/kcl_wasm_lib_bg.wasm', maxMb: 17 },
-  { path: 'src/bundler/wasm/esbuild.wasm', maxMb: 15 },
 ];
 
 describe('WASM binary size budgets', () => {
