@@ -16,6 +16,11 @@ import { TypeAcquisitionService } from '#lib/type-acquisition-service.js';
  */
 const moduleResolutionBundler = 100 as Monaco.typescript.CompilerOptions['moduleResolution'];
 
+const inlayHintsOptions = {
+  includeInlayParameterNameHints: 'all',
+  includeInlayParameterNameHintsWhenArgumentMatchesName: true,
+} as const;
+
 let ataInstance: TypeAcquisitionService | undefined;
 let ataBootPromise: Promise<void> | undefined;
 let ataRefCount = 0;
@@ -137,6 +142,7 @@ export function setTsCompilerOptions(monaco: typeof Monaco): void {
     esModuleInterop: true,
     baseUrl: '.',
   });
+  monaco.typescript.typescriptDefaults.setInlayHintsOptions(inlayHintsOptions);
 }
 
 export function setJsCompilerOptions(monaco: typeof Monaco): void {
@@ -149,4 +155,5 @@ export function setJsCompilerOptions(monaco: typeof Monaco): void {
     checkJs: true,
     esModuleInterop: true,
   });
+  monaco.typescript.javascriptDefaults.setInlayHintsOptions(inlayHintsOptions);
 }

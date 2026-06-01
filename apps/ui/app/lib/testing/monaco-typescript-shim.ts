@@ -44,6 +44,7 @@ export function attachTypescriptShim(stub: MonacoTestStub): void {
     typescript: {
       typescriptDefaults: {
         setCompilerOptions: vi.fn(),
+        setInlayHintsOptions: vi.fn(),
         setEagerModelSync: vi.fn(),
         addExtraLib: vi.fn(() => ({ dispose: vi.fn() })),
         get modeConfiguration() {
@@ -57,6 +58,7 @@ export function attachTypescriptShim(stub: MonacoTestStub): void {
       },
       javascriptDefaults: {
         setCompilerOptions: vi.fn(),
+        setInlayHintsOptions: vi.fn(),
         setEagerModelSync: vi.fn(),
         addExtraLib: vi.fn(() => ({ dispose: vi.fn() })),
         get modeConfiguration() {

@@ -165,6 +165,21 @@ describe('jsContribution', () => {
     expect(jsOptions.moduleResolution).toBe(100);
   });
 
+  it('should enable JavaScript parameter-name inlay hints when a javascript model opens', async () => {
+    registry.addContribution(jsContribution);
+    registry.activate(context);
+
+    stub.__createModel('inmemory://j_inlay/0', 'javascript');
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(stub.monaco.typescript.javascriptDefaults.setInlayHintsOptions)).toHaveBeenCalled();
+    });
+    expect(vi.mocked(stub.monaco.typescript.javascriptDefaults.setInlayHintsOptions)).toHaveBeenCalledWith({
+      includeInlayParameterNameHints: 'all',
+      includeInlayParameterNameHintsWhenArgumentMatchesName: true,
+    });
+  });
+
   it('should register implementation and type-definition providers for both JS language ids', async () => {
     const implSpy = vi.spyOn(stub.monaco.languages, 'registerImplementationProvider');
     const typedefSpy = vi.spyOn(stub.monaco.languages, 'registerTypeDefinitionProvider');

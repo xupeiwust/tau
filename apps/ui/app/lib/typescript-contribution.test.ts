@@ -164,6 +164,21 @@ describe('tsContribution', () => {
     expect(tsOptions.moduleResolution).toBe(100);
   });
 
+  it('should enable TypeScript parameter-name inlay hints when a typescript model opens', async () => {
+    registry.addContribution(tsContribution);
+    registry.activate(context);
+
+    stub.__createModel('inmemory://t_inlay/0', 'typescript');
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(stub.monaco.typescript.typescriptDefaults.setInlayHintsOptions)).toHaveBeenCalled();
+    });
+    expect(vi.mocked(stub.monaco.typescript.typescriptDefaults.setInlayHintsOptions)).toHaveBeenCalledWith({
+      includeInlayParameterNameHints: 'all',
+      includeInlayParameterNameHintsWhenArgumentMatchesName: true,
+    });
+  });
+
   it('should register implementation and type-definition providers for both TS language ids', async () => {
     const implSpy = vi.spyOn(stub.monaco.languages, 'registerImplementationProvider');
     const typedefSpy = vi.spyOn(stub.monaco.languages, 'registerTypeDefinitionProvider');
